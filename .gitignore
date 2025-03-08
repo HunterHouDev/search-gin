@@ -7,9 +7,9 @@ vapp/**/**
 /app/**/**
 
 election/node_modules/
-searchGin
+gosrc
 gin.log
-searchGin
+gosrc
 vitehome/dist/**/*
 /vitehome/dist/
 vitehome/node_modules/
@@ -19,7 +19,7 @@ vitehome/node_modules/
 vuehome/node_modules/
 election/node_modules/
 searchapp/unpackage
-searchGin-journal
+gosrc-journal
 __debug_bin.exe
 __debug_bin.exe
 viteApp/appVite.exe
