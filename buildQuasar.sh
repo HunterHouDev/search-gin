@@ -69,6 +69,7 @@ build_app() {
     log "INFO" "移动配置文件 '*.*(1)'"
     cp setting.json '../qapp/setting.json(1)' || { log "ERROR" "移动 setting.json 文件失败"; exit 1; }
     cp ffmpeg.exe '../qapp/ffmpeg.exe' || { log "ERROR" "移动 ffmpeg.exe 文件失败"; exit 1; }
+    cp ffplay.exe '../qapp/ffplay.exe' || { log "ERROR" "移动 ffplay.exe 文件失败"; exit 1; }
     cd .. || { log "ERROR" "无法返回上级目录"; exit 1; }
     log "INFO" "APP 打包完成！！！"
 }
