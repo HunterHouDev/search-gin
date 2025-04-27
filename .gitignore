@@ -7,9 +7,7 @@ vapp/**/**
 /app/**/**
 
 election/node_modules/
-gosrc
 gin.log
-gosrc
 vitehome/dist/**/*
 /vitehome/dist/
 vitehome/node_modules/
