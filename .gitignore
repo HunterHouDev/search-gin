@@ -5,6 +5,7 @@ qapp/**/**
 vapp/**/**
 .vscode/settings.json
 /app/**/**
+**/dist/**
 
 election/node_modules/
 gin.log
