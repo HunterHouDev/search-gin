@@ -1,0 +1,73 @@
+# EditorConfig is awesome: https://EditorConfig.org
+
+# Search-Gin Project Editor Configuration
+root = true
+
+# All files
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Makefile - use tabs
+[Makefile]
+indent_style = tab
+
+# Shell scripts
+[*.sh]
+indent_style = tab
+shell_variant = bash
+
+# Windows batch files
+[*.bat]
+end_of_line = crlf
+
+# Go files
+[*.go]
+indent_size = 4
+max_line_length = 120
+
+# Vue/TypeScript/JavaScript
+[*.{vue,ts,tsx,js,jsx,json}]
+indent_size = 2
+
+# YAML files
+[*.{yml,yaml}]
+indent_size = 2
+
+# Markdown files
+[*.md]
+trim_trailing_whitespace = false
+max_line_length = off
+
+# HTML/CSS
+[*.{html,css,scss,sass}]
+indent_size = 2
+
+# XML files
+[*.{xml,xsd,xsl}]
+indent_size = 2
+
+# Shell scripts
+[*.{bash,sh}]
+indent_size = 4
+shell_variant = bash
+
+# Python files
+[*.py]
+indent_size = 4
+
+# Java/Kotlin files
+[*.{java,kt}]
+indent_size = 4
+
+# C/C++ files
+[*.{c,cpp,h,hpp}]
+indent_size = 4
+
+# Configuration files
+[.env*]
+indent_size = 2

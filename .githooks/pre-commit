@@ -1,0 +1,59 @@
+# Git 钩子配置
+# 此目录由 git 初始化后创建
+
+# 预提交钩子示例
+# 将此文件复制到 .git/hooks/pre-commit 并添加执行权限
+
+#!/bin/sh
+
+# Search-Gin Pre-commit Hook
+# 此钩子会在提交前执行代码检查
+
+echo "🔍 Running pre-commit checks..."
+
+# 检查是否有未暂存的更改
+if [ -n "$(git status --porcelain)" ]; then
+    echo "📝 There are uncommitted changes. Please commit or stash them first."
+fi
+
+# 运行 Go 代码检查 (如果有 golangci-lint)
+if [ -d "gosrc" ] && command -v golangci-lint >/dev/null 2>&1; then
+    echo "🔍 Running Go linter..."
+    cd gosrc
+    golangci-lint run ./... || {
+        echo "❌ Go linting failed. Please fix the issues before committing."
+        cd ..
+        exit 1
+    }
+    cd ..
+fi
+
+# 运行前端代码检查 (如果存在 package.json)
+if [ -f "electron_quasar/package.json" ]; then
+    cd electron_quasar
+    if command -v yarn >/dev/null 2>&1; then
+        echo "🔍 Running ESLint..."
+        yarn lint || {
+            echo "❌ ESLint failed. Please fix the issues before committing."
+            cd ..
+            exit 1
+        }
+    elif command -v npm >/dev/null 2>&1; then
+        echo "🔍 Running ESLint..."
+        npm run lint || {
+            echo "❌ ESLint failed. Please fix the issues before committing."
+            cd ..
+            exit 1
+        }
+    fi
+    cd ..
+fi
+
+# 检查是否有调试代码
+echo "🔍 Checking for debug code..."
+DEBUG_PATTERNS="console\.log.*\?console\.debug"
+if git diff --cached | grep -E "$DEBUG_PATTERNS" >/dev/null 2>&1; then
+    echo "⚠️  Warning: Debug code detected in staged changes"
+fi
+
+echo "✅ Pre-commit checks passed!"
