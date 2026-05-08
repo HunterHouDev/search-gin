@@ -139,7 +139,7 @@ logoutTimer = setInterval(() => {
     localStorage.removeItem('isAuthenticated');
     router.push('/');
   }
-}, 1000);
+}, 3000);
 
 onUnmounted(() => {
   if (logoutTimer) {

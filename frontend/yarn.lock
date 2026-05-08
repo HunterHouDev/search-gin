@@ -354,7 +354,7 @@
     "@parcel/watcher-win32-ia32" "2.5.6"
     "@parcel/watcher-win32-x64" "2.5.6"
 
-"@quasar/app-vite@^1.3.0":
+"@quasar/app-vite@^1.11.0":
   version "1.11.0"
   resolved "https://registry.yarnpkg.com/@quasar/app-vite/-/app-vite-1.11.0.tgz#077c758b58f43c20aa5f70dd6d54ad1f3bd2ae96"
   integrity sha512-PUeqtYs2liA/O17LJ25jzKckB0MG1ZW/iuDC7NvCMZpYT6Ab66AypiYfPf4WGWeAqricorHVNRyMfMpTscR/hA==
@@ -394,7 +394,7 @@
     vite "^2.9.13"
     webpack-merge "^5.8.0"
 
-"@quasar/extras@^1.16.17":
+"@quasar/extras@^1.18.0":
   version "1.18.0"
   resolved "https://registry.yarnpkg.com/@quasar/extras/-/extras-1.18.0.tgz#ff62889de6b48e30e5c2f44f8da167e1589b1ff9"
   integrity sha512-hIqqw56sKGujWA3sTIT1ItlVglD+eA3hAWDVxY4qjA4/BSgYJDHk6ymJCbsDPIJFT7DJsG/F3A67vELXbBAIvA==
@@ -1114,7 +1114,7 @@ autoprefixer@^10.4.2:
     picocolors "^1.0.0"
     postcss-value-parser "^4.2.0"
 
-axios@^1.2.1:
+axios@^1.16.0:
   version "1.16.0"
   resolved "https://registry.yarnpkg.com/axios/-/axios-1.16.0.tgz#f8e5dd931cef2a5f8c32216d5784eda2f8750eb7"
   integrity sha512-6hp5CwvTPlN2A31g5dxnwAX0orzM7pmCRDLnZSX772mv8WDqICwFjowHuPs04Mc8deIld1+ejhtaMn5vp6b+1w==
@@ -3827,7 +3827,7 @@ pinia-plugin-persist@^1.0.0:
   dependencies:
     vue-demi "^0.12.1"
 
-pinia@^2.0.11:
+pinia@^2.3.1:
   version "2.3.1"
   resolved "https://registry.yarnpkg.com/pinia/-/pinia-2.3.1.tgz#54c476675b72f5abcfafa24a7582531ea8c23d94"
   integrity sha512-khUlZSwt9xXCaTbbxFYBKDc/bWAGWJjOgvxETwkTN7KRm66EeT1ZdZj6i2ceh9sP2Pzqsbc704r2yngBrxBVug==
@@ -3943,7 +3943,7 @@ qs@~6.15.1:
   dependencies:
     side-channel "^1.1.0"
 
-quasar@^2.6.0:
+quasar@^2.19.3:
   version "2.19.3"
   resolved "https://registry.yarnpkg.com/quasar/-/quasar-2.19.3.tgz#b32fe557a79f4f8ae5b303f5847f992776d8a321"
   integrity sha512-z9uEiZfpkkwUGedgVfARRoF7h30qWSZwUfUTLOo/jXCiGL5KYQt5N39XpKVOW0Y7lGF9kSAZuFHvYoPZoMUpfg==
@@ -4804,7 +4804,7 @@ vue-eslint-parser@^9.3.1:
     lodash "^4.17.21"
     semver "^7.3.6"
 
-vue-router@^4.0.0:
+vue-router@^4.6.4:
   version "4.6.4"
   resolved "https://registry.yarnpkg.com/vue-router/-/vue-router-4.6.4.tgz#a0a9cb9ef811a106d249e4bb9313d286718020d8"
   integrity sha512-Hz9q5sa33Yhduglwz6g9skT8OBPii+4bFn88w6J+J4MfEo4KRRpmiNG/hHHkdbRFlLBOqxN8y8gf2Fb0MTUgVg==
