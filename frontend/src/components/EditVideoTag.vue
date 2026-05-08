@@ -1,0 +1,217 @@
+<template>
+  <div
+    style="
+      padding: 12px 4px;
+      background-color: rgba(250, 250, 250, 0.9);
+      max-width: 400px;
+      max-height: 100vh;
+      height: auto;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+    "
+  >
+    <div class="col">
+      <q-btn flat dense> 种草来源 </q-btn>
+      <q-radio
+        v-model="systemProperty.submitTagFromData"
+        checked-icon="task_alt"
+        unchecked-icon="panorama_fish_eye"
+        :val="true"
+        label="标签统计"
+        @click="loadTagData"
+      />
+      <q-radio
+        v-model="systemProperty.submitTagFromData"
+        checked-icon="task_alt"
+        unchecked-icon="panorama_fish_eye"
+        :val="false"
+        label="标签设置"
+        @click="loadTagData"
+      />
+    </div>
+    <div class="row w100">
+      <div class="col-12">
+        <q-btn flat dense> 转码任务 </q-btn>
+        <q-btn @click="toVcode(props.currentData.Id, 'copy')">MP4</q-btn>
+        <q-btn @click="toVcode(props.currentData.Id, 'h264')">H264</q-btn>
+        <q-btn @click="toVcode(props.currentData.Id, 'h265')">H265</q-btn>
+      </div>
+    </div>
+    <div
+      class="justify-start w100"
+      style="max-width: 400px; height: auto; min-height: 60px; overflow: auto"
+    >
+      <q-btn
+        icon="ti-minus"
+        square
+        dense
+        size="sm"
+        text-color="white"
+        color="red"
+        class="tag-item glossy"
+        v-for="tag in props.currentData?.Tags"
+        :key="tag"
+        :label="tag"
+        :val="tag"
+        @click="removePlayingTag(props.currentData.Id, tag)"
+      />
+    </div>
+    <div
+      style="max-width: 400px"
+      class="row w100 justify-start"
+      v-if="!systemProperty.submitMutiTag"
+    >
+      <q-btn
+        size="md"
+        icon="ti-plus"
+        square
+        dense
+        text-color="white"
+        color="red"
+        class="tag-item glossy fixed"
+        v-for="tag in view.tagData"
+        :key="tag.Name"
+        :label="tag.Name"
+        :val="tag.Name"
+        v-close-popup
+        @click="addPlayingTag(props.currentData.Id, tag.Name)"
+        :disable="props.currentData?.Tags?.indexOf(tag.Name) >= 0"
+      />
+    </div>
+    <div class="row w100">
+      <q-btn
+        color="orange"
+        class="glossy w100"
+        v-close-popup
+        @click="addPlayingMutiTag(props.currentData.Id)"
+        v-if="systemProperty.submitMutiTag"
+        label="提交"
+      ></q-btn>
+    </div>
+    <div
+      class="row"
+      style="max-width: 400px; max-height: 400px; overflow: auto"
+      v-if="systemProperty.submitMutiTag"
+    >
+      <q-checkbox
+        keep-color
+        v-model="view.submitMutiTag"
+        v-for="tag in view.tagData"
+        :key="tag.Name"
+        :label="tag.Name.substring(0, 6)"
+        :val="tag.Name"
+        dense
+        :disable="props.currentData?.Tags?.indexOf(tag.Name) >= 0"
+        :dark="props.currentData?.Tags?.indexOf(tag.Name) >= 0"
+        color="red"
+        class="q-pr-md glossy"
+      />
+    </div>
+  </div>
+</template>
+<script setup>
+import { useQuasar } from 'quasar';
+import { useSystemProperty } from 'src/stores/System';
+import {
+  AddTag,
+  CloseTag,
+  TansferFile,
+  TansferFileVcode,
+} from './api/searchAPI';
+import { onMounted, reactive, inject } from 'vue';
+
+const $q = useQuasar();
+
+const systemProperty = useSystemProperty();
+const props = defineProps({
+  currentData: {
+    type: Object,
+    default: () => ({}),
+  },
+});
+
+const view = reactive({
+  tagData: [],
+  submitMutiTag: [],
+});
+
+const refreshDebounceFn = inject('refreshDebounceFn', () => {
+  console.log('refreshDebounceFn not found');
+});
+
+const emmits = defineEmits(['nextOne', 'prevOne']);
+
+const toVcode = async (item, vcode) => {
+  if (systemProperty.addPlayingTagGoNext) {
+    emmits('nextOne');
+  } else {
+    emmits('prevOne');
+  }
+  if (vcode == 'copy') {
+    commonExec(TansferFile(item));
+  } else {
+    commonExec(TansferFileVcode(item, vcode));
+  }
+};
+
+const commonExec = async (exec) => {
+  const { Code, Message } = (await exec) || {};
+  if (Code !== 200) {
+    $q.notify({ message: `${Message}`, position: 'top-right' });
+  } 
+};
+
+const loadTagData = async () => {
+  if (
+    systemProperty.submitTagFromData &&
+    systemProperty.tagSizeMap &&
+    systemProperty.tagSizeMap.length > 0
+  ) {
+    view.tagData = systemProperty.tagSizeMap;
+  } else {
+    systemProperty.SettingInfo.Tags;
+    view.tagData = systemProperty.SettingInfo.Tags.map((item) => {
+      return { Name: item };
+    });
+  }
+};
+
+const addPlayingMutiTag = async (id) => {
+  if (view.submitMutiTag.length > 0) {
+    const tags = view.submitMutiTag.join(',');
+    await addPlayingTag(id, tags);
+    view.submitMutiTag = [];
+  }
+};
+
+const addPlayingTag = async (id, tag) => {
+  if (systemProperty.addPlayingTagGoNext) {
+    emmits('nextOne');
+  } else {
+    emmits('prevOne');
+  }
+
+  setTimeout(async () => {
+    await AddTag(id, tag);
+    refreshDebounceFn(props.currentData);
+  }, 1000);
+};
+
+const removePlayingTag = async (id, tag) => {
+  if (systemProperty.addPlayingTagGoNext) {
+    emmits('nextOne');
+  } else {
+    emmits('prevOne');
+  }
+
+  setTimeout(async () => {
+    await CloseTag(id, tag);
+    refreshDebounceFn(props.currentData);
+  }, 1000);
+};
+
+onMounted(() => {
+  loadTagData();
+});
+</script>

@@ -3,14 +3,14 @@ qapp/**/**
 .vscode/settings.json
 **/dist/**
 
-election/node_modules/
+frontend/node_modules/
 gin.log
-election/node_modules/
-searchapp/unpackage
 gosrc-journal
 __debug_bin.exe
 __debug_bin.exe
 node_modules
 **/.DS_Store/**
 ./**/.DS_Store
-electron_quasar/src-electron/icons/qapp/
+searchapp/unpackage
+frontend/src-electron/icons/qapp/
+
