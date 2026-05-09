@@ -2,6 +2,17 @@
   <q-page class="immersive-container">
     <canvas ref="particleCanvas" class="particle-canvas"></canvas>
 
+    <q-btn
+      flat
+      round
+      color="white"
+      icon="arrow_back"
+      class="back-btn"
+      @click="goBack"
+    >
+      <q-tooltip class="bg-white text-primary">返回</q-tooltip>
+    </q-btn>
+
     <div class="video-wrapper" v-show="videoLoaded">
       <video
         ref="videoRef"
@@ -18,11 +29,71 @@
       ></video>
     </div>
 
-    <div v-if="!videoLoaded" class="drop-zone" @dragover.prevent @drop="handleDrop">
+    <div v-if="!videoLoaded && !torrentLoading" class="drop-zone" @dragover.prevent @drop="handleDrop">
       <div class="drop-content">
         <q-icon name="movie" size="64px" color="grey-6"></q-icon>
         <p class="text-grey-5 text-h6 q-mt-md">拖拽视频文件到此处</p>
         <p class="text-grey-6">支持 MP4, MKV, AVI 等格式</p>
+      </div>
+    </div>
+
+    <div v-if="torrentLoading" class="torrent-loading">
+      <div class="loading-ring">
+        <q-spinner-gears size="80px" color="indigo-4" />
+      </div>
+      <div class="loading-info">
+        <p class="text-white text-h6">{{ torrentName }}</p>
+        <div class="progress-bar-container">
+          <q-linear-progress
+            :value="torrentProgress / 100"
+            color="indigo-5"
+            track-color="grey-9"
+            size="8px"
+            rounded
+          />
+        </div>
+        <p class="text-grey-4 q-mt-sm">
+          {{ torrentProgress.toFixed(1) }}% · {{ torrentState }}
+          <span v-if="torrentPeers > 0"> · {{ torrentPeers }} 个节点</span>
+        </p>
+        <q-btn
+          flat
+          color="red-4"
+          label="取消"
+          size="sm"
+          @click="cancelTorrent"
+          class="q-mt-sm"
+        />
+      </div>
+    </div>
+
+    <div v-if="!videoLoaded && !torrentLoading" class="magnet-input-area">
+      <div class="magnet-input-wrapper">
+        <q-input
+          v-model="magnetURI"
+          placeholder="粘贴磁力链 magnet:?xt=urn:btih:..."
+          dark
+          dense
+          outlined
+          color="indigo-5"
+          class="magnet-input"
+          @keyup.enter="submitMagnet"
+        >
+          <template v-slot:prepend>
+            <q-icon name="link" color="indigo-4" />
+          </template>
+        </q-input>
+        <q-btn
+          flat
+          round
+          color="indigo-4"
+          icon="play_circle_filled"
+          size="lg"
+          @click="submitMagnet"
+          :disable="!magnetURI.trim()"
+        >
+          <q-tooltip class="bg-white text-primary">播放磁力链</q-tooltip>
+        </q-btn>
       </div>
     </div>
 
@@ -70,8 +141,11 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
+import { useRouter } from 'vue-router';
+import axios from 'axios';
 
 const $q = useQuasar();
+const router = useRouter();
 
 const videoRef = ref(null);
 const particleCanvas = ref(null);
@@ -91,6 +165,15 @@ const durationSeconds = ref(0);
 const controlsHidden = ref(false);
 const particleCount = ref(0);
 
+const magnetURI = ref('');
+const torrentLoading = ref(false);
+const torrentName = ref('');
+const torrentProgress = ref(0);
+const torrentState = ref('');
+const torrentPeers = ref(0);
+const currentInfoHash = ref('');
+let torrentPollTimer = null;
+
 let audioContext = null;
 let analyser = null;
 let animationFrameId = null;
@@ -108,6 +191,10 @@ const volumeIcon = computed(() => {
   if (volume.value < 0.7) return 'volume_down';
   return 'volume_up';
 });
+
+function goBack() {
+  router.back();
+}
 
 class Particle {
   constructor(canvas) {
@@ -170,7 +257,7 @@ class Particle {
 function initParticles() {
   if (!particleCanvas.value) return;
   const canvas = particleCanvas.value;
-  const ctx = canvas.getContext('2d');
+  const _ctx = canvas.getContext('2d');
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
 
@@ -257,6 +344,80 @@ function loadVideo(src, name) {
       }
     }
   }, 100);
+}
+
+async function submitMagnet() {
+  const uri = magnetURI.value.trim();
+  if (!uri.startsWith('magnet:')) {
+    $q.notify({ type: 'negative', message: '请输入有效的磁力链', position: 'top' });
+    return;
+  }
+
+  torrentLoading.value = true;
+  torrentProgress.value = 0;
+  torrentState.value = '正在连接...';
+  torrentName.value = '获取种子信息中...';
+
+  try {
+    const res = await axios.post('/api/torrent/add', { magnetURI: uri });
+    if (res.data && res.data.code === 200) {
+      currentInfoHash.value = res.data.data.infoHash;
+      startPolling(currentInfoHash.value);
+    } else {
+      $q.notify({ type: 'negative', message: res.data?.message || '添加磁力链失败', position: 'top' });
+      torrentLoading.value = false;
+    }
+  } catch (err) {
+    $q.notify({ type: 'negative', message: '请求失败: ' + (err.response?.data?.message || err.message), position: 'top' });
+    torrentLoading.value = false;
+  }
+}
+
+function startPolling(infoHash) {
+  stopPolling();
+  torrentPollTimer = setInterval(async () => {
+    try {
+      const res = await axios.get(`/api/torrent/status/${infoHash}`);
+      if (res.data && res.data.code === 200) {
+        const data = res.data.data;
+        torrentName.value = data.name;
+        torrentProgress.value = data.progress;
+        torrentState.value = data.state;
+        torrentPeers.value = data.peers;
+
+        if (data.progress >= 3 && !videoLoaded.value) {
+          torrentState.value = '缓冲就绪，开始播放';
+          loadVideo(`/api/torrent/stream/${infoHash}`, data.videoFile || data.name);
+          stopPolling();
+        }
+      }
+    } catch (err) {
+      console.warn('轮询状态失败:', err);
+    }
+  }, 2000);
+}
+
+function stopPolling() {
+  if (torrentPollTimer) {
+    clearInterval(torrentPollTimer);
+    torrentPollTimer = null;
+  }
+}
+
+async function cancelTorrent() {
+  stopPolling();
+  if (currentInfoHash.value) {
+    try {
+      await axios.delete(`/api/torrent/${currentInfoHash.value}`);
+    } catch (err) {
+      console.warn('取消下载失败:', err);
+    }
+  }
+  torrentLoading.value = false;
+  torrentProgress.value = 0;
+  torrentState.value = '';
+  torrentName.value = '';
+  currentInfoHash.value = '';
 }
 
 function togglePlay() {
@@ -384,6 +545,10 @@ onUnmounted(() => {
   if (audioContext) {
     audioContext.close();
   }
+  stopPolling();
+  if (currentInfoHash.value) {
+    axios.delete(`/api/torrent/${currentInfoHash.value}`).catch(() => { /* ignore */ });
+  }
   document.removeEventListener('resize', handleResize);
 });
 
@@ -408,6 +573,24 @@ watch(isPlaying, (playing) => {
   height: 100vh;
   background: radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a0f 100%);
   overflow: hidden;
+}
+
+.back-btn {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 30;
+  background: rgba(15, 15, 25, 0.5);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  transition: all 0.3s ease;
+}
+
+.back-btn:hover {
+  background: rgba(99, 102, 241, 0.3);
+  border-color: rgba(99, 102, 241, 0.6);
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
 }
 
 .particle-canvas {
@@ -466,6 +649,78 @@ watch(isPlaying, (playing) => {
 
 .drop-content {
   text-align: center;
+}
+
+.magnet-input-area {
+  position: absolute;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  width: 70vw;
+  max-width: 700px;
+}
+
+.magnet-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(15, 15, 25, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 16px;
+  padding: 8px 16px;
+  transition: all 0.3s ease;
+}
+
+.magnet-input-wrapper:hover {
+  border-color: rgba(99, 102, 241, 0.6);
+  box-shadow: 0 0 30px rgba(99, 102, 241, 0.2);
+}
+
+.magnet-input {
+  flex: 1;
+}
+
+.magnet-input :deep(.q-field__control) {
+  background: transparent;
+}
+
+.magnet-input :deep(.q-field__native) {
+  color: #c4b5fd;
+  font-size: 0.9rem;
+}
+
+.magnet-input :deep(.q-field__native::placeholder) {
+  color: rgba(165, 148, 249, 0.4);
+}
+
+.torrent-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  text-align: center;
+}
+
+.loading-ring {
+  margin-bottom: 24px;
+}
+
+.loading-info {
+  background: rgba(15, 15, 25, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 16px;
+  padding: 24px 32px;
+  min-width: 320px;
+}
+
+.progress-bar-container {
+  margin-top: 12px;
 }
 
 .glass-panel {
@@ -592,6 +847,11 @@ watch(isPlaying, (playing) => {
 
   .video-title {
     font-size: 0.9rem;
+  }
+
+  .magnet-input-area {
+    width: 90vw;
+    bottom: 80px;
   }
 }
 </style>

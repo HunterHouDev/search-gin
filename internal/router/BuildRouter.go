@@ -114,5 +114,11 @@ func BuildRouter(tempDir string) *gin.Engine {
 	router.GET("/api/logMemery", handler.GetLogMemery)
 
 	router.GET("/api/cutImage/:id/:typeImage/:downFlag/:start", handler.GetCutImage)
+
+	router.POST("/api/torrent/add", handler.PostAddMagnet)
+	router.GET("/api/torrent/stream/:infoHash", handler.GetTorrentStream)
+	router.GET("/api/torrent/status/:infoHash", handler.GetTorrentStatus)
+	router.DELETE("/api/torrent/:infoHash", handler.DeleteTorrent)
+
 	return router
 }

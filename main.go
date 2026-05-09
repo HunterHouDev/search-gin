@@ -108,6 +108,17 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	service.InitSetting()
 
+	torrentDir := filepath.Join(tempDir, "torrent_data")
+	os.MkdirAll(torrentDir, 0755)
+	if err := service.NewTorrentService(torrentDir); err != nil {
+		utils.InfoFormat("Torrent 服务启动失败: %v", err)
+	} else {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go service.TorrentApp.StartCleanup(ctx)
+		defer service.TorrentApp.Close()
+	}
+
 	app := router.BuildRouter(tempDir)
 
 	port_nos := []string{consts.PortNo, consts.PortNo2, consts.PortNo3}
