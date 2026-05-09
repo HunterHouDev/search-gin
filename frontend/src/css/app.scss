@@ -1,1 +1,115 @@
 // app global css in SCSS form
+
+// Immersive Theme - Global CSS Variables
+:root {
+  // Primary Colors
+  --q-primary: #6366f1;
+  --q-primary-light: #818cf8;
+  --q-primary-lighter: #a5b4fc;
+  --q-primary-dark: #4f46e5;
+
+  // Background Colors
+  --q-bg-dark: #0f0f1a;
+  --q-bg-darker: #090912;
+  --q-bg-card: rgba(15, 15, 26, 0.95);
+
+  // Text Colors
+  --q-text-primary: #e0e7ff;
+  --q-text-secondary: #a5b4fc;
+  --q-text-muted: #6b7280;
+
+  // Border Colors
+  --q-border: rgba(99, 102, 241, 0.25);
+  --q-border-light: rgba(99, 102, 241, 0.15);
+  --q-border-hover: rgba(99, 102, 241, 0.4);
+
+  // Status Colors
+  --q-success: #10b981;
+  --q-warning: #f59e0b;
+  --q-danger: #ef4444;
+  --q-info: #06b6d4;
+
+  // Shadows
+  --q-shadow: 0 4px 16px rgba(99, 102, 241, 0.25);
+  --q-shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.4);
+}
+
+// Global Dark Theme Styles
+body {
+  background-color: var(--q-bg-darker);
+  color: var(--q-text-primary);
+}
+
+// Dark cards with indigo accent
+.q-card {
+  background: var(--q-bg-card) !important;
+  backdrop-filter: blur(32px);
+  border: 1px solid var(--q-border);
+}
+
+// Dark inputs
+.q-field--dark .q-field__control {
+  background: rgba(30, 30, 50, 0.6) !important;
+}
+
+// Primary buttons
+.q-btn.btn-primary {
+  background: var(--q-primary) !important;
+  color: white !important;
+}
+
+// Primary outlines
+.q-btn.btn-outline-primary {
+  border: 1px solid var(--q-primary) !important;
+  color: var(--q-primary) !important;
+}
+
+// Indigo progress bars
+.q-linear-progress .q-linear-progress__track {
+  background: rgba(99, 102, 241, 0.15) !important;
+}
+
+// Scrollbar styling
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.3);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.5);
+}
+
+// Animations
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.slide-enter-active,
+.slide-leave-active {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.slide-enter-from {
+  transform: translateY(-20px);
+  opacity: 0;
+}
+
+.slide-leave-to {
+  transform: translateY(20px);
+  opacity: 0;
+}

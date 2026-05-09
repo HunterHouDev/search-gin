@@ -40,7 +40,7 @@ export const useSystemProperty = defineStore({
     pictureInPictureVideoWidth: defaultVideoWidth,
     pictureInPictureVideoWidthFullBefore: defaultVideoWidth,
     isFullscreen: false,
-    isDark: false,
+    isDark: true,
     isElectron: false,
     addPlayingTagGoNext: true,
     goActressNewWidow: false,

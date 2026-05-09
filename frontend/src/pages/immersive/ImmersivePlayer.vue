@@ -630,7 +630,102 @@
         </div>
       </div>
     </transition>
-  </div>
+
+    <!-- 下载管理器悬浮按钮 -->
+    <q-btn
+      v-if="activeDownloads.length > 0"
+      round
+      color="indigo-6"
+      icon="download"
+      class="download-fab"
+      @click="showDownloadManager = true"
+    >
+      <q-badge color="red" floating rounded>{{ activeDownloads.length }}</q-badge>
+      <q-tooltip>下载管理</q-tooltip>
+    </q-btn>
+
+    <!-- 下载管理器弹窗 -->
+    <q-dialog v-model="showDownloadManager" position="right" full-height>
+        <q-card class="download-manager-card">
+          <q-card-section class="download-manager-header">
+            <div class="download-manager-title">
+              <q-icon name="download" size="24px" />
+              <span>下载管理器</span>
+            </div>
+            <q-btn flat round dense icon="close" @click="showDownloadManager = false" />
+          </q-card-section>
+
+          <q-card-section class="download-manager-content">
+            <div v-if="activeDownloads.length === 0" class="download-empty">
+              <q-icon name="cloud_download" size="48px" color="grey-6" />
+              <p>暂无下载任务</p>
+            </div>
+
+            <div v-else class="download-list">
+              <div
+                v-for="task in activeDownloads"
+                :key="task.infoHash"
+                class="download-item"
+                :class="{ 'download-item-playing': task.infoHash === currentInfoHash && videoLoaded }"
+              >
+                <div class="download-item-info">
+                  <div class="download-item-name">{{ task.name }}</div>
+                  <div class="download-item-meta">
+                    <span class="download-item-file" v-if="task.fileName">{{ task.fileName }}</span>
+                    <span class="download-item-state" :class="'state-' + task.state">{{ task.state }}</span>
+                    <span class="download-item-percent">{{ task.progress.toFixed(1) }}%</span>
+                  </div>
+                  <q-linear-progress
+                    :value="task.progress / 100"
+                    color="indigo-5"
+                    track-color="grey-9"
+                    size="4px"
+                    rounded
+                    class="q-mt-xs"
+                  />
+                </div>
+                <div class="download-item-actions">
+                  <q-btn
+                    flat
+                    round
+                    dense
+                    color="green"
+                    icon="play_arrow"
+                    size="sm"
+                    :disable="task.progress < 1"
+                    @click="playDownloadTask(task)"
+                  >
+                    <q-tooltip>播放</q-tooltip>
+                  </q-btn>
+                  <q-btn
+                    flat
+                    round
+                    dense
+                    color="blue"
+                    icon="folder_open"
+                    size="sm"
+                    @click="openDownloadFolder(task)"
+                  >
+                    <q-tooltip>打开文件夹</q-tooltip>
+                  </q-btn>
+                  <q-btn
+                    flat
+                    round
+                    dense
+                    color="red"
+                    icon="close"
+                    size="sm"
+                    @click="removeDownloadTask(task)"
+                  >
+                    <q-tooltip>删除</q-tooltip>
+                  </q-btn>
+                </div>
+              </div>
+        </div>
+      </q-card-section>
+    </q-card>
+  </q-dialog>
+</div>
 </template>
 
 <script setup>
@@ -717,6 +812,8 @@ const currentInfoHash = ref('');
 const torrentFiles = ref([]);
 const showTorrentFiles = ref(false);
 const selectedTorrentFile = ref(null);
+const showDownloadManager = ref(false);
+const activeDownloads = ref([]);
 let torrentPollTimer = null;
 
 // ── 播放列表 ──────────────────────────────────────────────────────────────────
@@ -1140,13 +1237,23 @@ async function playSelectedTorrentFile() {
   showTorrentFiles.value = false;
   torrentState.value = '正在开始下载...';
   torrentProgress.value = 0;
+  const fileName = torrentFiles.value.find(f => f.path === selectedTorrentFile.value)?.name || '未知文件';
   try {
     await axios.post('/api/torrent/startDownload', {
       infoHash: currentInfoHash.value,
       filePath: selectedTorrentFile.value,
     });
-    startPolling(currentInfoHash.value);
-    const fileName = torrentFiles.value.find(f => f.path === selectedTorrentFile.value)?.name || '未知文件';
+    const newTask = {
+      infoHash: currentInfoHash.value,
+      name: torrentName.value,
+      fileName: fileName,
+      filePath: selectedTorrentFile.value,
+      progress: 0,
+      state: '准备下载',
+      peers: 0,
+    };
+    activeDownloads.value.push(newTask);
+    startPolling(currentInfoHash.value, newTask);
     const streamUrl = `/api/torrent/stream/${currentInfoHash.value}?file=${encodeURIComponent(selectedTorrentFile.value)}`;
     loadVideo(streamUrl, fileName);
   } catch (err) {
@@ -1171,17 +1278,22 @@ function getFileIcon(fileName) {
   return 'insert_drive_file';
 }
 
-function startPolling(infoHash) {
+function startPolling(infoHash, task) {
   stopPolling();
   torrentPollTimer = setInterval(async () => {
     try {
       const res = await axios.get(`/api/torrent/status/${infoHash}`);
-      if (res.data?.Code === 200) {
-        const d = res.data.Data;
+      if (res.data?.code === 200) {
+        const d = res.data.data;
         torrentName.value = d.name;
         torrentProgress.value = d.progress;
         torrentState.value = d.state;
         torrentPeers.value = d.peers;
+        if (task) {
+          task.progress = d.progress;
+          task.state = d.state;
+          task.peers = d.peers;
+        }
         if (d.progress >= 3 && !videoLoaded.value && !showTorrentFiles.value) {
           torrentState.value = '缓冲就绪，开始播放';
           const streamUrl = `/api/torrent/stream/${infoHash}`;
@@ -1212,6 +1324,7 @@ async function cancelTorrent() {
     } catch {
       /* ignore */
     }
+    activeDownloads.value = activeDownloads.value.filter(t => t.infoHash !== currentInfoHash.value);
   }
   torrentLoading.value = false;
   torrentProgress.value = 0;
@@ -1221,6 +1334,28 @@ async function cancelTorrent() {
   torrentFiles.value = [];
   showTorrentFiles.value = false;
   selectedTorrentFile.value = null;
+}
+
+// ── 下载管理器 ─────────────────────────────────────────────────────────────────
+function playDownloadTask(task) {
+  const streamUrl = `/api/torrent/stream/${task.infoHash}?file=${encodeURIComponent(task.filePath)}`;
+  currentInfoHash.value = task.infoHash;
+  loadVideo(streamUrl, task.fileName);
+}
+
+function openDownloadFolder(task) {
+  window.open(`/api/openFolder/${task.infoHash}`, '_blank');
+}
+
+function removeDownloadTask(task) {
+  axios.delete(`/api/torrent/${task.infoHash}`).catch(() => {
+    /* ignore */
+  });
+  activeDownloads.value = activeDownloads.value.filter(t => t.infoHash !== task.infoHash);
+  if (currentInfoHash.value === task.infoHash) {
+    currentInfoHash.value = '';
+    torrentLoading.value = false;
+  }
 }
 
 // ── 播放控制 ──────────────────────────────────────────────────────────────────
@@ -2537,5 +2672,148 @@ onUnmounted(() => {
   .time-display {
     font-size: 0.75rem;
   }
+}
+
+/* ── 下载管理器 ─────────────────────────────────────────────────────────────── */
+.download-fab {
+  position: fixed !important;
+  bottom: 80px;
+  right: 24px;
+  z-index: 1000;
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
+}
+
+.download-manager-card {
+  width: 380px;
+  max-width: 90vw;
+  height: 100vh;
+  background: rgba(9, 9, 22, 0.95);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  border-left: 1px solid rgba(99, 102, 241, 0.25);
+}
+
+.download-manager-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+  padding: 16px 20px;
+}
+
+.download-manager-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #e0e7ff;
+}
+
+.download-manager-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.download-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: #6b7280;
+}
+
+.download-empty p {
+  margin-top: 12px;
+  font-size: 0.9rem;
+}
+
+.download-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.download-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  background: rgba(30, 30, 50, 0.6);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.download-item:hover {
+  background: rgba(40, 40, 65, 0.7);
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+.download-item-playing {
+  border-color: rgba(16, 185, 129, 0.5);
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.download-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.download-item-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #e0e7ff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.download-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 0.7rem;
+  color: #6b7280;
+}
+
+.download-item-file {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #9ca3af;
+}
+
+.download-item-state {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(99, 102, 241, 0.2);
+  color: #818cf8;
+}
+
+.download-item-state.state-已完成 {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+}
+
+.download-item-state.state-下载中,
+.download-item-state.state-正在连接 {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+}
+
+.download-item-percent {
+  min-width: 45px;
+  text-align: right;
+}
+
+.download-item-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 </style>

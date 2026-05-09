@@ -312,10 +312,8 @@ const fetchSearch = async () => {
 
 const themeStyle = computed(() => {
   return {
-    color: systemProperty.isDark ? 'white' : 'black',
-    backgroundColor: systemProperty.isDark
-      ? 'rgba(0, 0, 0, 0.6)'
-      : 'rgba(255, 255, 255, 0.9)',
+    color: '#e0e7ff',
+    backgroundColor: 'rgba(9, 9, 18, 0.95)',
   };
 });
 
