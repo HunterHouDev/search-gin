@@ -54,17 +54,23 @@ func (ts *TorrentService) Close() {
 	}
 }
 
-func (ts *TorrentService) AddMagnet(magnetURI string) (string, error) {
+type AddMagnetResult struct {
+	InfoHash string         `json:"infoHash"`
+	Name     string         `json:"name"`
+	Files    []*TorrentFile `json:"files"`
+}
+
+func (ts *TorrentService) AddMagnet(magnetURI string) (*AddMagnetResult, error) {
 	t, err := ts.client.AddMagnet(magnetURI)
 	if err != nil {
-		return "", fmt.Errorf("添加磁力链失败: %v", err)
+		return nil, fmt.Errorf("添加磁力链失败: %v", err)
 	}
 
 	select {
 	case <-t.GotInfo():
 	case <-time.After(60 * time.Second):
 		t.Drop()
-		return "", fmt.Errorf("获取种子信息超时")
+		return nil, fmt.Errorf("获取种子信息超时")
 	}
 
 	infoHash := t.InfoHash().HexString()
@@ -73,10 +79,43 @@ func (ts *TorrentService) AddMagnet(magnetURI string) (string, error) {
 	ts.torrents[t.InfoHash()] = t
 	ts.mu.Unlock()
 
-	t.DownloadAll()
+	var files []*TorrentFile
+	for _, f := range t.Files() {
+		files = append(files, &TorrentFile{
+			Name:   filepath.Base(f.Path()),
+			Path:   f.Path(),
+			Length: f.Length(),
+		})
+	}
 
-	utils.InfoFormat("已添加磁力链: %s, InfoHash: %s, 文件数: %d", t.Name(), infoHash, len(t.Files()))
-	return infoHash, nil
+	utils.InfoFormat("已添加磁力链: %s, InfoHash: %s, 文件数: %d", t.Name(), infoHash, len(files))
+	return &AddMagnetResult{
+		InfoHash: infoHash,
+		Name:     t.Name(),
+		Files:    files,
+	}, nil
+}
+
+func (ts *TorrentService) StartDownload(infoHash, filePath string) error {
+	t, err := ts.GetTorrent(infoHash)
+	if err != nil {
+		return err
+	}
+
+	if filePath != "" {
+		for _, f := range t.Files() {
+			if f.Path() == filePath {
+				f.Download()
+				utils.InfoFormat("开始下载文件: %s, InfoHash: %s", filePath, infoHash)
+				return nil
+			}
+		}
+		return fmt.Errorf("未找到文件: %s", filePath)
+	}
+
+	t.DownloadAll()
+	utils.InfoFormat("开始下载全部文件: %s", infoHash)
+	return nil
 }
 
 func (ts *TorrentService) GetTorrent(infoHash string) (*torrent.Torrent, error) {
@@ -132,10 +171,60 @@ func (ts *TorrentService) GetVideoFile(infoHash string) (*torrent.File, error) {
 	return candidates[0], nil
 }
 
-func (ts *TorrentService) StreamVideo(infoHash string, w http.ResponseWriter, r *http.Request) error {
-	videoFile, err := ts.GetVideoFile(infoHash)
+type TorrentFile struct {
+	Name   string `json:"name"`
+	Path   string `json:"path"`
+	Length int64  `json:"length"`
+}
+
+func (ts *TorrentService) GetFiles(infoHash string) ([]*TorrentFile, error) {
+	t, err := ts.GetTorrent(infoHash)
 	if err != nil {
-		return err
+		return nil, err
+	}
+
+	var files []*TorrentFile
+	for _, f := range t.Files() {
+		files = append(files, &TorrentFile{
+			Name:   filepath.Base(f.Path()),
+			Path:   f.Path(),
+			Length: f.Length(),
+		})
+	}
+
+	return files, nil
+}
+
+func (ts *TorrentService) GetFileByPath(infoHash, filePath string) (*torrent.File, error) {
+	t, err := ts.GetTorrent(infoHash)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, f := range t.Files() {
+		if f.Path() == filePath {
+			return f, nil
+		}
+	}
+
+	return nil, fmt.Errorf("未找到文件: %s", filePath)
+}
+
+func (ts *TorrentService) StreamVideo(infoHash string, w http.ResponseWriter, r *http.Request) error {
+	filePath := r.URL.Query().Get("file")
+	var videoFile *torrent.File
+	var err error
+
+	if filePath != "" {
+		videoFile, err = ts.GetFileByPath(infoHash, filePath)
+		if err != nil {
+			return err
+		}
+	} else {
+		videoFile, err = ts.GetVideoFile(infoHash)
+		if err != nil {
+			return err
+		}
 	}
 
 	fileSize := videoFile.Length()

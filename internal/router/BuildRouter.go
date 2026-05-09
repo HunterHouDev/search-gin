@@ -1,12 +1,12 @@
 package router
 
 import (
-	"search-gin/internal/handler"
-	"search-gin/internal/env"
-	"search-gin/pkg/utils"
-	"search-gin/middleware"
 	"net/http"
 	"path/filepath"
+	"search-gin/internal/env"
+	"search-gin/internal/handler"
+	"search-gin/middleware"
+	"search-gin/pkg/utils"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -118,6 +118,8 @@ func BuildRouter(tempDir string) *gin.Engine {
 	router.GET("/api/cutImage/:id/:typeImage/:downFlag/:start", handler.GetCutImage)
 
 	router.POST("/api/torrent/add", handler.PostAddMagnet)
+	router.POST("/api/torrent/startDownload", handler.PostStartDownload)
+	router.GET("/api/torrent/files/:infoHash", handler.GetTorrentFiles)
 	router.GET("/api/torrent/stream/:infoHash", handler.GetTorrentStream)
 	router.GET("/api/torrent/status/:infoHash", handler.GetTorrentStatus)
 	router.DELETE("/api/torrent/:infoHash", handler.DeleteTorrent)

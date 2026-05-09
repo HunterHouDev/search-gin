@@ -3,9 +3,10 @@ package handler
 import (
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"search-gin/internal/service"
 	"search-gin/pkg/utils"
+
+	"github.com/gin-gonic/gin"
 )
 
 type MagnetRequest struct {
@@ -24,15 +25,41 @@ func PostAddMagnet(c *gin.Context) {
 		return
 	}
 
-	infoHash, err := service.TorrentApp.AddMagnet(req.MagnetURI)
+	result, err := service.TorrentApp.AddMagnet(req.MagnetURI)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, utils.NewFailByMsg(err.Error()))
 		return
 	}
 
 	res := utils.NewSuccess()
-	res.Data = gin.H{"infoHash": infoHash}
+	res.Data = result
 	c.JSON(http.StatusOK, res)
+}
+
+type StartDownloadRequest struct {
+	InfoHash string `json:"infoHash" binding:"required"`
+	FilePath string `json:"filePath"`
+}
+
+func PostStartDownload(c *gin.Context) {
+	var req StartDownloadRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("请提供有效的参数"))
+		return
+	}
+
+	if service.TorrentApp == nil {
+		c.JSON(http.StatusServiceUnavailable, utils.NewFailByMsg("Torrent 服务未启动"))
+		return
+	}
+
+	err := service.TorrentApp.StartDownload(req.InfoHash, req.FilePath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, utils.NewFailByMsg(err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, utils.NewSuccess())
 }
 
 func GetTorrentStream(c *gin.Context) {
@@ -97,4 +124,27 @@ func DeleteTorrent(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, utils.NewSuccess())
+}
+
+func GetTorrentFiles(c *gin.Context) {
+	infoHash := c.Param("infoHash")
+	if infoHash == "" {
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("缺少 infoHash"))
+		return
+	}
+
+	if service.TorrentApp == nil {
+		c.JSON(http.StatusServiceUnavailable, utils.NewFailByMsg("Torrent 服务未启动"))
+		return
+	}
+
+	files, err := service.TorrentApp.GetFiles(infoHash)
+	if err != nil {
+		c.JSON(http.StatusNotFound, utils.NewFailByMsg(err.Error()))
+		return
+	}
+
+	res := utils.NewSuccess()
+	res.Data = files
+	c.JSON(http.StatusOK, res)
 }

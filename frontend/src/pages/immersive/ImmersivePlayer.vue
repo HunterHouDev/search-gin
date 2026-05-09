@@ -21,10 +21,11 @@
     <!-- 右上角搜索按钮 -->
     <q-btn
       flat
-      color="white"
-      icon="search"
+      glossy
+      :color="showMenuControls ? 'white' : 'blue'"
+      :icon="showMenuControls ? 'close' : 'search'"
       class="fixed-top-right-btn"
-      @click="showMenuControls = !showMenuControls"
+      @click="showMenuInfo"
     >
       <q-tooltip class="bg-dark text-white">搜索</q-tooltip>
     </q-btn>
@@ -384,9 +385,63 @@
       </div>
     </transition>
 
+    <!-- 磁力链文件选择 -->
+    <transition name="fade">
+      <div v-if="showTorrentFiles" class="torrent-files-dialog">
+        <div class="torrent-files-card">
+          <div class="torrent-files-header">
+            <q-icon name="folder_open" size="24px" color="indigo-4" />
+            <span class="torrent-files-title">{{ torrentName }}</span>
+            <span class="torrent-files-hint">选择要播放的文件</span>
+          </div>
+          <div class="torrent-files-list">
+            <div
+              v-for="(file, index) in torrentFiles"
+              :key="index"
+              class="torrent-file-item"
+              :class="{ 'torrent-file-selected': selectedTorrentFile === file.path }"
+              @click="selectTorrentFile(file)"
+            >
+              <q-icon
+                :name="getFileIcon(file.name)"
+                size="20px"
+                class="torrent-file-icon"
+              />
+              <div class="torrent-file-info">
+                <span class="torrent-file-name">{{ file.name }}</span>
+                <span class="torrent-file-size">{{ humanStorageSize(file.length) }}</span>
+              </div>
+              <q-icon
+                v-if="selectedTorrentFile === file.path"
+                name="play_circle_filled"
+                size="24px"
+                color="indigo-4"
+              />
+            </div>
+          </div>
+          <div class="torrent-files-actions">
+            <q-btn
+              flat
+              color="grey-5"
+              label="取消"
+              @click="cancelTorrent"
+            />
+            <q-btn
+              unelevated
+              color="indigo-6"
+              label="播放选中文件"
+              icon="play_arrow"
+              :disable="!selectedTorrentFile"
+              @click="playSelectedTorrentFile"
+            />
+          </div>
+        </div>
+      </div>
+    </transition>
+
     <!-- 种子加载中 -->
     <transition name="fade">
-      <div v-if="torrentLoading" class="torrent-loading">
+      <div v-if="torrentLoading && !showTorrentFiles" class="torrent-loading">
         <div class="torrent-loading-card">
           <div class="torrent-spinner">
             <q-spinner-gears size="64px" color="indigo-4" />
@@ -659,6 +714,9 @@ const torrentProgress = ref(0);
 const torrentState = ref('');
 const torrentPeers = ref(0);
 const currentInfoHash = ref('');
+const torrentFiles = ref([]);
+const showTorrentFiles = ref(false);
+const selectedTorrentFile = ref(null);
 let torrentPollTimer = null;
 
 // ── 播放列表 ──────────────────────────────────────────────────────────────────
@@ -709,6 +767,13 @@ const volumeIcon = computed(() => {
 // ── 导航 ──────────────────────────────────────────────────────────────────────
 function goBack() {
   router.back();
+}
+
+function showMenuInfo() {
+  showMenuControls.value = !showMenuControls.value;
+  if( playlist.value.length == 0) {
+    fetchSearch();
+  }
 }
 
 function handleBannerMouseLeave(e) {
@@ -1026,13 +1091,26 @@ async function submitMagnet() {
   }
   torrentLoading.value = true;
   torrentProgress.value = 0;
-  torrentState.value = '正在连接...';
+  torrentState.value = '正在解析磁力链...';
   torrentName.value = '获取种子信息中...';
   try {
     const res = await axios.post('/api/torrent/add', { magnetURI: uri });
     if (res.data?.code === 200) {
-      currentInfoHash.value = res.data.data.infoHash;
-      startPolling(currentInfoHash.value);
+      const data = res.data.data;
+      currentInfoHash.value = data.infoHash;
+      torrentName.value = data.name || '未知种子';
+      torrentFiles.value = data.files || [];
+      if (torrentFiles.value.length > 0) {
+        showTorrentFiles.value = true;
+        torrentLoading.value = false;
+      } else {
+        $q.notify({
+          type: 'warning',
+          message: '未解析到文件',
+          position: 'top',
+        });
+        torrentLoading.value = false;
+      }
     } else {
       $q.notify({
         type: 'negative',
@@ -1051,6 +1129,47 @@ async function submitMagnet() {
   }
 }
 
+function selectTorrentFile(file) {
+  selectedTorrentFile.value = file.path;
+}
+
+async function playSelectedTorrentFile() {
+  if (!selectedTorrentFile.value || !currentInfoHash.value) return;
+  torrentLoading.value = true;
+  showTorrentFiles.value = false;
+  torrentState.value = '正在开始下载...';
+  torrentProgress.value = 0;
+  try {
+    await axios.post('/api/torrent/startDownload', {
+      infoHash: currentInfoHash.value,
+      filePath: selectedTorrentFile.value,
+    });
+    startPolling(currentInfoHash.value);
+    const fileName = torrentFiles.value.find(f => f.path === selectedTorrentFile.value)?.name || '未知文件';
+    const streamUrl = `/api/torrent/stream/${currentInfoHash.value}?file=${encodeURIComponent(selectedTorrentFile.value)}`;
+    loadVideo(streamUrl, fileName);
+  } catch (err) {
+    $q.notify({
+      type: 'negative',
+      message: '启动下载失败: ' + (err.response?.data?.message || err.message),
+      position: 'top',
+    });
+    torrentLoading.value = false;
+  }
+  selectedTorrentFile.value = null;
+}
+
+function getFileIcon(fileName) {
+  const ext = fileName.split('.').pop()?.toLowerCase();
+  const videoExts = ['mp4', 'mkv', 'avi', 'mov', 'wmv', 'flv', 'webm', 'm4v', 'mpg', 'mpeg'];
+  const audioExts = ['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a'];
+  const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'];
+  if (videoExts.includes(ext)) return 'movie';
+  if (audioExts.includes(ext)) return 'audio_file';
+  if (imageExts.includes(ext)) return 'image';
+  return 'insert_drive_file';
+}
+
 function startPolling(infoHash) {
   stopPolling();
   torrentPollTimer = setInterval(async () => {
@@ -1062,7 +1181,7 @@ function startPolling(infoHash) {
         torrentProgress.value = d.progress;
         torrentState.value = d.state;
         torrentPeers.value = d.peers;
-        if (d.progress >= 3 && !videoLoaded.value) {
+        if (d.progress >= 3 && !videoLoaded.value && !showTorrentFiles.value) {
           torrentState.value = '缓冲就绪，开始播放';
           const streamUrl = `/api/torrent/stream/${infoHash}`;
           const newIdx = playlist.value.findIndex((p) => p.Id === infoHash);
@@ -1098,6 +1217,9 @@ async function cancelTorrent() {
   torrentState.value = '';
   torrentName.value = '';
   currentInfoHash.value = '';
+  torrentFiles.value = [];
+  showTorrentFiles.value = false;
+  selectedTorrentFile.value = null;
 }
 
 // ── 播放控制 ──────────────────────────────────────────────────────────────────
@@ -1333,7 +1455,6 @@ watch(isPlaying, (playing) => {
 // ── 生命周期 ──────────────────────────────────────────────────────────────────
 onMounted(() => {
   initParticles();
-  fetchSearch();
   animate();
   document.addEventListener('fullscreenchange', () => {
     isFullscreen.value = !!document.fullscreenElement;
@@ -1727,6 +1848,116 @@ onUnmounted(() => {
 .magnet-submit-btn:hover:not([disabled]) {
   background: rgba(99, 102, 241, 0.4);
   box-shadow: 0 0 16px rgba(99, 102, 241, 0.4);
+}
+
+/* ── 磁力链文件选择 ───────────────────────────────────────────────────────── */
+.torrent-files-dialog {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.torrent-files-card {
+  background: rgba(10, 10, 22, 0.92);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  border-radius: 16px;
+  width: 520px;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.torrent-files-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 20px;
+  border-bottom: 1px solid rgba(99, 102, 241, 0.18);
+}
+
+.torrent-files-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #e0e7ff;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.torrent-files-hint {
+  font-size: 0.75rem;
+  color: #818cf8;
+}
+
+.torrent-files-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.torrent-file-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  border: 1px solid transparent;
+  margin-bottom: 6px;
+}
+
+.torrent-file-item:hover {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.25);
+}
+
+.torrent-file-selected {
+  background: rgba(99, 102, 241, 0.2) !important;
+  border-color: rgba(99, 102, 241, 0.5) !important;
+}
+
+.torrent-file-icon {
+  color: #818cf8;
+  flex-shrink: 0;
+}
+
+.torrent-file-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.torrent-file-name {
+  font-size: 0.875rem;
+  color: #e0e7ff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.torrent-file-size {
+  font-size: 0.7rem;
+  color: #6b7280;
+}
+
+.torrent-files-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid rgba(99, 102, 241, 0.18);
 }
 
 /* ── 种子加载 ─────────────────────────────────────────────────────────────── */
