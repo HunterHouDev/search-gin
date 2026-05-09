@@ -13,6 +13,8 @@ func CORSConfig() cors.Config {
 	config := cors.DefaultConfig()
 	config.AllowOrigins = []string{"*"}
 	config.AllowCredentials = true
+	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Range", "Accept-Ranges", "Content-Range"}
+	config.ExposeHeaders = []string{"Content-Length", "Content-Range", "Accept-Ranges", "Content-Type"}
 	return config
 }
 

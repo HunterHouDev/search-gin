@@ -7,42 +7,41 @@
   >
     <canvas ref="particleCanvas" class="particle-canvas"></canvas>
 
-    <!-- 顶部操作栏 -->
-    <transition name="slide-down">
-      <div class="top-bar" v-show="!controlsHidden || !isPlaying">
-        <q-btn
-          flat round color="white" icon="arrow_back"
-          class="top-action-btn"
-          @click.stop="goBack"
-        >
-          <q-tooltip class="bg-dark text-white">返回</q-tooltip>
-        </q-btn>
+    <!-- 左上角返回按钮 -->
+    <q-btn
+      flat
+      color="white"
+      icon="arrow_back"
+      class="fixed-top-left-btn"
+      @click.stop="goBack"
+    >
+      <q-tooltip class="bg-dark text-white">返回</q-tooltip>
+    </q-btn>
 
-        <div class="top-bar-center">
-          <span class="top-title" v-if="currentVideoName && videoLoaded">
-            {{ currentVideoName }}
-          </span>
-        </div>
-
-        <q-btn
-          flat round color="white" icon="search"
-          class="top-action-btn"
-          @click.stop="searchDialog = true"
-        >
-          <q-tooltip class="bg-dark text-white">搜索</q-tooltip>
-        </q-btn>
-      </div>
-    </transition>
+    <!-- 右上角搜索按钮 -->
+    <q-btn
+      flat
+      color="white"
+      icon="search"
+      class="fixed-top-right-btn"
+      @mouseenter="searchDialog = true"
+    >
+      <q-tooltip class="bg-dark text-white">搜索</q-tooltip>
+    </q-btn>
 
     <!-- 播放列表轮播 -->
     <transition name="slide-down">
-      <div class="carousel-banner" v-show="playlist.length > 0 && (!controlsHidden || !isPlaying)">
+      <div class="carousel-banner" @mouseenter="searchDialog = true">
         <q-btn
-          flat round dense color="white" icon="chevron_left"
+          flat
+          round
+          dense
+          color="white"
+          icon="chevron_left"
           class="carousel-arrow carousel-arrow-left"
-          @click.stop="prevItem"
+          @click.stop="prevPage"
         />
-        <div class="carousel-track" ref="carouselTrack">
+        <div class="carousel-track" ref="carouselTrack"  v-show="playlist.length > 0">
           <div
             v-for="(item, index) in playlist"
             :key="item.Id || index"
@@ -51,10 +50,10 @@
             @click.stop="switchToItem(index)"
           >
             <q-img
-              :src="item.CoverUrl || getJpg(item.Id)"
+              :src="item.CoverUrl || getPng(item.Id)"
               fit="cover"
               class="carousel-thumb"
-              :ratio="3/4"
+              :ratio="3 / 4"
             >
               <template v-slot:error>
                 <div class="carousel-thumb-placeholder">
@@ -62,16 +61,25 @@
                 </div>
               </template>
             </q-img>
-            <div class="carousel-item-label">{{ item.Title || item.Name || `#${index + 1}` }}</div>
-            <div class="carousel-item-active-indicator" v-if="index === currentIndex">
+            <div class="carousel-item-label">
+              {{ item.Title || item.Name || `#${index + 1}` }}
+            </div>
+            <div
+              class="carousel-item-active-indicator"
+              v-if="index === currentIndex"
+            >
               <q-icon name="play_arrow" size="12px" color="white" />
             </div>
           </div>
         </div>
         <q-btn
-          flat round dense color="white" icon="chevron_right"
+          flat
+          round
+          dense
+          color="white"
+          icon="chevron_right"
           class="carousel-arrow carousel-arrow-right"
-          @click.stop="nextItem"
+          @click.stop="nextPage"
         />
       </div>
     </transition>
@@ -84,7 +92,9 @@
         :src="currentVideoSrc"
         :poster="currentPoster"
         preload="auto"
+        autoplay
         playsinline
+        crossorigin="anonymous"
         @timeupdate="onTimeUpdate"
         @loadedmetadata="onMetadataLoaded"
         @play="onPlay"
@@ -92,6 +102,7 @@
         @ended="onEnded"
         @waiting="onWaiting"
         @canplay="onCanPlay"
+        @error="onVideoError"
       ></video>
       <!-- 缓冲 loading 遮罩 -->
       <transition name="fade">
@@ -104,7 +115,7 @@
     <!-- 拖拽上传区域 -->
     <transition name="fade">
       <div
-        v-if="!videoLoaded && !torrentLoading && playlist.length === 0"
+        v-if="!videoLoaded && !torrentLoading"
         class="drop-zone"
         :class="{ 'drop-zone-active': isDragOver }"
         @dragover.prevent="isDragOver = true"
@@ -124,24 +135,34 @@
 
     <!-- 磁力链输入区 -->
     <transition name="slide-up">
-      <div
-        v-if="!videoLoaded && !torrentLoading && playlist.length === 0"
-        class="magnet-input-area"
-      >
-        <div class="magnet-input-wrapper" :class="{ 'magnet-focused': magnetFocused }">
-          <q-icon name="link" color="indigo-4" size="20px" class="magnet-icon" />
+      <div v-if="!videoLoaded && !torrentLoading" class="magnet-input-area">
+        <div
+          class="magnet-input-wrapper"
+          :class="{ 'magnet-focused': magnetFocused }"
+        >
+          <q-icon
+            name="link"
+            color="indigo-4"
+            size="20px"
+            class="magnet-icon"
+          />
           <q-input
             v-model="magnetURI"
             placeholder="粘贴磁力链 magnet:?xt=urn:btih:..."
-            dark dense borderless
+            dark
+            dense
+            borderless
             class="magnet-input"
             @keyup.enter="submitMagnet"
             @focus="magnetFocused = true"
             @blur="magnetFocused = false"
           />
           <q-btn
-            flat round dense
-            color="indigo-4" icon="play_circle_filled"
+            flat
+            round
+            dense
+            color="indigo-4"
+            icon="play_circle_filled"
             size="md"
             @click="submitMagnet"
             :disable="!magnetURI.trim()"
@@ -171,7 +192,9 @@
               class="q-mb-sm"
             />
             <div class="torrent-stats">
-              <span class="torrent-percent">{{ torrentProgress.toFixed(1) }}%</span>
+              <span class="torrent-percent"
+                >{{ torrentProgress.toFixed(1) }}%</span
+              >
               <span class="torrent-state">{{ torrentState }}</span>
               <span class="torrent-peers" v-if="torrentPeers > 0">
                 <q-icon name="people" size="12px" />
@@ -181,7 +204,8 @@
           </div>
           <q-btn
             unelevated
-            color="red-9" text-color="red-3"
+            color="red-9"
+            text-color="red-3"
             label="取消下载"
             icon="cancel"
             size="sm"
@@ -212,20 +236,30 @@
         >
           <div class="progress-track">
             <!-- 缓冲进度 -->
-            <div class="progress-buffered" :style="{ width: bufferedPercent + '%' }"></div>
+            <div
+              class="progress-buffered"
+              :style="{ width: bufferedPercent + '%' }"
+            ></div>
             <!-- 播放进度 -->
-            <div class="progress-fill" :style="{ width: progressPercent + '%' }">
+            <div
+              class="progress-fill"
+              :style="{ width: progressPercent + '%' }"
+            >
               <div class="progress-glow"></div>
             </div>
             <!-- 拖拽手柄 -->
             <div
               class="progress-thumb"
               :style="{ left: progressPercent + '%' }"
-              :class="{ 'seeking': isSeeking }"
+              :class="{ seeking: isSeeking }"
             ></div>
           </div>
           <!-- 时间悬浮提示 -->
-          <div class="progress-tooltip" v-if="hoverTime !== null" :style="{ left: hoverX + 'px' }">
+          <div
+            class="progress-tooltip"
+            v-if="hoverTime !== null"
+            :style="{ left: hoverX + 'px' }"
+          >
             {{ hoverTime }}
           </div>
         </div>
@@ -234,18 +268,44 @@
         <div class="control-buttons">
           <!-- 左侧：播放控制 + 时间 -->
           <div class="ctrl-left">
-            <q-btn flat round color="white" size="sm" icon="skip_previous" @click="prevItem">
+            <q-btn
+              flat
+              round
+              color="white"
+              size="sm"
+              icon="skip_previous"
+              @click="prevItem"
+            >
               <q-tooltip class="bg-dark">上一个</q-tooltip>
             </q-btn>
             <q-btn
-              flat round
+              flat
+              round
               :color="isPlaying ? 'indigo-3' : 'white'"
               size="md"
               :icon="isPlaying ? 'pause_circle' : 'play_circle'"
               class="play-btn"
               @click="togglePlay"
             />
-            <q-btn flat round color="white" size="sm" icon="skip_next" @click="nextItem">
+            <q-btn
+              flat
+              round
+              v-if="isPlaying"
+              color="white"
+              size="md"
+              icon="stop"
+              class="play-btn"
+              @click="stopPlay"
+            />
+
+            <q-btn
+              flat
+              round
+              color="white"
+              size="sm"
+              icon="skip_next"
+              @click="nextItem"
+            >
               <q-tooltip class="bg-dark">下一个</q-tooltip>
             </q-btn>
             <div class="time-display">
@@ -253,19 +313,35 @@
               <span class="time-sep">/</span>
               <span class="time-total">{{ duration }}</span>
             </div>
+            <span class="top-title" v-if="currentVideoName && videoLoaded">
+              {{ currentVideoName }}
+            </span>
           </div>
 
           <q-space />
 
           <!-- 右侧：音量 + 全屏 -->
           <div class="ctrl-right">
-            <div class="volume-group" @mouseenter="showVolume = true" @mouseleave="showVolume = false">
-              <q-btn flat round color="white" size="sm" @click="toggleMute" :icon="volumeIcon" />
+            <div
+              class="volume-group"
+              @mouseenter="showVolume = true"
+              @mouseleave="showVolume = false"
+            >
+              <q-btn
+                flat
+                round
+                color="white"
+                size="sm"
+                @click="toggleMute"
+                :icon="volumeIcon"
+              />
               <transition name="fade">
                 <q-slider
                   v-show="showVolume"
                   v-model="volume"
-                  :min="0" :max="1" :step="0.01"
+                  :min="0"
+                  :max="1"
+                  :step="0.01"
                   color="indigo-4"
                   track-color="grey-8"
                   class="volume-slider"
@@ -274,11 +350,16 @@
               </transition>
             </div>
             <q-btn
-              flat round color="white" size="sm"
+              flat
+              round
+              color="white"
+              size="sm"
               :icon="isFullscreen ? 'fullscreen_exit' : 'fullscreen'"
               @click="toggleFullscreen"
             >
-              <q-tooltip class="bg-dark">{{ isFullscreen ? '退出全屏' : '全屏' }}</q-tooltip>
+              <q-tooltip class="bg-dark">{{
+                isFullscreen ? '退出全屏' : '全屏'
+              }}</q-tooltip>
             </q-btn>
           </div>
         </div>
@@ -286,7 +367,10 @@
     </transition>
 
     <!-- 搜索侧面板 -->
-    <q-dialog v-model="searchDialog" position="right" full-height seamless>
+    <q-dialog
+      v-model="searchDialog"
+      seamless
+    >
       <div class="search-panel" @click.stop>
         <!-- 头部 -->
         <div class="search-panel-header">
@@ -294,7 +378,14 @@
             <q-icon name="manage_search" size="20px" class="q-mr-xs" />
             影片搜索
           </div>
-          <q-btn flat round dense color="grey-4" icon="close" @click="searchDialog = false" />
+          <q-btn
+            flat
+            round
+            dense
+            color="grey-4"
+            icon="close"
+            @click="searchDialog = false"
+          />
         </div>
 
         <!-- 搜索条件 -->
@@ -302,63 +393,80 @@
           <q-input
             v-model="searchParams.Keyword"
             placeholder="输入关键词..."
-            dark dense outlined
+            dark
+            dense
+            outlined
             color="indigo-4"
             class="search-input"
             @keyup.enter="fetchSearch"
+            @change="fetchSearch"
           >
             <template v-slot:prepend>
               <q-icon name="search" color="indigo-4" size="18px" />
             </template>
             <template v-slot:append v-if="searchParams.Keyword">
-              <q-btn flat round dense icon="clear" color="grey-5" size="xs" @click="searchParams.Keyword = ''; fetchSearch()" />
+              <q-btn
+                flat
+                round
+                dense
+                icon="clear"
+                color="grey-5"
+                size="xs"
+                @click="
+                  searchParams.Keyword = '';
+                  fetchSearch();
+                "
+              />
             </template>
           </q-input>
+          <div class="filter-item">
+            <div class="filter-row">
+              <span class="filter-label">类型</span>
+              <q-btn-toggle
+                v-model="searchParams.MovieType"
+                :options="MovieTypeSelects"
+                size="md"
+                no-caps
+                dense
+                glossy
+                toggle-color="indigo-6"
+                color="dark"
+                text-color="grey-4"
+                @update:model-value="fetchSearch"
+              />
+            </div>
 
-          <div class="filter-row">
-            <span class="filter-label">类型</span>
-            <q-btn-toggle
-              v-model="searchParams.MovieType"
-              :options="MovieTypeSelects"
-              size="xs" no-caps dense glossy
-              toggle-color="indigo-6" color="dark" text-color="grey-4"
-              @update:model-value="fetchSearch"
-            />
-          </div>
+            <div class="filter-row">
+              <span class="filter-label">排序</span>
+              <q-btn-toggle
+                v-model="searchParams.SortField"
+                :options="FieldEnum"
+                size="md"
+                no-caps
+                dense
+                glossy
+                toggle-color="indigo-6"
+                color="dark"
+                text-color="grey-4"
+                @update:model-value="fetchSearch"
+              />
+            </div>
 
-          <div class="filter-row">
-            <span class="filter-label">排序</span>
-            <q-btn-toggle
-              v-model="searchParams.SortField"
-              :options="FieldEnum"
-              size="xs" no-caps dense glossy
-              toggle-color="indigo-6" color="dark" text-color="grey-4"
-              @update:model-value="fetchSearch"
-            />
-          </div>
-
-          <div class="filter-row">
-            <span class="filter-label">顺序</span>
-            <q-btn-toggle
-              v-model="searchParams.SortType"
-              :options="DescEnum"
-              size="xs" no-caps dense glossy
-              toggle-color="indigo-6" color="dark" text-color="grey-4"
-              @update:model-value="fetchSearch"
-            />
-          </div>
-
-          <div class="filter-row">
-            <q-checkbox
-              v-model="searchParams.OnlyRepeat"
-              label="仅去重结果"
-              dense dark color="indigo-5"
-              @update:model-value="fetchSearch"
-            />
-            <q-space />
-            <span class="result-size-badge" v-if="searchResults.ResultSize">
-              {{ searchResults.ResultSize }}
-            </span>
+            <div class="filter-row">
+              <span class="filter-label">顺序</span>
+              <q-btn-toggle
+                v-model="searchParams.SortType"
+                :options="DescEnum"
+                size="md"
+                no-caps
+                dense
+                glossy
+                toggle-color="indigo-6"
+                color="dark"
+                text-color="grey-4"
+                @update:model-value="fetchSearch"
+              />
+            </div>
           </div>
         </div>
 
@@ -369,20 +477,22 @@
             <p class="text-grey-5 q-mt-sm text-caption">加载中...</p>
           </div>
 
-          <template v-else-if="searchResults.Data && searchResults.Data.length > 0">
+          <template
+            v-else-if="searchResults.Data && searchResults.Data.length > 0"
+          >
             <div class="search-cards">
               <div
                 v-for="item in searchResults.Data"
                 :key="item.Id"
                 class="search-card"
-                @click="playFromSearch(item)"
               >
                 <div class="search-card-thumb">
                   <q-img
-                    :src="getJpg(item.Id)"
+                    :src="getPng(item.Id)"
                     fit="cover"
                     class="search-card-img"
-                    :ratio="3/4"
+                    :ratio="3 / 4"
+                    @click="playFromSearch(item)"
                   >
                     <template v-slot:error>
                       <div class="search-card-placeholder">
@@ -391,15 +501,25 @@
                     </template>
                   </q-img>
                   <div class="search-card-play-overlay">
-                    <q-icon name="play_circle_filled" size="28px" color="white" />
+                    <q-icon
+                      name="play_circle_filled"
+                      size="28px"
+                      color="white"
+                    />
                   </div>
                 </div>
 
                 <div class="search-card-info">
-                  <div class="search-card-title">{{ formatTitle(item.Title, 24) }}</div>
+                  <div class="search-card-title">
+                    {{ formatTitle(item.Title, 24) }}
+                  </div>
                   <div class="search-card-tags">
-                    <span class="tag tag-actress" v-if="item.Actress">{{ item.Actress }}</span>
-                    <span class="tag tag-code" v-if="item.Code">{{ item.Code }}</span>
+                    <span class="tag tag-actress" v-if="item.Actress" @click="fetchKeyword(item.Actress)">{{
+                      item.Actress
+                    }}</span>
+                    <span class="tag tag-code" v-if="item.Code" @click="fetchKeyword(item.Code)">{{
+                      item.Code
+                    }}</span>
                   </div>
                   <div class="search-card-meta">
                     <span class="meta-item">
@@ -425,7 +545,12 @@
         <!-- 分页 -->
         <div class="search-pagination" v-if="searchResults.TotalPage > 1">
           <q-btn
-            flat dense round color="indigo-4" icon="chevron_left" size="sm"
+            flat
+            dense
+            round
+            color="indigo-4"
+            icon="chevron_left"
+            size="sm"
             :disable="searchParams.Page <= 1"
             @click="changePage(-1)"
           />
@@ -435,7 +560,12 @@
             <span class="page-total">{{ searchResults.TotalPage }}</span>
           </div>
           <q-btn
-            flat dense round color="indigo-4" icon="chevron_right" size="sm"
+            flat
+            dense
+            round
+            color="indigo-4"
+            icon="chevron_right"
+            size="sm"
             :disable="searchParams.Page >= searchResults.TotalPage"
             @click="changePage(1)"
           />
@@ -446,17 +576,34 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, reactive, watch, nextTick } from 'vue';
+import {
+  computed,
+  onMounted,
+  onUnmounted,
+  ref,
+  reactive,
+  watch,
+  nextTick,
+} from 'vue';
 import { format, useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 import { SearchAPI } from 'components/api/searchAPI';
-import { getJpg, getFileStream } from 'components/utils/images';
-import { MovieTypeSelects, FieldEnum, DescEnum, formatTitle } from 'components/utils';
+import { getPng, getFileStream } from 'components/utils/images';
+import {
+  MovieTypeSelects,
+  FieldEnum,
+  DescEnum,
+  formatTitle,
+} from 'components/utils';
+import { useSystemProperty } from 'stores/System';
 
 const $q = useQuasar();
 const router = useRouter();
 const { humanStorageSize } = format;
+
+// ── System Store ───────────────────────────────────────────────────────────────
+const systemProperty = useSystemProperty();
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
 const videoRef = ref(null);
@@ -475,7 +622,16 @@ const isFullscreen = ref(false);
 const isBuffering = ref(false);
 const currentTime = ref('00:00:00');
 const duration = ref('00:00:00');
-const volume = ref(0.8);
+// 使用 System store 中的音量
+const volume = computed({
+  get: () => systemProperty.videoOptions.volume,
+  set: (val) => {
+    systemProperty.videoOptions.volume = val;
+    if (videoRef.value) {
+      videoRef.value.volume = val;
+    }
+  },
+});
 const currentTimeSeconds = ref(0);
 const durationSeconds = ref(0);
 const bufferedSeconds = ref(0);
@@ -502,7 +658,7 @@ const currentInfoHash = ref('');
 let torrentPollTimer = null;
 
 // ── 播放列表 ──────────────────────────────────────────────────────────────────
-const playlist = reactive([]);
+const playlist = ref([]);
 const currentIndex = ref(-1);
 
 // ── 搜索 ──────────────────────────────────────────────────────────────────────
@@ -522,6 +678,8 @@ const searchParams = reactive({
 // ── 粒子 / 音频 ───────────────────────────────────────────────────────────────
 let audioContext = null;
 let analyser = null;
+let source = null;
+let connectedVideoElement = null; // 记录已连接的视频元素
 let animationFrameId = null;
 let particles = [];
 let hideControlsTimer = null;
@@ -550,43 +708,66 @@ function goBack() {
 }
 
 // ── 播放列表操作 ──────────────────────────────────────────────────────────────
-function addToPlaylist(item) {
-  const exists = playlist.some(p => p.Id === item.Id);
-  if (!exists) playlist.push(item);
-}
 
 function switchToItem(index) {
-  if (index < 0 || index >= playlist.length) return;
+  if (index < 0 || index >= playlist.value.length) return;
   currentIndex.value = index;
-  const item = playlist[index];
+  const item = playlist.value[index];
   const src = item.TorrentStream || getFileStream(item.Id);
-  loadVideo(src, item.Title || item.Name || item.Code || `#${index + 1}`, getJpg(item.Id));
+  loadVideo(
+    src,
+    item.Title || item.Name || item.Code || `#${index + 1}`,
+    getPng(item.Id)
+  );
+  searchDialog.value = false;
   scrollToActiveItem();
 }
 
 function prevItem() {
-  if (!playlist.length) return;
-  switchToItem(currentIndex.value > 0 ? currentIndex.value - 1 : playlist.length - 1);
+  if (!playlist.value.length) return;
+  switchToItem(
+    currentIndex.value > 0 ? currentIndex.value - 1 : playlist.value.length - 1
+  );
 }
 
 function nextItem() {
-  if (!playlist.length) return;
-  switchToItem(currentIndex.value < playlist.length - 1 ? currentIndex.value + 1 : 0);
+  if (!playlist.value.length) return;
+  switchToItem(
+    currentIndex.value < playlist.value.length - 1 ? currentIndex.value + 1 : 0
+  );
+}
+
+function prevPage() {
+  changePage(-1);
+}
+
+function nextPage() {
+  changePage(1);
 }
 
 function scrollToActiveItem() {
   nextTick(() => {
     if (!carouselTrack.value) return;
     const el = carouselTrack.value.querySelector('.carousel-item-active');
-    if (el) el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    if (el)
+      el.scrollIntoView({
+        behavior: 'smooth',
+        inline: 'center',
+        block: 'nearest',
+      });
   });
 }
 
 async function playFromSearch(item) {
-  addToPlaylist(item);
-  const idx = playlist.findIndex(p => p.Id === item.Id);
+  const idx = playlist.value.findIndex((p) => p.Id === item.Id);
   switchToItem(idx);
   searchDialog.value = false;
+}
+
+function fetchKeyword(keyword) {
+  searchParams.Keyword = keyword;
+  searchParams.Page = 1;
+  fetchSearch();
 }
 
 // ── 搜索 ──────────────────────────────────────────────────────────────────────
@@ -596,13 +777,19 @@ async function fetchSearch() {
   try {
     const data = await SearchAPI(searchParams);
     if (data) {
+      playlist.value = [...(data.Data || [])];
       searchResults.Data = data.Data || [];
       searchResults.TotalPage = data.TotalPage || 0;
       searchResults.ResultSize = data.ResultSize || '';
     }
   } catch (e) {
     console.error('搜索请求异常:', e);
-    $q.notify({ type: 'negative', message: '搜索失败', position: 'top', timeout: 2000 });
+    $q.notify({
+      type: 'negative',
+      message: '搜索失败',
+      position: 'top',
+      timeout: 2000,
+    });
   } finally {
     searchLoading.value = false;
   }
@@ -630,7 +817,9 @@ function parseTime(seconds) {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = Math.floor(seconds % 60);
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(
+    s
+  ).padStart(2, '0')}`;
 }
 
 // ── 粒子系统 ──────────────────────────────────────────────────────────────────
@@ -695,19 +884,51 @@ function initParticles() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
   particles = [];
-  const count = Math.min(350, Math.floor((canvas.width * canvas.height) / 6000));
+  const count = Math.min(
+    350,
+    Math.floor((canvas.width * canvas.height) / 6000)
+  );
   for (let i = 0; i < count; i++) particles.push(new Particle(canvas));
 }
 
 function initAudioAnalyser() {
-  if (!videoRef.value || audioContext) return;
+  if (!videoRef.value) return;
+
+  // 如果是同一个视频元素，不需要重新创建 source
+  if (connectedVideoElement === videoRef.value && source) {
+    // 检查音频上下文状态，如果处于 suspended 则恢复
+    if (audioContext && audioContext.state === 'suspended') {
+      audioContext
+        .resume()
+        .catch((e) => console.warn('Failed to resume audio context:', e));
+    }
+    return;
+  }
+
+  // 如果是不同的视频元素，需要关闭旧的 audioContext 并创建新的
+  if (audioContext) {
+    try {
+      audioContext.close();
+    } catch (e) {
+      console.warn('Error closing audio context:', e);
+    }
+    audioContext = null;
+    analyser = null;
+    source = null;
+  }
+
   try {
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
     analyser = audioContext.createAnalyser();
     analyser.fftSize = 256;
-    const source = audioContext.createMediaElementSource(videoRef.value);
+
+    // 创建新的音频源并连接
+    source = audioContext.createMediaElementSource(videoRef.value);
     source.connect(analyser);
     analyser.connect(audioContext.destination);
+
+    // 记录已连接的视频元素
+    connectedVideoElement = videoRef.value;
   } catch (e) {
     console.warn('Audio analyser unavailable:', e);
   }
@@ -720,7 +941,8 @@ function getAudioData() {
   analyser.getByteFrequencyData(dataArray);
   const bass = dataArray.slice(0, 10).reduce((a, b) => a + b, 0) / 10 / 255;
   const mid = dataArray.slice(10, 40).reduce((a, b) => a + b, 0) / 30 / 255;
-  const treble = dataArray.slice(40).reduce((a, b) => a + b, 0) / (bufferLength - 40) / 255;
+  const treble =
+    dataArray.slice(40).reduce((a, b) => a + b, 0) / (bufferLength - 40) / 255;
   return { bass, mid, treble };
 }
 
@@ -731,7 +953,10 @@ function animate() {
   ctx.fillStyle = 'rgba(8, 8, 14, 0.12)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   const audioData = isPlaying.value ? getAudioData() : null;
-  particles.forEach(p => { p.update(audioData); p.draw(ctx); });
+  particles.forEach((p) => {
+    p.update(audioData);
+    p.draw(ctx);
+  });
   animationFrameId = requestAnimationFrame(animate);
 }
 
@@ -752,10 +977,26 @@ function loadVideo(src, name, poster) {
   currentVideoName.value = name || '未知视频';
   currentPoster.value = poster || '';
   videoLoaded.value = true;
+
   setTimeout(() => {
     if (videoRef.value) {
       videoRef.value.volume = volume.value;
-      initAudioAnalyser();
+
+      // 确保音频上下文正常工作
+      if (audioContext && audioContext.state === 'suspended') {
+        audioContext
+          .resume()
+          .then(() => {
+            initAudioAnalyser();
+          })
+          .catch((e) => {
+            console.warn('Failed to resume audio:', e);
+            initAudioAnalyser();
+          });
+      } else {
+        initAudioAnalyser();
+      }
+
       if (!animationFrameId) animate();
     }
   }, 100);
@@ -765,7 +1006,11 @@ function loadVideo(src, name, poster) {
 async function submitMagnet() {
   const uri = magnetURI.value.trim();
   if (!uri.startsWith('magnet:')) {
-    $q.notify({ type: 'negative', message: '请输入有效的磁力链', position: 'top' });
+    $q.notify({
+      type: 'negative',
+      message: '请输入有效的磁力链',
+      position: 'top',
+    });
     return;
   }
   torrentLoading.value = true;
@@ -778,11 +1023,19 @@ async function submitMagnet() {
       currentInfoHash.value = res.data.data.infoHash;
       startPolling(currentInfoHash.value);
     } else {
-      $q.notify({ type: 'negative', message: res.data?.message || '添加磁力链失败', position: 'top' });
+      $q.notify({
+        type: 'negative',
+        message: res.data?.message || '添加磁力链失败',
+        position: 'top',
+      });
       torrentLoading.value = false;
     }
   } catch (err) {
-    $q.notify({ type: 'negative', message: '请求失败: ' + (err.response?.data?.message || err.message), position: 'top' });
+    $q.notify({
+      type: 'negative',
+      message: '请求失败: ' + (err.response?.data?.message || err.message),
+      position: 'top',
+    });
     torrentLoading.value = false;
   }
 }
@@ -801,8 +1054,7 @@ function startPolling(infoHash) {
         if (d.progress >= 3 && !videoLoaded.value) {
           torrentState.value = '缓冲就绪，开始播放';
           const streamUrl = `/api/torrent/stream/${infoHash}`;
-          addToPlaylist({ Id: infoHash, Title: d.videoFile || d.name, Name: d.videoFile || d.name, TorrentStream: streamUrl, CoverUrl: '' });
-          const newIdx = playlist.findIndex(p => p.Id === infoHash);
+          const newIdx = playlist.value.findIndex((p) => p.Id === infoHash);
           currentIndex.value = newIdx;
           loadVideo(streamUrl, d.videoFile || d.name);
           stopPolling();
@@ -815,13 +1067,20 @@ function startPolling(infoHash) {
 }
 
 function stopPolling() {
-  if (torrentPollTimer) { clearInterval(torrentPollTimer); torrentPollTimer = null; }
+  if (torrentPollTimer) {
+    clearInterval(torrentPollTimer);
+    torrentPollTimer = null;
+  }
 }
 
 async function cancelTorrent() {
   stopPolling();
   if (currentInfoHash.value) {
-    try { await axios.delete(`/api/torrent/${currentInfoHash.value}`); } catch { /* ignore */ }
+    try {
+      await axios.delete(`/api/torrent/${currentInfoHash.value}`);
+    } catch {
+      /* ignore */
+    }
   }
   torrentLoading.value = false;
   torrentProgress.value = 0;
@@ -836,15 +1095,44 @@ function togglePlay() {
   isPlaying.value ? videoRef.value.pause() : videoRef.value.play();
 }
 
-function onPlay() { isPlaying.value = true; resetControlsTimer(); }
-function onPause() { isPlaying.value = false; showControls(); }
-function onWaiting() { isBuffering.value = true; }
-function onCanPlay() { isBuffering.value = false; }
+function stopPlay() {
+  if (!videoRef.value || !videoLoaded.value) return;
+  currentVideoSrc.value = '';
+  currentVideoName.value = '暂无视频';
+  currentPoster.value = '';
+  videoLoaded.value = false;
+  isPlaying.value = false;
+}
+
+function onPlay() {
+  isPlaying.value = true;
+  resetControlsTimer();
+}
+function onPause() {
+  isPlaying.value = false;
+  showControls();
+}
+function onWaiting() {
+  isBuffering.value = true;
+}
+function onCanPlay() {
+  isBuffering.value = false;
+}
 
 function onEnded() {
   isPlaying.value = false;
   controlsHidden.value = false;
-  if (playlist.length > 0 && currentIndex.value < playlist.length - 1) nextItem();
+  if (
+    playlist.value.length > 0 &&
+    currentIndex.value < playlist.value.length - 1
+  )
+    nextItem();
+}
+
+// 添加视频错误处理
+function onVideoError(e) {
+  console.error('Video playback error:', e);
+  // $q.notify({ type: 'negative', message: '视频播放失败', position: 'top' });
 }
 
 function onTimeUpdate() {
@@ -910,15 +1198,28 @@ function toggleMute() {
 function setVolume(val) {
   if (!videoRef.value) return;
   volume.value = val;
-  videoRef.value.volume = val;
 }
 
 // ── 全屏 ──────────────────────────────────────────────────────────────────────
 function toggleFullscreen() {
   if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen().then(() => { isFullscreen.value = true; }).catch(() => {});
+    document.documentElement
+      .requestFullscreen()
+      .then(() => {
+        isFullscreen.value = true;
+      })
+      .catch((e) => {
+        console.warn('全屏失败:', e);
+      });
   } else {
-    document.exitFullscreen().then(() => { isFullscreen.value = false; }).catch(() => {});
+    document
+      .exitFullscreen()
+      .then(() => {
+        isFullscreen.value = false;
+      })
+      .catch((e) => {
+        console.warn('退出全屏失败:', e);
+      });
   }
 }
 
@@ -930,17 +1231,24 @@ function showControls() {
 
 function startHideTimer() {
   if (isPlaying.value) {
-    hideControlsTimer = setTimeout(() => { controlsHidden.value = true; }, 3000);
+    hideControlsTimer = setTimeout(() => {
+      controlsHidden.value = true;
+    }, 3000);
   }
 }
 
 function clearHideTimer() {
-  if (hideControlsTimer) { clearTimeout(hideControlsTimer); hideControlsTimer = null; }
+  if (hideControlsTimer) {
+    clearTimeout(hideControlsTimer);
+    hideControlsTimer = null;
+  }
 }
 
 function resetControlsTimer() {
   clearHideTimer();
-  hideControlsTimer = setTimeout(() => { controlsHidden.value = true; }, 3000);
+  hideControlsTimer = setTimeout(() => {
+    controlsHidden.value = true;
+  }, 3000);
 }
 
 function onMouseMove() {
@@ -958,11 +1266,19 @@ function handleKeydown(e) {
       break;
     case 'ArrowLeft':
       e.preventDefault();
-      if (videoRef.value) videoRef.value.currentTime = Math.max(0, videoRef.value.currentTime - 5);
+      if (videoRef.value)
+        videoRef.value.currentTime = Math.max(
+          0,
+          videoRef.value.currentTime - 5
+        );
       break;
     case 'ArrowRight':
       e.preventDefault();
-      if (videoRef.value) videoRef.value.currentTime = Math.min(durationSeconds.value, videoRef.value.currentTime + 5);
+      if (videoRef.value)
+        videoRef.value.currentTime = Math.min(
+          durationSeconds.value,
+          videoRef.value.currentTime + 5
+        );
       break;
     case 'ArrowUp':
       e.preventDefault();
@@ -1006,8 +1322,11 @@ watch(isPlaying, (playing) => {
 // ── 生命周期 ──────────────────────────────────────────────────────────────────
 onMounted(() => {
   initParticles();
+  fetchSearch();
   animate();
-  document.addEventListener('fullscreenchange', () => { isFullscreen.value = !!document.fullscreenElement; });
+  document.addEventListener('fullscreenchange', () => {
+    isFullscreen.value = !!document.fullscreenElement;
+  });
   window.addEventListener('resize', handleResize);
   document.addEventListener('keydown', handleKeydown);
 });
@@ -1019,7 +1338,9 @@ onUnmounted(() => {
   if (audioContext) audioContext.close();
   stopPolling();
   if (currentInfoHash.value) {
-    axios.delete(`/api/torrent/${currentInfoHash.value}`).catch(() => {});
+    axios.delete(`/api/torrent/${currentInfoHash.value}`).catch((e) => {
+      console.warn('删除种子失败:', e);
+    });
   }
   window.removeEventListener('resize', handleResize);
   document.removeEventListener('keydown', handleKeydown);
@@ -1049,27 +1370,6 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
-/* ── 顶部操作栏 ──────────────────────────────────────────────────────────── */
-.top-bar {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 25;
-  height: 64px;
-  display: flex;
-  align-items: center;
-  padding: 0 16px;
-  gap: 12px;
-  background: linear-gradient(to bottom, rgba(5, 5, 15, 0.9) 0%, transparent 100%);
-}
-
-.top-bar-center {
-  flex: 1;
-  text-align: center;
-  overflow: hidden;
-}
-
 .top-title {
   font-size: 0.95rem;
   color: rgba(255, 255, 255, 0.8);
@@ -1081,6 +1381,39 @@ onUnmounted(() => {
   display: block;
   padding: 0 20px;
   text-shadow: 0 1px 8px rgba(99, 102, 241, 0.6);
+}
+
+/* ── 固定位置按钮 ──────────────────────────────────────────────────────────── */
+.fixed-top-left-btn {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: background 0.25s, border-color 0.25s, box-shadow 0.25s;
+}
+
+.fixed-top-left-btn:hover {
+  background: rgba(99, 102, 241, 0.25) !important;
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 0 18px rgba(99, 102, 241, 0.35);
+}
+
+.fixed-top-right-btn {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: background 0.25s, border-color 0.25s, box-shadow 0.25s;
+}
+
+.fixed-top-right-btn:hover {
+  background: rgba(99, 102, 241, 0.25) !important;
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 0 18px rgba(99, 102, 241, 0.35);
 }
 
 .top-action-btn {
@@ -1099,14 +1432,15 @@ onUnmounted(() => {
 /* ── 轮播播放列表 ──────────────────────────────────────────────────────────── */
 .carousel-banner {
   position: absolute;
-  top: 64px;
-  left: 0;
-  right: 0;
-  z-index: 22;
+  left: 5%;
+  right: 5%;
+  margin: 0 auto;
+  width: calc(100% - 154px);
+  padding-left: 52px;
+  padding-right: 52px;
+  z-index: 222;
   display: flex;
   align-items: center;
-  padding: 8px 52px;
-  height: 82px;
   background: rgba(8, 8, 20, 0.55);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
@@ -1119,13 +1453,16 @@ onUnmounted(() => {
   overflow-x: auto;
   scroll-behavior: smooth;
   scroll-snap-type: x mandatory;
+  justify-content: space-evenly;
   flex: 1;
   padding: 4px 2px;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
 
-.carousel-track::-webkit-scrollbar { display: none; }
+.carousel-track::-webkit-scrollbar {
+  display: none;
+}
 
 .carousel-item {
   flex-shrink: 0;
@@ -1136,7 +1473,8 @@ onUnmounted(() => {
   cursor: pointer;
   scroll-snap-align: center;
   border: 2px solid transparent;
-  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+  transition: transform 0.25s ease, border-color 0.25s ease,
+    box-shadow 0.25s ease;
   position: relative;
 }
 
@@ -1147,7 +1485,8 @@ onUnmounted(() => {
 
 .carousel-item-active {
   border-color: rgba(139, 92, 246, 0.95);
-  box-shadow: 0 0 14px rgba(139, 92, 246, 0.65), 0 0 28px rgba(99, 102, 241, 0.25);
+  box-shadow: 0 0 14px rgba(139, 92, 246, 0.65),
+    0 0 28px rgba(99, 102, 241, 0.25);
   transform: scale(1.12) translateY(-2px);
 }
 
@@ -1171,10 +1510,10 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   font-size: 7px;
-  color: rgba(255,255,255,0.85);
+  color: rgba(255, 255, 255, 0.85);
   text-align: center;
   padding: 2px 2px;
-  background: rgba(0,0,0,0.75);
+  background: rgba(0, 0, 0, 0.75);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1207,8 +1546,12 @@ onUnmounted(() => {
   border-color: rgba(99, 102, 241, 0.55);
 }
 
-.carousel-arrow-left { left: 8px; }
-.carousel-arrow-right { right: 8px; }
+.carousel-arrow-left {
+  left: 8px;
+}
+.carousel-arrow-right {
+  right: 8px;
+}
 
 /* ── 视频区域 ─────────────────────────────────────────────────────────────── */
 .video-wrapper {
@@ -1248,7 +1591,7 @@ onUnmounted(() => {
   left: 50%;
   transform: translate(-50%, -50%);
   width: 52vw;
-  height: 46vh;
+  height: 30vh;
   min-width: 320px;
   border: 2px dashed rgba(99, 102, 241, 0.4);
   border-radius: 24px;
@@ -1263,7 +1606,8 @@ onUnmounted(() => {
 .drop-zone-active {
   border-color: rgba(139, 92, 246, 0.8);
   background: rgba(99, 102, 241, 0.07);
-  box-shadow: 0 0 50px rgba(99, 102, 241, 0.2), inset 0 0 40px rgba(99, 102, 241, 0.06);
+  box-shadow: 0 0 50px rgba(99, 102, 241, 0.2),
+    inset 0 0 40px rgba(99, 102, 241, 0.06);
 }
 
 .drop-content {
@@ -1289,8 +1633,15 @@ onUnmounted(() => {
 }
 
 @keyframes pulse-ring {
-  0%, 100% { transform: scale(0.9); opacity: 0.4; }
-  50% { transform: scale(1.1); opacity: 0.8; }
+  0%,
+  100% {
+    transform: scale(0.9);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
 }
 
 .drop-title {
@@ -1309,7 +1660,7 @@ onUnmounted(() => {
 /* ── 磁力链输入 ──────────────────────────────────────────────────────────── */
 .magnet-input-area {
   position: absolute;
-  bottom: 88px;
+  top: 88px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 5;
@@ -1333,16 +1684,30 @@ onUnmounted(() => {
 
 .magnet-input-wrapper.magnet-focused {
   border-color: rgba(139, 92, 246, 0.65);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12), 0 0 30px rgba(99, 102, 241, 0.18);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12),
+    0 0 30px rgba(99, 102, 241, 0.18);
 }
 
-.magnet-icon { flex-shrink: 0; opacity: 0.8; }
+.magnet-icon {
+  flex-shrink: 0;
+  opacity: 0.8;
+}
 
-.magnet-input { flex: 1; }
+.magnet-input {
+  flex: 1;
+}
 
-.magnet-input :deep(.q-field__control) { background: transparent; border: none; }
-.magnet-input :deep(.q-field__native) { color: #c4b5fd; font-size: 0.88rem; }
-.magnet-input :deep(.q-field__native::placeholder) { color: rgba(165, 148, 249, 0.38); }
+.magnet-input :deep(.q-field__control) {
+  background: transparent;
+  border: none;
+}
+.magnet-input :deep(.q-field__native) {
+  color: #c4b5fd;
+  font-size: 0.88rem;
+}
+.magnet-input :deep(.q-field__native::placeholder) {
+  color: rgba(165, 148, 249, 0.38);
+}
 
 .magnet-submit-btn {
   background: rgba(99, 102, 241, 0.2);
@@ -1377,17 +1742,21 @@ onUnmounted(() => {
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
 
-.torrent-spinner { margin-bottom: 20px; }
+.torrent-spinner {
+  margin-bottom: 20px;
+}
 
 .torrent-name {
   font-size: 0.95rem;
-  color: rgba(255,255,255,0.85);
+  color: rgba(255, 255, 255, 0.85);
   margin: 0 0 16px;
   line-height: 1.4;
   word-break: break-all;
 }
 
-.torrent-progress-wrap { margin-bottom: 4px; }
+.torrent-progress-wrap {
+  margin-bottom: 4px;
+}
 
 .torrent-stats {
   display: flex;
@@ -1397,8 +1766,13 @@ onUnmounted(() => {
   font-size: 12px;
 }
 
-.torrent-percent { color: #a5b4fc; font-weight: 600; }
-.torrent-state { color: rgba(134,239,172,0.8); }
+.torrent-percent {
+  color: #a5b4fc;
+  font-weight: 600;
+}
+.torrent-state {
+  color: rgba(134, 239, 172, 0.8);
+}
 .torrent-peers {
   color: rgba(165, 148, 249, 0.7);
   display: flex;
@@ -1414,7 +1788,12 @@ onUnmounted(() => {
   right: 0;
   z-index: 20;
   padding: 16px 24px 24px;
-  background: linear-gradient(to top, rgba(6, 6, 16, 0.95) 0%, rgba(6, 6, 16, 0.6) 60%, transparent 100%);
+  background: linear-gradient(
+    to top,
+    rgba(6, 6, 16, 0.95) 0%,
+    rgba(6, 6, 16, 0.6) 60%,
+    transparent 100%
+  );
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
@@ -1544,9 +1923,15 @@ onUnmounted(() => {
   margin-left: 8px;
 }
 
-.time-current { color: rgba(255,255,255,0.9); }
-.time-sep { color: rgba(255,255,255,0.3); }
-.time-total { color: rgba(255,255,255,0.45); }
+.time-current {
+  color: rgba(255, 255, 255, 0.9);
+}
+.time-sep {
+  color: rgba(255, 255, 255, 0.3);
+}
+.time-total {
+  color: rgba(255, 255, 255, 0.45);
+}
 
 .volume-group {
   display: flex;
@@ -1561,9 +1946,9 @@ onUnmounted(() => {
 
 /* ── 搜索侧面板 ──────────────────────────────────────────────────────────── */
 .search-panel {
-  width: 380px;
-  max-width: 92vw;
-  height: 100vh;
+  width: 1200px;
+  max-width: 82vw;
+  height: 80vh;
   background: rgba(9, 9, 22, 0.92);
   backdrop-filter: blur(32px);
   -webkit-backdrop-filter: blur(32px);
@@ -1598,11 +1983,26 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  .filter-item {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
 }
 
-.search-input :deep(.q-field__control) { background: rgba(25, 25, 48, 0.65); border-radius: 8px; }
-.search-input :deep(.q-field__native) { color: #c4b5fd; font-size: 0.88rem; }
-.search-input :deep(.q-field__native::placeholder) { color: rgba(165, 148, 249, 0.35); }
+.search-input :deep(.q-field__control) {
+  background: rgba(25, 25, 48, 0.65);
+  border-radius: 8px;
+}
+.search-input :deep(.q-field__native) {
+  color: #c4b5fd;
+  font-size: 0.88rem;
+}
+.search-input :deep(.q-field__native::placeholder) {
+  color: rgba(165, 148, 249, 0.35);
+}
 
 .filter-row {
   display: flex;
@@ -1634,8 +2034,13 @@ onUnmounted(() => {
   scrollbar-color: rgba(99, 102, 241, 0.25) transparent;
 }
 
-.search-results::-webkit-scrollbar { width: 4px; }
-.search-results::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.25); border-radius: 2px; }
+.search-results::-webkit-scrollbar {
+  width: 4px;
+}
+.search-results::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.25);
+  border-radius: 2px;
+}
 
 .search-loading {
   display: flex;
@@ -1645,9 +2050,13 @@ onUnmounted(() => {
   padding: 48px 0;
 }
 
-.search-cards { display: flex; flex-direction: column; gap: 10px; }
+.search-cards {
+  columns: 3;
+  gap: 10px;
+}
 
 .search-card {
+  margin-bottom: 4px;
   display: flex;
   gap: 10px;
   padding: 10px;
@@ -1655,21 +2064,28 @@ onUnmounted(() => {
   background: rgba(22, 22, 45, 0.55);
   border: 1px solid rgba(99, 102, 241, 0.12);
   cursor: pointer;
-  transition: background 0.25s, border-color 0.25s, box-shadow 0.25s, transform 0.2s;
+  transition: background 0.25s, border-color 0.25s, box-shadow 0.25s,
+    transform 0.2s;
   position: relative;
   overflow: hidden;
 }
 
 .search-card::after {
-  content: '';
+  /* content: ''; */
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.07) 0%, transparent 60%);
+  background: linear-gradient(
+    135deg,
+    rgba(99, 102, 241, 0.07) 0%,
+    transparent 60%
+  );
   opacity: 0;
   transition: opacity 0.3s;
 }
 
-.search-card:hover::after { opacity: 1; }
+.search-card:hover::after {
+  opacity: 1;
+}
 
 .search-card:hover {
   border-color: rgba(139, 92, 246, 0.4);
@@ -1712,7 +2128,9 @@ onUnmounted(() => {
   transition: opacity 0.25s;
 }
 
-.search-card:hover .search-card-play-overlay { opacity: 1; }
+.search-card:hover .search-card-play-overlay {
+  opacity: 1;
+}
 
 .search-card-info {
   flex: 1;
@@ -1798,30 +2216,80 @@ onUnmounted(() => {
   font-size: 12px;
 }
 
-.page-current { color: #c4b5fd; font-weight: 600; }
-.page-sep { color: rgba(255,255,255,0.25); }
-.page-total { color: rgba(165, 180, 252, 0.45); }
+.page-current {
+  color: #c4b5fd;
+  font-weight: 600;
+}
+.page-sep {
+  color: rgba(255, 255, 255, 0.25);
+}
+.page-total {
+  color: rgba(165, 180, 252, 0.45);
+}
 
 /* ── 过渡动画 ─────────────────────────────────────────────────────────────── */
-.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
 
-.slide-down-enter-active, .slide-down-leave-active { transition: transform 0.35s ease, opacity 0.35s ease; }
-.slide-down-enter-from, .slide-down-leave-to { transform: translateY(-100%); opacity: 0; }
+.slide-down-enter-active,
+.slide-down-leave-active {
+  transition: transform 0.35s ease, opacity 0.35s ease;
+}
+.slide-down-enter-from,
+.slide-down-leave-to {
+  transform: translateY(-100%);
+  opacity: 0;
+}
 
-.slide-up-enter-active, .slide-up-leave-active { transition: transform 0.35s ease, opacity 0.35s ease; }
-.slide-up-enter-from, .slide-up-leave-to { transform: translateY(20px); opacity: 0; }
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: transform 0.35s ease, opacity 0.35s ease;
+}
+.slide-up-enter-from,
+.slide-up-leave-to {
+  transform: translateY(20px);
+  opacity: 0;
+}
 
 /* ── 响应式 ───────────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .glass-panel { padding: 12px 16px 20px; }
-  .volume-slider { width: 60px; }
-  .top-title { font-size: 0.85rem; }
-  .magnet-input-area { width: 88vw; bottom: 78px; }
-  .search-panel { width: 100vw; max-width: 100vw; }
-  .carousel-banner { padding: 8px 46px; height: 74px; }
-  .carousel-item { width: 40px; height: 56px; }
-  .drop-zone { width: 80vw; height: 42vh; }
-  .time-display { font-size: 0.75rem; }
+  .glass-panel {
+    padding: 12px 16px 20px;
+  }
+  .volume-slider {
+    width: 60px;
+  }
+  .top-title {
+    font-size: 0.85rem;
+  }
+  .magnet-input-area {
+    width: 88vw;
+    bottom: 78px;
+  }
+  .search-panel {
+    width: 100vw;
+    max-width: 100vw;
+  }
+  .carousel-banner {
+    padding: 8px 46px;
+    height: 74px;
+  }
+  .carousel-item {
+    width: 40px;
+    height: 56px;
+  }
+  .drop-zone {
+    width: 80vw;
+    height: 42vh;
+  }
+  .time-display {
+    font-size: 0.75rem;
+  }
 }
 </style>
