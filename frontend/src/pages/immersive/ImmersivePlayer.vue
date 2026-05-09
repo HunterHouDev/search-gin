@@ -1,56 +1,82 @@
 <template>
-  <div class="immersive-container">
+  <div
+    class="immersive-container"
+    @mousemove="onMouseMove"
+    @click.self="togglePlay"
+    @dblclick="toggleFullscreen"
+  >
     <canvas ref="particleCanvas" class="particle-canvas"></canvas>
 
-    <q-btn
-      flat
-      round
-      color="white"
-      icon="arrow_back"
-      class="back-btn"
-      @click="goBack"
-    >
-      <q-tooltip class="bg-white text-primary">返回</q-tooltip>
-    </q-btn>
-
-    <q-btn
-      flat
-      round
-      color="white"
-      icon="search"
-      class="search-btn"
-      @click="searchDialog = true"
-    >
-      <q-tooltip class="bg-white text-primary">搜索</q-tooltip>
-    </q-btn>
-
-    <div class="carousel-banner" :class="{ 'banner-hidden': controlsHidden && isPlaying }">
-      <q-btn flat round dense color="white" icon="chevron_left" class="carousel-arrow carousel-arrow-left" @click="prevItem" />
-      <div class="carousel-track" ref="carouselTrack">
-        <div
-          v-for="(item, index) in playlist"
-          :key="item.Id || index"
-          class="carousel-item"
-          :class="{ 'carousel-item-active': index === currentIndex }"
-          @click="switchToItem(index)"
+    <!-- 顶部操作栏 -->
+    <transition name="slide-down">
+      <div class="top-bar" v-show="!controlsHidden || !isPlaying">
+        <q-btn
+          flat round color="white" icon="arrow_back"
+          class="top-action-btn"
+          @click.stop="goBack"
         >
-          <q-img
-            :src="item.CoverUrl || getJpg(item.Id)"
-            fit="cover"
-            class="carousel-thumb"
-          >
-            <template v-slot:error>
-              <div class="carousel-thumb-placeholder">
-                <q-icon name="movie" size="24px" color="grey-6" />
-              </div>
-            </template>
-          </q-img>
-          <div class="carousel-item-label">{{ item.Title || item.Name || `#${index + 1}` }}</div>
-        </div>
-      </div>
-      <q-btn flat round dense color="white" icon="chevron_right" class="carousel-arrow carousel-arrow-right" @click="nextItem" />
-    </div>
+          <q-tooltip class="bg-dark text-white">返回</q-tooltip>
+        </q-btn>
 
+        <div class="top-bar-center">
+          <span class="top-title" v-if="currentVideoName && videoLoaded">
+            {{ currentVideoName }}
+          </span>
+        </div>
+
+        <q-btn
+          flat round color="white" icon="search"
+          class="top-action-btn"
+          @click.stop="searchDialog = true"
+        >
+          <q-tooltip class="bg-dark text-white">搜索</q-tooltip>
+        </q-btn>
+      </div>
+    </transition>
+
+    <!-- 播放列表轮播 -->
+    <transition name="slide-down">
+      <div class="carousel-banner" v-show="playlist.length > 0 && (!controlsHidden || !isPlaying)">
+        <q-btn
+          flat round dense color="white" icon="chevron_left"
+          class="carousel-arrow carousel-arrow-left"
+          @click.stop="prevItem"
+        />
+        <div class="carousel-track" ref="carouselTrack">
+          <div
+            v-for="(item, index) in playlist"
+            :key="item.Id || index"
+            class="carousel-item"
+            :class="{ 'carousel-item-active': index === currentIndex }"
+            @click.stop="switchToItem(index)"
+          >
+            <q-img
+              :src="item.CoverUrl || getJpg(item.Id)"
+              fit="cover"
+              class="carousel-thumb"
+              :ratio="3/4"
+            >
+              <template v-slot:error>
+                <div class="carousel-thumb-placeholder">
+                  <q-icon name="movie" size="20px" color="grey-5" />
+                </div>
+              </template>
+            </q-img>
+            <div class="carousel-item-label">{{ item.Title || item.Name || `#${index + 1}` }}</div>
+            <div class="carousel-item-active-indicator" v-if="index === currentIndex">
+              <q-icon name="play_arrow" size="12px" color="white" />
+            </div>
+          </div>
+        </div>
+        <q-btn
+          flat round dense color="white" icon="chevron_right"
+          class="carousel-arrow carousel-arrow-right"
+          @click.stop="nextItem"
+        />
+      </div>
+    </transition>
+
+    <!-- 视频区域 -->
     <div class="video-wrapper" v-show="videoLoaded">
       <video
         ref="videoRef"
@@ -64,261 +90,354 @@
         @play="onPlay"
         @pause="onPause"
         @ended="onEnded"
+        @waiting="onWaiting"
+        @canplay="onCanPlay"
       ></video>
+      <!-- 缓冲 loading 遮罩 -->
+      <transition name="fade">
+        <div class="video-buffering" v-if="isBuffering">
+          <q-spinner-gears size="56px" color="indigo-3" />
+        </div>
+      </transition>
     </div>
 
-    <div v-if="!videoLoaded && !torrentLoading && playlist.length === 0" class="drop-zone" @dragover.prevent @drop="handleDrop">
-      <div class="drop-content">
-        <q-icon name="movie" size="64px" color="grey-6"></q-icon>
-        <p class="text-grey-5 text-h6 q-mt-md">拖拽视频文件到此处</p>
-        <p class="text-grey-6">支持 MP4, MKV, AVI 等格式</p>
+    <!-- 拖拽上传区域 -->
+    <transition name="fade">
+      <div
+        v-if="!videoLoaded && !torrentLoading && playlist.length === 0"
+        class="drop-zone"
+        :class="{ 'drop-zone-active': isDragOver }"
+        @dragover.prevent="isDragOver = true"
+        @dragleave="isDragOver = false"
+        @drop="handleDrop"
+      >
+        <div class="drop-content">
+          <div class="drop-icon-wrapper">
+            <q-icon name="movie" size="56px" color="indigo-3" />
+            <div class="drop-icon-ring"></div>
+          </div>
+          <p class="drop-title">拖拽视频文件到此处</p>
+          <p class="drop-subtitle">支持 MP4、MKV、AVI、MOV 等格式</p>
+        </div>
       </div>
-    </div>
+    </transition>
 
-    <div v-if="torrentLoading" class="torrent-loading">
-      <div class="loading-ring">
-        <q-spinner-gears size="80px" color="indigo-4" />
+    <!-- 磁力链输入区 -->
+    <transition name="slide-up">
+      <div
+        v-if="!videoLoaded && !torrentLoading && playlist.length === 0"
+        class="magnet-input-area"
+      >
+        <div class="magnet-input-wrapper" :class="{ 'magnet-focused': magnetFocused }">
+          <q-icon name="link" color="indigo-4" size="20px" class="magnet-icon" />
+          <q-input
+            v-model="magnetURI"
+            placeholder="粘贴磁力链 magnet:?xt=urn:btih:..."
+            dark dense borderless
+            class="magnet-input"
+            @keyup.enter="submitMagnet"
+            @focus="magnetFocused = true"
+            @blur="magnetFocused = false"
+          />
+          <q-btn
+            flat round dense
+            color="indigo-4" icon="play_circle_filled"
+            size="md"
+            @click="submitMagnet"
+            :disable="!magnetURI.trim()"
+            class="magnet-submit-btn"
+          >
+            <q-tooltip class="bg-dark text-white">播放磁力链</q-tooltip>
+          </q-btn>
+        </div>
       </div>
-      <div class="loading-info">
-        <p class="text-white text-h6">{{ torrentName }}</p>
-        <div class="progress-bar-container">
-          <q-linear-progress
-            :value="torrentProgress / 100"
-            color="indigo-5"
-            track-color="grey-9"
-            size="8px"
+    </transition>
+
+    <!-- 种子加载中 -->
+    <transition name="fade">
+      <div v-if="torrentLoading" class="torrent-loading">
+        <div class="torrent-loading-card">
+          <div class="torrent-spinner">
+            <q-spinner-gears size="64px" color="indigo-4" />
+          </div>
+          <p class="torrent-name">{{ torrentName }}</p>
+          <div class="torrent-progress-wrap">
+            <q-linear-progress
+              :value="torrentProgress / 100"
+              color="indigo-5"
+              track-color="grey-9"
+              size="6px"
+              rounded
+              class="q-mb-sm"
+            />
+            <div class="torrent-stats">
+              <span class="torrent-percent">{{ torrentProgress.toFixed(1) }}%</span>
+              <span class="torrent-state">{{ torrentState }}</span>
+              <span class="torrent-peers" v-if="torrentPeers > 0">
+                <q-icon name="people" size="12px" />
+                {{ torrentPeers }}
+              </span>
+            </div>
+          </div>
+          <q-btn
+            unelevated
+            color="red-9" text-color="red-3"
+            label="取消下载"
+            icon="cancel"
+            size="sm"
             rounded
+            @click="cancelTorrent"
+            class="q-mt-md"
           />
         </div>
-        <p class="text-grey-4 q-mt-sm">
-          {{ torrentProgress.toFixed(1) }}% · {{ torrentState }}
-          <span v-if="torrentPeers > 0"> · {{ torrentPeers }} 个节点</span>
-        </p>
-        <q-btn
-          flat
-          color="red-4"
-          label="取消"
-          size="sm"
-          @click="cancelTorrent"
-          class="q-mt-sm"
-        />
       </div>
-    </div>
+    </transition>
 
-    <div v-if="!videoLoaded && !torrentLoading && playlist.length === 0" class="magnet-input-area">
-      <div class="magnet-input-wrapper">
-        <q-input
-          v-model="magnetURI"
-          placeholder="粘贴磁力链 magnet:?xt=urn:btih:..."
-          dark
-          dense
-          outlined
-          color="indigo-5"
-          class="magnet-input"
-          @keyup.enter="submitMagnet"
+    <!-- 底部控制面板 -->
+    <transition name="slide-up">
+      <div
+        class="glass-panel"
+        v-show="!controlsHidden || !isPlaying"
+        @mouseenter="showControls"
+        @mouseleave="startHideTimer"
+        @click.stop
+      >
+        <!-- 进度条 -->
+        <div
+          class="progress-container"
+          ref="progressBar"
+          @mousedown="startSeek"
+          @mousemove="onProgressHover"
+          @mouseleave="hideTooltip"
         >
-          <template v-slot:prepend>
-            <q-icon name="link" color="indigo-4" />
-          </template>
-        </q-input>
-        <q-btn
-          flat
-          round
-          color="indigo-4"
-          icon="play_circle_filled"
-          size="lg"
-          @click="submitMagnet"
-          :disable="!magnetURI.trim()"
-        >
-          <q-tooltip class="bg-white text-primary">播放磁力链</q-tooltip>
-        </q-btn>
-      </div>
-    </div>
+          <div class="progress-track">
+            <!-- 缓冲进度 -->
+            <div class="progress-buffered" :style="{ width: bufferedPercent + '%' }"></div>
+            <!-- 播放进度 -->
+            <div class="progress-fill" :style="{ width: progressPercent + '%' }">
+              <div class="progress-glow"></div>
+            </div>
+            <!-- 拖拽手柄 -->
+            <div
+              class="progress-thumb"
+              :style="{ left: progressPercent + '%' }"
+              :class="{ 'seeking': isSeeking }"
+            ></div>
+          </div>
+          <!-- 时间悬浮提示 -->
+          <div class="progress-tooltip" v-if="hoverTime !== null" :style="{ left: hoverX + 'px' }">
+            {{ hoverTime }}
+          </div>
+        </div>
 
-    <div class="glass-panel" :class="{ 'panel-hidden': controlsHidden }" @mouseenter="showControls" @mouseleave="hideControls">
-      <div class="video-info" v-if="currentVideoName">
-        <p class="video-title">{{ currentVideoName }}</p>
-      </div>
+        <!-- 控制按钮行 -->
+        <div class="control-buttons">
+          <!-- 左侧：播放控制 + 时间 -->
+          <div class="ctrl-left">
+            <q-btn flat round color="white" size="sm" icon="skip_previous" @click="prevItem">
+              <q-tooltip class="bg-dark">上一个</q-tooltip>
+            </q-btn>
+            <q-btn
+              flat round
+              :color="isPlaying ? 'indigo-3' : 'white'"
+              size="md"
+              :icon="isPlaying ? 'pause_circle' : 'play_circle'"
+              class="play-btn"
+              @click="togglePlay"
+            />
+            <q-btn flat round color="white" size="sm" icon="skip_next" @click="nextItem">
+              <q-tooltip class="bg-dark">下一个</q-tooltip>
+            </q-btn>
+            <div class="time-display">
+              <span class="time-current">{{ currentTime }}</span>
+              <span class="time-sep">/</span>
+              <span class="time-total">{{ duration }}</span>
+            </div>
+          </div>
 
-      <div class="progress-container" @click="seekVideo" ref="progressBar">
-        <div class="progress-bar">
-          <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
-          <div class="progress-handle" :style="{ left: progressPercent + '%' }"></div>
+          <q-space />
+
+          <!-- 右侧：音量 + 全屏 -->
+          <div class="ctrl-right">
+            <div class="volume-group" @mouseenter="showVolume = true" @mouseleave="showVolume = false">
+              <q-btn flat round color="white" size="sm" @click="toggleMute" :icon="volumeIcon" />
+              <transition name="fade">
+                <q-slider
+                  v-show="showVolume"
+                  v-model="volume"
+                  :min="0" :max="1" :step="0.01"
+                  color="indigo-4"
+                  track-color="grey-8"
+                  class="volume-slider"
+                  @update:model-value="setVolume"
+                />
+              </transition>
+            </div>
+            <q-btn
+              flat round color="white" size="sm"
+              :icon="isFullscreen ? 'fullscreen_exit' : 'fullscreen'"
+              @click="toggleFullscreen"
+            >
+              <q-tooltip class="bg-dark">{{ isFullscreen ? '退出全屏' : '全屏' }}</q-tooltip>
+            </q-btn>
+          </div>
         </div>
       </div>
+    </transition>
 
-      <div class="control-buttons">
-        <q-btn flat round color="white" size="sm" @click="prevItem" icon="skip_previous" />
-        <q-btn flat round color="white" size="lg" @click="togglePlay" :icon="isPlaying ? 'pause' : 'play_arrow'" />
-        <q-btn flat round color="white" size="sm" @click="nextItem" icon="skip_next" />
-        <div class="time-display">
-          <span>{{ currentTime }}</span>
-          <span class="text-grey-5 q-mx-sm">/</span>
-          <span class="text-grey-5">{{ duration }}</span>
-        </div>
-        <q-space />
-        <q-btn flat round color="white" size="md" @click="toggleMute" :icon="volumeIcon" />
-        <q-slider
-          v-model="volume"
-          :min="0"
-          :max="1"
-          :step="0.01"
-          color="red"
-          track-color="grey-8"
-          class="volume-slider"
-          @update:model-value="setVolume"
-        />
-        <q-btn flat round color="white" size="lg" @click="toggleFullscreen" :icon="isFullscreen ? 'fullscreen_exit' : 'fullscreen'" />
-      </div>
-    </div>
-
+    <!-- 搜索侧面板 -->
     <q-dialog v-model="searchDialog" position="right" full-height seamless>
-      <div class="search-panel">
+      <div class="search-panel" @click.stop>
+        <!-- 头部 -->
         <div class="search-panel-header">
           <div class="search-panel-title">
-            <q-icon name="search" size="20px" class="q-mr-sm" />
-            搜索
+            <q-icon name="manage_search" size="20px" class="q-mr-xs" />
+            影片搜索
           </div>
-          <q-btn flat round dense color="white" icon="close" @click="searchDialog = false" />
+          <q-btn flat round dense color="grey-4" icon="close" @click="searchDialog = false" />
         </div>
 
+        <!-- 搜索条件 -->
         <div class="search-conditions">
           <q-input
             v-model="searchParams.Keyword"
-            placeholder="关键词搜索..."
-            dark
-            dense
-            outlined
+            placeholder="输入关键词..."
+            dark dense outlined
             color="indigo-4"
             class="search-input"
             @keyup.enter="fetchSearch"
           >
             <template v-slot:prepend>
-              <q-icon name="search" color="indigo-4" />
+              <q-icon name="search" color="indigo-4" size="18px" />
+            </template>
+            <template v-slot:append v-if="searchParams.Keyword">
+              <q-btn flat round dense icon="clear" color="grey-5" size="xs" @click="searchParams.Keyword = ''; fetchSearch()" />
             </template>
           </q-input>
 
-          <div class="search-condition-row">
-            <div class="condition-label">类型</div>
+          <div class="filter-row">
+            <span class="filter-label">类型</span>
             <q-btn-toggle
               v-model="searchParams.MovieType"
               :options="MovieTypeSelects"
-              size="xs"
-              no-caps
-              dense
-              glossy
-              toggle-color="indigo-6"
-              color="dark"
-              text-color="grey-4"
+              size="xs" no-caps dense glossy
+              toggle-color="indigo-6" color="dark" text-color="grey-4"
               @update:model-value="fetchSearch"
             />
           </div>
 
-          <div class="search-condition-row">
-            <div class="condition-label">排序</div>
+          <div class="filter-row">
+            <span class="filter-label">排序</span>
             <q-btn-toggle
               v-model="searchParams.SortField"
               :options="FieldEnum"
-              size="xs"
-              no-caps
-              dense
-              glossy
-              toggle-color="indigo-6"
-              color="dark"
-              text-color="grey-4"
+              size="xs" no-caps dense glossy
+              toggle-color="indigo-6" color="dark" text-color="grey-4"
               @update:model-value="fetchSearch"
             />
           </div>
 
-          <div class="search-condition-row">
-            <div class="condition-label">顺序</div>
+          <div class="filter-row">
+            <span class="filter-label">顺序</span>
             <q-btn-toggle
               v-model="searchParams.SortType"
               :options="DescEnum"
-              size="xs"
-              no-caps
-              dense
-              glossy
-              toggle-color="indigo-6"
-              color="dark"
-              text-color="grey-4"
+              size="xs" no-caps dense glossy
+              toggle-color="indigo-6" color="dark" text-color="grey-4"
               @update:model-value="fetchSearch"
             />
           </div>
 
-          <div class="search-condition-row">
+          <div class="filter-row">
             <q-checkbox
               v-model="searchParams.OnlyRepeat"
-              label="去重"
-              dense
-              dark
-              color="indigo-5"
+              label="仅去重结果"
+              dense dark color="indigo-5"
               @update:model-value="fetchSearch"
             />
+            <q-space />
+            <span class="result-size-badge" v-if="searchResults.ResultSize">
+              {{ searchResults.ResultSize }}
+            </span>
           </div>
         </div>
 
+        <!-- 搜索结果 -->
         <div class="search-results" ref="searchResultsRef">
           <div v-if="searchLoading" class="search-loading">
-            <q-spinner-gears size="40px" color="indigo-4" />
+            <q-spinner-dots size="40px" color="indigo-4" />
+            <p class="text-grey-5 q-mt-sm text-caption">加载中...</p>
           </div>
-          <div v-else-if="searchResults.Data && searchResults.Data.length > 0" class="search-cards">
-            <div
-              v-for="item in searchResults.Data"
-              :key="item.Id"
-              class="search-card"
-              @click="playFromSearch(item)"
-            >
-              <q-img
-                :src="getJpg(item.Id)"
-                fit="cover"
-                class="search-card-img"
+
+          <template v-else-if="searchResults.Data && searchResults.Data.length > 0">
+            <div class="search-cards">
+              <div
+                v-for="item in searchResults.Data"
+                :key="item.Id"
+                class="search-card"
+                @click="playFromSearch(item)"
               >
-                <template v-slot:error>
-                  <div class="search-card-placeholder">
-                    <q-icon name="movie" color="grey-6" />
+                <div class="search-card-thumb">
+                  <q-img
+                    :src="getJpg(item.Id)"
+                    fit="cover"
+                    class="search-card-img"
+                    :ratio="3/4"
+                  >
+                    <template v-slot:error>
+                      <div class="search-card-placeholder">
+                        <q-icon name="movie" color="grey-6" size="28px" />
+                      </div>
+                    </template>
+                  </q-img>
+                  <div class="search-card-play-overlay">
+                    <q-icon name="play_circle_filled" size="28px" color="white" />
                   </div>
-                </template>
-                <div class="search-card-overlay">
-                  <q-icon name="play_circle_filled" size="32px" color="white" />
                 </div>
-              </q-img>
-              <div class="search-card-info">
-                <div class="search-card-title">{{ formatTitle(item.Title, 20) }}</div>
-                <div class="search-card-meta">
-                  <span class="meta-actress">{{ item.Actress }}</span>
-                  <span class="meta-code">{{ item.Code }}</span>
-                </div>
-                <div class="search-card-meta">
-                  <span class="meta-size">{{ humanStorageSize(item.Size) }}</span>
-                  <span class="meta-time">{{ getTimeAgo(item.MTime) }}</span>
+
+                <div class="search-card-info">
+                  <div class="search-card-title">{{ formatTitle(item.Title, 24) }}</div>
+                  <div class="search-card-tags">
+                    <span class="tag tag-actress" v-if="item.Actress">{{ item.Actress }}</span>
+                    <span class="tag tag-code" v-if="item.Code">{{ item.Code }}</span>
+                  </div>
+                  <div class="search-card-meta">
+                    <span class="meta-item">
+                      <q-icon name="data_usage" size="10px" />
+                      {{ humanStorageSize(item.Size) }}
+                    </span>
+                    <span class="meta-item">
+                      <q-icon name="schedule" size="10px" />
+                      {{ getTimeAgo(item.MTime) }}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          </template>
+
           <div v-else class="search-empty">
             <q-icon name="search_off" size="48px" color="grey-7" />
-            <p class="text-grey-6 q-mt-sm">暂无结果</p>
+            <p class="text-grey-6 q-mt-sm">暂无搜索结果</p>
           </div>
         </div>
 
-        <div class="search-pagination" v-if="searchResults.TotalPage > 0">
+        <!-- 分页 -->
+        <div class="search-pagination" v-if="searchResults.TotalPage > 1">
           <q-btn
-            flat
-            dense
-            color="indigo-4"
-            icon="chevron_left"
+            flat dense round color="indigo-4" icon="chevron_left" size="sm"
             :disable="searchParams.Page <= 1"
-            @click="searchParams.Page--; fetchSearch()"
+            @click="changePage(-1)"
           />
-          <span class="pagination-text">{{ searchParams.Page }} / {{ searchResults.TotalPage }}</span>
+          <div class="pagination-info">
+            <span class="page-current">{{ searchParams.Page }}</span>
+            <span class="page-sep">/</span>
+            <span class="page-total">{{ searchResults.TotalPage }}</span>
+          </div>
           <q-btn
-            flat
-            dense
-            color="indigo-4"
-            icon="chevron_right"
+            flat dense round color="indigo-4" icon="chevron_right" size="sm"
             :disable="searchParams.Page >= searchResults.TotalPage"
-            @click="searchParams.Page++; fetchSearch()"
+            @click="changePage(1)"
           />
         </div>
       </div>
@@ -333,38 +452,47 @@ import { useRouter } from 'vue-router';
 import axios from 'axios';
 import { SearchAPI } from 'components/api/searchAPI';
 import { getJpg, getFileStream } from 'components/utils/images';
-import {
-  MovieTypeSelects,
-  FieldEnum,
-  DescEnum,
-  formatTitle,
-} from 'components/utils';
+import { MovieTypeSelects, FieldEnum, DescEnum, formatTitle } from 'components/utils';
 
 const $q = useQuasar();
 const router = useRouter();
-
 const { humanStorageSize } = format;
 
+// ── DOM refs ─────────────────────────────────────────────────────────────────
 const videoRef = ref(null);
 const particleCanvas = ref(null);
 const progressBar = ref(null);
 const carouselTrack = ref(null);
 const searchResultsRef = ref(null);
 
+// ── 播放状态 ──────────────────────────────────────────────────────────────────
 const currentVideoSrc = ref('');
 const currentPoster = ref('');
 const currentVideoName = ref('');
 const videoLoaded = ref(false);
 const isPlaying = ref(false);
 const isFullscreen = ref(false);
+const isBuffering = ref(false);
 const currentTime = ref('00:00:00');
 const duration = ref('00:00:00');
 const volume = ref(0.8);
 const currentTimeSeconds = ref(0);
 const durationSeconds = ref(0);
+const bufferedSeconds = ref(0);
 const controlsHidden = ref(false);
 
+// ── 进度条拖拽 ────────────────────────────────────────────────────────────────
+const isSeeking = ref(false);
+const hoverTime = ref(null);
+const hoverX = ref(0);
+
+// ── 音量控制 ──────────────────────────────────────────────────────────────────
+const showVolume = ref(false);
+
+// ── 磁力链 ────────────────────────────────────────────────────────────────────
 const magnetURI = ref('');
+const magnetFocused = ref(false);
+const isDragOver = ref(false);
 const torrentLoading = ref(false);
 const torrentName = ref('');
 const torrentProgress = ref(0);
@@ -373,9 +501,11 @@ const torrentPeers = ref(0);
 const currentInfoHash = ref('');
 let torrentPollTimer = null;
 
+// ── 播放列表 ──────────────────────────────────────────────────────────────────
 const playlist = reactive([]);
 const currentIndex = ref(-1);
 
+// ── 搜索 ──────────────────────────────────────────────────────────────────────
 const searchDialog = ref(false);
 const searchLoading = ref(false);
 const searchResults = reactive({ Data: [], TotalPage: 0, ResultSize: '' });
@@ -389,15 +519,22 @@ const searchParams = reactive({
   PageSize: 20,
 });
 
+// ── 粒子 / 音频 ───────────────────────────────────────────────────────────────
 let audioContext = null;
 let analyser = null;
 let animationFrameId = null;
 let particles = [];
 let hideControlsTimer = null;
 
+// ── 计算属性 ──────────────────────────────────────────────────────────────────
 const progressPercent = computed(() => {
   if (durationSeconds.value === 0) return 0;
   return (currentTimeSeconds.value / durationSeconds.value) * 100;
+});
+
+const bufferedPercent = computed(() => {
+  if (durationSeconds.value === 0) return 0;
+  return (bufferedSeconds.value / durationSeconds.value) * 100;
 });
 
 const volumeIcon = computed(() => {
@@ -407,15 +544,15 @@ const volumeIcon = computed(() => {
   return 'volume_up';
 });
 
+// ── 导航 ──────────────────────────────────────────────────────────────────────
 function goBack() {
   router.back();
 }
 
+// ── 播放列表操作 ──────────────────────────────────────────────────────────────
 function addToPlaylist(item) {
   const exists = playlist.some(p => p.Id === item.Id);
-  if (!exists) {
-    playlist.push(item);
-  }
+  if (!exists) playlist.push(item);
 }
 
 function switchToItem(index) {
@@ -428,33 +565,31 @@ function switchToItem(index) {
 }
 
 function prevItem() {
-  if (playlist.length === 0) return;
-  const newIdx = currentIndex.value > 0 ? currentIndex.value - 1 : playlist.length - 1;
-  switchToItem(newIdx);
+  if (!playlist.length) return;
+  switchToItem(currentIndex.value > 0 ? currentIndex.value - 1 : playlist.length - 1);
 }
 
 function nextItem() {
-  if (playlist.length === 0) return;
-  const newIdx = currentIndex.value < playlist.length - 1 ? currentIndex.value + 1 : 0;
-  switchToItem(newIdx);
+  if (!playlist.length) return;
+  switchToItem(currentIndex.value < playlist.length - 1 ? currentIndex.value + 1 : 0);
 }
 
 function scrollToActiveItem() {
   nextTick(() => {
     if (!carouselTrack.value) return;
-    const activeEl = carouselTrack.value.querySelector('.carousel-item-active');
-    if (activeEl) {
-      activeEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-    }
+    const el = carouselTrack.value.querySelector('.carousel-item-active');
+    if (el) el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
   });
 }
 
 async function playFromSearch(item) {
   addToPlaylist(item);
-  const newIdx = playlist.findIndex(p => p.Id === item.Id);
-  switchToItem(newIdx);
+  const idx = playlist.findIndex(p => p.Id === item.Id);
+  switchToItem(idx);
+  searchDialog.value = false;
 }
 
+// ── 搜索 ──────────────────────────────────────────────────────────────────────
 async function fetchSearch() {
   if (searchLoading.value) return;
   searchLoading.value = true;
@@ -467,22 +602,38 @@ async function fetchSearch() {
     }
   } catch (e) {
     console.error('搜索请求异常:', e);
-    $q.notify({ type: 'negative', message: '搜索失败', position: 'top' });
+    $q.notify({ type: 'negative', message: '搜索失败', position: 'top', timeout: 2000 });
   } finally {
     searchLoading.value = false;
   }
 }
 
+function changePage(delta) {
+  searchParams.Page += delta;
+  fetchSearch();
+  if (searchResultsRef.value) searchResultsRef.value.scrollTop = 0;
+}
+
+// ── 时间格式化 ────────────────────────────────────────────────────────────────
 const today = new Date();
 function getTimeAgo(MTime) {
   if (!MTime) return '';
-  const days = Math.floor((today - new Date(MTime)) / (1000 * 60 * 60 * 24));
-  if (days > 365) return `${Math.floor(days / 365)}年`;
-  if (days > 30) return `${Math.floor(days / 30)}月`;
-  if (days > 0) return `${days}天`;
+  const days = Math.floor((today - new Date(MTime)) / 86400000);
+  if (days > 365) return `${Math.floor(days / 365)}年前`;
+  if (days > 30) return `${Math.floor(days / 30)}个月前`;
+  if (days > 0) return `${days}天前`;
   return '今天';
 }
 
+function parseTime(seconds) {
+  if (isNaN(seconds) || seconds < 0) return '00:00:00';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+// ── 粒子系统 ──────────────────────────────────────────────────────────────────
 class Particle {
   constructor(canvas) {
     this.canvas = canvas;
@@ -492,14 +643,14 @@ class Particle {
   reset() {
     this.x = Math.random() * this.canvas.width;
     this.y = Math.random() * this.canvas.height;
-    this.size = Math.random() * 3 + 1;
+    this.size = Math.random() * 2.5 + 0.5;
     this.baseSize = this.size;
-    this.speedX = (Math.random() - 0.5) * 0.5;
-    this.speedY = (Math.random() - 0.5) * 0.5;
-    this.opacity = Math.random() * 0.5 + 0.3;
-    this.hue = Math.random() * 60 + 240;
+    this.speedX = (Math.random() - 0.5) * 0.4;
+    this.speedY = (Math.random() - 0.5) * 0.4;
+    this.opacity = Math.random() * 0.4 + 0.15;
+    this.hue = Math.random() * 60 + 230;
     this.pulsePhase = Math.random() * Math.PI * 2;
-    this.pulseSpeed = Math.random() * 0.02 + 0.01;
+    this.pulseSpeed = Math.random() * 0.018 + 0.008;
   }
 
   update(audioData = null) {
@@ -507,18 +658,15 @@ class Particle {
     const pulse = Math.sin(this.pulsePhase) * 0.5 + 0.5;
 
     if (audioData) {
-      const bass = audioData.bass || 0;
-      const mid = audioData.mid || 0;
-      const treble = audioData.treble || 0;
-
-      this.size = this.baseSize + bass * 5 + pulse * 2;
-      this.speedX *= 1 + bass * 0.1;
-      this.speedY *= 1 + bass * 0.1;
-      this.opacity = Math.min(1, 0.3 + bass * 0.5 + pulse * 0.3);
-      this.hue = 240 + mid * 60 + treble * 30;
+      const { bass = 0, mid = 0, treble = 0 } = audioData;
+      this.size = this.baseSize + bass * 4 + pulse * 1.5;
+      this.speedX *= 1 + bass * 0.08;
+      this.speedY *= 1 + bass * 0.08;
+      this.opacity = Math.min(0.85, 0.2 + bass * 0.5 + pulse * 0.25);
+      this.hue = 230 + mid * 60 + treble * 30;
     } else {
-      this.size = this.baseSize + pulse * 1.5;
-      this.opacity = 0.3 + pulse * 0.3;
+      this.size = this.baseSize + pulse * 1.2;
+      this.opacity = 0.15 + pulse * 0.25;
     }
 
     this.x += this.speedX;
@@ -531,11 +679,11 @@ class Particle {
   draw(ctx) {
     ctx.save();
     ctx.globalAlpha = this.opacity;
-    ctx.shadowBlur = 15;
-    ctx.shadowColor = `hsl(${this.hue}, 80%, 60%)`;
-    ctx.fillStyle = `hsl(${this.hue}, 80%, 70%)`;
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = `hsl(${this.hue}, 80%, 65%)`;
+    ctx.fillStyle = `hsl(${this.hue}, 70%, 72%)`;
     ctx.beginPath();
-    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    ctx.arc(this.x, this.y, Math.max(0.1, this.size), 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
@@ -546,16 +694,13 @@ function initParticles() {
   const canvas = particleCanvas.value;
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
-
   particles = [];
-  const count = Math.min(400, Math.floor((canvas.width * canvas.height) / 5000));
-  for (let i = 0; i < count; i++) {
-    particles.push(new Particle(canvas));
-  }
+  const count = Math.min(350, Math.floor((canvas.width * canvas.height) / 6000));
+  for (let i = 0; i < count; i++) particles.push(new Particle(canvas));
 }
 
 function initAudioAnalyser() {
-  if (!videoRef.value) return;
+  if (!videoRef.value || audioContext) return;
   try {
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
     analyser = audioContext.createAnalyser();
@@ -564,7 +709,7 @@ function initAudioAnalyser() {
     source.connect(analyser);
     analyser.connect(audioContext.destination);
   } catch (e) {
-    console.warn('Audio analyser not available:', e);
+    console.warn('Audio analyser unavailable:', e);
   }
 }
 
@@ -573,11 +718,9 @@ function getAudioData() {
   const bufferLength = analyser.frequencyBinCount;
   const dataArray = new Uint8Array(bufferLength);
   analyser.getByteFrequencyData(dataArray);
-
   const bass = dataArray.slice(0, 10).reduce((a, b) => a + b, 0) / 10 / 255;
   const mid = dataArray.slice(10, 40).reduce((a, b) => a + b, 0) / 30 / 255;
-  const treble = dataArray.slice(40, bufferLength).reduce((a, b) => a + b, 0) / (bufferLength - 40) / 255;
-
+  const treble = dataArray.slice(40).reduce((a, b) => a + b, 0) / (bufferLength - 40) / 255;
   return { bass, mid, treble };
 }
 
@@ -585,33 +728,22 @@ function animate() {
   if (!particleCanvas.value) return;
   const canvas = particleCanvas.value;
   const ctx = canvas.getContext('2d');
-
-  ctx.fillStyle = 'rgba(10, 10, 15, 0.1)';
+  ctx.fillStyle = 'rgba(8, 8, 14, 0.12)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-
   const audioData = isPlaying.value ? getAudioData() : null;
-
-  particles.forEach(particle => {
-    particle.update(audioData);
-    particle.draw(ctx);
-  });
-
+  particles.forEach(p => { p.update(audioData); p.draw(ctx); });
   animationFrameId = requestAnimationFrame(animate);
 }
 
-function parseTime(seconds) {
-  if (isNaN(seconds)) return '00:00:00';
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-}
-
+// ── 文件拖拽 ──────────────────────────────────────────────────────────────────
 function handleDrop(e) {
   e.preventDefault();
+  isDragOver.value = false;
   const file = e.dataTransfer.files[0];
   if (file && file.type.startsWith('video/')) {
     loadVideo(URL.createObjectURL(file), file.name);
+  } else {
+    $q.notify({ type: 'warning', message: '仅支持视频文件', position: 'top' });
   }
 }
 
@@ -620,33 +752,29 @@ function loadVideo(src, name, poster) {
   currentVideoName.value = name || '未知视频';
   currentPoster.value = poster || '';
   videoLoaded.value = true;
-
   setTimeout(() => {
     if (videoRef.value) {
       videoRef.value.volume = volume.value;
       initAudioAnalyser();
-      if (!animationFrameId) {
-        animate();
-      }
+      if (!animationFrameId) animate();
     }
   }, 100);
 }
 
+// ── 磁力链 ────────────────────────────────────────────────────────────────────
 async function submitMagnet() {
   const uri = magnetURI.value.trim();
   if (!uri.startsWith('magnet:')) {
     $q.notify({ type: 'negative', message: '请输入有效的磁力链', position: 'top' });
     return;
   }
-
   torrentLoading.value = true;
   torrentProgress.value = 0;
   torrentState.value = '正在连接...';
   torrentName.value = '获取种子信息中...';
-
   try {
     const res = await axios.post('/api/torrent/add', { magnetURI: uri });
-    if (res.data && res.data.code === 200) {
+    if (res.data?.code === 200) {
       currentInfoHash.value = res.data.data.infoHash;
       startPolling(currentInfoHash.value);
     } else {
@@ -664,27 +792,19 @@ function startPolling(infoHash) {
   torrentPollTimer = setInterval(async () => {
     try {
       const res = await axios.get(`/api/torrent/status/${infoHash}`);
-      if (res.data && res.data.code === 200) {
-        const data = res.data.data;
-        torrentName.value = data.name;
-        torrentProgress.value = data.progress;
-        torrentState.value = data.state;
-        torrentPeers.value = data.peers;
-
-        if (data.progress >= 3 && !videoLoaded.value) {
+      if (res.data?.code === 200) {
+        const d = res.data.data;
+        torrentName.value = d.name;
+        torrentProgress.value = d.progress;
+        torrentState.value = d.state;
+        torrentPeers.value = d.peers;
+        if (d.progress >= 3 && !videoLoaded.value) {
           torrentState.value = '缓冲就绪，开始播放';
           const streamUrl = `/api/torrent/stream/${infoHash}`;
-          const torrentItem = {
-            Id: infoHash,
-            Title: data.videoFile || data.name,
-            Name: data.videoFile || data.name,
-            TorrentStream: streamUrl,
-            CoverUrl: '',
-          };
-          addToPlaylist(torrentItem);
+          addToPlaylist({ Id: infoHash, Title: d.videoFile || d.name, Name: d.videoFile || d.name, TorrentStream: streamUrl, CoverUrl: '' });
           const newIdx = playlist.findIndex(p => p.Id === infoHash);
           currentIndex.value = newIdx;
-          loadVideo(streamUrl, data.videoFile || data.name);
+          loadVideo(streamUrl, d.videoFile || d.name);
           stopPolling();
         }
       }
@@ -695,20 +815,13 @@ function startPolling(infoHash) {
 }
 
 function stopPolling() {
-  if (torrentPollTimer) {
-    clearInterval(torrentPollTimer);
-    torrentPollTimer = null;
-  }
+  if (torrentPollTimer) { clearInterval(torrentPollTimer); torrentPollTimer = null; }
 }
 
 async function cancelTorrent() {
   stopPolling();
   if (currentInfoHash.value) {
-    try {
-      await axios.delete(`/api/torrent/${currentInfoHash.value}`);
-    } catch (err) {
-      console.warn('取消下载失败:', err);
-    }
+    try { await axios.delete(`/api/torrent/${currentInfoHash.value}`); } catch { /* ignore */ }
   }
   torrentLoading.value = false;
   torrentProgress.value = 0;
@@ -717,36 +830,30 @@ async function cancelTorrent() {
   currentInfoHash.value = '';
 }
 
+// ── 播放控制 ──────────────────────────────────────────────────────────────────
 function togglePlay() {
-  if (!videoRef.value) return;
-  if (isPlaying.value) {
-    videoRef.value.pause();
-  } else {
-    videoRef.value.play();
-  }
+  if (!videoRef.value || !videoLoaded.value) return;
+  isPlaying.value ? videoRef.value.pause() : videoRef.value.play();
 }
 
-function onPlay() {
-  isPlaying.value = true;
-  resetControlsTimer();
-}
-
-function onPause() {
-  isPlaying.value = false;
-}
+function onPlay() { isPlaying.value = true; resetControlsTimer(); }
+function onPause() { isPlaying.value = false; showControls(); }
+function onWaiting() { isBuffering.value = true; }
+function onCanPlay() { isBuffering.value = false; }
 
 function onEnded() {
   isPlaying.value = false;
   controlsHidden.value = false;
-  if (playlist.length > 0 && currentIndex.value < playlist.length - 1) {
-    nextItem();
-  }
+  if (playlist.length > 0 && currentIndex.value < playlist.length - 1) nextItem();
 }
 
 function onTimeUpdate() {
   if (!videoRef.value) return;
   currentTimeSeconds.value = videoRef.value.currentTime;
   currentTime.value = parseTime(videoRef.value.currentTime);
+  // 更新缓冲进度
+  const buf = videoRef.value.buffered;
+  if (buf.length > 0) bufferedSeconds.value = buf.end(buf.length - 1);
 }
 
 function onMetadataLoaded() {
@@ -755,13 +862,40 @@ function onMetadataLoaded() {
   duration.value = parseTime(videoRef.value.duration);
 }
 
-function seekVideo(e) {
-  if (!videoRef.value || !progressBar.value) return;
-  const rect = progressBar.value.getBoundingClientRect();
-  const percent = (e.clientX - rect.left) / rect.width;
-  videoRef.value.currentTime = percent * durationSeconds.value;
+// ── 进度条拖拽 ────────────────────────────────────────────────────────────────
+function startSeek(e) {
+  isSeeking.value = true;
+  doSeek(e);
+  document.addEventListener('mousemove', doSeek);
+  document.addEventListener('mouseup', endSeek);
 }
 
+function doSeek(e) {
+  if (!progressBar.value || !durationSeconds.value) return;
+  const rect = progressBar.value.getBoundingClientRect();
+  const pct = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+  if (videoRef.value) videoRef.value.currentTime = pct * durationSeconds.value;
+}
+
+function endSeek() {
+  isSeeking.value = false;
+  document.removeEventListener('mousemove', doSeek);
+  document.removeEventListener('mouseup', endSeek);
+}
+
+function onProgressHover(e) {
+  if (!progressBar.value || !durationSeconds.value) return;
+  const rect = progressBar.value.getBoundingClientRect();
+  const pct = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+  hoverTime.value = parseTime(pct * durationSeconds.value);
+  hoverX.value = e.clientX - rect.left;
+}
+
+function hideTooltip() {
+  hoverTime.value = null;
+}
+
+// ── 音量 ──────────────────────────────────────────────────────────────────────
 function toggleMute() {
   if (!videoRef.value) return;
   if (volume.value > 0) {
@@ -779,44 +913,75 @@ function setVolume(val) {
   videoRef.value.volume = val;
 }
 
+// ── 全屏 ──────────────────────────────────────────────────────────────────────
 function toggleFullscreen() {
-  const elem = document.documentElement;
   if (!document.fullscreenElement) {
-    elem.requestFullscreen().then(() => {
-      isFullscreen.value = true;
-    });
+    document.documentElement.requestFullscreen().then(() => { isFullscreen.value = true; }).catch(() => {});
   } else {
-    document.exitFullscreen().then(() => {
-      isFullscreen.value = false;
-    });
+    document.exitFullscreen().then(() => { isFullscreen.value = false; }).catch(() => {});
   }
 }
 
+// ── 控制栏显隐 ────────────────────────────────────────────────────────────────
 function showControls() {
   controlsHidden.value = false;
-  if (hideControlsTimer) {
-    clearTimeout(hideControlsTimer);
-    hideControlsTimer = null;
+  clearHideTimer();
+}
+
+function startHideTimer() {
+  if (isPlaying.value) {
+    hideControlsTimer = setTimeout(() => { controlsHidden.value = true; }, 3000);
   }
 }
 
-function hideControls() {
-  if (isPlaying.value) {
-    hideControlsTimer = setTimeout(() => {
-      controlsHidden.value = true;
-    }, 3000);
-  }
+function clearHideTimer() {
+  if (hideControlsTimer) { clearTimeout(hideControlsTimer); hideControlsTimer = null; }
 }
 
 function resetControlsTimer() {
-  if (hideControlsTimer) {
-    clearTimeout(hideControlsTimer);
-  }
-  hideControlsTimer = setTimeout(() => {
-    controlsHidden.value = true;
-  }, 3000);
+  clearHideTimer();
+  hideControlsTimer = setTimeout(() => { controlsHidden.value = true; }, 3000);
 }
 
+function onMouseMove() {
+  showControls();
+  if (isPlaying.value) resetControlsTimer();
+}
+
+// ── 键盘快捷键 ────────────────────────────────────────────────────────────────
+function handleKeydown(e) {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  switch (e.code) {
+    case 'Space':
+      e.preventDefault();
+      togglePlay();
+      break;
+    case 'ArrowLeft':
+      e.preventDefault();
+      if (videoRef.value) videoRef.value.currentTime = Math.max(0, videoRef.value.currentTime - 5);
+      break;
+    case 'ArrowRight':
+      e.preventDefault();
+      if (videoRef.value) videoRef.value.currentTime = Math.min(durationSeconds.value, videoRef.value.currentTime + 5);
+      break;
+    case 'ArrowUp':
+      e.preventDefault();
+      setVolume(Math.min(1, volume.value + 0.1));
+      break;
+    case 'ArrowDown':
+      e.preventDefault();
+      setVolume(Math.max(0, volume.value - 0.1));
+      break;
+    case 'KeyF':
+      toggleFullscreen();
+      break;
+    case 'KeyM':
+      toggleMute();
+      break;
+  }
+}
+
+// ── 窗口 resize ───────────────────────────────────────────────────────────────
 function handleResize() {
   if (particleCanvas.value) {
     particleCanvas.value.width = window.innerWidth;
@@ -824,38 +989,9 @@ function handleResize() {
   }
 }
 
+// ── 监听 ──────────────────────────────────────────────────────────────────────
 watch(searchDialog, (val) => {
-  if (val && searchResults.Data.length === 0) {
-    fetchSearch();
-  }
-});
-
-onMounted(() => {
-  initParticles();
-  animate();
-
-  document.addEventListener('fullscreenchange', () => {
-    isFullscreen.value = !!document.fullscreenElement;
-  });
-
-  window.addEventListener('resize', handleResize);
-});
-
-onUnmounted(() => {
-  if (animationFrameId) {
-    cancelAnimationFrame(animationFrameId);
-  }
-  if (hideControlsTimer) {
-    clearTimeout(hideControlsTimer);
-  }
-  if (audioContext) {
-    audioContext.close();
-  }
-  stopPolling();
-  if (currentInfoHash.value) {
-    axios.delete(`/api/torrent/${currentInfoHash.value}`).catch(() => { /* ignore */ });
-  }
-  document.removeEventListener('resize', handleResize);
+  if (val && searchResults.Data.length === 0) fetchSearch();
 });
 
 watch(isPlaying, (playing) => {
@@ -863,128 +999,156 @@ watch(isPlaying, (playing) => {
     resetControlsTimer();
   } else {
     controlsHidden.value = false;
-    if (hideControlsTimer) {
-      clearTimeout(hideControlsTimer);
-    }
+    clearHideTimer();
   }
+});
+
+// ── 生命周期 ──────────────────────────────────────────────────────────────────
+onMounted(() => {
+  initParticles();
+  animate();
+  document.addEventListener('fullscreenchange', () => { isFullscreen.value = !!document.fullscreenElement; });
+  window.addEventListener('resize', handleResize);
+  document.addEventListener('keydown', handleKeydown);
+});
+
+onUnmounted(() => {
+  if (animationFrameId) cancelAnimationFrame(animationFrameId);
+  clearHideTimer();
+  endSeek();
+  if (audioContext) audioContext.close();
+  stopPolling();
+  if (currentInfoHash.value) {
+    axios.delete(`/api/torrent/${currentInfoHash.value}`).catch(() => {});
+  }
+  window.removeEventListener('resize', handleResize);
+  document.removeEventListener('keydown', handleKeydown);
 });
 </script>
 
 <style scoped>
+/* ── 容器 ──────────────────────────────────────────────────────────────────── */
 .immersive-container {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a0f 100%);
+  inset: 0;
+  background: radial-gradient(ellipse at 30% 40%, #12122a 0%, #080810 100%);
   overflow: hidden;
+  cursor: none;
+  user-select: none;
 }
 
-.back-btn {
-  position: absolute;
-  top: 20px;
-  left: 20px;
-  z-index: 30;
-  background: rgba(15, 15, 25, 0.5);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(99, 102, 241, 0.3);
-  transition: all 0.3s ease;
+.immersive-container:hover {
+  cursor: default;
 }
 
-.back-btn:hover {
-  background: rgba(99, 102, 241, 0.3);
-  border-color: rgba(99, 102, 241, 0.6);
-  box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
-}
-
-.search-btn {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  z-index: 30;
-  background: rgba(15, 15, 25, 0.5);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(99, 102, 241, 0.3);
-  transition: all 0.3s ease;
-}
-
-.search-btn:hover {
-  background: rgba(99, 102, 241, 0.3);
-  border-color: rgba(99, 102, 241, 0.6);
-  box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
-}
-
+/* ── 粒子画布 ─────────────────────────────────────────────────────────────── */
 .particle-canvas {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  inset: 0;
   z-index: 1;
+  pointer-events: none;
 }
 
-.carousel-banner {
+/* ── 顶部操作栏 ──────────────────────────────────────────────────────────── */
+.top-bar {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  z-index: 20;
+  z-index: 25;
+  height: 64px;
   display: flex;
   align-items: center;
-  padding: 10px 60px;
-  height: 80px;
-  background: rgba(10, 10, 20, 0.6);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(99, 102, 241, 0.2);
-  transition: all 0.4s ease;
+  padding: 0 16px;
+  gap: 12px;
+  background: linear-gradient(to bottom, rgba(5, 5, 15, 0.9) 0%, transparent 100%);
 }
 
-.banner-hidden {
-  transform: translateY(-100%);
+.top-bar-center {
+  flex: 1;
+  text-align: center;
+  overflow: hidden;
+}
+
+.top-title {
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  padding: 0 20px;
+  text-shadow: 0 1px 8px rgba(99, 102, 241, 0.6);
+}
+
+.top-action-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: background 0.25s, border-color 0.25s, box-shadow 0.25s;
+  flex-shrink: 0;
+}
+
+.top-action-btn:hover {
+  background: rgba(99, 102, 241, 0.25);
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 0 18px rgba(99, 102, 241, 0.35);
+}
+
+/* ── 轮播播放列表 ──────────────────────────────────────────────────────────── */
+.carousel-banner {
+  position: absolute;
+  top: 64px;
+  left: 0;
+  right: 0;
+  z-index: 22;
+  display: flex;
+  align-items: center;
+  padding: 8px 52px;
+  height: 82px;
+  background: rgba(8, 8, 20, 0.55);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-bottom: 1px solid rgba(99, 102, 241, 0.18);
 }
 
 .carousel-track {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   overflow-x: auto;
   scroll-behavior: smooth;
   scroll-snap-type: x mandatory;
   flex: 1;
-  padding: 4px 0;
-  -ms-overflow-style: none;
+  padding: 4px 2px;
   scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-.carousel-track::-webkit-scrollbar {
-  display: none;
-}
+.carousel-track::-webkit-scrollbar { display: none; }
 
 .carousel-item {
   flex-shrink: 0;
-  width: 52px;
-  height: 60px;
+  width: 46px;
+  height: 64px;
   border-radius: 8px;
   overflow: hidden;
   cursor: pointer;
   scroll-snap-align: center;
   border: 2px solid transparent;
-  transition: all 0.3s ease;
+  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
   position: relative;
 }
 
 .carousel-item:hover {
-  border-color: rgba(99, 102, 241, 0.5);
-  transform: scale(1.08);
+  border-color: rgba(99, 102, 241, 0.55);
+  transform: scale(1.1) translateY(-2px);
 }
 
 .carousel-item-active {
-  border-color: rgba(139, 92, 246, 0.9);
-  box-shadow: 0 0 12px rgba(139, 92, 246, 0.6), 0 0 24px rgba(99, 102, 241, 0.3);
-  transform: scale(1.1);
+  border-color: rgba(139, 92, 246, 0.95);
+  box-shadow: 0 0 14px rgba(139, 92, 246, 0.65), 0 0 28px rgba(99, 102, 241, 0.25);
+  transform: scale(1.12) translateY(-2px);
 }
 
 .carousel-thumb {
@@ -998,7 +1162,7 @@ watch(isPlaying, (playing) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(30, 30, 50, 0.8);
+  background: rgba(25, 25, 45, 0.9);
 }
 
 .carousel-item-label {
@@ -1006,43 +1170,50 @@ watch(isPlaying, (playing) => {
   bottom: 0;
   left: 0;
   right: 0;
-  font-size: 8px;
-  color: white;
+  font-size: 7px;
+  color: rgba(255,255,255,0.85);
   text-align: center;
-  padding: 1px 2px;
-  background: rgba(0, 0, 0, 0.7);
+  padding: 2px 2px;
+  background: rgba(0,0,0,0.75);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+.carousel-item-active-indicator {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: rgba(139, 92, 246, 0.85);
+  border-radius: 50%;
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .carousel-arrow {
   position: absolute;
-  z-index: 21;
-  background: rgba(15, 15, 25, 0.5);
+  z-index: 23;
+  background: rgba(10, 10, 22, 0.55);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(99, 102, 241, 0.3);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  transition: background 0.2s;
 }
 
 .carousel-arrow:hover {
   background: rgba(99, 102, 241, 0.3);
+  border-color: rgba(99, 102, 241, 0.55);
 }
 
-.carousel-arrow-left {
-  left: 8px;
-}
+.carousel-arrow-left { left: 8px; }
+.carousel-arrow-right { right: 8px; }
 
-.carousel-arrow-right {
-  right: 8px;
-}
-
+/* ── 视频区域 ─────────────────────────────────────────────────────────────── */
 .video-wrapper {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 85vw;
-  height: 80vh;
+  inset: 0;
   z-index: 2;
   display: flex;
   justify-content: center;
@@ -1055,339 +1226,470 @@ watch(isPlaying, (playing) => {
   width: auto;
   height: auto;
   object-fit: contain;
-  border-radius: 8px;
-  box-shadow: 0 0 60px rgba(99, 102, 241, 0.3);
+  border-radius: 6px;
+  box-shadow: 0 0 80px rgba(80, 60, 180, 0.25);
 }
 
+.video-buffering {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 5;
+  backdrop-filter: blur(4px);
+}
+
+/* ── 拖拽区域 ─────────────────────────────────────────────────────────────── */
 .drop-zone {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 60vw;
-  height: 50vh;
-  border: 3px dashed rgba(99, 102, 241, 0.5);
-  border-radius: 20px;
+  width: 52vw;
+  height: 46vh;
+  min-width: 320px;
+  border: 2px dashed rgba(99, 102, 241, 0.4);
+  border-radius: 24px;
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 2;
-  transition: all 0.3s ease;
+  z-index: 4;
+  transition: border-color 0.3s, background 0.3s, box-shadow 0.3s;
 }
 
-.drop-zone:hover {
-  border-color: #6366f1;
-  background: rgba(99, 102, 241, 0.1);
-  box-shadow: 0 0 40px rgba(99, 102, 241, 0.3);
+.drop-zone:hover,
+.drop-zone-active {
+  border-color: rgba(139, 92, 246, 0.8);
+  background: rgba(99, 102, 241, 0.07);
+  box-shadow: 0 0 50px rgba(99, 102, 241, 0.2), inset 0 0 40px rgba(99, 102, 241, 0.06);
 }
 
 .drop-content {
   text-align: center;
+  pointer-events: none;
 }
 
+.drop-icon-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.drop-icon-ring {
+  position: absolute;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  border: 2px solid rgba(99, 102, 241, 0.3);
+  animation: pulse-ring 2.5s ease-in-out infinite;
+}
+
+@keyframes pulse-ring {
+  0%, 100% { transform: scale(0.9); opacity: 0.4; }
+  50% { transform: scale(1.1); opacity: 0.8; }
+}
+
+.drop-title {
+  font-size: 1.1rem;
+  color: rgba(196, 181, 253, 0.9);
+  margin: 0 0 8px;
+  font-weight: 500;
+}
+
+.drop-subtitle {
+  font-size: 0.82rem;
+  color: rgba(129, 140, 248, 0.55);
+  margin: 0;
+}
+
+/* ── 磁力链输入 ──────────────────────────────────────────────────────────── */
 .magnet-input-area {
   position: absolute;
-  bottom: 100px;
+  bottom: 88px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 5;
-  width: 70vw;
-  max-width: 700px;
+  width: 64vw;
+  max-width: 680px;
+  min-width: 280px;
 }
 
 .magnet-input-wrapper {
   display: flex;
   align-items: center;
-  gap: 12px;
-  background: rgba(15, 15, 25, 0.7);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(99, 102, 241, 0.3);
-  border-radius: 16px;
-  padding: 8px 16px;
-  transition: all 0.3s ease;
+  gap: 10px;
+  background: rgba(12, 12, 24, 0.75);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  border-radius: 40px;
+  padding: 8px 8px 8px 18px;
+  transition: border-color 0.3s, box-shadow 0.3s;
 }
 
-.magnet-input-wrapper:hover {
-  border-color: rgba(99, 102, 241, 0.6);
-  box-shadow: 0 0 30px rgba(99, 102, 241, 0.2);
+.magnet-input-wrapper.magnet-focused {
+  border-color: rgba(139, 92, 246, 0.65);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12), 0 0 30px rgba(99, 102, 241, 0.18);
 }
 
-.magnet-input {
-  flex: 1;
+.magnet-icon { flex-shrink: 0; opacity: 0.8; }
+
+.magnet-input { flex: 1; }
+
+.magnet-input :deep(.q-field__control) { background: transparent; border: none; }
+.magnet-input :deep(.q-field__native) { color: #c4b5fd; font-size: 0.88rem; }
+.magnet-input :deep(.q-field__native::placeholder) { color: rgba(165, 148, 249, 0.38); }
+
+.magnet-submit-btn {
+  background: rgba(99, 102, 241, 0.2);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  transition: background 0.2s, box-shadow 0.2s;
 }
 
-.magnet-input :deep(.q-field__control) {
-  background: transparent;
+.magnet-submit-btn:hover:not([disabled]) {
+  background: rgba(99, 102, 241, 0.4);
+  box-shadow: 0 0 16px rgba(99, 102, 241, 0.4);
 }
 
-.magnet-input :deep(.q-field__native) {
-  color: #c4b5fd;
-  font-size: 0.9rem;
-}
-
-.magnet-input :deep(.q-field__native::placeholder) {
-  color: rgba(165, 148, 249, 0.4);
-}
-
+/* ── 种子加载 ─────────────────────────────────────────────────────────────── */
 .torrent-loading {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 5;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 6;
+}
+
+.torrent-loading-card {
+  background: rgba(10, 10, 22, 0.85);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  border-radius: 20px;
+  padding: 32px 40px;
+  min-width: 340px;
   text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
 
-.loading-ring {
-  margin-bottom: 24px;
+.torrent-spinner { margin-bottom: 20px; }
+
+.torrent-name {
+  font-size: 0.95rem;
+  color: rgba(255,255,255,0.85);
+  margin: 0 0 16px;
+  line-height: 1.4;
+  word-break: break-all;
 }
 
-.loading-info {
-  background: rgba(15, 15, 25, 0.7);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(99, 102, 241, 0.3);
-  border-radius: 16px;
-  padding: 24px 32px;
-  min-width: 320px;
+.torrent-progress-wrap { margin-bottom: 4px; }
+
+.torrent-stats {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
 }
 
-.progress-bar-container {
-  margin-top: 12px;
+.torrent-percent { color: #a5b4fc; font-weight: 600; }
+.torrent-state { color: rgba(134,239,172,0.8); }
+.torrent-peers {
+  color: rgba(165, 148, 249, 0.7);
+  display: flex;
+  align-items: center;
+  gap: 3px;
 }
 
+/* ── 底部控制面板 ─────────────────────────────────────────────────────────── */
 .glass-panel {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 10;
-  padding: 20px 30px 30px;
-  background: rgba(15, 15, 25, 0.75);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid rgba(99, 102, 241, 0.3);
-  transition: all 0.4s ease;
+  z-index: 20;
+  padding: 16px 24px 24px;
+  background: linear-gradient(to top, rgba(6, 6, 16, 0.95) 0%, rgba(6, 6, 16, 0.6) 60%, transparent 100%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
-.panel-hidden {
-  transform: translateY(calc(100% - 60px));
-}
-
-.panel-hidden .video-info,
-.panel-hidden .progress-container,
-.panel-hidden .time-display,
-.panel-hidden .volume-slider {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.video-info {
-  margin-bottom: 15px;
-  transition: opacity 0.3s ease;
-}
-
-.video-title {
-  font-size: 1.1rem;
-  color: #fff;
-  margin: 0;
-  text-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
+/* ── 进度条 ───────────────────────────────────────────────────────────────── */
 .progress-container {
-  height: 30px;
+  height: 32px;
   display: flex;
   align-items: center;
   cursor: pointer;
-  margin-bottom: 15px;
-  transition: opacity 0.3s ease;
+  margin-bottom: 10px;
+  position: relative;
 }
 
-.progress-bar {
+.progress-track {
   position: relative;
   width: 100%;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 3px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
   overflow: visible;
+  transition: height 0.2s ease;
+}
+
+.progress-container:hover .progress-track {
+  height: 6px;
+}
+
+.progress-buffered {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 4px;
+  transition: width 0.5s ease;
 }
 
 .progress-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
   height: 100%;
   background: linear-gradient(90deg, #6366f1, #8b5cf6, #f472b6);
-  border-radius: 3px;
+  border-radius: 4px;
   transition: width 0.1s linear;
-  box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+  overflow: hidden;
 }
 
-.progress-handle {
+.progress-glow {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 40px;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.4);
+  filter: blur(4px);
+}
+
+.progress-thumb {
   position: absolute;
   top: 50%;
-  transform: translate(-50%, -50%);
-  width: 16px;
-  height: 16px;
+  transform: translate(-50%, -50%) scale(0.6);
+  width: 14px;
+  height: 14px;
   background: #fff;
   border-radius: 50%;
-  box-shadow: 0 0 10px rgba(99, 102, 241, 0.8);
-  transition: transform 0.2s ease;
+  box-shadow: 0 0 10px rgba(139, 92, 246, 0.8), 0 0 20px rgba(99, 102, 241, 0.4);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  pointer-events: none;
 }
 
-.progress-container:hover .progress-handle {
-  transform: translate(-50%, -50%) scale(1.3);
+.progress-container:hover .progress-thumb,
+.progress-thumb.seeking {
+  transform: translate(-50%, -50%) scale(1);
+  box-shadow: 0 0 14px rgba(139, 92, 246, 1), 0 0 28px rgba(99, 102, 241, 0.5);
 }
 
+.progress-tooltip {
+  position: absolute;
+  top: -34px;
+  transform: translateX(-50%);
+  background: rgba(20, 20, 40, 0.92);
+  color: #c4b5fd;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  backdrop-filter: blur(8px);
+}
+
+/* ── 控制按钮行 ──────────────────────────────────────────────────────────── */
 .control-buttons {
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: 6px;
+}
+
+.ctrl-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ctrl-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.play-btn {
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.play-btn:hover {
+  transform: scale(1.1);
 }
 
 .time-display {
-  font-size: 0.9rem;
-  color: #fff;
-  transition: opacity 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  margin-left: 8px;
+}
+
+.time-current { color: rgba(255,255,255,0.9); }
+.time-sep { color: rgba(255,255,255,0.3); }
+.time-total { color: rgba(255,255,255,0.45); }
+
+.volume-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .volume-slider {
-  width: 100px;
+  width: 80px;
+  transition: width 0.3s ease;
 }
 
+/* ── 搜索侧面板 ──────────────────────────────────────────────────────────── */
 .search-panel {
   width: 380px;
-  max-width: 90vw;
+  max-width: 92vw;
   height: 100vh;
-  background: rgba(12, 12, 25, 0.85);
-  backdrop-filter: blur(30px);
-  -webkit-backdrop-filter: blur(30px);
-  border-left: 1px solid rgba(99, 102, 241, 0.3);
+  background: rgba(9, 9, 22, 0.92);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  border-left: 1px solid rgba(99, 102, 241, 0.25);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.4);
 }
 
 .search-panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+  padding: 16px 18px;
+  border-bottom: 1px solid rgba(99, 102, 241, 0.18);
+  background: rgba(99, 102, 241, 0.06);
 }
 
 .search-panel-title {
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 600;
-  color: #c4b5fd;
+  color: #a5b4fc;
   display: flex;
   align-items: center;
+  letter-spacing: 0.03em;
 }
 
 .search-conditions {
-  padding: 16px 20px;
-  border-bottom: 1px solid rgba(99, 102, 241, 0.15);
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(99, 102, 241, 0.12);
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-.search-input :deep(.q-field__control) {
-  background: rgba(30, 30, 50, 0.6);
-}
+.search-input :deep(.q-field__control) { background: rgba(25, 25, 48, 0.65); border-radius: 8px; }
+.search-input :deep(.q-field__native) { color: #c4b5fd; font-size: 0.88rem; }
+.search-input :deep(.q-field__native::placeholder) { color: rgba(165, 148, 249, 0.35); }
 
-.search-input :deep(.q-field__native) {
-  color: #c4b5fd;
-}
-
-.search-input :deep(.q-field__native::placeholder) {
-  color: rgba(165, 148, 249, 0.4);
-}
-
-.search-condition-row {
+.filter-row {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.condition-label {
-  font-size: 12px;
+.filter-label {
+  font-size: 11px;
   color: #818cf8;
-  min-width: 30px;
+  min-width: 28px;
+  letter-spacing: 0.03em;
+}
+
+.result-size-badge {
+  font-size: 11px;
+  color: rgba(134, 239, 172, 0.7);
+  background: rgba(134, 239, 172, 0.08);
+  border: 1px solid rgba(134, 239, 172, 0.2);
+  padding: 1px 8px;
+  border-radius: 10px;
 }
 
 .search-results {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 16px;
-  -ms-overflow-style: none;
+  padding: 10px 12px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(99, 102, 241, 0.3) transparent;
+  scrollbar-color: rgba(99, 102, 241, 0.25) transparent;
 }
 
-.search-results::-webkit-scrollbar {
-  width: 4px;
-}
-
-.search-results::-webkit-scrollbar-thumb {
-  background: rgba(99, 102, 241, 0.3);
-  border-radius: 2px;
-}
+.search-results::-webkit-scrollbar { width: 4px; }
+.search-results::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.25); border-radius: 2px; }
 
 .search-loading {
   display: flex;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  padding: 40px 0;
+  padding: 48px 0;
 }
 
-.search-cards {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
+.search-cards { display: flex; flex-direction: column; gap: 10px; }
 
 .search-card {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   padding: 10px;
   border-radius: 12px;
-  background: rgba(30, 30, 50, 0.5);
-  border: 1px solid rgba(99, 102, 241, 0.15);
+  background: rgba(22, 22, 45, 0.55);
+  border: 1px solid rgba(99, 102, 241, 0.12);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: background 0.25s, border-color 0.25s, box-shadow 0.25s, transform 0.2s;
   position: relative;
   overflow: hidden;
 }
 
-.search-card::before {
+.search-card::after {
   content: '';
   position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.1), transparent);
-  transition: left 0.5s ease;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.07) 0%, transparent 60%);
+  opacity: 0;
+  transition: opacity 0.3s;
 }
 
-.search-card:hover::before {
-  left: 100%;
-}
+.search-card:hover::after { opacity: 1; }
 
 .search-card:hover {
-  border-color: rgba(139, 92, 246, 0.5);
-  background: rgba(40, 40, 60, 0.6);
-  box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
-  transform: translateX(4px);
+  border-color: rgba(139, 92, 246, 0.4);
+  background: rgba(32, 32, 60, 0.65);
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.15);
+  transform: translateX(3px);
+}
+
+.search-card-thumb {
+  position: relative;
+  flex-shrink: 0;
+  width: 72px;
+  height: 100px;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .search-card-img {
-  width: 80px;
-  height: 110px;
-  border-radius: 8px;
-  flex-shrink: 0;
-  overflow: hidden;
+  width: 100%;
+  height: 100%;
 }
 
 .search-card-placeholder {
@@ -1396,78 +1698,79 @@ watch(isPlaying, (playing) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(30, 30, 50, 0.8);
+  background: rgba(25, 25, 48, 0.8);
 }
 
-.search-card-overlay {
+.search-card-play-overlay {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 80px;
-  height: 110px;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.35);
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.25s;
 }
 
-.search-card:hover .search-card-overlay {
-  opacity: 1;
-}
+.search-card:hover .search-card-play-overlay { opacity: 1; }
 
 .search-card-info {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   overflow: hidden;
+  min-width: 0;
 }
 
 .search-card-title {
-  font-size: 13px;
-  color: #e0e7ff;
-  line-height: 1.3;
+  font-size: 12.5px;
+  color: #dde5ff;
+  line-height: 1.35;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
+.search-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tag {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  line-height: 1.5;
+}
+
+.tag-actress {
+  color: #a78bfa;
+  background: rgba(139, 92, 246, 0.14);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+}
+
+.tag-code {
+  color: #f472b6;
+  background: rgba(244, 114, 182, 0.12);
+  border: 1px solid rgba(244, 114, 182, 0.22);
+}
+
 .search-card-meta {
   display: flex;
   gap: 8px;
-  font-size: 11px;
   flex-wrap: wrap;
+  margin-top: auto;
 }
 
-.meta-actress {
-  color: #a78bfa;
-  background: rgba(139, 92, 246, 0.15);
-  padding: 1px 6px;
-  border-radius: 4px;
-}
-
-.meta-code {
-  color: #f472b6;
-  background: rgba(244, 114, 182, 0.15);
-  padding: 1px 6px;
-  border-radius: 4px;
-}
-
-.meta-size {
-  color: #67e8f9;
-  background: rgba(103, 232, 249, 0.1);
-  padding: 1px 6px;
-  border-radius: 4px;
-}
-
-.meta-time {
-  color: #86efac;
-  background: rgba(134, 239, 172, 0.1);
-  padding: 1px 6px;
-  border-radius: 4px;
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  color: rgba(165, 180, 252, 0.55);
 }
 
 .search-empty {
@@ -1477,59 +1780,48 @@ watch(isPlaying, (playing) => {
   padding: 60px 0;
 }
 
+/* ── 分页 ─────────────────────────────────────────────────────────────────── */
 .search-pagination {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 16px;
-  padding: 12px 20px;
-  border-top: 1px solid rgba(99, 102, 241, 0.2);
-  background: rgba(12, 12, 25, 0.5);
+  padding: 10px 20px;
+  border-top: 1px solid rgba(99, 102, 241, 0.15);
+  background: rgba(8, 8, 20, 0.6);
 }
 
-.pagination-text {
-  color: #a5b4fc;
-  font-size: 13px;
-  min-width: 60px;
-  text-align: center;
+.pagination-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
 }
 
+.page-current { color: #c4b5fd; font-weight: 600; }
+.page-sep { color: rgba(255,255,255,0.25); }
+.page-total { color: rgba(165, 180, 252, 0.45); }
+
+/* ── 过渡动画 ─────────────────────────────────────────────────────────────── */
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+
+.slide-down-enter-active, .slide-down-leave-active { transition: transform 0.35s ease, opacity 0.35s ease; }
+.slide-down-enter-from, .slide-down-leave-to { transform: translateY(-100%); opacity: 0; }
+
+.slide-up-enter-active, .slide-up-leave-active { transition: transform 0.35s ease, opacity 0.35s ease; }
+.slide-up-enter-from, .slide-up-leave-to { transform: translateY(20px); opacity: 0; }
+
+/* ── 响应式 ───────────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .video-wrapper {
-    width: 95vw;
-    height: 60vh;
-  }
-
-  .glass-panel {
-    padding: 15px 20px 25px;
-  }
-
-  .volume-slider {
-    width: 70px;
-  }
-
-  .video-title {
-    font-size: 0.9rem;
-  }
-
-  .magnet-input-area {
-    width: 90vw;
-    bottom: 80px;
-  }
-
-  .search-panel {
-    width: 100vw;
-    max-width: 100vw;
-  }
-
-  .carousel-banner {
-    padding: 8px 50px;
-    height: 70px;
-  }
-
-  .carousel-item {
-    width: 44px;
-    height: 52px;
-  }
+  .glass-panel { padding: 12px 16px 20px; }
+  .volume-slider { width: 60px; }
+  .top-title { font-size: 0.85rem; }
+  .magnet-input-area { width: 88vw; bottom: 78px; }
+  .search-panel { width: 100vw; max-width: 100vw; }
+  .carousel-banner { padding: 8px 46px; height: 74px; }
+  .carousel-item { width: 40px; height: 56px; }
+  .drop-zone { width: 80vw; height: 42vh; }
+  .time-display { font-size: 0.75rem; }
 }
 </style>

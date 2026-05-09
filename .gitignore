@@ -13,4 +13,5 @@ node_modules
 ./**/.DS_Store
 searchapp/unpackage
 frontend/src-electron/icons/qapp/
+.workbuddy/
 
