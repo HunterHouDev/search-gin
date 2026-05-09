@@ -247,7 +247,7 @@ const essentialLinks = [
   {
     title: '系统',
     caption: 'forum.quasar.dev',
-    icon: 'chat',
+    icon: 'info',
     link: '/system',
   },
   {
@@ -257,7 +257,7 @@ const essentialLinks = [
     link: '/systemLog',
   },
   {
-    title: '沉浸体验',
+    title: '沉浸',
     caption: 'immersive player',
     icon: 'movie',
     link: '/immersive',

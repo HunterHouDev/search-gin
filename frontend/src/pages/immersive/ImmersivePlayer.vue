@@ -24,68 +24,278 @@
       color="white"
       icon="search"
       class="fixed-top-right-btn"
-      @mouseenter="searchDialog = true"
+      @click="showMenuControls = !showMenuControls"
     >
       <q-tooltip class="bg-dark text-white">搜索</q-tooltip>
     </q-btn>
 
     <!-- 播放列表轮播 -->
     <transition name="slide-down">
-      <div class="carousel-banner" @mouseenter="searchDialog = true">
-        <q-btn
-          flat
-          round
-          dense
-          color="white"
-          icon="chevron_left"
-          class="carousel-arrow carousel-arrow-left"
-          @click.stop="prevPage"
-        />
-        <div class="carousel-track" ref="carouselTrack"  v-show="playlist.length > 0">
+      <div v-show="showMenuControls">
+        <div
+          class="carousel-banner"
+          @mouseenter="searchDialog = true"
+          @mouseleave="handleBannerMouseLeave"
+        >
+          <q-btn
+            flat
+            round
+            dense
+            color="white"
+            icon="chevron_left"
+            class="carousel-arrow carousel-arrow-left"
+            @click.stop="prevPage"
+          />
           <div
-            v-for="(item, index) in playlist"
-            :key="item.Id || index"
-            class="carousel-item"
-            :class="{ 'carousel-item-active': index === currentIndex }"
-            @click.stop="switchToItem(index)"
+            class="carousel-track"
+            ref="carouselTrack"
+            v-show="playlist.length > 0"
           >
-            <q-img
-              :src="item.CoverUrl || getPng(item.Id)"
-              fit="cover"
-              class="carousel-thumb"
-              :ratio="3 / 4"
-            >
-              <template v-slot:error>
-                <div class="carousel-thumb-placeholder">
-                  <q-icon name="movie" size="20px" color="grey-5" />
-                </div>
-              </template>
-            </q-img>
-            <div class="carousel-item-label">
-              {{ item.Title || item.Name || `#${index + 1}` }}
-            </div>
             <div
-              class="carousel-item-active-indicator"
-              v-if="index === currentIndex"
+              v-for="(item, index) in playlist"
+              :key="item.Id || index"
+              class="carousel-item"
+              :class="{ 'carousel-item-active': index === currentIndex }"
+              @click.stop="switchToItem(index)"
             >
-              <q-icon name="play_arrow" size="12px" color="white" />
+              <q-img
+                :src="item.CoverUrl || getPng(item.Id)"
+                fit="cover"
+                class="carousel-thumb"
+                :ratio="3 / 4"
+              >
+                <template v-slot:error>
+                  <div class="carousel-thumb-placeholder">
+                    <q-icon name="movie" size="20px" color="grey-5" />
+                  </div>
+                </template>
+              </q-img>
+              <div class="carousel-item-label">
+                {{ item.Title || item.Name || `#${index + 1}` }}
+              </div>
+              <div
+                class="carousel-item-active-indicator"
+                v-if="index === currentIndex"
+              >
+                <q-icon name="play_arrow" size="12px" color="white" />
+              </div>
             </div>
           </div>
+          <q-btn
+            flat
+            round
+            dense
+            color="white"
+            icon="chevron_right"
+            class="carousel-arrow carousel-arrow-right"
+            @click.stop="nextPage"
+          />
         </div>
-        <q-btn
-          flat
-          round
-          dense
-          color="white"
-          icon="chevron_right"
-          class="carousel-arrow carousel-arrow-right"
-          @click.stop="nextPage"
-        />
+        <!-- 搜索面板 - 合并到轮播中 -->
+        <div class="search-panel" v-show="searchDialog" @click.stop @mouseleave="searchDialog = false">
+          <!-- 头部 -->
+          <div class="search-panel-header">
+            <div class="search-panel-title">
+              <q-input
+                v-model="searchParams.Keyword"
+                placeholder="输入关键词..."
+                dark
+                dense
+                outlined
+                color="indigo-4"
+                class="search-input"
+                @keyup.enter="fetchSearch"
+                @change="fetchSearch"
+              >
+                <template v-slot:prepend>
+                  <q-icon name="manage_search" color="indigo-4" size="18px" />
+                </template>
+                <template v-slot:append v-if="searchParams.Keyword">
+                  <q-btn
+                    flat
+                    round
+                    dense
+                    icon="clear"
+                    color="grey-5"
+                    size="xs"
+                    @click="
+                      searchParams.Keyword = '';
+                      fetchSearch();
+                    "
+                  />
+                </template>
+              </q-input>
+            </div>
+            <q-btn
+              flat
+              round
+              dense
+              color="grey-4"
+              icon="close"
+              @click="searchDialog = false"
+            />
+          </div>
+
+          <!-- 搜索条件 -->
+          <div class="search-conditions">
+            <div class="filter-item">
+              <div class="filter-row">
+                <span class="filter-label">类型</span>
+                <q-btn-toggle
+                  v-model="searchParams.MovieType"
+                  :options="MovieTypeSelects"
+                  no-caps
+                  glossy
+                  toggle-color="indigo-6"
+                  color="dark"
+                  text-color="grey-4"
+                  @update:model-value="fetchSearch"
+                />
+              </div>
+
+              <div class="filter-row">
+                <span class="filter-label">排序</span>
+                <q-btn-toggle
+                  v-model="searchParams.SortField"
+                  :options="FieldEnum"
+                  no-caps
+                  glossy
+                  toggle-color="indigo-6"
+                  color="dark"
+                  text-color="grey-4"
+                  @update:model-value="fetchSearch"
+                />
+              </div>
+
+              <div class="filter-row">
+                <span class="filter-label">顺序</span>
+                <q-btn-toggle
+                  v-model="searchParams.SortType"
+                  :options="DescEnum"
+                  no-caps
+                  glossy
+                  toggle-color="indigo-6"
+                  color="dark"
+                  text-color="grey-4"
+                  @update:model-value="fetchSearch"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- 搜索结果 -->
+          <div class="search-results" ref="searchResultsRef">
+            <div v-if="searchLoading" class="search-loading">
+              <q-spinner-dots size="40px" color="indigo-4" />
+              <p class="text-grey-5 q-mt-sm text-caption">加载中...</p>
+            </div>
+
+            <template
+              v-else-if="searchResults.Data && searchResults.Data.length > 0"
+            >
+              <div class="search-cards">
+                <div
+                  v-for="item in searchResults.Data"
+                  :key="item.Id"
+                  class="search-card"
+                >
+                  <div class="search-card-thumb">
+                    <q-img
+                      :src="getPng(item.Id)"
+                      fit="cover"
+                      class="search-card-img"
+                      :ratio="3 / 4"
+                      @click="playFromSearch(item)"
+                    >
+                      <template v-slot:error>
+                        <div class="search-card-placeholder">
+                          <q-icon name="movie" color="grey-6" size="28px" />
+                        </div>
+                      </template>
+                    </q-img>
+                    <div class="search-card-play-overlay">
+                      <q-icon
+                        name="play_circle_filled"
+                        size="28px"
+                        color="white"
+                         @click="playFromSearch(item)"
+                      />
+                    </div>
+                  </div>
+
+                  <div class="search-card-info">
+                    <div class="search-card-title">
+                      {{ formatTitle(item.Title, 24) }}
+                    </div>
+                    <div class="search-card-tags">
+                      <span
+                        class="tag tag-actress"
+                        v-if="item.Actress"
+                        @click="fetchKeyword(item.Actress)"
+                        >{{ item.Actress }}</span
+                      >
+                      <span
+                        class="tag tag-code"
+                        v-if="item.Code"
+                        @click="fetchKeyword(item.Code)"
+                        >{{ item.Code }}</span
+                      >
+                    </div>
+                    <div class="search-card-meta">
+                      <span class="meta-item">
+                        <q-icon name="data_usage" size="10px" />
+                        {{ humanStorageSize(item.Size) }}
+                      </span>
+                      <span class="meta-item">
+                        <q-icon name="schedule" size="10px" />
+                        {{ getTimeAgo(item.MTime) }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <div v-else class="search-empty">
+              <q-icon name="search_off" size="48px" color="grey-7" />
+              <p class="text-grey-6 q-mt-sm">暂无搜索结果</p>
+            </div>
+          </div>
+
+          <!-- 分页 -->
+          <div class="search-pagination" v-if="searchResults.TotalPage > 1">
+            <q-btn
+              flat
+              dense
+              round
+              color="indigo-4"
+              icon="chevron_left"
+              size="sm"
+              :disable="searchParams.Page <= 1"
+              @click="changePage(-1)"
+            />
+            <div class="pagination-info">
+              <span class="page-current">{{ searchParams.Page }}</span>
+              <span class="page-sep">/</span>
+              <span class="page-total">{{ searchResults.TotalPage }}</span>
+            </div>
+            <q-btn
+              flat
+              dense
+              round
+              color="indigo-4"
+              icon="chevron_right"
+              size="sm"
+              :disable="searchParams.Page >= searchResults.TotalPage"
+              @click="changePage(1)"
+            />
+          </div>
+        </div>
       </div>
     </transition>
 
     <!-- 视频区域 -->
-    <div class="video-wrapper" v-show="videoLoaded">
+    <div class="video-wrapper" v-show="videoLoaded" >
       <video
         ref="videoRef"
         id="immersiveVideo"
@@ -365,213 +575,6 @@
         </div>
       </div>
     </transition>
-
-    <!-- 搜索侧面板 -->
-    <q-dialog
-      v-model="searchDialog"
-      seamless
-    >
-      <div class="search-panel" @click.stop>
-        <!-- 头部 -->
-        <div class="search-panel-header">
-          <div class="search-panel-title">
-            <q-icon name="manage_search" size="20px" class="q-mr-xs" />
-            影片搜索
-          </div>
-          <q-btn
-            flat
-            round
-            dense
-            color="grey-4"
-            icon="close"
-            @click="searchDialog = false"
-          />
-        </div>
-
-        <!-- 搜索条件 -->
-        <div class="search-conditions">
-          <q-input
-            v-model="searchParams.Keyword"
-            placeholder="输入关键词..."
-            dark
-            dense
-            outlined
-            color="indigo-4"
-            class="search-input"
-            @keyup.enter="fetchSearch"
-            @change="fetchSearch"
-          >
-            <template v-slot:prepend>
-              <q-icon name="search" color="indigo-4" size="18px" />
-            </template>
-            <template v-slot:append v-if="searchParams.Keyword">
-              <q-btn
-                flat
-                round
-                dense
-                icon="clear"
-                color="grey-5"
-                size="xs"
-                @click="
-                  searchParams.Keyword = '';
-                  fetchSearch();
-                "
-              />
-            </template>
-          </q-input>
-          <div class="filter-item">
-            <div class="filter-row">
-              <span class="filter-label">类型</span>
-              <q-btn-toggle
-                v-model="searchParams.MovieType"
-                :options="MovieTypeSelects"
-                size="md"
-                no-caps
-                dense
-                glossy
-                toggle-color="indigo-6"
-                color="dark"
-                text-color="grey-4"
-                @update:model-value="fetchSearch"
-              />
-            </div>
-
-            <div class="filter-row">
-              <span class="filter-label">排序</span>
-              <q-btn-toggle
-                v-model="searchParams.SortField"
-                :options="FieldEnum"
-                size="md"
-                no-caps
-                dense
-                glossy
-                toggle-color="indigo-6"
-                color="dark"
-                text-color="grey-4"
-                @update:model-value="fetchSearch"
-              />
-            </div>
-
-            <div class="filter-row">
-              <span class="filter-label">顺序</span>
-              <q-btn-toggle
-                v-model="searchParams.SortType"
-                :options="DescEnum"
-                size="md"
-                no-caps
-                dense
-                glossy
-                toggle-color="indigo-6"
-                color="dark"
-                text-color="grey-4"
-                @update:model-value="fetchSearch"
-              />
-            </div>
-          </div>
-        </div>
-
-        <!-- 搜索结果 -->
-        <div class="search-results" ref="searchResultsRef">
-          <div v-if="searchLoading" class="search-loading">
-            <q-spinner-dots size="40px" color="indigo-4" />
-            <p class="text-grey-5 q-mt-sm text-caption">加载中...</p>
-          </div>
-
-          <template
-            v-else-if="searchResults.Data && searchResults.Data.length > 0"
-          >
-            <div class="search-cards">
-              <div
-                v-for="item in searchResults.Data"
-                :key="item.Id"
-                class="search-card"
-              >
-                <div class="search-card-thumb">
-                  <q-img
-                    :src="getPng(item.Id)"
-                    fit="cover"
-                    class="search-card-img"
-                    :ratio="3 / 4"
-                    @click="playFromSearch(item)"
-                  >
-                    <template v-slot:error>
-                      <div class="search-card-placeholder">
-                        <q-icon name="movie" color="grey-6" size="28px" />
-                      </div>
-                    </template>
-                  </q-img>
-                  <div class="search-card-play-overlay">
-                    <q-icon
-                      name="play_circle_filled"
-                      size="28px"
-                      color="white"
-                    />
-                  </div>
-                </div>
-
-                <div class="search-card-info">
-                  <div class="search-card-title">
-                    {{ formatTitle(item.Title, 24) }}
-                  </div>
-                  <div class="search-card-tags">
-                    <span class="tag tag-actress" v-if="item.Actress" @click="fetchKeyword(item.Actress)">{{
-                      item.Actress
-                    }}</span>
-                    <span class="tag tag-code" v-if="item.Code" @click="fetchKeyword(item.Code)">{{
-                      item.Code
-                    }}</span>
-                  </div>
-                  <div class="search-card-meta">
-                    <span class="meta-item">
-                      <q-icon name="data_usage" size="10px" />
-                      {{ humanStorageSize(item.Size) }}
-                    </span>
-                    <span class="meta-item">
-                      <q-icon name="schedule" size="10px" />
-                      {{ getTimeAgo(item.MTime) }}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </template>
-
-          <div v-else class="search-empty">
-            <q-icon name="search_off" size="48px" color="grey-7" />
-            <p class="text-grey-6 q-mt-sm">暂无搜索结果</p>
-          </div>
-        </div>
-
-        <!-- 分页 -->
-        <div class="search-pagination" v-if="searchResults.TotalPage > 1">
-          <q-btn
-            flat
-            dense
-            round
-            color="indigo-4"
-            icon="chevron_left"
-            size="sm"
-            :disable="searchParams.Page <= 1"
-            @click="changePage(-1)"
-          />
-          <div class="pagination-info">
-            <span class="page-current">{{ searchParams.Page }}</span>
-            <span class="page-sep">/</span>
-            <span class="page-total">{{ searchResults.TotalPage }}</span>
-          </div>
-          <q-btn
-            flat
-            dense
-            round
-            color="indigo-4"
-            icon="chevron_right"
-            size="sm"
-            :disable="searchParams.Page >= searchResults.TotalPage"
-            @click="changePage(1)"
-          />
-        </div>
-      </div>
-    </q-dialog>
   </div>
 </template>
 
@@ -611,6 +614,7 @@ const particleCanvas = ref(null);
 const progressBar = ref(null);
 const carouselTrack = ref(null);
 const searchResultsRef = ref(null);
+const showMenuControls = ref(false);
 
 // ── 播放状态 ──────────────────────────────────────────────────────────────────
 const currentVideoSrc = ref('');
@@ -705,6 +709,13 @@ const volumeIcon = computed(() => {
 // ── 导航 ──────────────────────────────────────────────────────────────────────
 function goBack() {
   router.back();
+}
+
+function handleBannerMouseLeave(e) {
+  if (e.relatedTarget && e.relatedTarget.closest('.search-panel')) {
+    return;
+  }
+  searchDialog.value = false;
 }
 
 // ── 播放列表操作 ──────────────────────────────────────────────────────────────
@@ -1431,11 +1442,9 @@ onUnmounted(() => {
 
 /* ── 轮播播放列表 ──────────────────────────────────────────────────────────── */
 .carousel-banner {
-  position: absolute;
-  left: 5%;
-  right: 5%;
+  position: relative;
+  width: 80%;
   margin: 0 auto;
-  width: calc(100% - 154px);
   padding-left: 52px;
   padding-right: 52px;
   z-index: 222;
@@ -1946,9 +1955,11 @@ onUnmounted(() => {
 
 /* ── 搜索侧面板 ──────────────────────────────────────────────────────────── */
 .search-panel {
-  width: 1200px;
-  max-width: 82vw;
-  height: 80vh;
+  position: relative;
+  height: 800px;
+  margin: 0 auto;
+  width: 80%;
+  /* margin-top: 78px; */
   background: rgba(9, 9, 22, 0.92);
   backdrop-filter: blur(32px);
   -webkit-backdrop-filter: blur(32px);
@@ -1957,6 +1968,7 @@ onUnmounted(() => {
   flex-direction: column;
   overflow: hidden;
   box-shadow: -10px 0 40px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
 }
 
 .search-panel-header {
@@ -1975,6 +1987,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   letter-spacing: 0.03em;
+  width: 100%;
 }
 
 .search-conditions {
@@ -1995,6 +2008,7 @@ onUnmounted(() => {
 .search-input :deep(.q-field__control) {
   background: rgba(25, 25, 48, 0.65);
   border-radius: 8px;
+  width: 72vw;
 }
 .search-input :deep(.q-field__native) {
   color: #c4b5fd;
