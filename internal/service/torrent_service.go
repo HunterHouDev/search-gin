@@ -216,7 +216,7 @@ func (ts *TorrentService) GetStatus(infoHash string) (*TorrentStatus, error) {
 
 	progress := 0.0
 	if t.Length() > 0 {
-		progress = float64(stats.BytesReadUseful) / float64(t.Length()) * 100
+		progress = float64(stats.BytesReadUsefulIntendedData.Int64()) / float64(t.Length()) * 100
 		if progress > 100 {
 			progress = 100
 		}
@@ -226,9 +226,9 @@ func (ts *TorrentService) GetStatus(infoHash string) (*TorrentStatus, error) {
 		InfoHash:   infoHash,
 		Name:       t.Name(),
 		TotalSize:  t.Length(),
-		Downloaded: stats.BytesReadUseful,
+		Downloaded: stats.BytesReadUsefulIntendedData.Int64(),
 		Progress:   progress,
-		Speed:      float64(stats.DownloadSpeed),
+		Speed:      float64(stats.BytesReadData.Int64()),
 		Peers:      stats.ActivePeers,
 		State:      state,
 		VideoFile:  videoName,

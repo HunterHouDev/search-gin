@@ -28,12 +28,11 @@ const routes: RouteRecordRaw[] = [
         path: '/systemLog',
         component: () => import('src/pages/systemLog/LogPage.vue'),
       },
-      {
-        path: '/immersive',
-        component: () => import('pages/immersive/ImmersivePlayer.vue'),
-      },
-      
     ],
+  },
+  {
+    path: '/immersive',
+    component: () => import('pages/immersive/ImmersivePlayer.vue'),
   },
   {
     path: '/playing/:id',

@@ -30,9 +30,9 @@ func PostAddMagnet(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, utils.NewSuccess(gin.H{
-		"infoHash": infoHash,
-	}))
+	res := utils.NewSuccess()
+	res.Data = gin.H{"infoHash": infoHash}
+	c.JSON(http.StatusOK, res)
 }
 
 func GetTorrentStream(c *gin.Context) {
@@ -73,7 +73,9 @@ func GetTorrentStatus(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, utils.NewSuccess(status))
+	res := utils.NewSuccess()
+	res.Data = status
+	c.JSON(http.StatusOK, res)
 }
 
 func DeleteTorrent(c *gin.Context) {
@@ -94,5 +96,5 @@ func DeleteTorrent(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, utils.NewSuccess(nil))
+	c.JSON(http.StatusOK, utils.NewSuccess())
 }
