@@ -1239,31 +1239,42 @@ async function playSelectedTorrentFile() {
   torrentProgress.value = 0;
   const fileName = torrentFiles.value.find(f => f.path === selectedTorrentFile.value)?.name || '未知文件';
   try {
-    await axios.post('/api/torrent/startDownload', {
+    const response = await axios.post('/api/torrent/startDownload', {
       infoHash: currentInfoHash.value,
       filePath: selectedTorrentFile.value,
     });
+    const result = response.data?.data;
     const newTask = {
       infoHash: currentInfoHash.value,
       name: torrentName.value,
       fileName: fileName,
       filePath: selectedTorrentFile.value,
-      progress: 0,
-      state: '准备下载',
+      progress: result?.skipped ? 100 : 0,
+      state: result?.skipped ? '已下载' : '准备下载',
       peers: 0,
     };
     activeDownloads.value.push(newTask);
-    startPolling(currentInfoHash.value, newTask);
+    if (!result?.skipped) {
+      startPolling(currentInfoHash.value, newTask);
+    }
     const streamUrl = `/api/torrent/stream/${currentInfoHash.value}?file=${encodeURIComponent(selectedTorrentFile.value)}`;
     loadVideo(streamUrl, fileName);
+    if (result?.skipped) {
+      $q.notify({
+        type: 'positive',
+        message: '文件已存在，无需下载',
+        position: 'top',
+        timeout: 2000,
+      });
+    }
   } catch (err) {
     $q.notify({
       type: 'negative',
       message: '启动下载失败: ' + (err.response?.data?.message || err.message),
       position: 'top',
     });
-    torrentLoading.value = false;
   }
+  torrentLoading.value = false;
   selectedTorrentFile.value = null;
 }
 

@@ -53,13 +53,15 @@ func PostStartDownload(c *gin.Context) {
 		return
 	}
 
-	err := service.TorrentApp.StartDownload(req.InfoHash, req.FilePath)
+	result, err := service.TorrentApp.StartDownload(req.InfoHash, req.FilePath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, utils.NewFailByMsg(err.Error()))
 		return
 	}
 
-	c.JSON(http.StatusOK, utils.NewSuccess())
+	res := utils.NewSuccess()
+	res.Data = result
+	c.JSON(http.StatusOK, res)
 }
 
 func GetTorrentStream(c *gin.Context) {

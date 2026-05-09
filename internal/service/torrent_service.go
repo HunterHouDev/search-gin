@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -96,26 +97,53 @@ func (ts *TorrentService) AddMagnet(magnetURI string) (*AddMagnetResult, error) 
 	}, nil
 }
 
-func (ts *TorrentService) StartDownload(infoHash, filePath string) error {
+type StartDownloadResult struct {
+	Skipped   bool   `json:"skipped"`
+	FilePath  string `json:"filePath"`
+	FileSize  int64  `json:"fileSize"`
+	Message   string `json:"message"`
+}
+
+func (ts *TorrentService) StartDownload(infoHash, filePath string) (*StartDownloadResult, error) {
 	t, err := ts.GetTorrent(infoHash)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if filePath != "" {
 		for _, f := range t.Files() {
 			if f.Path() == filePath {
+				fullPath := filepath.Join(ts.dataDir, t.Name(), filePath)
+				if info, err := os.Stat(fullPath); err == nil && !info.IsDir() && info.Size() > 0 {
+					utils.InfoFormat("文件已存在，跳过下载: %s, 大小: %d bytes", fullPath, info.Size())
+					return &StartDownloadResult{
+						Skipped:   true,
+						FilePath:  fullPath,
+						FileSize:  info.Size(),
+						Message:   "文件已存在",
+					}, nil
+				}
 				f.Download()
 				utils.InfoFormat("开始下载文件: %s, InfoHash: %s", filePath, infoHash)
-				return nil
+				return &StartDownloadResult{
+					Skipped:   false,
+					FilePath:  fullPath,
+					FileSize:  0,
+					Message:   "开始下载",
+				}, nil
 			}
 		}
-		return fmt.Errorf("未找到文件: %s", filePath)
+		return nil, fmt.Errorf("未找到文件: %s", filePath)
 	}
 
 	t.DownloadAll()
 	utils.InfoFormat("开始下载全部文件: %s", infoHash)
-	return nil
+	return &StartDownloadResult{
+		Skipped:   false,
+		FilePath:  "",
+		FileSize:  0,
+		Message:   "开始下载全部文件",
+	}, nil
 }
 
 func (ts *TorrentService) GetTorrent(infoHash string) (*torrent.Torrent, error) {
