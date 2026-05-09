@@ -1,8 +1,17 @@
 <template>
   <div class="q-pa-md">
-    <div v-for="item in view.logs" :key="item">
-      {{ item.time.substring(0,19) }} - {{ item.msg }}
-    </div>
+    <q-card class="theme-card">
+      <q-card-section>
+        <h6 class="text-subtitle1 q-mb-md">系统日志</h6>
+        <div class="log-list">
+          <div v-for="item in view.logs" :key="item" class="log-item q-py-xs">
+            <span class="log-time">{{ item.time.substring(0,19) }}</span>
+            <span class="log-separator"> - </span>
+            <span class="log-msg">{{ item.msg }}</span>
+          </div>
+        </div>
+      </q-card-section>
+    </q-card>
   </div>
 </template>
 
@@ -36,8 +45,36 @@ onUnmounted(() => {
 
 </script>
 <style lang="scss" scoped>
-.SystemHtml {
-  padding: 0rem;
-  margin: 0;
+.theme-card {
+  background: var(--q-bg-card);
+  border: 1px solid var(--q-border);
+  color: var(--q-text-primary);
+}
+
+.text-subtitle1 {
+  color: var(--q-text-secondary);
+}
+
+.log-list {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.log-item {
+  border-bottom: 1px solid var(--q-border-light);
+  font-family: monospace;
+  font-size: 0.9rem;
+}
+
+.log-time {
+  color: var(--q-text-secondary);
+}
+
+.log-separator {
+  color: var(--q-border);
+}
+
+.log-msg {
+  color: var(--q-text-primary);
 }
 </style>

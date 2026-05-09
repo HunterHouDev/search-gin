@@ -901,8 +901,13 @@ func (fs *fileService) CutImage(path string, typeImage string, start string) uti
 		dest, // 输出文件
 	}
 
+	// 构建ffmpeg路径
+	ffmpegPath := "ffmpeg.exe"
+	if TempDir != "" {
+		ffmpegPath = filepath.Join(TempDir, "ffmpeg.exe")
+	}
 	// 执行ffmpeg命令
-	cmd := exec.Command("./ffmpeg.exe", args...)
+	cmd := exec.Command(ffmpegPath, args...)
 	if runtime.GOOS == "windows" {
 		utils.FixOnWin(cmd)
 	}

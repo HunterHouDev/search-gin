@@ -41,6 +41,7 @@ export const useSystemProperty = defineStore({
     pictureInPictureVideoWidthFullBefore: defaultVideoWidth,
     isFullscreen: false,
     isDark: true,
+    theme: 'star', // 'star' 星空主题, 'natural' 自然主题
     isElectron: false,
     addPlayingTagGoNext: true,
     goActressNewWidow: false,

@@ -1,7 +1,9 @@
 // app global css in SCSS form
 
-// Immersive Theme - Global CSS Variables
+// ============== 星空主题 (默认) ==============
 :root {
+  --theme: 'star';
+  
   // Primary Colors
   --q-primary: #6366f1;
   --q-primary-light: #818cf8;
@@ -12,6 +14,7 @@
   --q-bg-dark: #0f0f1a;
   --q-bg-darker: #090912;
   --q-bg-card: rgba(15, 15, 26, 0.95);
+  --q-bg-input: rgba(30, 30, 50, 0.6);
 
   // Text Colors
   --q-text-primary: #e0e7ff;
@@ -34,42 +37,108 @@
   --q-shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.4);
 }
 
-// Global Dark Theme Styles
+// ============== 自然主题 ==============
+:root.theme-natural {
+  --theme: 'natural';
+  
+  // Primary Colors (柔和的绿色系)
+  --q-primary: #4a7c59;
+  --q-primary-light: #5d9a6d;
+  --q-primary-lighter: #7cb88c;
+  --q-primary-dark: #3a5f45;
+
+  // Background Colors (温暖的米色系)
+  --q-bg-dark: #f8f5f0;
+  --q-bg-darker: #f0eae0;
+  --q-bg-card: rgba(248, 245, 240, 0.95);
+  --q-bg-input: rgba(230, 225, 215, 0.6);
+
+  // Text Colors (深棕色系)
+  --q-text-primary: #3d352a;
+  --q-text-secondary: #6b6050;
+  --q-text-muted: #9e9382;
+
+  // Border Colors
+  --q-border: rgba(74, 124, 89, 0.25);
+  --q-border-light: rgba(74, 124, 89, 0.15);
+  --q-border-hover: rgba(74, 124, 89, 0.4);
+
+  // Status Colors
+  --q-success: #2e7d32;
+  --q-warning: #f57c00;
+  --q-danger: #c62828;
+  --q-info: #1565c0;
+
+  // Shadows
+  --q-shadow: 0 4px 16px rgba(74, 124, 89, 0.2);
+  --q-shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.15);
+}
+
+// ============== 全局样式 ==============
 body {
   background-color: var(--q-bg-darker);
   color: var(--q-text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-// Dark cards with indigo accent
+// 卡片样式
 .q-card {
   background: var(--q-bg-card) !important;
   backdrop-filter: blur(32px);
   border: 1px solid var(--q-border);
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
-// Dark inputs
-.q-field--dark .q-field__control {
-  background: rgba(30, 30, 50, 0.6) !important;
+// 输入框样式
+.q-field--dark .q-field__control,
+.q-field .q-field__control {
+  background: var(--q-bg-input) !important;
+  color: var(--q-text-primary) !important;
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
-// Primary buttons
+.q-field .q-field__label,
+.q-field .q-field__native {
+  color: var(--q-text-primary) !important;
+}
+
+// 按钮样式
+.q-btn {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
 .q-btn.btn-primary {
   background: var(--q-primary) !important;
   color: white !important;
 }
 
-// Primary outlines
 .q-btn.btn-outline-primary {
   border: 1px solid var(--q-primary) !important;
   color: var(--q-primary) !important;
 }
 
-// Indigo progress bars
-.q-linear-progress .q-linear-progress__track {
-  background: rgba(99, 102, 241, 0.15) !important;
+// 进度条样式
+:root {
+  --q-progress-track: rgba(99, 102, 241, 0.15);
+  --q-scrollbar: rgba(99, 102, 241, 0.3);
+  --q-scrollbar-hover: rgba(99, 102, 241, 0.5);
+  --q-menu-hover: rgba(99, 102, 241, 0.1);
+  --q-menu-active: rgba(99, 102, 241, 0.2);
 }
 
-// Scrollbar styling
+:root.theme-natural {
+  --q-progress-track: rgba(74, 124, 89, 0.15);
+  --q-scrollbar: rgba(74, 124, 89, 0.3);
+  --q-scrollbar-hover: rgba(74, 124, 89, 0.5);
+  --q-menu-hover: rgba(74, 124, 89, 0.1);
+  --q-menu-active: rgba(74, 124, 89, 0.2);
+}
+
+.q-linear-progress .q-linear-progress__track {
+  background: var(--q-progress-track) !important;
+}
+
+// 滚动条样式
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -80,15 +149,16 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(99, 102, 241, 0.3);
+  background: var(--q-scrollbar);
   border-radius: 3px;
+  transition: background 0.2s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(99, 102, 241, 0.5);
+  background: var(--q-scrollbar-hover);
 }
 
-// Animations
+// 动画
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.3s ease;
@@ -112,4 +182,83 @@ body {
 .slide-leave-to {
   transform: translateY(20px);
   opacity: 0;
+}
+
+// ============== 弹窗样式 ==============
+// 对话框
+.q-dialog {
+  .q-card {
+    background: var(--q-bg-card) !important;
+    color: var(--q-text-primary) !important;
+  }
+}
+
+// 通知
+.q-notification {
+  background: var(--q-bg-card) !important;
+  color: var(--q-text-primary) !important;
+  border: 1px solid var(--q-border);
+}
+
+// 工具提示
+.q-tooltip {
+  background: var(--q-bg-card) !important;
+  color: var(--q-text-primary) !important;
+  border: 1px solid var(--q-border);
+}
+
+// 菜单
+.q-menu {
+  background: var(--q-bg-card) !important;
+  color: var(--q-text-primary) !important;
+  border: 1px solid var(--q-border);
+  
+  .q-item {
+    color: var(--q-text-primary) !important;
+    
+    &:hover {
+      background: var(--q-menu-hover);
+    }
+    
+    &.q-item--active {
+      background: var(--q-menu-active);
+      color: var(--q-primary) !important;
+    }
+  }
+}
+
+// 弹出菜单
+.q-popup-edit,
+.q-popup-proxy {
+  background: var(--q-bg-card) !important;
+  color: var(--q-text-primary) !important;
+}
+
+// 日期选择器
+.q-date {
+  background: var(--q-bg-card) !important;
+  color: var(--q-text-primary) !important;
+}
+
+// 时间选择器
+.q-time {
+  background: var(--q-bg-card) !important;
+  color: var(--q-text-primary) !important;
+}
+
+// 选择器
+.q-select {
+  .q-item {
+    color: var(--q-text-primary) !important;
+  }
+}
+
+// 表格
+.q-table {
+  background: var(--q-bg-card) !important;
+  color: var(--q-text-primary) !important;
+  
+  th, td {
+    color: var(--q-text-primary) !important;
+  }
 }

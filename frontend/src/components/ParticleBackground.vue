@@ -1,13 +1,17 @@
 <template>
-  <canvas ref="canvasRef" class="particle-canvas"></canvas>
+  <canvas v-if="showParticles" ref="canvasRef" class="particle-canvas"></canvas>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { useSystemProperty } from '../stores/System';
 
+const systemProperty = useSystemProperty();
 const canvasRef = ref(null);
 let particles = [];
 let animationId = null;
+
+const showParticles = computed(() => systemProperty.theme === 'star');
 
 class Particle {
   constructor(canvas) {
@@ -83,9 +87,25 @@ function handleResize() {
   initParticles();
 }
 
+// 监听主题变化
+watch(
+  () => systemProperty.theme,
+  (newTheme) => {
+    if (newTheme === 'star' && !animationId) {
+      initParticles();
+      animate();
+    } else if (newTheme !== 'star' && animationId) {
+      cancelAnimationFrame(animationId);
+      animationId = null;
+    }
+  }
+);
+
 onMounted(() => {
-  initParticles();
-  animate();
+  if (showParticles.value) {
+    initParticles();
+    animate();
+  }
   window.addEventListener('resize', handleResize);
 });
 

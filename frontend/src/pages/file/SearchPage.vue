@@ -1191,8 +1191,8 @@ const scrollTop = () => {
 
 const themeStyle = computed(() => {
   return {
-    color: '#e0e7ff',
-    backgroundColor: 'rgba(9, 9, 18, 0.95)',
+    color: 'var(--q-text-primary)',
+    backgroundColor: 'var(--q-bg-card)',
   };
 });
 

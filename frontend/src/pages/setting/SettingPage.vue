@@ -18,13 +18,13 @@
       <q-tabs
         v-model="tab"
         style="width: 100%; position: fixed; z-index: 9"
-        :style="{ backgroundColor: systemProperty.isDark ? 'black-4' : 'var(--q-primary)' }"
+        :style="{ backgroundColor: systemProperty.isDark ? 'rgba(15, 15, 26, 0.95)' : 'var(--q-primary)' }"
         no-caps
         glossy
         inline-label
-        class="shadow-1"
-        active-color="red"
-        indicator-color="black"
+        class="shadow-1 setting-tabs"
+        active-color="white"
+        indicator-color="white"
         align="justify"
       >
         <q-tab name="search" label="搜索设置" />
@@ -37,7 +37,7 @@
       
       <q-tab-panels v-model="tab" animated>
         <q-tab-panel name="search">
-          <q-field color="purple-12" label="定时扫描" stack-label>
+          <q-field color="primary" label="定时扫描" stack-label>
             <template v-slot:control>
               <div class="row q-gutter-md">
                 <q-radio
@@ -57,7 +57,7 @@
               </div>
             </template>
           </q-field>
-          <q-field color="purple-12" label="转码删除原文件" stack-label>
+          <q-field color="primary" label="转码删除原文件" stack-label>
             <template v-slot:control>
               <div class="row q-gutter-md">
                 <q-radio
@@ -78,7 +78,7 @@
             </template>
           </q-field>
           
-          <q-field color="purple-12" label="系统播放" stack-label>
+          <q-field color="primary" label="系统播放" stack-label>
             <template v-slot:control>
               <div class="row q-gutter-md">
                 <q-radio
@@ -98,7 +98,7 @@
               </div>
             </template>
           </q-field>
-          <q-field color="purple-12" label="Buttons" stack-label>
+          <q-field color="primary" label="Buttons" stack-label>
             <template v-slot:control>
               <MutiSelector
                 v-bind:model-value="view.settingInfo.Buttons"
@@ -108,7 +108,7 @@
             </template>
           </q-field>
 
-          <q-field color="purple-12" label="Dirs" stack-label>
+          <q-field color="primary" label="Dirs" stack-label>
             <template v-slot:control>
               <MutiSelector
                 v-bind:model-value="view.settingInfo.Dirs"
@@ -117,7 +117,7 @@
               />
             </template>
           </q-field>
-          <q-field color="purple-12" label="MovieTypes" stack-label>
+          <q-field color="primary" label="MovieTypes" stack-label>
             <template v-slot:control>
               <MutiInput
                 v-model="view.settingInfo.MovieTypes"
@@ -125,7 +125,7 @@
               />
             </template>
           </q-field>
-          <q-field color="purple-12" label="VideoTypes" stack-label>
+          <q-field color="primary" label="VideoTypes" stack-label>
             <template v-slot:control>
               <MutiSelector
                 v-bind:model-value="view.settingInfo.VideoTypes"
@@ -134,7 +134,7 @@
               />
             </template>
           </q-field>
-          <q-field color="purple-12" label="Tags" stack-label>
+          <q-field color="primary" label="Tags" stack-label>
             <template v-slot:control>
               <MutiSelector
                 v-bind:model-value="view.settingInfo.Tags"
@@ -163,7 +163,7 @@
           />
           <q-input v-model="view.settingInfo.ImageHost" label="ImageHost" />
           <q-input v-model="view.settingInfo.StreamHost" label="StreamHost" />
-          <q-field color="purple-12" label="DirsLib" stack-label>
+          <q-field color="primary" label="DirsLib" stack-label>
             <template v-slot:control>
               <MutiInput
                 v-model="view.settingInfo.DirsLib"
@@ -171,7 +171,7 @@
               />
             </template>
           </q-field>
-          <q-field color="purple-12" label="TagsLib" stack-label>
+          <q-field color="primary" label="TagsLib" stack-label>
             <template v-slot:control>
               <MutiInput
                 v-model="view.settingInfo.TagsLib"
@@ -179,7 +179,7 @@
               />
             </template>
           </q-field>
-          <q-field color="purple-12" label="Types" stack-label>
+          <q-field color="primary" label="Types" stack-label>
             <template v-slot:control>
               <MutiInput
                 v-model="view.settingInfo.Types"
@@ -187,7 +187,7 @@
               />
             </template>
           </q-field>
-          <q-field color="purple-12" label="Pages" stack-label>
+          <q-field color="primary" label="Pages" stack-label>
             <template v-slot:control>
               <MutiInput
                 v-model="view.settingInfo.Pages"
@@ -209,6 +209,47 @@
         </q-tab-panel>
 
         <q-tab-panel name="system">
+          <!-- 主题选择 -->
+          <q-card flat bordered class="q-pa-md q-mb-md">
+            <q-card-section class="q-pb-none">
+              <div class="text-h6 q-mb-md">主题选择</div>
+            </q-card-section>
+            <q-card-section class="q-pt-sm">
+              <div class="row q-col-gutter-md">
+                <div class="col-6">
+                  <q-card
+                    flat
+                    bordered
+                    class="q-pa-md cursor-pointer theme-card"
+                    :class="{ 'theme-card-active': systemProperty.theme === 'star' }"
+                    @click="systemProperty.theme = 'star'"
+                  >
+                    <div class="text-center">
+                      <q-icon name="star" size="48px" color="indigo" />
+                      <div class="q-mt-sm text-subtitle1">星空主题</div>
+                      <div class="text-caption text-grey-6">深蓝色背景与粒子效果</div>
+                    </div>
+                  </q-card>
+                </div>
+                <div class="col-6">
+                  <q-card
+                    flat
+                    bordered
+                    class="q-pa-md cursor-pointer theme-card"
+                    :class="{ 'theme-card-active': systemProperty.theme === 'natural' }"
+                    @click="systemProperty.theme = 'natural'"
+                  >
+                    <div class="text-center">
+                      <q-icon name="eco" size="48px" color="green" />
+                      <div class="q-mt-sm text-subtitle1">自然主题</div>
+                      <div class="text-caption text-grey-6">温暖米色与柔和绿色</div>
+                    </div>
+                  </q-card>
+                </div>
+              </div>
+            </q-card-section>
+          </q-card>
+
           <q-editor
             v-model="view.settingInfo.SystemHtml"
             :dense="$q.screen.lt.md"
@@ -344,8 +385,8 @@ const systemProperty = useSystemProperty();
 
 const themeStyle = computed(() => {
   return {
-    color: '#e0e7ff',
-    backgroundColor: 'rgba(9, 9, 18, 0.95)',
+    color: 'var(--q-text-primary)',
+    backgroundColor: 'var(--q-bg-card)',
   };
 });
 
@@ -400,4 +441,105 @@ onMounted(() => {
   queryIpAddr();
 });
 </script>
-<style lang="scss" scoped></style>
+<style lang="scss" scoped>
+.setting-tabs {
+  .q-tab {
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    transition: all 0.3s ease;
+
+    &--active {
+      font-weight: 600;
+    }
+  }
+
+  :deep(.q-tab__indicator) {
+    height: 3px;
+    border-radius: 3px 3px 0 0;
+  }
+}
+
+.theme-card {
+  transition: all 0.3s ease;
+  border: 2px solid var(--q-border);
+  background: var(--q-bg-card);
+
+  &:hover {
+    border-color: var(--q-primary);
+    transform: translateY(-2px);
+    box-shadow: var(--q-shadow);
+  }
+
+  &.theme-card-active {
+    border-color: var(--q-primary);
+    box-shadow: 0 0 0 2px var(--q-primary-light);
+    background: rgba(99, 102, 241, 0.08);
+  }
+}
+
+.cursor-pointer {
+  cursor: pointer;
+}
+
+:deep(.q-tab-panel) {
+  background: transparent;
+  padding: 16px 8px;
+}
+
+:deep(.q-field__label) {
+  color: var(--q-primary);
+  font-weight: 500;
+}
+
+:deep(.q-field__native) {
+  color: var(--q-text-primary);
+}
+
+:deep(.q-radio__label) {
+  color: var(--q-text-primary);
+}
+
+:deep(.q-input) {
+  .q-field__control {
+    background: var(--q-bg-input);
+    border-radius: 8px;
+
+    &:before {
+      border-color: var(--q-border);
+    }
+
+    &:hover:before {
+      border-color: var(--q-border-hover);
+    }
+  }
+
+  &.q-field--focused .q-field__control {
+    border-color: var(--q-primary);
+    box-shadow: 0 0 0 2px var(--q-primary-light);
+  }
+}
+
+:deep(.q-editor) {
+  background: var(--q-bg-input);
+  border: 1px solid var(--q-border);
+  border-radius: 8px;
+
+  .q-editor__toolbar {
+    background: var(--q-bg-card);
+    border-bottom: 1px solid var(--q-border);
+  }
+
+  .q-editor__content {
+    color: var(--q-text-primary);
+  }
+}
+
+:deep(.q-tab-panels) {
+  background: transparent;
+}
+
+:deep(.q-footer) {
+  background: var(--q-bg-card);
+  border-top: 1px solid var(--q-border);
+}
+</style>

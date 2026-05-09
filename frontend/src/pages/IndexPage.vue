@@ -2,23 +2,23 @@
   <q-layout
     view="lHh lpr lFf"
     container
-    style="height: 93vh; background: rgba(0, 0, 0, 1)"
+    style="height: 93vh"
   >
     <!-- 头部 -->
-    <q-header elevated>
+    <q-header elevated class="bg-primary">
       <div class="row justify-between w100" style="padding: 6px 12px">
         <div class="row justify-start q-gutter-sm">
           <IndexButton
             glossy
-            color="black"
+            color="primary"
             ref="indexButton"
             @refresh-done="loadTypeSize"
           />
-          <q-btn color="black" label="刷新" width="10" glossy @click="f5" />
+          <q-btn color="primary" label="刷新" width="10" glossy @click="f5" />
         </div>
         <q-btn-toggle
           v-model="currentDiv"
-          color="black"
+          color="primary"
           outlined
           glossy
           text-color="white"
@@ -34,7 +34,7 @@
     </q-header>
     <q-page-container class="q-gutter-sm">
       <q-card class="cardcard">
-        <q-toolbar class="bg-black text-white" id="tagDiv">标签分析</q-toolbar>
+        <q-toolbar class="bg-primary text-white" id="tagDiv">标签分析</q-toolbar>
         <div
           class="q-gutter-sm q-pa-sm"
           style="
@@ -43,13 +43,12 @@
             flex-wrap: wrap;
             justify-content: flex-start;
             border-radius: 10px;
-            box-shadow: #fff 0px 0px 10px;
             overflow: auto;
           "
         >
           <div v-for="tag in tagData" :key="tag" style="width: auto">
             <q-btn
-              color="secondary"
+              color="primary"
               class="btn-fixed-width p0"
               glossy
               v-if="tag.Cnt > 1"
@@ -69,7 +68,7 @@
       </q-card>
 
       <q-card class="cardcard">
-        <q-toolbar class="bg-black text-white" id="seriesDiv"
+        <q-toolbar class="bg-primary text-white" id="seriesDiv"
           >系列分析</q-toolbar
         >
         <div
@@ -80,13 +79,12 @@
             flex-wrap: wrap;
             justify-content: flex-start;
             border-radius: 10px;
-            box-shadow: #fff 0px 0px 10px;
             overflow: auto;
           "
         >
           <div v-for="tag in seriesData" :key="tag" style="width: auto">
             <q-btn
-              color="secondary"
+              color="primary"
               class="btn-fixed-width p0"
               glossy
               v-if="tag.Cnt > 1"
@@ -106,7 +104,7 @@
       </q-card>
 
       <q-card class="cardcard">
-        <q-toolbar class="bg-black text-white" id="typeDiv">类型分析</q-toolbar>
+        <q-toolbar class="bg-primary text-white" id="typeDiv">类型分析</q-toolbar>
         <div
           class="row q-gutter-sm q-pa-sm justfity-start shadow-2 rounded-borders"
         >
@@ -116,12 +114,12 @@
             :key="item"
             style="height: fit-content"
           >
-            <q-badge color="red" floating>{{ item.Cnt }}</q-badge>
+            <q-badge color="negative" floating>{{ item.Cnt }}</q-badge>
             <q-card-section class="justify-between m0 p0">
               <q-btn
                 dense
                 icon="folder"
-                color="purple"
+                color="primary"
                 flat
                 @click="gotoMenu(item)"
               >
@@ -130,7 +128,7 @@
               <q-separator inset />
               <div class="text_subtitle" style="text-align: right">
                 <span> {{ item.SizeStr + ' | ' }}</span>
-                <span style="color: green"> {{ item.Cnt }}</span>
+                <span style="color: var(--q-success)"> {{ item.Cnt }}</span>
 
                 <div v-if="item.IsDir">{{ item.Name }}</div>
               </div>
@@ -138,7 +136,7 @@
 
             <q-card-actions>
               <q-btn
-                color="blue"
+                color="primary"
                 flat
                 glossy
                 dense
@@ -147,7 +145,7 @@
                 >打开
               </q-btn>
               <q-btn
-                color="red"
+                color="negative"
                 glossy
                 dense
                 flat
@@ -160,7 +158,7 @@
         </div>
       </q-card>
       <q-card class="cardcard">
-        <q-toolbar class="bg-black text-white" id="diskDiv">磁盘分析</q-toolbar>
+        <q-toolbar class="bg-primary text-white" id="diskDiv">磁盘分析</q-toolbar>
         <div
           class="row q-gutter-sm q-pa-sm justfity-start shadow-2 rounded-borders"
         >
@@ -175,21 +173,21 @@
                 dense
                 icon="folder"
                 :label="item.Name"
-                color="purple"
+                color="primary"
                 @click="folderGotoMenu(item.Name)"
               >
               </q-btn>
               <q-separator inset />
               <div class="text_subtitle" style="text-align: right">
                 <span> {{ item.SizeStr + ' | ' }}</span>
-                <span style="color: green"> {{ item.Cnt }}ms</span>
+                <span style="color: var(--q-success)"> {{ item.Cnt }}ms</span>
               </div>
             </q-card-section>
 
             <q-card-actions align="center">
               <div class="row q-gutter-sm">
                 <q-btn
-                  color="blue"
+                  color="primary"
                   flat
                   glossy
                   dense
@@ -198,7 +196,7 @@
                   >打开
                 </q-btn>
                 <q-btn
-                  color="red"
+                  color="negative"
                   dense
                   glossy
                   flat
@@ -359,13 +357,17 @@ const f5 = () => {
 <style>
 .cardcard {
   border-radius: 10px;
-  box-shadow: #fff 0px 0px 10px;
-  background: rgba(0, 0, 0, 0.8);
+  box-shadow: 0 4px 16px var(--q-shadow);
+  background: var(--q-bg-card);
+  border: 1px solid var(--q-border);
 }
 .p0 {
   padding: 2px;
 }
 .m0 {
   margin: 2px;
+}
+.text_subtitle {
+  color: var(--q-text-secondary);
 }
 </style>

@@ -93,7 +93,12 @@
           />
         </div>
         <!-- 搜索面板 - 合并到轮播中 -->
-        <div class="search-panel" v-show="searchDialog" @click.stop @mouseleave="searchDialog = false">
+        <div
+          class="search-panel"
+          v-show="searchDialog"
+          @click.stop
+          @mouseleave="searchDialog = false"
+        >
           <!-- 头部 -->
           <div class="search-panel-header">
             <div class="search-panel-title">
@@ -219,7 +224,7 @@
                         name="play_circle_filled"
                         size="28px"
                         color="white"
-                         @click="playFromSearch(item)"
+                        @click="playFromSearch(item)"
                       />
                     </div>
                   </div>
@@ -296,7 +301,7 @@
     </transition>
 
     <!-- 视频区域 -->
-    <div class="video-wrapper" v-show="videoLoaded" >
+    <div class="video-wrapper" v-show="videoLoaded">
       <video
         ref="videoRef"
         id="immersiveVideo"
@@ -399,7 +404,9 @@
               v-for="(file, index) in torrentFiles"
               :key="index"
               class="torrent-file-item"
-              :class="{ 'torrent-file-selected': selectedTorrentFile === file.path }"
+              :class="{
+                'torrent-file-selected': selectedTorrentFile === file.path,
+              }"
               @click="selectTorrentFile(file)"
             >
               <q-icon
@@ -409,7 +416,9 @@
               />
               <div class="torrent-file-info">
                 <span class="torrent-file-name">{{ file.name }}</span>
-                <span class="torrent-file-size">{{ humanStorageSize(file.length) }}</span>
+                <span class="torrent-file-size">{{
+                  humanStorageSize(file.length)
+                }}</span>
               </div>
               <q-icon
                 v-if="selectedTorrentFile === file.path"
@@ -420,12 +429,7 @@
             </div>
           </div>
           <div class="torrent-files-actions">
-            <q-btn
-              flat
-              color="grey-5"
-              label="取消"
-              @click="cancelTorrent"
-            />
+            <q-btn flat color="grey-5" label="取消" @click="cancelTorrent" />
             <q-btn
               unelevated
               color="indigo-6"
@@ -579,7 +583,8 @@
               <span class="time-total">{{ duration }}</span>
             </div>
             <span class="top-title" v-if="currentVideoName && videoLoaded">
-              {{ currentVideoName }}
+              <!-- {{ currentVideoName }} -->
+              <q-btn color="indigo-6" grossy @click="fetchKeyword(currentActress)">{{ currentActress }}</q-btn>
             </span>
           </div>
 
@@ -640,92 +645,111 @@
       class="download-fab"
       @click="showDownloadManager = true"
     >
-      <q-badge color="red" floating rounded>{{ activeDownloads.length }}</q-badge>
+      <q-badge color="red" floating rounded>{{
+        activeDownloads.length
+      }}</q-badge>
       <q-tooltip>下载管理</q-tooltip>
     </q-btn>
 
     <!-- 下载管理器弹窗 -->
     <q-dialog v-model="showDownloadManager" position="right" full-height>
-        <q-card class="download-manager-card">
-          <q-card-section class="download-manager-header">
-            <div class="download-manager-title">
-              <q-icon name="download" size="24px" />
-              <span>下载管理器</span>
-            </div>
-            <q-btn flat round dense icon="close" @click="showDownloadManager = false" />
-          </q-card-section>
+      <q-card class="download-manager-card">
+        <q-card-section class="download-manager-header">
+          <div class="download-manager-title">
+            <q-icon name="download" size="24px" />
+            <span>下载管理器</span>
+          </div>
+          <q-btn
+            flat
+            round
+            dense
+            icon="close"
+            @click="showDownloadManager = false"
+          />
+        </q-card-section>
 
-          <q-card-section class="download-manager-content">
-            <div v-if="activeDownloads.length === 0" class="download-empty">
-              <q-icon name="cloud_download" size="48px" color="grey-6" />
-              <p>暂无下载任务</p>
-            </div>
+        <q-card-section class="download-manager-content">
+          <div v-if="activeDownloads.length === 0" class="download-empty">
+            <q-icon name="cloud_download" size="48px" color="grey-6" />
+            <p>暂无下载任务</p>
+          </div>
 
-            <div v-else class="download-list">
-              <div
-                v-for="task in activeDownloads"
-                :key="task.infoHash"
-                class="download-item"
-                :class="{ 'download-item-playing': task.infoHash === currentInfoHash && videoLoaded }"
-              >
-                <div class="download-item-info">
-                  <div class="download-item-name">{{ task.name }}</div>
-                  <div class="download-item-meta">
-                    <span class="download-item-file" v-if="task.fileName">{{ task.fileName }}</span>
-                    <span class="download-item-state" :class="'state-' + task.state">{{ task.state }}</span>
-                    <span class="download-item-percent">{{ task.progress.toFixed(1) }}%</span>
-                  </div>
-                  <q-linear-progress
-                    :value="task.progress / 100"
-                    color="indigo-5"
-                    track-color="grey-9"
-                    size="4px"
-                    rounded
-                    class="q-mt-xs"
-                  />
+          <div v-else class="download-list">
+            <div
+              v-for="task in activeDownloads"
+              :key="task.infoHash"
+              class="download-item"
+              :class="{
+                'download-item-playing':
+                  task.infoHash === currentInfoHash && videoLoaded,
+              }"
+            >
+              <div class="download-item-info">
+                <div class="download-item-name">{{ task.name }}</div>
+                <div class="download-item-meta">
+                  <span class="download-item-file" v-if="task.fileName">{{
+                    task.fileName
+                  }}</span>
+                  <span
+                    class="download-item-state"
+                    :class="'state-' + task.state"
+                    >{{ task.state }}</span
+                  >
+                  <span class="download-item-percent"
+                    >{{ task.progress.toFixed(1) }}%</span
+                  >
                 </div>
-                <div class="download-item-actions">
-                  <q-btn
-                    flat
-                    round
-                    dense
-                    color="green"
-                    icon="play_arrow"
-                    size="sm"
-                    :disable="task.progress < 1"
-                    @click="playDownloadTask(task)"
-                  >
-                    <q-tooltip>播放</q-tooltip>
-                  </q-btn>
-                  <q-btn
-                    flat
-                    round
-                    dense
-                    color="blue"
-                    icon="folder_open"
-                    size="sm"
-                    @click="openDownloadFolder(task)"
-                  >
-                    <q-tooltip>打开文件夹</q-tooltip>
-                  </q-btn>
-                  <q-btn
-                    flat
-                    round
-                    dense
-                    color="red"
-                    icon="close"
-                    size="sm"
-                    @click="removeDownloadTask(task)"
-                  >
-                    <q-tooltip>删除</q-tooltip>
-                  </q-btn>
-                </div>
+                <q-linear-progress
+                  :value="task.progress / 100"
+                  color="indigo-5"
+                  track-color="grey-9"
+                  size="4px"
+                  rounded
+                  class="q-mt-xs"
+                />
               </div>
-        </div>
-      </q-card-section>
-    </q-card>
-  </q-dialog>
-</div>
+              <div class="download-item-actions">
+                <q-btn
+                  flat
+                  round
+                  dense
+                  color="green"
+                  icon="play_arrow"
+                  size="sm"
+                  :disable="task.progress < 1"
+                  @click="playDownloadTask(task)"
+                >
+                  <q-tooltip>播放</q-tooltip>
+                </q-btn>
+                <q-btn
+                  flat
+                  round
+                  dense
+                  color="blue"
+                  icon="folder_open"
+                  size="sm"
+                  @click="openDownloadFolder(task)"
+                >
+                  <q-tooltip>打开文件夹</q-tooltip>
+                </q-btn>
+                <q-btn
+                  flat
+                  round
+                  dense
+                  color="red"
+                  icon="close"
+                  size="sm"
+                  @click="removeDownloadTask(task)"
+                >
+                  <q-tooltip>删除</q-tooltip>
+                </q-btn>
+              </div>
+            </div>
+          </div>
+        </q-card-section>
+      </q-card>
+    </q-dialog>
+  </div>
 </template>
 
 <script setup>
@@ -770,6 +794,7 @@ const showMenuControls = ref(false);
 const currentVideoSrc = ref('');
 const currentPoster = ref('');
 const currentVideoName = ref('');
+const currentActress = ref('');
 const videoLoaded = ref(false);
 const isPlaying = ref(false);
 const isFullscreen = ref(false);
@@ -868,7 +893,7 @@ function goBack() {
 
 function showMenuInfo() {
   showMenuControls.value = !showMenuControls.value;
-  if( playlist.value.length == 0) {
+  if (playlist.value.length == 0) {
     fetchSearch();
   }
 }
@@ -880,12 +905,19 @@ function handleBannerMouseLeave(e) {
   searchDialog.value = false;
 }
 
+document.addEventListener('contextmenu', function (e) {
+  e.preventDefault(); // 阻止默认行为
+  showMenuControls.value = true;
+  searchDialog.value = true;
+});
+
 // ── 播放列表操作 ──────────────────────────────────────────────────────────────
 
 function switchToItem(index) {
   if (index < 0 || index >= playlist.value.length) return;
   currentIndex.value = index;
   const item = playlist.value[index];
+  currentActress.value = item.Actress || '';
   const src = item.TorrentStream || getFileStream(item.Id);
   loadVideo(
     src,
@@ -1237,7 +1269,9 @@ async function playSelectedTorrentFile() {
   showTorrentFiles.value = false;
   torrentState.value = '正在开始下载...';
   torrentProgress.value = 0;
-  const fileName = torrentFiles.value.find(f => f.path === selectedTorrentFile.value)?.name || '未知文件';
+  const fileName =
+    torrentFiles.value.find((f) => f.path === selectedTorrentFile.value)
+      ?.name || '未知文件';
   try {
     const response = await axios.post('/api/torrent/startDownload', {
       infoHash: currentInfoHash.value,
@@ -1257,7 +1291,9 @@ async function playSelectedTorrentFile() {
     if (!result?.skipped) {
       startPolling(currentInfoHash.value, newTask);
     }
-    const streamUrl = `/api/torrent/stream/${currentInfoHash.value}?file=${encodeURIComponent(selectedTorrentFile.value)}`;
+    const streamUrl = `/api/torrent/stream/${
+      currentInfoHash.value
+    }?file=${encodeURIComponent(selectedTorrentFile.value)}`;
     loadVideo(streamUrl, fileName);
     if (result?.skipped) {
       $q.notify({
@@ -1280,7 +1316,18 @@ async function playSelectedTorrentFile() {
 
 function getFileIcon(fileName) {
   const ext = fileName.split('.').pop()?.toLowerCase();
-  const videoExts = ['mp4', 'mkv', 'avi', 'mov', 'wmv', 'flv', 'webm', 'm4v', 'mpg', 'mpeg'];
+  const videoExts = [
+    'mp4',
+    'mkv',
+    'avi',
+    'mov',
+    'wmv',
+    'flv',
+    'webm',
+    'm4v',
+    'mpg',
+    'mpeg',
+  ];
   const audioExts = ['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a'];
   const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'];
   if (videoExts.includes(ext)) return 'movie';
@@ -1335,7 +1382,9 @@ async function cancelTorrent() {
     } catch {
       /* ignore */
     }
-    activeDownloads.value = activeDownloads.value.filter(t => t.infoHash !== currentInfoHash.value);
+    activeDownloads.value = activeDownloads.value.filter(
+      (t) => t.infoHash !== currentInfoHash.value
+    );
   }
   torrentLoading.value = false;
   torrentProgress.value = 0;
@@ -1349,7 +1398,9 @@ async function cancelTorrent() {
 
 // ── 下载管理器 ─────────────────────────────────────────────────────────────────
 function playDownloadTask(task) {
-  const streamUrl = `/api/torrent/stream/${task.infoHash}?file=${encodeURIComponent(task.filePath)}`;
+  const streamUrl = `/api/torrent/stream/${
+    task.infoHash
+  }?file=${encodeURIComponent(task.filePath)}`;
   currentInfoHash.value = task.infoHash;
   loadVideo(streamUrl, task.fileName);
 }
@@ -1362,7 +1413,9 @@ function removeDownloadTask(task) {
   axios.delete(`/api/torrent/${task.infoHash}`).catch(() => {
     /* ignore */
   });
-  activeDownloads.value = activeDownloads.value.filter(t => t.infoHash !== task.infoHash);
+  activeDownloads.value = activeDownloads.value.filter(
+    (t) => t.infoHash !== task.infoHash
+  );
   if (currentInfoHash.value === task.infoHash) {
     currentInfoHash.value = '';
     torrentLoading.value = false;
