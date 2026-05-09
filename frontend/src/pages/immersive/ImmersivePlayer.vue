@@ -1095,8 +1095,9 @@ async function submitMagnet() {
   torrentName.value = '获取种子信息中...';
   try {
     const res = await axios.post('/api/torrent/add', { magnetURI: uri });
-    if (res.data?.code === 200) {
-      const data = res.data.data;
+    console.log(res.data);
+    if (res.data?.Code === 200) {
+      const data = res.data.Data;
       currentInfoHash.value = data.infoHash;
       torrentName.value = data.name || '未知种子';
       torrentFiles.value = data.files || [];
@@ -1175,8 +1176,8 @@ function startPolling(infoHash) {
   torrentPollTimer = setInterval(async () => {
     try {
       const res = await axios.get(`/api/torrent/status/${infoHash}`);
-      if (res.data?.code === 200) {
-        const d = res.data.data;
+      if (res.data?.Code === 200) {
+        const d = res.data.Data;
         torrentName.value = d.name;
         torrentProgress.value = d.progress;
         torrentState.value = d.state;

@@ -30,8 +30,8 @@ var TorrentApp *TorrentService
 func NewTorrentService(dataDir string) error {
 	cfg := torrent.NewDefaultClientConfig()
 	cfg.DataDir = dataDir
-	cfg.NoUpload = true
-	cfg.Seed = false
+	cfg.NoUpload = false
+	cfg.Seed = true
 
 	client, err := torrent.NewClient(cfg)
 	if err != nil {
