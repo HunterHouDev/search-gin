@@ -2,21 +2,12 @@
   <div class="q-pa-md">
     <q-card class="q-mb-md theme-card">
       <q-card-section>
-        <h6 class="text-subtitle1">网络访问</h6>
+        <p>网络访问 : </p>
         <a :href="view.ipAddr" class="text-primary">访问： {{ view.ipAddr }}</a>
-      </q-card-section>
-    </q-card>
-    <q-card class="q-mb-md theme-card">
-      <q-card-section>
-        <h6 class="text-subtitle1">浏览器信息</h6>
         <p>userAgent : </p>
         <p class="text-wrap">{{ userAgent }}</p>
-      </q-card-section>
-    </q-card>
-    <q-card class="q-mb-md theme-card">
-      <q-card-section>
-        <h6 class="text-subtitle1">系统信息</h6>
-        <p>{{ $q.platform.is }}</p>
+        <p>系统信息 : </p>
+       <p>{{ $q.platform.is }}</p>
       </q-card-section>
     </q-card>
     <q-card class="theme-card">

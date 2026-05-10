@@ -227,6 +227,180 @@
       >
         {{ view.resultShow }}
       </span>
+      <!-- 主题选择器 -->
+      <q-btn-dropdown
+        flat
+        dense
+        no-caps
+        glossy
+        class="theme-selector-btn"
+      >
+        <template v-slot:label>
+          <div class="row items-center q-gutter-xs">
+            <q-icon :name="themeIcon" size="18px" />
+            <span class="text-caption gt-xs">{{ currentThemeLabel }}</span>
+            <q-icon name="arrow_drop_down" size="16px" class="q-ml-xs text-grey-5" />
+          </div>
+        </template>
+        <q-list style="min-width: 160px; padding: 8px 0;">
+          <!-- 主题选择 -->
+          <div class="q-px-md q-py-xs">
+            <q-item-label header class="text-grey-5 text-xs font-medium">主题外观</q-item-label>
+          </div>
+          <q-item
+            clickable
+            v-close-popup
+            @click="setTheme('star')"
+            :active="systemProperty.theme === 'star'"
+            class="q-mx-sm rounded-lg"
+          >
+            <q-item-section avatar>
+              <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: linear-gradient(135deg, #4f46e5, #7c3aed);">
+                <q-icon name="star" color="white" size="16px" />
+              </div>
+            </q-item-section>
+            <q-item-section>
+              <q-item-label class="font-medium">星空主题</q-item-label>
+              <q-item-label caption class="text-xs">深蓝紫配色</q-item-label>
+            </q-item-section>
+            <q-item-section side v-if="systemProperty.theme === 'star'">
+              <q-icon name="check" color="primary" size="18px" />
+            </q-item-section>
+          </q-item>
+          <q-item
+            clickable
+            v-close-popup
+            @click="setTheme('natural')"
+            :active="systemProperty.theme === 'natural'"
+            class="q-mx-sm rounded-lg"
+          >
+            <q-item-section avatar>
+              <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: linear-gradient(135deg, #22c55e, #84cc16);">
+                <q-icon name="eco" color="white" size="16px" />
+              </div>
+            </q-item-section>
+            <q-item-section>
+              <q-item-label class="font-medium">自然主题</q-item-label>
+              <q-item-label caption class="text-xs">温暖米色绿植</q-item-label>
+            </q-item-section>
+            <q-item-section side v-if="systemProperty.theme === 'natural'">
+              <q-icon name="check" color="primary" size="18px" />
+            </q-item-section>
+          </q-item>
+          <!-- 分隔线 -->
+          <q-separator class="my-2" />
+          <!-- 显示模式 -->
+          <div class="q-px-md q-py-xs">
+            <q-item-label header class="text-grey-5 text-xs font-medium">显示模式</q-item-label>
+          </div>
+          <q-item
+            clickable
+            v-close-popup
+            @click="systemProperty.showImage = 'cover'"
+            :active="systemProperty.showImage === 'cover'"
+            class="q-mx-sm rounded-lg"
+          >
+            <q-item-section avatar>
+              <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10">
+                <q-icon name="image" color="primary" size="16px" />
+              </div>
+            </q-item-section>
+            <q-item-section>
+              <q-item-label class="font-medium">封面模式</q-item-label>
+              <q-item-label caption class="text-xs">展示完整封面图</q-item-label>
+            </q-item-section>
+            <q-item-section side v-if="systemProperty.showImage === 'cover'">
+              <q-icon name="check" color="primary" size="18px" />
+            </q-item-section>
+          </q-item>
+          <q-item
+            clickable
+            v-close-popup
+            @click="systemProperty.showImage = 'poster'"
+            :active="systemProperty.showImage === 'poster'"
+            class="q-mx-sm rounded-lg"
+          >
+            <q-item-section avatar>
+              <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10">
+                <q-icon name="movie" color="primary" size="16px" />
+              </div>
+            </q-item-section>
+            <q-item-section>
+              <q-item-label class="font-medium">海报模式</q-item-label>
+              <q-item-label caption class="text-xs">展示电影海报</q-item-label>
+            </q-item-section>
+            <q-item-section side v-if="systemProperty.showImage === 'poster'">
+              <q-icon name="check" color="primary" size="18px" />
+            </q-item-section>
+          </q-item>
+          <!-- 分隔线 -->
+          <q-separator class="my-2" />
+          <!-- 卡片大小 -->
+          <div class="q-px-md q-py-xs">
+            <q-item-label header class="text-grey-5 text-xs font-medium">卡片大小</q-item-label>
+          </div>
+          <q-item
+            clickable
+            v-close-popup
+            @click="systemProperty.showStyle = 'lg'"
+            :active="systemProperty.showStyle === 'lg'"
+            class="q-mx-sm rounded-lg"
+          >
+            <q-item-section avatar>
+              <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10">
+                <q-icon name="view_module" color="primary" size="16px" />
+              </div>
+            </q-item-section>
+            <q-item-section>
+              <q-item-label class="font-medium">大</q-item-label>
+              <q-item-label caption class="text-xs">大尺寸卡片</q-item-label>
+            </q-item-section>
+            <q-item-section side v-if="systemProperty.showStyle === 'lg'">
+              <q-icon name="check" color="primary" size="18px" />
+            </q-item-section>
+          </q-item>
+          <q-item
+            clickable
+            v-close-popup
+            @click="systemProperty.showStyle = 'md'"
+            :active="systemProperty.showStyle === 'md'"
+            class="q-mx-sm rounded-lg"
+          >
+            <q-item-section avatar>
+              <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10">
+                <q-icon name="grid_view" color="primary" size="16px" />
+              </div>
+            </q-item-section>
+            <q-item-section>
+              <q-item-label class="font-medium">中</q-item-label>
+              <q-item-label caption class="text-xs">中等尺寸卡片</q-item-label>
+            </q-item-section>
+            <q-item-section side v-if="systemProperty.showStyle === 'md'">
+              <q-icon name="check" color="primary" size="18px" />
+            </q-item-section>
+          </q-item>
+          <q-item
+            clickable
+            v-close-popup
+            @click="systemProperty.showStyle = 'sm'"
+            :active="systemProperty.showStyle === 'sm'"
+            class="q-mx-sm rounded-lg"
+          >
+            <q-item-section avatar>
+              <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10">
+                <q-icon name="apps" color="primary" size="16px" />
+              </div>
+            </q-item-section>
+            <q-item-section>
+              <q-item-label class="font-medium">小</q-item-label>
+              <q-item-label caption class="text-xs">紧凑尺寸卡片</q-item-label>
+            </q-item-section>
+            <q-item-section side v-if="systemProperty.showStyle === 'sm'">
+              <q-icon name="check" color="primary" size="18px" />
+            </q-item-section>
+          </q-item>
+        </q-list>
+      </q-btn-dropdown>
       <!-- 设置按钮 -->
       <q-fab
         icon="ti-pencil-alt"
@@ -276,79 +450,13 @@
               class="q-gutter-md"
               style="
                 width: 18rem;
-                height: 18rem;
+                height: 8rem;
                 display: flex;
                 flex-direction: column;
                 justify-content: space-evenly;
               "
             >
-              <div class="row justify-between">
-                <q-btn flat dense> 显示模式 </q-btn>
-                <q-btn-toggle
-                  spread
-                  no-caps
-                  glossy
-                  size="md"
-                  v-model="systemProperty.showStyle"
-                  :options="[
-                    {
-                      label: '大',
-                      value: 'lg',
-                    },
-                    {
-                      label: '中',
-                      value: 'md',
-                    },
-                    {
-                      label: '小',
-                      value: 'sm',
-                    },
-                  ]"
-                  toggle-color="red"
-                />
-              </div>
-              <div class="row justify-between">
-                <q-btn flat dense> 图片模式 </q-btn>
-                <q-btn-toggle
-                  spread
-                  no-caps
-                  glossy
-                  size="md"
-                  v-model="systemProperty.showImage"
-                  :options="[
-                    {
-                      label: '封面',
-                      value: 'cover',
-                    },
-                    {
-                      label: '海报',
-                      value: 'poster',
-                    },
-                  ]"
-                  toggle-color="red"
-                />
-              </div>
-              <div class="row justify-between">
-                <q-btn flat dense> 主题切换 </q-btn>
-                <q-btn-toggle
-                  spread
-                  no-caps
-                  size="md"
-                  glossy
-                  v-model="systemProperty.isDark"
-                  :options="[
-                    {
-                      label: '暗黑',
-                      value: true,
-                    },
-                    {
-                      label: '自然',
-                      value: false,
-                    },
-                  ]"
-                  toggle-color="red"
-                />
-              </div>
+              
               <div class="row justify-between">
                 <q-btn flat dense> 每页大小 </q-btn>
                 <q-select
@@ -455,23 +563,26 @@
     <!-- 页面内容 -->
     <q-page-container class="scrollRef">
       <q-page>
-        <div class="row q-gutter-sm justify-start q-pl-sm">
+        <div class="row q-gutter-sm justify-start q-pl-sm" v-if="view.resultData.Data && view.resultData.Data.length > 0">
           <!-- 卡片列表 -->
-          <q-card
-            v-for="item in view.resultData.Data"
-            :key="item.Id"
-            :id="item.Id"
-            once
-            v-bind:class="{
-              'large-result': isLarge,
-              'medium-result': isMedium,
-              'small-result': isSmall,
-            }"
-            style="
-              border-radius: 4px;
-              box-shadow: 0 4px 8px rgba(0, 0, 0, 0.8);
-              transition: transform 0.3s ease;
-            "
+          <transition-group name="card-list">
+            <q-card
+              v-for="item in view.resultData.Data"
+              :key="item.Id"
+              :id="item.Id"
+              once
+              v-bind:class="{
+                'large-result': isLarge,
+                'medium-result': isMedium,
+                'small-result': isSmall,
+              }"
+              style="
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+                transition: all 0.3s ease-out;
+                border: 1px solid var(--q-border);
+                background: var(--q-bg-card);
+              "
             :style="{
               backgroundColor:
                 item.Id == view.currentDataInPlayer.Id
@@ -597,8 +708,8 @@
             <!-- 图片 -->
             <q-img
               fit="fill"
-              easier
-              draggable
+              lazy="true"
+              :lazy-src="getBlurImage(item.Id)"
               :class="{
                 'large-result-image': isLarge,
                 'medium-result-image': isMedium,
@@ -609,10 +720,13 @@
               @click="openFileInfoRef(item)"
               style="
                 border-radius: 6px 6px 0 0;
-                background: linear-gradient(45deg, #f5f5f5, #e0e0e0);
-                transition: transform 0.3s ease;
+                background: linear-gradient(135deg, rgba(30, 30, 50, 0.8), rgba(15, 15, 26, 0.9));
+                transition: opacity 0.4s ease-in-out, transform 0.3s ease;
                 overflow: hidden;
+                will-change: opacity;
+                aspect-ratio: 2/3;
               "
+              loading="lazy"
             >
               <template v-slot:loading>
                 <q-spinner-ios color="white" size="2em"
@@ -901,6 +1015,7 @@
               </div>
             </div>
           </q-card>
+            </transition-group>
         </div>
         <!-- 页面滚动器 -->
         <q-page-scroller
@@ -1118,6 +1233,13 @@ const getImage = (id) => {
   return getJpg(id);
 };
 
+const getBlurImage = (id) => {
+  if (systemProperty.showImage === 'poster') {
+    return `${getPng(id)}?blur=20`;
+  }
+  return `${getJpg(id)}?blur=20`;
+};
+
 import DataPop from 'components/DataPop.vue';
 import IndexButton from 'components/IndexButton.vue';
 import TagPop from 'components/TagPop.vue';
@@ -1195,6 +1317,24 @@ const themeStyle = computed(() => {
     backgroundColor: 'var(--q-bg-card)',
   };
 });
+
+const themeIcon = computed(() => {
+  return systemProperty.theme === 'natural' ? 'eco' : 'star';
+});
+
+const currentThemeLabel = computed(() => {
+  return systemProperty.theme === 'natural' ? '自然' : '星空';
+});
+
+const setTheme = (theme) => {
+  systemProperty.theme = theme;
+  const html = document.documentElement;
+  if (theme === 'natural') {
+    html.classList.add('theme-natural');
+  } else {
+    html.classList.remove('theme-natural');
+  }
+};
 
 onKeyStroke(['Enter'], () => {
   fetchSearch();
@@ -1866,6 +2006,29 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
+// 列表过渡动画
+.card-list-enter-active {
+  transition: all 0.4s ease-out;
+}
+
+.card-list-leave-active {
+  transition: all 0.3s ease-in;
+}
+
+.card-list-enter-from {
+  opacity: 0;
+  transform: translateY(20px) scale(0.95);
+}
+
+.card-list-leave-to {
+  opacity: 0;
+  transform: translateY(-10px) scale(0.98);
+}
+
+.card-list-move {
+  transition: transform 0.3s ease;
+}
+
 // 隐藏滚动条
 .scrollRef::-webkit-scrollbar {
   display: none;
@@ -1926,8 +2089,8 @@ onUnmounted(() => {
 }
 
 .large-result-image {
-  min-height: 270px;
-  max-height: 292px;
+  width: 100%;
+  height: auto;
 
   &::after {
     content: '';
@@ -1948,10 +2111,11 @@ onUnmounted(() => {
 }
 
 .medium-result-image {
-  min-height: 100px;
-  max-height: 168px;
+  width: 100%;
+  height: auto;
+
   &::after {
-    content: '1';
+    content: '';
     position: absolute;
     bottom: 0;
     left: 0;
@@ -1971,8 +2135,8 @@ onUnmounted(() => {
 }
 
 .small-result-image {
-  min-height: 160px;
-  max-height: 210px;
+  width: 100%;
+  height: auto;
 
   &::after {
     content: '';
@@ -2098,5 +2262,37 @@ onUnmounted(() => {
   &--rounded {
     margin: 2px;
   }
+}
+
+.theme-selector-btn {
+  border-radius: 8px;
+  transition: all 0.3s ease;
+
+  &:hover {
+    background: rgba(99, 102, 241, 0.15);
+  }
+
+  :deep(.q-btn__content) {
+    font-weight: 500;
+  }
+}
+
+:deep(.q-item) {
+  min-height: 40px;
+  transition: background 0.2s ease;
+
+  &:hover {
+    background: var(--q-menu-hover);
+  }
+
+  &.q-item--active {
+    background: var(--q-menu-active);
+  }
+}
+
+:deep(.q-item__label--header) {
+  font-size: 0.7rem;
+  line-height: 1.5;
+  letter-spacing: 0.5px;
 }
 </style>

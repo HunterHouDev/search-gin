@@ -584,7 +584,12 @@
             </div>
             <span class="top-title" v-if="currentVideoName && videoLoaded">
               <!-- {{ currentVideoName }} -->
-              <q-btn color="indigo-6" grossy @click="fetchKeyword(currentActress)">{{ currentActress }}</q-btn>
+              <q-btn
+                color="indigo-6"
+                grossy
+                @click="fetchKeyword(currentActress)"
+                >{{ currentActress }}</q-btn
+              >
             </span>
           </div>
 
@@ -2427,13 +2432,14 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  .filter-item {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-  }
+}
+
+.filter-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .search-input :deep(.q-field__control) {

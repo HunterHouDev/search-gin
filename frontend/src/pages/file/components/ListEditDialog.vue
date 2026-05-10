@@ -651,25 +651,6 @@
                   />
                 </template>
               </q-field>
-              <q-field color="purple-12" label="主题切换" stack-label>
-                <template v-slot:control>
-                  <q-radio
-                    v-model="systemProperty.isDark"
-                    checked-icon="task_alt"
-                    unchecked-icon="panorama_fish_eye"
-                    :val="true"
-                    label="暗黑"
-                  />
-                  <q-radio
-                    v-model="systemProperty.isDark"
-                    checked-icon="task_alt"
-                    unchecked-icon="panorama_fish_eye"
-                    :val="false"
-                    label="自然"
-                  />
-                </template>
-              </q-field>
-
               <q-field color="purple-12" label="Buttons（最佳5）" stack-label>
                 <template v-slot:control>
                   <q-checkbox

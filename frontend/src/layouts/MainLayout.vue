@@ -22,14 +22,6 @@
         <q-space v-if="isWideScreen" />
         <q-btn dense flat size="lg" icon="refresh" @click="refreshThis"></q-btn>
         <q-btn
-          @click="changeTheme"
-          v-if="isDesktop"
-          dense
-          icon="ti-reload"
-          flat
-          :color="$q.dark.mode ? 'white' : 'grey'"
-        ></q-btn>
-        <q-btn
           flat
           dense
           size="lg"
@@ -96,7 +88,7 @@
 </template>
 
 <script setup>
-import { computed, onUnmounted, reactive, ref, watch } from 'vue';
+import { computed, onUnmounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useSystemProperty } from 'stores/System';
 import { useQuasar } from 'quasar';
@@ -169,10 +161,6 @@ const minusScreen = () => {
   window.electron.hideMainWindow();
 };
 
-const changeTheme = () => {
-  systemProperty.isDark = !systemProperty.isDark;
-};
-
 const openChatDialogRef = () => {
   chatRef.value.open();
 };
@@ -201,14 +189,6 @@ const shutdownLeftSecond = computed(() => {
     (systemProperty.shutdownLeftSecond / 60) % 60
   )} 分 ${Math.floor(systemProperty.shutdownLeftSecond % 60)} 秒`;
 });
-
-$q.dark.set(systemProperty.isDark);
-watch(
-  () => systemProperty.isDark,
-  (v) => {
-    $q.dark.set(v);
-  }
-);
 
 const refreshThis = () => {
   window.location.reload();

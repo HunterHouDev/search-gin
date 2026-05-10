@@ -18,7 +18,7 @@
       <q-tabs
         v-model="tab"
         style="width: 100%; position: fixed; z-index: 9"
-        :style="{ backgroundColor: systemProperty.isDark ? 'rgba(15, 15, 26, 0.95)' : 'var(--q-primary)' }"
+        :style="{ backgroundColor: systemProperty.theme === 'star' ? 'rgba(15, 15, 26, 0.95)' : 'var(--q-primary)' }"
         no-caps
         glossy
         inline-label
@@ -210,9 +210,12 @@
 
         <q-tab-panel name="system">
           <!-- 主题选择 -->
-          <q-card flat bordered class="q-pa-md q-mb-md">
+          <q-card flat bordered class="q-pa-md q-mb-md theme-selection-card">
             <q-card-section class="q-pb-none">
-              <div class="text-h6 q-mb-md">主题选择</div>
+              <div class="text-h6 q-mb-md">
+                <q-icon name="palette" class="q-mr-sm" />
+                主题选择
+              </div>
             </q-card-section>
             <q-card-section class="q-pt-sm">
               <div class="row q-col-gutter-md">
@@ -222,7 +225,7 @@
                     bordered
                     class="q-pa-md cursor-pointer theme-card"
                     :class="{ 'theme-card-active': systemProperty.theme === 'star' }"
-                    @click="systemProperty.theme = 'star'"
+                    @click="setTheme('star')"
                   >
                     <div class="text-center">
                       <q-icon name="star" size="48px" color="indigo" />
@@ -237,7 +240,7 @@
                     bordered
                     class="q-pa-md cursor-pointer theme-card"
                     :class="{ 'theme-card-active': systemProperty.theme === 'natural' }"
-                    @click="systemProperty.theme = 'natural'"
+                    @click="setTheme('natural')"
                   >
                     <div class="text-center">
                       <q-icon name="eco" size="48px" color="green" />
@@ -343,7 +346,7 @@
     <q-footer elevated class="glossy">
       <q-btn
         align="evenly"
-        :color="systemProperty.isDark ? 'black' : 'primary'"
+        :color="systemProperty.theme === 'star' ? 'black' : 'primary'"
         glossy
         ripple
         rounded
@@ -389,6 +392,16 @@ const themeStyle = computed(() => {
     backgroundColor: 'var(--q-bg-card)',
   };
 });
+
+const setTheme = (theme) => {
+  systemProperty.theme = theme;
+  const html = document.documentElement;
+  if (theme === 'natural') {
+    html.classList.add('theme-natural');
+  } else {
+    html.classList.remove('theme-natural');
+  }
+};
 
 const submitForm = async () => {
   view.settingInfo.Dirs = view.settingInfo.Dirs.sort();
@@ -541,5 +554,46 @@ onMounted(() => {
 :deep(.q-footer) {
   background: var(--q-bg-card);
   border-top: 1px solid var(--q-border);
+}
+
+.theme-selection-card {
+  background: var(--q-bg-card);
+  border: 1px solid var(--q-border);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+
+  .text-h6 {
+    color: var(--q-text-primary);
+    display: flex;
+    align-items: center;
+  }
+}
+
+:deep(.q-card.theme-card) {
+  background: var(--q-bg-input);
+  border: 2px solid var(--q-border);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+
+  &:hover {
+    border-color: var(--q-primary);
+    transform: translateY(-4px);
+    box-shadow: var(--q-shadow);
+  }
+
+  &.theme-card-active {
+    border-color: var(--q-primary);
+    box-shadow: 0 0 0 3px var(--q-primary-light), var(--q-shadow);
+    background: rgba(99, 102, 241, 0.1);
+  }
+
+  .text-subtitle1 {
+    font-weight: 600;
+    color: var(--q-text-primary);
+  }
+
+  .text-caption {
+    color: var(--q-text-muted);
+  }
 }
 </style>
