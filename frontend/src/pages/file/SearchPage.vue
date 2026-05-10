@@ -569,7 +569,7 @@
               v-for="item in view.resultData.Data"
               :key="item.Id"
               :id="item.Id"
-              once
+              v-memo="[item.Id,item.Tags,item.Actress,item.Code]"
               v-bind:class="{
                 'large-result': isLarge,
                 'medium-result': isMedium,
@@ -578,18 +578,18 @@
               style="
                 border-radius: 8px;
                 box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
-                transition: all 0.3s ease-out;
                 border: 1px solid var(--q-border);
                 background: var(--q-bg-card);
               "
-            :style="{
-              backgroundColor:
-                item.Id == view.currentDataInPlayer.Id
-                  ? 'rgba(0, 0, 0, 0.3)'
-                  : item.Id == view.currentDataInEditor.Id
-                  ? 'rgba(0, 0, 0, 0.5)'
-                  : '',
-            }"
+              :style="{
+                transition: isFetching ? 'none' : 'all 0.3s ease-out',
+                backgroundColor:
+                  item.Id == view.currentDataInPlayer.Id
+                    ? 'rgba(0, 0, 0, 0.3)'
+                    : item.Id == view.currentDataInEditor.Id
+                    ? 'rgba(0, 0, 0, 0.5)'
+                    : '',
+              }"
           >
             <div class="card-top-tag" style="width: 80%">
               <!-- 种草按钮 -->
@@ -915,13 +915,6 @@
                   backgroundColor: 'rgba(250, 250, 250,0.8)',
                 }"
               >
-                <!-- backgroundColor:
-                    item.Id == view.currentDataInPlayer.Id
-                      ? 'rgba(0, 0, 0, 0.2)'
-                      : item.Id == view.currentDataInEditor.Id
-                      ? 'rgba(0, 0, 0, 0.5)'
-                      : 'rgba(250, 250, 250,0.8)', -->
-                <!-- 演员、编号、大小信息 -->
                 <span
                   style="
                     color: green;
