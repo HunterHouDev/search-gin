@@ -75,10 +75,26 @@
 }
 
 // ============== 全局样式 ==============
+* {
+  box-sizing: border-box;
+}
+
 body {
   background-color: var(--q-bg-darker);
   color: var(--q-text-primary);
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+// 全局过渡优化
+html {
+  scroll-behavior: smooth;
+}
+
+// 防止闪烁的基础样式
+.q-page-container,
+.q-layout,
+.q-drawer {
+  transition: background-color 0.4s ease !important;
 }
 
 // 卡片样式
@@ -86,7 +102,7 @@ body {
   background: var(--q-bg-card) !important;
   backdrop-filter: blur(32px);
   border: 1px solid var(--q-border);
-  transition: background 0.3s ease, border-color 0.3s ease;
+  transition: background 0.4s ease, border-color 0.4s ease, box-shadow 0.3s ease !important;
 }
 
 // 输入框样式
@@ -94,17 +110,18 @@ body {
 .q-field .q-field__control {
   background: var(--q-bg-input) !important;
   color: var(--q-text-primary) !important;
-  transition: background 0.3s ease, color 0.3s ease;
+  transition: background 0.4s ease, color 0.4s ease, border-color 0.3s ease !important;
 }
 
 .q-field .q-field__label,
 .q-field .q-field__native {
   color: var(--q-text-primary) !important;
+  transition: color 0.3s ease;
 }
 
 // 按钮样式
 .q-btn {
-  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease !important;
 }
 
 .q-btn.btn-primary {
@@ -182,6 +199,42 @@ body {
 .slide-leave-to {
   transform: translateY(20px);
   opacity: 0;
+}
+
+// 图片加载优化
+.q-img {
+  transition: opacity 0.4s ease !important;
+  
+  &.q-img--loading {
+    opacity: 0.6;
+  }
+  
+  &.q-img--loaded {
+    opacity: 1;
+  }
+  
+  .q-img__image {
+    transition: opacity 0.4s ease !important;
+  }
+  
+  .q-img__loading {
+    background: var(--q-bg-card) !important;
+  }
+}
+
+// 骨架屏优化
+.q-skeleton {
+  background: var(--q-bg-input) !important;
+}
+
+// 列表项过渡
+.q-item {
+  transition: background-color 0.2s ease !important;
+}
+
+// 抽屉过渡
+.q-drawer {
+  transition: transform 0.3s ease, background-color 0.4s ease !important;
 }
 
 // ============== 弹窗样式 ==============

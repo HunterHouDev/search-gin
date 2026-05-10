@@ -565,7 +565,6 @@
       <q-page>
         <div class="row q-gutter-sm justify-start q-pl-sm" v-if="view.resultData.Data && view.resultData.Data.length > 0">
           <!-- 卡片列表 -->
-          <transition-group name="card-list">
             <q-card
               v-for="item in view.resultData.Data"
               :key="item.Id"
@@ -1015,7 +1014,6 @@
               </div>
             </div>
           </q-card>
-            </transition-group>
         </div>
         <!-- 页面滚动器 -->
         <q-page-scroller
@@ -2006,29 +2004,6 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
-// 列表过渡动画
-.card-list-enter-active {
-  transition: all 0.4s ease-out;
-}
-
-.card-list-leave-active {
-  transition: all 0.3s ease-in;
-}
-
-.card-list-enter-from {
-  opacity: 0;
-  transform: translateY(20px) scale(0.95);
-}
-
-.card-list-leave-to {
-  opacity: 0;
-  transform: translateY(-10px) scale(0.98);
-}
-
-.card-list-move {
-  transition: transform 0.3s ease;
-}
-
 // 隐藏滚动条
 .scrollRef::-webkit-scrollbar {
   display: none;

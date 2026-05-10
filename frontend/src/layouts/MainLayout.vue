@@ -79,7 +79,11 @@
       </q-scroll-area>
     </q-drawer>
     <q-page-container>
-      <router-view />
+      <router-view v-slot="{ Component }">
+        <transition name="page-fade" mode="out-in">
+          <component :is="Component" />
+        </transition>
+      </router-view>
     </q-page-container>
   </q-layout>
   <ShutdownComponent ref="shutdown" />
@@ -246,6 +250,22 @@ const essentialLinks = [
 </script>
 
 <style lang="scss" scoped>
+// 页面切换过渡动画
+.page-fade-enter-active,
+.page-fade-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.page-fade-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.page-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
 // 隐藏滚动条
 .scroll::-webkit-scrollbar {
   display: none;
