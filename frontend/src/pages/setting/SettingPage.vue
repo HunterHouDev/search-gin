@@ -11,8 +11,9 @@
       elevated
       class="q-gutter-sm flex justify-center"
       style="
-        backdrop-filter: blur(5px);
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        border-bottom: 1px solid var(--q-border);
       "
     >
       <q-tabs
@@ -31,6 +32,7 @@
         <q-tab name="base" label="基础设置" />
         <q-tab name="note" label="网络设置" />
         <q-tab name="system" label="系统设置" />
+        <q-tab name="user" label="用户管理" />
       </q-tabs>
     </q-header>
     <q-page-container class="scroll" style="margin-top: 4rem">
@@ -341,6 +343,133 @@
             }"
           />
         </q-tab-panel>
+
+        <!-- 用户管理面板 -->
+        <q-tab-panel name="user">
+          <div class="q-gutter-md">
+            <!-- 修改密码卡片 -->
+            <q-card flat bordered class="q-pa-md">
+              <q-card-section>
+                <div class="text-h6 q-mb-md">
+                  <q-icon name="lock" class="q-mr-sm" />
+                  修改密码
+                </div>
+              </q-card-section>
+              <q-card-section>
+                <q-input
+                  v-model="passwordForm.oldPassword"
+                  label="当前密码"
+                  type="password"
+                  class="q-mb-md"
+                  :rules="[val => !!val || '请输入当前密码']"
+                />
+                <q-input
+                  v-model="passwordForm.newPassword"
+                  label="新密码"
+                  type="password"
+                  class="q-mb-md"
+                  :rules="[val => !!val || '请输入新密码']"
+                />
+                <q-input
+                  v-model="passwordForm.confirmPassword"
+                  label="确认新密码"
+                  type="password"
+                  class="q-mb-md"
+                  :rules="[
+                    val => !!val || '请确认新密码',
+                    val => val === passwordForm.newPassword || '两次密码不一致'
+                  ]"
+                />
+                <q-btn
+                  color="primary"
+                  label="修改密码"
+                  @click="changePassword"
+                  :loading="loading"
+                />
+              </q-card-section>
+            </q-card>
+
+            <!-- 用户列表卡片（仅超管可见） -->
+            <q-card v-if="isSuperAdmin" flat bordered class="q-pa-md">
+              <q-card-section>
+                <div class="text-h6 q-mb-md">
+                  <q-icon name="people" class="q-mr-sm" />
+                  用户管理
+                </div>
+              </q-card-section>
+              <q-card-section>
+                <!-- 添加用户表单 -->
+                <div class="q-mb-lg">
+                  <div class="text-subtitle1 q-mb-sm">添加新用户</div>
+                  <q-input
+                    v-model="newUser.username"
+                    label="用户名"
+                    class="q-mb-sm"
+                  />
+                  <q-input
+                    v-model="newUser.password"
+                    label="密码"
+                    type="password"
+                    class="q-mb-sm"
+                  />
+                  <q-select
+                    v-model="newUser.role"
+                    :options="['user', 'super_admin']"
+                    label="角色"
+                    class="q-mb-sm"
+                  />
+                  <q-input
+                    v-model="newUser.expireDate"
+                    label="有效期（可选，格式：YYYY-MM-DD，留空永不过期）"
+                    class="q-mb-sm"
+                  >
+                    <template v-slot:append>
+                      <q-icon name="event" class="cursor-pointer">
+                        <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+                          <q-date
+                            v-model="newUser.expireDate"
+                            mask="YYYY-MM-DD"
+                            today-btn
+                          />
+                        </q-popup-proxy>
+                      </q-icon>
+                    </template>
+                  </q-input>
+                  <q-btn
+                    color="primary"
+                    label="添加用户"
+                    @click="addUser"
+                    :loading="loading"
+                  />
+                </div>
+
+                <!-- 用户列表 -->
+                <q-separator class="q-my-md" />
+                <div class="text-subtitle1 q-mb-sm">用户列表</div>
+                <q-list bordered separator>
+                  <q-item v-for="user in userList" :key="user.username">
+                    <q-item-section>
+                      <q-item-label>{{ user.username }}</q-item-label>
+                      <q-item-label caption>{{ user.role === 'super_admin' ? '超管' : '普通用户' }}</q-item-label>
+                      <q-item-label caption v-if="user.expireDate">有效期至：{{ user.expireDate }}</q-item-label>
+                      <q-item-label caption v-else>永不过期</q-item-label>
+                    </q-item-section>
+                    <q-item-section side>
+                      <q-btn
+                        flat
+                        round
+                        icon="delete"
+                        color="negative"
+                        @click="deleteUser(user.username)"
+                        :disable="user.username === 'admin'"
+                      />
+                    </q-item-section>
+                  </q-item>
+                </q-list>
+              </q-card-section>
+            </q-card>
+          </div>
+        </q-tab-panel>
       </q-tab-panels>
     </q-page-container>
     <q-footer elevated class="glossy">
@@ -371,6 +500,10 @@ import {
   GetSettingInfo,
   PostSettingInfo,
   GetIpAddr,
+  GetUsers,
+  AddUser,
+  DeleteUser,
+  ChangePassword,
 } from '../../components/api/settingAPI';
 import MutiSelector from '../../components/MutiSelector.vue';
 import MutiInput from '../../components/MutiInput.vue';
@@ -383,8 +516,28 @@ const view = reactive({
   settingInfo: {},
   ipAddr: '',
 });
+const loading = ref(false);
 
 const systemProperty = useSystemProperty();
+
+// 用户管理相关
+const passwordForm = reactive({
+  oldPassword: '',
+  newPassword: '',
+  confirmPassword: '',
+});
+const newUser = reactive({
+  username: '',
+  password: '',
+  role: 'user',
+  expireDate: '',
+});
+const userList = ref([]);
+
+// 判断当前用户是否为超管
+const isSuperAdmin = computed(() => {
+  return localStorage.getItem('userRole') === 'super_admin';
+});
 
 const themeStyle = computed(() => {
   return {
@@ -408,7 +561,7 @@ const submitForm = async () => {
   view.settingInfo.DirsLib = view.settingInfo.DirsLib.sort();
   view.settingInfo.Types = view.settingInfo.Types.sort();
   view.settingInfo.VideoTypes = view.settingInfo.VideoTypes.sort();
-
+  
   view.settingInfo.Tags = view.settingInfo.Tags.filter((item) => {
     return view.settingInfo.TagsLib.includes(item);
   });
@@ -448,10 +601,109 @@ const queryIpAddr = async () => {
   }
 };
 
+// 获取用户列表
+const fetchUsers = async () => {
+  if (!isSuperAdmin.value) return;
+  
+  try {
+    const res = await GetUsers();
+    if (res.code === 200) {
+      userList.value = res.data;
+    }
+  } catch (error) {
+    console.error('获取用户列表失败:', error);
+  }
+};
+
+// 修改密码
+const changePassword = async () => {
+  if (!passwordForm.oldPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+    $q.notify({ type: 'warning', message: '请填写完整信息' });
+    return;
+  }
+  
+  if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+    $q.notify({ type: 'warning', message: '两次密码不一致' });
+    return;
+  }
+  
+  loading.value = true;
+  try {
+    const username = localStorage.getItem('username');
+    const res = await ChangePassword(username, passwordForm.oldPassword, passwordForm.newPassword);
+    if (res.code === 200) {
+      $q.notify({ type: 'positive', message: '密码修改成功' });
+      passwordForm.oldPassword = '';
+      passwordForm.newPassword = '';
+      passwordForm.confirmPassword = '';
+    } else {
+      $q.notify({ type: 'negative', message: res.message || '密码修改失败' });
+    }
+  } catch (error) {
+    $q.notify({ type: 'negative', message: '密码修改失败' });
+    console.error('修改密码错误:', error);
+  } finally {
+    loading.value = false;
+  }
+};
+
+// 添加用户（仅超管）
+const addUser = async () => {
+  if (!newUser.username || !newUser.password) {
+    $q.notify({ type: 'warning', message: '请填写用户名和密码' });
+    return;
+  }
+  
+  loading.value = true;
+  try {
+    const res = await AddUser(newUser.username, newUser.password, newUser.role, newUser.expireDate);
+    if (res.code === 200) {
+      $q.notify({ type: 'positive', message: '用户添加成功' });
+      newUser.username = '';
+      newUser.password = '';
+      newUser.role = 'user';
+      newUser.expireDate = '';
+      fetchUsers(); // 刷新用户列表
+    } else {
+      $q.notify({ type: 'negative', message: res.message || '添加用户失败' });
+    }
+  } catch (error) {
+    $q.notify({ type: 'negative', message: '添加用户失败' });
+    console.error('添加用户错误:', error);
+  } finally {
+    loading.value = false;
+  }
+};
+
+// 删除用户（仅超管）
+const deleteUser = async (username) => {
+  if (username === 'admin') {
+    $q.notify({ type: 'warning', message: '不能删除默认超管账户' });
+    return;
+  }
+  
+  loading.value = true;
+  try {
+    const res = await DeleteUser(username);
+    if (res.code === 200) {
+      $q.notify({ type: 'positive', message: '用户删除成功' });
+      fetchUsers(); // 刷新用户列表
+    } else {
+      $q.notify({ type: 'negative', message: res.message || '删除用户失败' });
+    }
+  } catch (error) {
+    $q.notify({ type: 'negative', message: '删除用户失败' });
+    console.error('删除用户错误:', error);
+  } finally {
+    loading.value = false;
+  }
+};
+
 onMounted(() => {
   document.title = '设置';
   fetchSearch();
   queryIpAddr();
+  fetchUsers();
 });
 </script>
 <style lang="scss" scoped>

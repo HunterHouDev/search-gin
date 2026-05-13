@@ -2,7 +2,9 @@ package router
 
 import (
 	"net/http"
+	"os"
 	"path/filepath"
+	"strings"
 	"search-gin/internal/env"
 	"search-gin/internal/handler"
 	"search-gin/middleware"
@@ -16,8 +18,23 @@ import (
 
 func BuildRouter(tempDir string) *gin.Engine {
 	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{"*"}
-	config.AllowCredentials = true
+	// 限制CORS允许的起源，防止CSRF攻击
+	// 生产环境应该明确指定允许的域名
+	if os.Getenv("GIN_MODE") == "release" {
+		// 生产环境：从环境变量读取允许的起源
+		allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
+		if allowedOrigins != "" {
+			config.AllowOrigins = strings.Split(allowedOrigins, ",")
+		} else {
+			// 默认只允许本地访问
+			config.AllowOrigins = []string{"http://localhost:8080", "http://127.0.0.1:8080"}
+		}
+		config.AllowCredentials = true
+	} else {
+		// 开发环境：允许本地开发
+		config.AllowOrigins = []string{"http://localhost:8080", "http://127.0.0.1:8080", "http://localhost:9000"}
+		config.AllowCredentials = true
+	}
 	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Range", "Accept-Ranges", "Content-Range"}
 	config.ExposeHeaders = []string{"Content-Length", "Content-Range", "Accept-Ranges", "Content-Type"}
 
@@ -31,6 +48,7 @@ func BuildRouter(tempDir string) *gin.Engine {
 	router.Use(cors.New(config))
 	router.Use(ginlogrus.Logger(utils.NewLogger()))
 	router.Use(middleware.CustomRecovery())
+	router.Use(middleware.AuthMiddleware())
 
 	if !env.IsProd {
 		router.Use(func(c *gin.Context) {
@@ -65,6 +83,7 @@ func BuildRouter(tempDir string) *gin.Engine {
 
 	router.NoRoute(handler.Index)
 	router.GET("/", handler.Index)
+	router.POST("/api/login", handler.Login)
 	router.POST("/api/movieList", handler.PostSearch)
 
 	router.GET("/api/transferTasks", handler.GetTransferTask)
@@ -107,6 +126,12 @@ func BuildRouter(tempDir string) *gin.Engine {
 	router.POST("/api/setting", handler.PostSetting)
 	router.GET("/api/GetIpAddr", handler.GetIpAddr2)
 	router.GET("/api/shutDown", handler.GetShutdown)
+	
+	// 用户管理路由（需要认证）
+	router.GET("/api/users", handler.GetUsers)
+	router.POST("/api/user/add", handler.AddUser)
+	router.POST("/api/user/delete", handler.DeleteUser)
+	router.POST("/api/user/changePassword", handler.ChangePassword)
 
 	router.GET("/api/typeSizeMap", handler.GetTypeSize)
 	router.GET("/api/tagSizeMap", handler.GetTagSize)

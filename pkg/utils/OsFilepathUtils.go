@@ -11,6 +11,50 @@ import (
 	"unicode"
 )
 
+// ValidatePath 验证路径是否在允许的目录内，防止路径遍历攻击
+// allowedDirs: 允许的目录列表
+// userPath: 用户提供的路径
+// 返回：清理后的绝对路径和错误
+func ValidatePath(userPath string, allowedDirs []string) (string, error) {
+	// 清理路径（移除 .. 等）
+	cleanPath := filepath.Clean(userPath)
+	
+	// 获取绝对路径
+	absPath, err := filepath.Abs(cleanPath)
+	if err != nil {
+		return "", fmt.Errorf("无效的路径: %v", err)
+	}
+	
+	// 检查路径是否以允许的目录开头
+	for _, allowedDir := range allowedDirs {
+		// 清理允许的目录路径
+		cleanAllowed := filepath.Clean(allowedDir)
+		absAllowed, err := filepath.Abs(cleanAllowed)
+		if err != nil {
+			continue
+		}
+		
+		// 检查路径是否在允许的目录内
+		if strings.HasPrefix(absPath, absAllowed) {
+			return absPath, nil
+		}
+	}
+	
+	return "", fmt.Errorf("路径访问被拒绝: 不在允许的目录范围内")
+}
+
+// SanitizeFilename 清理文件名，防止命令注入
+// 移除可能导致命令注入的字符
+func SanitizeFilename(filename string) string {
+	// 移除危险的shell元字符
+	dangerous := []string{";", "|", "`", "$", "(", ")", "<", ">", "&", "!", "\n", "\r"}
+	cleaned := filename
+	for _, char := range dangerous {
+		cleaned = strings.ReplaceAll(cleaned, char, "")
+	}
+	return cleaned
+}
+
 func DirpathForId(path string) (string, string) {
 	//res, _ := url.QueryUnescape(path)
 	//res = strings.ReplaceAll(res, PathSeparator+PathSeparator, PathSeparator)
@@ -57,7 +101,8 @@ func ConcatSuffix(path string, suffix string) string {
 func ExistsFiles(path string) bool {
 	_, err := os.Stat(path)
 	if err != nil {
-		return os.IsExist(err)
+		// 修正：应该检查文件是否不存在，而不是存在
+		return !os.IsNotExist(err)
 	}
 	return true
 }

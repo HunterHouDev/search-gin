@@ -3,12 +3,90 @@ package consts
 import (
 	"search-gin/internal/model"
 	"sync"
+	"time"
 )
+
+type TokenInfo struct {
+	ExpireTime time.Time
+	Username   string
+}
 
 var (
 	OSSetting    = model.Setting{}
 	settingMutex sync.RWMutex
+	
+	// Token存储（简单内存实现）
+	TokenStore    = make(map[string]TokenInfo)
+	tokenMutex   sync.RWMutex
 )
+
+// SetToken 设置token
+func SetToken(token string, expireTime time.Time, username string) {
+	tokenMutex.Lock()
+	defer tokenMutex.Unlock()
+	TokenStore[token] = TokenInfo{
+		ExpireTime: expireTime,
+		Username:   username,
+	}
+}
+
+// ValidateToken 验证token是否有效，同时检查用户是否过期
+func ValidateToken(token string) bool {
+	tokenMutex.RLock()
+	tokenInfo, exists := TokenStore[token]
+	tokenMutex.RUnlock()
+	
+	if !exists {
+		return false
+	}
+	
+	// 检查token是否过期
+	if time.Now().After(tokenInfo.ExpireTime) {
+		// 过期了，删除token
+		go func() {
+			tokenMutex.Lock()
+			defer tokenMutex.Unlock()
+			delete(TokenStore, token)
+		}()
+		return false
+	}
+	
+	// 检查用户是否过期
+	if tokenInfo.Username != "" {
+		for _, user := range OSSetting.Users {
+			if user.Username == tokenInfo.Username {
+				if user.ExpireDate != "" {
+					expireTime, err := time.Parse("2006-01-02", user.ExpireDate)
+					if err == nil && time.Now().After(expireTime) {
+						// 用户已过期，删除token（强制退出）
+						go func() {
+							tokenMutex.Lock()
+							defer tokenMutex.Unlock()
+							delete(TokenStore, token)
+						}()
+						return false
+					}
+				}
+				break
+			}
+		}
+	}
+	
+	return true
+}
+
+// CleanExpiredTokens 清理过期的token
+func CleanExpiredTokens() {
+	tokenMutex.Lock()
+	defer tokenMutex.Unlock()
+	
+	now := time.Now()
+	for token, tokenInfo := range TokenStore {
+		if now.After(tokenInfo.ExpireTime) {
+			delete(TokenStore, token)
+		}
+	}
+}
 
 func init() {
 	OSSetting = model.Setting{
@@ -40,6 +118,13 @@ func init() {
 		Buttons:    []string{"刮图", "删除", "移动"},
 		MovieTypes: []string{"骑兵", "步兵", "国产", "漫动"},
 		Pages:      []string{"10", "12", "15", "27", "50", "100"},
+		Users: []model.User{
+			{
+				Username: "admin",
+				Password: "qwer",
+				Role:     "super_admin",
+			},
+		},
 	}
 }
 

@@ -1,7 +1,10 @@
 package middleware
 
 import (
+	"net/http"
+	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -31,7 +34,54 @@ func SlowRequestMiddleware() gin.HandlerFunc {
 
 		if duration > 5*time.Second {
 			utils.InfoFormat("慢请求 [%s] %s %d %v",
-				c.Request.Method, path, c.Writer.Status(), duration)
+					c.Request.Method, path, c.Writer.Status(), duration)
 		}
+	}
+}
+
+// AuthMiddleware token验证中间件
+func AuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// 不需要认证的路径
+		skipPaths := []string{
+			"/api/login",
+			"/login",
+			"/",
+			"/index.html",
+		}
+		
+		// 检查是否在跳过列表中
+		for _, skipPath := range skipPaths {
+			if strings.HasPrefix(c.Request.URL.Path, skipPath) {
+				c.Next()
+				return
+			}
+		}
+		
+		// 从请求头获取token
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.JSON(http.StatusUnauthorized, utils.NewFailByMsg("未授权访问"))
+			c.Abort()
+			return
+		}
+		
+		// 提取token（格式：Bearer <token>）
+		if !strings.HasPrefix(authHeader, "Bearer ") {
+			c.JSON(http.StatusUnauthorized, utils.NewFailByMsg("无效的认证格式"))
+			c.Abort()
+			return
+		}
+		
+		token := strings.TrimPrefix(authHeader, "Bearer ")
+		
+		// 验证token
+		if !consts.ValidateToken(token) {
+			c.JSON(http.StatusUnauthorized, utils.NewFailByMsg("token无效或已过期"))
+			c.Abort()
+			return
+		}
+		
+		c.Next()
 	}
 }

@@ -12,8 +12,9 @@
       elevated
       class="q-gutter-sm flex justify-center"
       style="
-        backdrop-filter: blur(5px);
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        border-bottom: 1px solid var(--q-border);
       "
     >
       <!-- 索引按钮 -->
@@ -158,20 +159,22 @@
         dense
         type="search"
         style="
-          max-width: 350px;
-          border-radius: 4px;
-          box-shadow: 0 0 4px rgba(0, 0, 0, 0.1);
+          max-width: 400px;
+          border-radius: 12px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          transition: all 0.3s ease;
         "
         outlined
         glossy
         :debounce="1000"
         id="searchBtn"
-        label="..."
+        label="搜索文件..."
         v-model="view.queryParam.Keyword"
         filled
         clearable
         @clear="keywordChange"
         @update:model-value="keywordChange"
+        class="search-input"
       >
         <template v-slot:prepend>
           <q-icon name="ti-list" class="cursor-pointer">
@@ -575,20 +578,15 @@
                 'medium-result': isMedium,
                 'small-result': isSmall,
               }"
-              style="
-                border-radius: 8px;
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
-                border: 1px solid var(--q-border);
-                background: var(--q-bg-card);
-              "
+              class="search-result-card"
               :style="{
                 transition: isFetching ? 'none' : 'all 0.3s ease-out',
                 backgroundColor:
                   item.Id == view.currentDataInPlayer.Id
-                    ? 'rgba(0, 0, 0, 0.3)'
+                    ? 'rgba(99, 102, 241, 0.2)'
                     : item.Id == view.currentDataInEditor.Id
-                    ? 'rgba(0, 0, 0, 0.5)'
-                    : '',
+                    ? 'rgba(234, 179, 8, 0.2)'
+                    : 'var(--q-bg-card)',
               }"
           >
             <div class="card-top-tag" style="width: 80%">

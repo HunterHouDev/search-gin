@@ -98,10 +98,16 @@ func main() {
 	// 设置临时目录到 service 包
 	service.TempDir = tempDir
 
-	go func() {
-		defer utils.RecoverPanic()
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
+	// 启动pprof调试接口（仅开发环境）
+	if os.Getenv("GIN_MODE") != "release" {
+		go func() {
+			defer utils.RecoverPanic()
+			log.Println("pprof调试接口启动在 localhost:6060")
+			log.Println(http.ListenAndServe("localhost:6060", nil))
+		}()
+	} else {
+		log.Println("生产环境已禁用pprof调试接口")
+	}
 	// 创建信号通道
 	sigChan := make(chan os.Signal, 1)
 	// 监听SIGINT和SIGTERM信号

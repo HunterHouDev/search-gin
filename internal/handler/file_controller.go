@@ -22,7 +22,17 @@ import (
 func GetPlay(c *gin.Context) {
 	id := c.Param("id")
 	file := service.SearchApp.FindOne(id)
-	fmt.Printf("GetPlay [%v] \n", file.Path)
+	
+	// 验证文件路径是否在允许的目录内
+	sanitizePath, err := utils.ValidatePath(file.Path, consts.OSSetting.Dirs)
+	if err != nil {
+		utils.InfoFormat("命令注入攻击尝试: %s, 错误: %v", file.Path, err)
+		c.JSON(http.StatusForbidden, utils.NewFailByMsg("文件路径不在允许范围内"))
+		return
+	}
+	
+	fmt.Printf("GetPlay [%v] \n", sanitizePath)
+	
 	if consts.OSSetting.SystemPlayer == "ffplay" {
 		go func() {
 			params := []string{"-window_title", file.Title, // 添加窗口标题参数
@@ -52,16 +62,18 @@ func GetPlay(c *gin.Context) {
 				ffplayPath = filepath.Join(service.TempDir, "ffplay.exe")
 			}
 
-			params = append(params, file.Path)
+			params = append(params, sanitizePath)
 			cmd := exec.Command(ffplayPath, params...)
 			err := cmd.Start()
 			if err != nil {
+				utils.InfoFormat("播放失败: %v, 错误: %v", sanitizePath, err)
 				res := utils.Fail()
 				c.JSON(http.StatusOK, res)
 			}
 		}()
 	} else {
-		utils.ExecCmdStart(file.Path)
+		// 验证后的路径
+		utils.ExecCmdStart(sanitizePath)
 	}
 
 	res := utils.NewSuccessByMsg("播放成功")
@@ -240,19 +252,56 @@ func GetTempImage(c *gin.Context) {
 
 func GetFileByPathUseEncode(c *gin.Context) {
 	escapeUrl := c.Param("path")
-	path, _ := url.QueryUnescape(escapeUrl)
-	if utils.ExistsFiles(path) {
-		c.File(path)
-	} else {
+	decodedPath, err := url.QueryUnescape(escapeUrl)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("无效的文件路径"))
 		return
+	}
+	
+	// 验证路径是否在允许的目录内
+	validatedPath, err := utils.ValidatePath(decodedPath, consts.OSSetting.Dirs)
+	if err != nil {
+		utils.InfoFormat("路径遍历攻击尝试: %s, 错误: %v", decodedPath, err)
+		c.JSON(http.StatusForbidden, utils.NewFailByMsg("访问被拒绝：路径不在允许范围内"))
+		return
+	}
+	
+	if utils.ExistsFiles(validatedPath) {
+		c.File(validatedPath)
+	} else {
+		c.JSON(http.StatusNotFound, utils.NewFailByMsg("文件不存在"))
 	}
 }
 
 func GetDeleteFileByPathUseEncode(c *gin.Context) {
 	escapeUrl := c.Param("path")
-	path, _ := url.QueryUnescape(escapeUrl)
-	os.Remove(path)
-	c.JSON(200, utils.NewSuccess())
+	decodedPath, err := url.QueryUnescape(escapeUrl)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("无效的文件路径"))
+		return
+	}
+	
+	// 验证路径是否在允许的目录内
+	validatedPath, err := utils.ValidatePath(decodedPath, consts.OSSetting.Dirs)
+	if err != nil {
+		utils.InfoFormat("路径遍历攻击尝试: %s, 错误: %v", decodedPath, err)
+		c.JSON(http.StatusForbidden, utils.NewFailByMsg("删除被拒绝：路径不在允许范围内"))
+		return
+	}
+	
+	if !utils.ExistsFiles(validatedPath) {
+		c.JSON(http.StatusNotFound, utils.NewFailByMsg("文件不存在"))
+		return
+	}
+	
+	err = os.Remove(validatedPath)
+	if err != nil {
+		utils.InfoFormat("删除文件失败: %s, 错误: %v", validatedPath, err)
+		c.JSON(http.StatusInternalServerError, utils.NewFailByMsg("删除失败"))
+		return
+	}
+	
+	c.JSON(http.StatusOK, utils.NewSuccessByMsg("删除成功"))
 }
 
 // GetFile 获取文件流
