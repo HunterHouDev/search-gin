@@ -1,6 +1,8 @@
 <template>
-  <ParticleBackground />
-  <router-view />
+  <div v-cloak class="app-root">
+    <ParticleBackground />
+    <router-view />
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -29,5 +31,14 @@ watch(
 
 onMounted(() => {
   applyTheme(systemProperty.theme);
+  // 移除加载完成标识
+  document.body.classList.add('app-ready');
 });
 </script>
+
+<style scoped>
+.app-root {
+  min-height: 100vh;
+  background-color: var(--q-bg-darker);
+}
+</style>

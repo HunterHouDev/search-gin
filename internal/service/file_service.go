@@ -919,13 +919,13 @@ func (fs *fileService) CutImage(path string, typeImage string, start string) uti
 
 		// 检查是否成功生成了文件
 		if utils.ExistsFiles(dest) {
-			res.Data = utils.ImageToString(utils.ConcatSuffix(path, typeImage))
+			res.Data = utils.ImageToString(dest)
 		}
 		return res
 	}
 
 	// 成功时返回图片数据
-	res.Data = utils.ImageToString(utils.ConcatSuffix(path, typeImage))
+	res.Data = utils.ImageToString(dest)
 	return res
 }
 

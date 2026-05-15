@@ -1,5 +1,5 @@
 <template>
-  <q-popup-proxy>
+  <q-popup-proxy @show="refreshView">
     <div
       style="padding: 0; border-radius: 10px; max-height: 72vh"
       :style="{ width: isMobile ? '90vw' : '700px' }"
@@ -316,8 +316,8 @@ const loadScanTime = async () => {
 };
 
 onMounted(() => {
-  console.log('加载数据 refreshView');
-  refreshView();
+  // 延迟加载数据，避免页面初始加载时不必要的请求
+  // 数据将在用户打开 popup 时通过 @show 事件加载
 });
 
 const scanTimeColumns = [

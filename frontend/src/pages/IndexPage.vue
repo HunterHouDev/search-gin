@@ -43,6 +43,9 @@
     </q-header>
     
     <q-page-container class="q-pa-md q-gutter-md">
+      <!-- 加载状态 -->
+      <SkeletonLoader v-if="isLoading" type="list" :count="8" />
+      
       <!-- 标签分析卡片 -->
       <q-card class="cardcard" v-if="tagData.filter(t => t.Cnt > 1).length > 0">
         <q-toolbar class="bg-gradient-primary text-white" id="tagDiv">
@@ -234,6 +237,7 @@
 import { useQuasar } from 'quasar';
 import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import SkeletonLoader from 'components/SkeletonLoader.vue';
 import {
   DeleteFolerByPath,
   OpenFolerByPath,
@@ -257,6 +261,7 @@ const tagData = ref([]);
 const seriesData = ref([]);
 const scanTime = ref([]);
 const currentDiv = ref('tagDiv');
+const isLoading = ref(true);
 
 onKeyStroke(['`'], () => {
   refreshIndex();
@@ -285,6 +290,7 @@ const gotoMenu = (data) => {
   push('/search?from=index');
 };
 const loadTypeSize = async () => {
+  isLoading.value = true;
   const res = await TypeSizeMap();
   if (res) {
     tableData.value = res;
@@ -292,6 +298,7 @@ const loadTypeSize = async () => {
   loadTagSize();
   loadScanTime();
   loadSeriesCount();
+  isLoading.value = false;
 };
 
 const loadTagSize = async () => {

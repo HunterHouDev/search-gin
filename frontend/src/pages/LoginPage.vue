@@ -100,13 +100,13 @@ const login = async () => {
     
     const result = await response.json();
     
-    if (result.code === 200) {
+    if (result.Code === 200) {
       // 验证通过，将用户信息存储到localStorage中
       systemProperty.expireTime = new Date().getTime() + 1000 * 60 * 60 * 2;
       localStorage.setItem('isAuthenticated', 'true');
-      localStorage.setItem('authToken', result.data.token);
-      localStorage.setItem('userRole', result.data.role);
-      localStorage.setItem('username', result.data.username);
+      localStorage.setItem('authToken', result.Data.token);
+      localStorage.setItem('userRole', result.Data.role);
+      localStorage.setItem('username', result.Data.username);
       
       $q.notify({
         type: 'positive',

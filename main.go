@@ -50,8 +50,12 @@ func createServer(addr string, handler http.Handler) *http.Server {
 
 func main() {
 	defer utils.RecoverPanic()
-	// 解压静态资源到当前目录
-	tempDir := "."
+	// 获取当前工作目录作为绝对路径，确保 ffmpeg 等资源能正确定位
+	tempDir, err := os.Getwd()
+	if err != nil {
+		utils.InfoFormat("获取当前工作目录失败: %v，使用默认路径", err)
+		tempDir = "."
+	}
 	if _, err := os.Stat(filepath.Join(tempDir, "setting.json")); os.IsNotExist(err) {
 		utils.InfoFormat("开始解压 setting.json...")
 		if err := ExtractSetting(tempDir); err != nil {

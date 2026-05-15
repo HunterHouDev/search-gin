@@ -42,6 +42,25 @@
         margin: 0;
         padding: 0;
         touch-action: none;
+        background-color: #090912;
+      }
+      /* 防止闪烁 - Vue 加载前隐藏 */
+      [v-cloak] { display: none !important; }
+      /* 加载中遮罩 - 星空主题 */
+      body:not(.theme-natural) #q-app:empty::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        background: #090912;
+        z-index: 9999;
+      }
+      /* 加载中遮罩 - 自然主题 */
+      body.theme-natural #q-app:empty::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        background: #f0eae0;
+        z-index: 9999;
       }
     </style>
   </head>

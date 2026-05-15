@@ -20,7 +20,7 @@
       <!-- 索引按钮 -->
       <IndexButton
         ref="indexButton"
-        @refresh-done="fetchSearch"
+        @refresh-done="onIndexRefresh"
         glossy
         dense
         :size="btnSize('head')"
@@ -168,7 +168,6 @@
         glossy
         :debounce="1000"
         id="searchBtn"
-        label="搜索文件..."
         v-model="view.queryParam.Keyword"
         filled
         clearable
@@ -235,21 +234,19 @@
         flat
         dense
         no-caps
-        glossy
+        rounded
         class="theme-selector-btn"
       >
         <template v-slot:label>
-          <div class="row items-center q-gutter-xs">
-            <q-icon :name="themeIcon" size="18px" />
-            <span class="text-caption gt-xs">{{ currentThemeLabel }}</span>
-            <q-icon name="arrow_drop_down" size="16px" class="q-ml-xs text-grey-5" />
-          </div>
+          <q-icon :name="themeIcon" size="16px" class="theme-icon" />
         </template>
         <q-list style="min-width: 160px; padding: 8px 0;">
-          <!-- 主题选择 -->
-          <div class="q-px-md q-py-xs">
-            <q-item-label header class="text-grey-5 text-xs font-medium">主题外观</q-item-label>
+          <!-- 当前主题标题 -->
+          <div class="q-px-md q-py-sm row items-center q-gutter-xs">
+            <q-icon :name="themeIcon" size="14px" />
+            <span class="text-caption text-weight-medium">{{ currentThemeLabel }}</span>
           </div>
+          <q-separator class="q-my-xs" />
           <q-item
             clickable
             v-close-popup
@@ -1199,7 +1196,7 @@ import {
   SearchAPI,
   TransferTasksInfo,
 } from 'components/api/searchAPI';
-import { computed, onMounted,onUnmounted, provide, reactive, ref } from 'vue';
+import { computed, onMounted, onUnmounted, provide, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { GetSettingInfo } from 'components/api/settingAPI';
@@ -1819,13 +1816,13 @@ const onIntersection = async (entry) => {
     throttledOnIntersection();
   }
 };
-let refreshTask = null;
-const fetchSearch = async (newBlank) => {
+
+const fetchSearch = async (replace = false) => {
   if (isFetching.value) return;
   isFetching.value = true;
 
   try {
-    saveParam(newBlank);
+    saveParam(replace);
     const { Keyword } = view.queryParam;
     if (!Keyword || Keyword == '') {
       view.allPageNo = view.queryParam.Page;
@@ -1842,13 +1839,6 @@ const fetchSearch = async (newBlank) => {
   } finally {
     isFetching.value = false;
   }
-
-  if (refreshTask) {
-    clearTimeout(refreshTask);
-  }
-  refreshTask = setTimeout(() => {
-    fetchSearch();
-  }, 180000);
 };
 
 const moveThis = async () => {
@@ -1898,24 +1888,60 @@ const fetchTasking = async () => {
 const thisRoute = useRoute();
 const { resolve, push } = useRouter();
 
-const saveParam = () => {
+// 主动 push 后，短时间内跳过 watch 响应（避免重复 fetchSearch）
+let skipWatch = false;
+// 初始加载阶段跳过 watch，等 onMounted 中 queryParam 初始化完成后再响应
+let isInitializing = true;
+
+// 监听 URL query 变化（仅浏览器前进后退时触发）
+watch(
+  () => thisRoute.query,
+  () => {
+    if (skipWatch || isInitializing) return;
+    const { Page, PageSize, MovieType, SortField, SortType, Keyword } = thisRoute.query;
+    if (Object.keys(thisRoute.query).length === 0) return;
+    view.queryParam.Page = Number(Page) || 1;
+    view.queryParam.PageSize = Number(PageSize) || 10;
+    view.queryParam.MovieType = MovieType || '';
+    view.queryParam.SortField = SortField || 'publish_time';
+    view.queryParam.SortType = SortType || 'desc';
+    view.queryParam.Keyword = Keyword || '';
+    fetchSearch(true);
+  }
+);
+
+const saveParam = (skipPush = false) => {
   systemProperty.syncSearchParam(view.queryParam);
   systemProperty.expireTime = new Date().getTime() + 1000 * 60 * 60 * 2;
   localStorage.setItem('queryParam', JSON.stringify(view.queryParam));
   localStorage.setItem('isAuthenticated', 'true');
+  // 避免频繁 push 导致组件重创建，仅在需要时更新 URL
+  if (skipPush) return;
   const { Page, PageSize, MovieType, SortField, SortType, Keyword } =
     view.queryParam;
-  push({
-    path: '/search',
-    query: {
-      Page,
-      PageSize,
-      MovieType,
-      SortField,
-      SortType,
-      Keyword,
-    },
-  });
+  const currentQuery = thisRoute.query;
+  if (
+    currentQuery.Keyword !== Keyword ||
+    currentQuery.Page !== String(Page) ||
+    currentQuery.PageSize !== String(PageSize) ||
+    currentQuery.MovieType !== MovieType ||
+    currentQuery.SortField !== SortField ||
+    currentQuery.SortType !== SortType
+  ) {
+    skipWatch = true;
+    push({
+      path: '/search',
+      query: {
+        Page,
+        PageSize,
+        MovieType,
+        SortField,
+        SortType,
+        Keyword,
+      },
+    });
+    setTimeout(() => { skipWatch = false; }, 100);
+  }
 };
 
 const gotoNextPage = () => {
@@ -1929,6 +1955,14 @@ provide('refreshDebounceFn', refreshDebounceFn);
 provide('searchKeyword', searchKeyword);
 provide('gotoNextPage', gotoNextPage);
 provide('gotoPrevPage', gotoPrevPage);
+
+// 初始加载完成后，才响应 IndexButton 的 refreshDone 事件
+let skipIndexRefresh = true;
+const onIndexRefresh = () => {
+  if (skipIndexRefresh) return;
+  fetchSearch();
+};
+
 let taskInterval = null;
 onMounted(async () => {
   taskInterval = setInterval(() => {
@@ -1979,14 +2013,15 @@ onMounted(async () => {
       }
     }
   }
-  fetchSearch();
+  // 提前设置标志位（IndexButton 的 heartBeat 有延迟，fetchSearch 是异步的）
+  isInitializing = false;
+  skipIndexRefresh = true;  // 初始化期间不响应 IndexButton 的 refreshDone
+  fetchSearch(true);  // 异步执行
+  // fetchSearch 完成后允许 IndexButton 触发搜索
+  setTimeout(() => { skipIndexRefresh = false; }, 500);
 });
 
 onUnmounted(() => {
-  if (refreshTask) {
-    clearTimeout(refreshTask);
-    refreshTask = null;
-  }
   if (taskInterval) {
     clearInterval(taskInterval);
     taskInterval = null;
@@ -2231,16 +2266,33 @@ onUnmounted(() => {
 }
 
 .theme-selector-btn {
-  border-radius: 8px;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
   transition: all 0.3s ease;
+  opacity: 0.6;
 
   &:hover {
-    background: rgba(99, 102, 241, 0.15);
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.1) !important;
+    transform: scale(1.1);
   }
 
   :deep(.q-btn__content) {
-    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
   }
+}
+
+.theme-icon {
+  transition: transform 0.3s ease, filter 0.3s ease;
+}
+
+.theme-selector-btn:hover .theme-icon {
+  transform: rotate(15deg) scale(1.05);
 }
 
 :deep(.q-item) {

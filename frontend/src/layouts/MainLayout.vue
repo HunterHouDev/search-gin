@@ -5,7 +5,11 @@
     style="height: 100vh"
     class="shadow-2 rounded-borders"
   >
-    <q-header reveal class="bg-black glossy">
+    <q-header 
+      reveal 
+      class="main-header"
+      :style="headerStyle"
+    >
       <q-toolbar class="q-electron-drag">
         <q-btn flat @click="drawerLeft = !drawerLeft" round dense icon="menu" />
         <q-toolbar-title style="-webkit-app-region: drag">
@@ -79,10 +83,8 @@
       </q-scroll-area>
     </q-drawer>
     <q-page-container>
-      <router-view v-slot="{ Component }">
-        <transition name="page-fade" mode="out-in">
-          <component :is="Component" />
-        </transition>
+      <router-view v-slot="{ Component, route }">
+        <component :is="Component" :key="route.path" />
       </router-view>
     </q-page-container>
   </q-layout>
@@ -112,6 +114,13 @@ const shutdown = ref(null);
 const drawerLeft = ref(false);
 const view = reactive({
   fullscreen: false,
+});
+
+// 动态 header 样式
+const headerStyle = computed(() => {
+  return systemProperty.theme === 'natural' 
+    ? 'background: rgba(248, 245, 240, 0.95) !important; color: #3d352a;'
+    : 'background: rgba(0, 0, 0, 0.85) !important; color: white;';
 });
 
 let logoutTimer = null;
@@ -250,6 +259,14 @@ const essentialLinks = [
 </script>
 
 <style lang="scss" scoped>
+// 主 Header 样式
+.main-header {
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--q-border);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  transition: background-color 0.4s ease;
+}
+
 // 页面切换过渡动画
 .page-fade-enter-active,
 .page-fade-leave-active {
@@ -279,5 +296,11 @@ const essentialLinks = [
 // 兼容 IE 和 Edge
 .scroll {
   -ms-overflow-style: none;
+}
+
+// 抽屉样式优化
+:deep(.q-drawer) {
+  backdrop-filter: blur(16px);
+  transition: transform 0.3s ease;
 }
 </style>

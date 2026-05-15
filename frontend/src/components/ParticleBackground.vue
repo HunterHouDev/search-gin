@@ -74,7 +74,8 @@ function animate() {
   if (!canvasRef.value) return;
   const canvas = canvasRef.value;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = 'rgba(8, 8, 14, 0.12)';
+  // 清空画布并绘制深色背景，解决透明叠加导致的闪屏问题
+  ctx.fillStyle = '#090912';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   particles.forEach((p) => {
     p.update();
