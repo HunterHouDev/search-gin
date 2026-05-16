@@ -11,7 +11,7 @@
     <div class="fixed-top-center" v-if="videoLoaded">
       <span class="top-video-name">
         <!-- 移除Name中包含括号以及括号中间的字符 -->
-        {{ formatTitle(currentData.Name)}}
+        {{ formatTitle(currentData.Name) }}
       </span>
       <span class="top-video-tag tag tag-level" v-for="tag in currentData.Tags" :key="tag"
         :style="{ background: getTagColor(tag) }">{{ tag }}</span>
@@ -38,8 +38,8 @@
               </template>
             </q-input>
           </div>
-          <IndexButton dense @refresh-done="fetchSearch" color="indigo-4"/>
-          <q-btn flat round dense color="grey-4" icon="close" @click="searchDialog = false" />
+          <q-btn flat dense size="lg" icon="refresh" @refresh-done="fetchSearch" color="indigo-4" />
+          <q-btn flat round dense size="lg" color="grey-4" icon="close" @click="searchDialog = false" />
         </div>
 
         <!-- 搜索条件 -->
@@ -61,6 +61,9 @@
               <span class="filter-label">顺序</span>
               <q-btn-toggle v-model="searchParams.SortType" :options="DescEnum" no-caps glossy toggle-color="indigo-6"
                 color="dark" text-color="grey-4" @update:model-value="fetchSearch" />
+            </div>
+            <div class="filter-row">
+              <IndexButton flat  @refresh-done="fetchSearch" color="primary" toggle-color="indigo-6" glossy/>
             </div>
           </div>
         </div>
@@ -102,7 +105,8 @@
                   <div class="search-card-tags">
                     <span class="tag tag-actress" v-if="item.Actress" @click="fetchKeyword(item.Actress)">{{
                       item.Actress?.substring(0, 10) }}</span>
-                    <span class="tag tag-code" v-if="item.Code" @click="fetchKeyword(item.Code)">{{ item.Code.substring(0, 10) }}</span>
+                    <span class="tag tag-code" v-if="item.Code" @click="fetchKeyword(item.Code)">{{
+                      item.Code.substring(0, 10) }}</span>
                     <span class="tag tag-level" v-if="item.Tags" :style="{ background: getTagColor(item.Tag) }">{{
                       item.Tag }}</span>
                   </div>
@@ -115,8 +119,8 @@
                       <q-icon name="schedule" size="10px" />
                       {{ getTimeAgo(item.MTime) }}
                     </span>
-                    <q-btn-dropdown dense flat size="xs" color="indigo-4" :label="`${item.MovieType === '无' ? '分类' : item.MovieType}`"
-                      no-caps>
+                    <q-btn-dropdown dense flat size="xs" color="indigo-4"
+                      :label="`${item.MovieType === '无' ? '分类' : item.MovieType}`" no-caps>
                       <q-list style="min-width: 60px">
                         <q-item v-for="mt in MovieTypeOptions" :key="mt.value" clickable v-close-popup>
                           <q-item-section @click="setMovieType(item, mt.value)">{{ mt.label }}</q-item-section>
@@ -127,7 +131,7 @@
                       @click.stop="currentEditItem = item; fileEditRef.open(item)">
                       <q-tooltip>修改</q-tooltip>
                     </q-btn>
-                    <q-btn flat dense  color="negative" icon="delete" size="xs" label="删除"
+                    <q-btn flat dense color="negative" icon="delete" size="xs" label="删除"
                       @click.stop="deleteVideo(item)">
                       <q-tooltip>删除</q-tooltip>
                     </q-btn>
@@ -221,7 +225,7 @@
                 <span class="torrent-file-name">{{ file.name }}</span>
                 <span class="torrent-file-size">{{
                   humanStorageSize(file.length)
-                  }}</span>
+                }}</span>
               </div>
               <q-icon v-if="selectedTorrentFile === file.path" name="play_circle_filled" size="24px" color="indigo-4" />
             </div>
@@ -306,7 +310,8 @@
             <span class="top-title" v-if="currentData && videoLoaded">
               <q-btn color="indigo-6" grossy @click="fetchKeyword(currentData.Code)">{{ currentData.Code }}</q-btn>
               <q-splitter></q-splitter>
-              <q-btn color="indigo-6" grossy @click="fetchKeyword(currentData.Actress)">{{ currentData.Actress }}</q-btn>
+              <q-btn color="indigo-6" grossy @click="fetchKeyword(currentData.Actress)">{{ currentData.Actress
+                }}</q-btn>
             </span>
           </div>
 
@@ -331,32 +336,32 @@
             <!-- 剪辑 -->
             <q-btn flat round color="white" size="sm" icon="content_cut" v-if="videoLoaded">
               <q-popup-proxy>
-                <VideoCutParam
-                  :current-data="currentData"
-                  :current-time="currentTime"
-                  :duration="durationSeconds"
-                  @stop-video="videoRef?.pause()"
-                  @play-video="videoRef?.play()"
-                />
+                <VideoCutParam :current-data="currentData" :current-time="currentTime" :duration="durationSeconds"
+                  @stop-video="videoRef?.pause()" @play-video="videoRef?.play()" />
               </q-popup-proxy>
               <q-tooltip class="bg-dark">剪辑</q-tooltip>
             </q-btn>
             <!-- 标签 -->
             <q-btn flat round color="white" size="sm" icon="ti-star" v-if="videoLoaded && currentData.Id">
               <q-popup-proxy>
-                <EditVideoTag
-                  :current-data="currentData"
-                  @next-one="nextItem"
-                  @prev-one="prevItem"
-                />
+                <EditVideoTag :current-data="currentData" @next-one="nextItem" @prev-one="prevItem" />
               </q-popup-proxy>
               <q-tooltip class="bg-dark">标签</q-tooltip>
+            </q-btn>
+            <!-- 截图 (非骑兵) -->
+            <q-btn flat round color="green" size="sm" icon="photo_camera"
+              v-if="videoLoaded && currentData.MovieType !== '骑兵'" @click="curImage">
+              <q-tooltip class="bg-dark">截图</q-tooltip>
+            </q-btn>
+            <q-btn flat round color="red" size="sm" icon="photo_camera"
+              v-if="videoLoaded && currentData.MovieType !== '骑兵'" @click="curImage('png')">
+              <q-tooltip class="bg-dark">Png</q-tooltip>
             </q-btn>
             <q-btn flat round color="white" size="sm" :icon="isFullscreen ? 'fullscreen_exit' : 'fullscreen'"
               @click="toggleFullscreen">
               <q-tooltip class="bg-dark">{{
                 isFullscreen ? '退出全屏' : '全屏'
-                }}</q-tooltip>
+              }}</q-tooltip>
             </q-btn>
           </div>
         </div>
@@ -368,7 +373,7 @@
       @click="showDownloadManager = true">
       <q-badge color="red" floating rounded>{{
         activeDownloads.length
-        }}</q-badge>
+      }}</q-badge>
       <q-tooltip>下载管理</q-tooltip>
     </q-btn>
 
@@ -399,7 +404,7 @@
                 <div class="download-item-meta">
                   <span class="download-item-file" v-if="task.fileName">{{
                     task.fileName
-                    }}</span>
+                  }}</span>
                   <span class="download-item-state" :class="'state-' + task.state">{{ task.state }}</span>
                   <span class="download-item-percent">{{ task.progress.toFixed(1) }}%</span>
                 </div>
@@ -425,7 +430,7 @@
     </q-dialog>
 
     <!-- 文件编辑对话框 -->
-    <FileEdit ref="fileEditRef" @success="executeWithNextItem(currentEditItem, async () => {})" />
+    <FileEdit ref="fileEditRef" @success="executeWithNextItem(currentEditItem, async () => { })" />
   </div>
 </template>
 
@@ -441,7 +446,7 @@ import {
 import { format, useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
-import { SearchAPI, DeleteFile, RefreshAPI, ResetMovieType } from 'components/api/searchAPI';
+import { SearchAPI, DeleteFile, RefreshAPI, ResetMovieType, CutImage } from 'components/api/searchAPI';
 import { getPng, getFileStream } from 'components/utils/images';
 import {
   MovieTypeSelects,
@@ -669,6 +674,16 @@ async function deleteVideo(item) {
       $q.notify({ message: res?.Message || '删除失败', position: 'top-right' });
     }
   });
+}
+
+// ── 截图 ────────────────────────────────────────────────────────────────────
+async function curImage(type) {
+  const res = await CutImage(currentData.value.Id, type || 'shot', currentTime.value, false);
+  if (res?.Code !== 200) {
+    $q.notify({ message: res?.Message || '截图失败', position: 'top-right' });
+  } else {
+    $q.notify({ message: '截图成功', position: 'top-right' });
+  }
 }
 
 // ── 设置类型 ────────────────────────────────────────────────────────────────
@@ -2317,8 +2332,15 @@ onUnmounted(() => {
 }
 
 @keyframes playing-pulse {
-  0%, 100% { background: rgba(139, 92, 246, 0.5); }
-  50% { background: rgba(139, 92, 246, 0.3); }
+
+  0%,
+  100% {
+    background: rgba(139, 92, 246, 0.5);
+  }
+
+  50% {
+    background: rgba(139, 92, 246, 0.3);
+  }
 }
 
 .search-card-thumb {
