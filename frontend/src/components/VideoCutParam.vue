@@ -1,10 +1,7 @@
 <template>
   <div
-    style="
-      width: 320px;
-      height: fit-content;
-      background-color: rgba(250, 250, 250, 0.8);
-    "
+    :style="containerStyle"
+    class="video-cut-param"
   >
     <div class="row justify-between w100" style="flex: 1">
       <q-btn
@@ -150,7 +147,7 @@
   </div>
 </template>
 <script setup>
-import { reactive } from 'vue';
+import { reactive, computed } from 'vue';
 import { CutFile, CutImage } from './api/searchAPI';
 import { useQuasar } from 'quasar';
 import { TansferFileVcode } from './api/searchAPI';
@@ -195,6 +192,22 @@ const view = reactive({
   endTime: TIME_END,
 });
 
+// 主题感知容器样式
+const containerStyle = computed(() => {
+  const isDark = systemProperty.theme === 'star';
+  return {
+    width: '320px',
+    height: 'fit-content',
+    backgroundColor: isDark ? 'rgba(30, 30, 40, 0.95)' : 'rgba(250, 250, 250, 0.95)',
+    color: isDark ? 'white' : '#333',
+  };
+});
+
+// 获取当前视频ID - 优先使用 props.currentData
+const getCurrentId = () => {
+  return props.currentData?.Id || systemProperty.PlayingMovie?.Id;
+};
+
 const prevOneVideo = () => {
   emmits('prevOneVideo');
 };
@@ -219,7 +232,7 @@ const forwardTime = (time) => {
 
 const CutFromTo = async () => {
   const { Code, Message } = await CutFile(
-    systemProperty.PlayingMovie.Id,
+    getCurrentId(),
     view.startTime,
     view.endTime
   );
@@ -235,7 +248,7 @@ const CutFromTo = async () => {
 
 const curImage = async () => {
   await CutImage(
-    systemProperty.PlayingMovie.Id,
+    getCurrentId(),
     'shot',
     props.currentTime,
     false
@@ -244,7 +257,7 @@ const curImage = async () => {
 
 const previewImg = async () => {
   await CutImage(
-    systemProperty.PlayingMovie.Id,
+    getCurrentId(),
     'Jpg',
     props.currentTime,
     false
@@ -253,7 +266,7 @@ const previewImg = async () => {
 
 const previewPng = async () => {
   await CutImage(
-    systemProperty.PlayingMovie.Id,
+    getCurrentId(),
     'Png',
     props.currentTime,
     false
@@ -261,7 +274,7 @@ const previewPng = async () => {
 };
 
 const toVcode = async (vcode) => {
-  const Id = systemProperty.PlayingMovie.Id;
+  const Id = getCurrentId();
   const res = await TansferFileVcode(Id, vcode);
   if (res.Code !== 200) {
     $q.notify({ message: `${res.Message}`, position: 'top-right' });

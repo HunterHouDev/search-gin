@@ -211,50 +211,6 @@
         </q-tab-panel>
 
         <q-tab-panel name="system">
-          <!-- 主题选择 -->
-          <q-card flat bordered class="q-pa-md q-mb-md theme-selection-card">
-            <q-card-section class="q-pb-none">
-              <div class="text-h6 q-mb-md">
-                <q-icon name="palette" class="q-mr-sm" />
-                主题选择
-              </div>
-            </q-card-section>
-            <q-card-section class="q-pt-sm">
-              <div class="row q-col-gutter-md">
-                <div class="col-6">
-                  <q-card
-                    flat
-                    bordered
-                    class="q-pa-md cursor-pointer theme-card"
-                    :class="{ 'theme-card-active': systemProperty.theme === 'star' }"
-                    @click="setTheme('star')"
-                  >
-                    <div class="text-center">
-                      <q-icon name="star" size="48px" color="indigo" />
-                      <div class="q-mt-sm text-subtitle1">星空主题</div>
-                      <div class="text-caption text-grey-6">深蓝色背景与粒子效果</div>
-                    </div>
-                  </q-card>
-                </div>
-                <div class="col-6">
-                  <q-card
-                    flat
-                    bordered
-                    class="q-pa-md cursor-pointer theme-card"
-                    :class="{ 'theme-card-active': systemProperty.theme === 'natural' }"
-                    @click="setTheme('natural')"
-                  >
-                    <div class="text-center">
-                      <q-icon name="eco" size="48px" color="green" />
-                      <div class="q-mt-sm text-subtitle1">自然主题</div>
-                      <div class="text-caption text-grey-6">温暖米色与柔和绿色</div>
-                    </div>
-                  </q-card>
-                </div>
-              </div>
-            </q-card-section>
-          </q-card>
-
           <q-editor
             v-model="view.settingInfo.SystemHtml"
             :dense="$q.screen.lt.md"
@@ -545,16 +501,6 @@ const themeStyle = computed(() => {
     backgroundColor: 'var(--q-bg-card)',
   };
 });
-
-const setTheme = (theme) => {
-  systemProperty.theme = theme;
-  const html = document.documentElement;
-  if (theme === 'natural') {
-    html.classList.add('theme-natural');
-  } else {
-    html.classList.remove('theme-natural');
-  }
-};
 
 const submitForm = async () => {
   view.settingInfo.Dirs = view.settingInfo.Dirs.sort();

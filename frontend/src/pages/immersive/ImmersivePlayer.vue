@@ -1,325 +1,169 @@
 <template>
-  <div
-    class="immersive-container"
-    @mousemove="onMouseMove"
-    @click.self="togglePlay"
-    @dblclick="toggleFullscreen"
-  >
+  <div class="immersive-container" @mousemove="onMouseMove" @click.self="togglePlay" @dblclick="toggleFullscreen">
     <canvas ref="particleCanvas" class="particle-canvas"></canvas>
 
     <!-- 左上角返回按钮 -->
-    <q-btn
-      flat
-      color="white"
-      icon="arrow_back"
-      class="fixed-top-left-btn"
-      @click.stop="goBack"
-    >
+    <q-btn flat color="white" icon="arrow_back" class="fixed-top-left-btn" @click.stop="goBack">
       <q-tooltip class="bg-dark text-white">返回</q-tooltip>
     </q-btn>
 
-    <!-- 右上角搜索按钮 -->
-    <q-btn
-      flat
-      glossy
-      :color="showMenuControls ? 'white' : 'blue'"
-      :icon="showMenuControls ? 'close' : 'search'"
-      class="fixed-top-right-btn"
-      @click="showMenuInfo"
-    >
-      <q-tooltip class="bg-dark text-white">搜索</q-tooltip>
-    </q-btn>
+    <!-- 顶部中央视频名称 -->
+    <div class="fixed-top-center" v-if="videoLoaded">
+      <span class="top-video-name">
+        <!-- 移除Name中包含括号以及括号中间的字符 -->
+        {{ formatTitle(currentData.Name)}}
+      </span>
+      <span class="top-video-tag tag tag-level" v-for="tag in currentData.Tags" :key="tag"
+        :style="{ background: getTagColor(tag) }">{{ tag }}</span>
+    </div>
 
     <!-- 播放列表轮播 -->
     <transition name="slide-down">
-      <div v-show="showMenuControls">
-        <div
-          class="carousel-banner"
-          @mouseenter="searchDialog = true"
-          @mouseleave="handleBannerMouseLeave"
-        >
-          <q-btn
-            flat
-            round
-            dense
-            color="white"
-            icon="chevron_left"
-            class="carousel-arrow carousel-arrow-left"
-            @click.stop="prevPage"
-          />
-          <div
-            class="carousel-track"
-            ref="carouselTrack"
-            v-show="playlist.length > 0"
-          >
-            <div
-              v-for="(item, index) in playlist"
-              :key="item.Id || index"
-              class="carousel-item"
-              :class="{ 'carousel-item-active': index === currentIndex }"
-              @click.stop="switchToItem(index)"
-            >
-              <q-img
-                :src="item.CoverUrl || getPng(item.Id)"
-                fit="cover"
-                class="carousel-thumb"
-                :ratio="3 / 4"
-              >
-                <template v-slot:error>
-                  <div class="carousel-thumb-placeholder">
-                    <q-icon name="movie" size="20px" color="grey-5" />
-                  </div>
-                </template>
-              </q-img>
-              <div class="carousel-item-label">
-                {{ item.Title || item.Name || `#${index + 1}` }}
-              </div>
-              <div
-                class="carousel-item-active-indicator"
-                v-if="index === currentIndex"
-              >
-                <q-icon name="play_arrow" size="12px" color="white" />
-              </div>
-            </div>
+
+      <!-- 搜索面板 - 合并到轮播中 -->
+      <div class="search-panel" v-show="searchDialog" @click.stop>
+        <!-- 头部 -->
+        <div class="search-panel-header">
+          <div class="search-panel-title">
+            <q-input v-model="searchParams.Keyword" placeholder="输入关键词..." dark dense outlined color="indigo-4"
+              class="search-input" @keyup.enter="fetchSearch" @change="fetchSearch">
+              <template v-slot:prepend>
+                <q-icon name="manage_search" color="indigo-4" size="18px" />
+              </template>
+              <template v-slot:append v-if="searchParams.Keyword">
+                <q-btn flat round dense icon="clear" color="grey-5" size="xs" @click="
+                  searchParams.Keyword = '';
+                fetchSearch();
+                " />
+              </template>
+            </q-input>
           </div>
-          <q-btn
-            flat
-            round
-            dense
-            color="white"
-            icon="chevron_right"
-            class="carousel-arrow carousel-arrow-right"
-            @click.stop="nextPage"
-          />
+          <IndexButton dense @refresh-done="fetchSearch" color="indigo-4"/>
+          <q-btn flat round dense color="grey-4" icon="close" @click="searchDialog = false" />
         </div>
-        <!-- 搜索面板 - 合并到轮播中 -->
-        <div
-          class="search-panel"
-          v-show="searchDialog"
-          @click.stop
-          @mouseleave="searchDialog = false"
-        >
-          <!-- 头部 -->
-          <div class="search-panel-header">
-            <div class="search-panel-title">
-              <q-input
-                v-model="searchParams.Keyword"
-                placeholder="输入关键词..."
-                dark
-                dense
-                outlined
-                color="indigo-4"
-                class="search-input"
-                @keyup.enter="fetchSearch"
-                @change="fetchSearch"
-              >
-                <template v-slot:prepend>
-                  <q-icon name="manage_search" color="indigo-4" size="18px" />
-                </template>
-                <template v-slot:append v-if="searchParams.Keyword">
-                  <q-btn
-                    flat
-                    round
-                    dense
-                    icon="clear"
-                    color="grey-5"
-                    size="xs"
-                    @click="
-                      searchParams.Keyword = '';
-                      fetchSearch();
-                    "
-                  />
-                </template>
-              </q-input>
+
+        <!-- 搜索条件 -->
+        <div class="search-conditions">
+          <div class="filter-item">
+            <div class="filter-row">
+              <span class="filter-label">类型</span>
+              <q-btn-toggle v-model="searchParams.MovieType" :options="MovieTypeSelects" no-caps glossy
+                toggle-color="indigo-6" color="dark" text-color="grey-4" @update:model-value="fetchSearch" />
             </div>
-            <q-btn
-              flat
-              round
-              dense
-              color="grey-4"
-              icon="close"
-              @click="searchDialog = false"
-            />
-          </div>
 
-          <!-- 搜索条件 -->
-          <div class="search-conditions">
-            <div class="filter-item">
-              <div class="filter-row">
-                <span class="filter-label">类型</span>
-                <q-btn-toggle
-                  v-model="searchParams.MovieType"
-                  :options="MovieTypeSelects"
-                  no-caps
-                  glossy
-                  toggle-color="indigo-6"
-                  color="dark"
-                  text-color="grey-4"
-                  @update:model-value="fetchSearch"
-                />
-              </div>
+            <div class="filter-row">
+              <span class="filter-label">排序</span>
+              <q-btn-toggle v-model="searchParams.SortField" :options="FieldEnum" no-caps glossy toggle-color="indigo-6"
+                color="dark" text-color="grey-4" @update:model-value="fetchSearch" />
+            </div>
 
-              <div class="filter-row">
-                <span class="filter-label">排序</span>
-                <q-btn-toggle
-                  v-model="searchParams.SortField"
-                  :options="FieldEnum"
-                  no-caps
-                  glossy
-                  toggle-color="indigo-6"
-                  color="dark"
-                  text-color="grey-4"
-                  @update:model-value="fetchSearch"
-                />
-              </div>
-
-              <div class="filter-row">
-                <span class="filter-label">顺序</span>
-                <q-btn-toggle
-                  v-model="searchParams.SortType"
-                  :options="DescEnum"
-                  no-caps
-                  glossy
-                  toggle-color="indigo-6"
-                  color="dark"
-                  text-color="grey-4"
-                  @update:model-value="fetchSearch"
-                />
-              </div>
+            <div class="filter-row">
+              <span class="filter-label">顺序</span>
+              <q-btn-toggle v-model="searchParams.SortType" :options="DescEnum" no-caps glossy toggle-color="indigo-6"
+                color="dark" text-color="grey-4" @update:model-value="fetchSearch" />
             </div>
           </div>
+        </div>
 
-          <!-- 搜索结果 -->
-          <div class="search-results" ref="searchResultsRef">
-            <div v-if="searchLoading" class="search-loading">
-              <q-spinner-dots size="40px" color="indigo-4" />
-              <p class="text-grey-5 q-mt-sm text-caption">加载中...</p>
-            </div>
+        <!-- 搜索结果 -->
+        <div class="search-results" ref="searchResultsRef">
+          <div v-if="searchLoading" class="search-loading">
+            <q-spinner-dots size="40px" color="indigo-4" />
+            <p class="text-grey-5 q-mt-sm text-caption">加载中...</p>
+          </div>
 
-            <template
-              v-else-if="searchResults.Data && searchResults.Data.length > 0"
-            >
-              <div class="search-cards">
-                <div
-                  v-for="item in searchResults.Data"
-                  :key="item.Id"
-                  class="search-card"
-                >
-                  <div class="search-card-thumb">
-                    <q-img
-                      :src="getPng(item.Id)"
-                      fit="cover"
-                      class="search-card-img"
-                      :ratio="3 / 4"
-                      @click="playFromSearch(item)"
-                    >
-                      <template v-slot:error>
-                        <div class="search-card-placeholder">
-                          <q-icon name="movie" color="grey-6" size="28px" />
-                        </div>
-                      </template>
-                    </q-img>
-                    <div class="search-card-play-overlay">
-                      <q-icon
-                        name="play_circle_filled"
-                        size="28px"
-                        color="white"
-                        @click="playFromSearch(item)"
-                      />
-                    </div>
+          <template v-else-if="searchResults.Data && searchResults.Data.length > 0">
+            <div class="search-cards">
+              <div v-for="item in searchResults.Data" :key="item.Id" class="search-card" :class="{
+                'search-card-playing': currentData.Id === item.Id
+              }">
+                <div class="search-card-thumb">
+                  <q-img :src="getPng(item.Id)" fit="cover" class="search-card-img" :ratio="3 / 4"
+                    @click="playFromSearch(item)">
+                    <template v-slot:error>
+                      <div class="search-card-placeholder">
+                        <q-icon name="movie" color="grey-6" size="28px" />
+                      </div>
+                    </template>
+                  </q-img>
+                  <div class="search-card-play-overlay">
+                    <q-icon name="play_circle_filled" size="28px" color="white" @click="playFromSearch(item)" />
                   </div>
+                  <!-- 播放中指示器 -->
+                  <div class="search-card-playing-indicator" v-if="currentData.Id === item.Id && videoLoaded">
+                    <q-icon name="play_arrow" size="20px" color="white" />
+                  </div>
+                </div>
 
-                  <div class="search-card-info">
-                    <div class="search-card-title">
-                      {{ formatTitle(item.Title, 24) }}
-                    </div>
-                    <div class="search-card-tags">
-                      <span
-                        class="tag tag-actress"
-                        v-if="item.Actress"
-                        @click="fetchKeyword(item.Actress)"
-                        >{{ item.Actress }}</span
-                      >
-                      <span
-                        class="tag tag-code"
-                        v-if="item.Code"
-                        @click="fetchKeyword(item.Code)"
-                        >{{ item.Code }}</span
-                      >
-                    </div>
-                    <div class="search-card-meta">
-                      <span class="meta-item">
-                        <q-icon name="data_usage" size="10px" />
-                        {{ humanStorageSize(item.Size) }}
-                      </span>
-                      <span class="meta-item">
-                        <q-icon name="schedule" size="10px" />
-                        {{ getTimeAgo(item.MTime) }}
-                      </span>
-                    </div>
+                <div class="search-card-info">
+                  <div class="search-card-title">
+                    {{ formatTitle(item.Title, 24) }}
+                  </div>
+                  <div class="search-card-tags">
+                    <span class="tag tag-actress" v-if="item.Actress" @click="fetchKeyword(item.Actress)">{{
+                      item.Actress?.substring(0, 10) }}</span>
+                    <span class="tag tag-code" v-if="item.Code" @click="fetchKeyword(item.Code)">{{ item.Code.substring(0, 10) }}</span>
+                    <span class="tag tag-level" v-if="item.Tags" :style="{ background: getTagColor(item.Tag) }">{{
+                      item.Tag }}</span>
+                  </div>
+                  <div class="search-card-meta">
+                    <span class="meta-item">
+                      <q-icon name="data_usage" size="10px" />
+                      {{ humanStorageSize(item.Size) }}
+                    </span>
+                    <span class="meta-item">
+                      <q-icon name="schedule" size="10px" />
+                      {{ getTimeAgo(item.MTime) }}
+                    </span>
+                    <q-btn-dropdown dense flat size="xs" color="indigo-4" :label="`${item.MovieType === '无' ? '分类' : item.MovieType}`"
+                      no-caps>
+                      <q-list style="min-width: 60px">
+                        <q-item v-for="mt in MovieTypeOptions" :key="mt.value" clickable v-close-popup>
+                          <q-item-section @click="setMovieType(item, mt.value)">{{ mt.label }}</q-item-section>
+                        </q-item>
+                      </q-list>
+                    </q-btn-dropdown>
+                    <q-btn flat dense color="primary" icon="edit" size="xs" label="修改"
+                      @click.stop="currentEditItem = item; fileEditRef.open(item)">
+                      <q-tooltip>修改</q-tooltip>
+                    </q-btn>
+                    <q-btn flat dense  color="negative" icon="delete" size="xs" label="删除"
+                      @click.stop="deleteVideo(item)">
+                      <q-tooltip>删除</q-tooltip>
+                    </q-btn>
                   </div>
                 </div>
               </div>
-            </template>
-
-            <div v-else class="search-empty">
-              <q-icon name="search_off" size="48px" color="grey-7" />
-              <p class="text-grey-6 q-mt-sm">暂无搜索结果</p>
             </div>
-          </div>
+          </template>
 
-          <!-- 分页 -->
-          <div class="search-pagination" v-if="searchResults.TotalPage > 1">
-            <q-btn
-              flat
-              dense
-              round
-              color="indigo-4"
-              icon="chevron_left"
-              size="sm"
-              :disable="searchParams.Page <= 1"
-              @click="changePage(-1)"
-            />
-            <div class="pagination-info">
-              <span class="page-current">{{ searchParams.Page }}</span>
-              <span class="page-sep">/</span>
-              <span class="page-total">{{ searchResults.TotalPage }}</span>
-            </div>
-            <q-btn
-              flat
-              dense
-              round
-              color="indigo-4"
-              icon="chevron_right"
-              size="sm"
-              :disable="searchParams.Page >= searchResults.TotalPage"
-              @click="changePage(1)"
-            />
+          <div v-else class="search-empty">
+            <q-icon name="search_off" size="48px" color="grey-7" />
+            <p class="text-grey-6 q-mt-sm">暂无搜索结果</p>
           </div>
         </div>
+
+        <!-- 分页 -->
+        <div class="search-pagination" v-if="searchResults.TotalPage > 1">
+          <q-btn flat dense round color="indigo-4" icon="chevron_left" size="sm" :disable="searchParams.Page <= 1"
+            @click="changePage(-1)" />
+          <div class="pagination-info">
+            <span class="page-current">{{ searchParams.Page }}</span>
+            <span class="page-sep">/</span>
+            <span class="page-total">{{ searchResults.TotalPage }}</span>
+          </div>
+          <q-btn flat dense round color="indigo-4" icon="chevron_right" size="sm"
+            :disable="searchParams.Page >= searchResults.TotalPage" @click="changePage(1)" />
+        </div>
       </div>
+
     </transition>
 
     <!-- 视频区域 -->
     <div class="video-wrapper" v-show="videoLoaded">
-      <video
-        ref="videoRef"
-        id="immersiveVideo"
-        :src="currentVideoSrc"
-        :poster="currentPoster"
-        preload="auto"
-        autoplay
-        playsinline
-        crossorigin="anonymous"
-        @timeupdate="onTimeUpdate"
-        @loadedmetadata="onMetadataLoaded"
-        @play="onPlay"
-        @pause="onPause"
-        @ended="onEnded"
-        @waiting="onWaiting"
-        @canplay="onCanPlay"
-        @error="onVideoError"
-      ></video>
+      <video ref="videoRef" id="immersiveVideo" :src="currentVideoSrc" :poster="currentPoster" preload="auto" autoplay
+        playsinline crossorigin="anonymous" @timeupdate="onTimeUpdate" @loadedmetadata="onMetadataLoaded" @play="onPlay"
+        @pause="onPause" @ended="onEnded" @waiting="onWaiting" @canplay="onCanPlay" @error="onVideoError"></video>
       <!-- 缓冲 loading 遮罩 -->
       <transition name="fade">
         <div class="video-buffering" v-if="isBuffering">
@@ -330,14 +174,8 @@
 
     <!-- 拖拽上传区域 -->
     <transition name="fade">
-      <div
-        v-if="!videoLoaded && !torrentLoading"
-        class="drop-zone"
-        :class="{ 'drop-zone-active': isDragOver }"
-        @dragover.prevent="isDragOver = true"
-        @dragleave="isDragOver = false"
-        @drop="handleDrop"
-      >
+      <div v-if="!videoLoaded && !torrentLoading" class="drop-zone" :class="{ 'drop-zone-active': isDragOver }"
+        @dragover.prevent="isDragOver = true" @dragleave="isDragOver = false" @drop="handleDrop">
         <div class="drop-content">
           <div class="drop-icon-wrapper">
             <q-icon name="movie" size="56px" color="indigo-3" />
@@ -352,38 +190,13 @@
     <!-- 磁力链输入区 -->
     <transition name="slide-up">
       <div v-if="!videoLoaded && !torrentLoading" class="magnet-input-area">
-        <div
-          class="magnet-input-wrapper"
-          :class="{ 'magnet-focused': magnetFocused }"
-        >
-          <q-icon
-            name="link"
-            color="indigo-4"
-            size="20px"
-            class="magnet-icon"
-          />
-          <q-input
-            v-model="magnetURI"
-            placeholder="粘贴磁力链 magnet:?xt=urn:btih:..."
-            dark
-            dense
-            borderless
-            class="magnet-input"
-            @keyup.enter="submitMagnet"
-            @focus="magnetFocused = true"
-            @blur="magnetFocused = false"
-          />
-          <q-btn
-            flat
-            round
-            dense
-            color="indigo-4"
-            icon="play_circle_filled"
-            size="md"
-            @click="submitMagnet"
-            :disable="!magnetURI.trim()"
-            class="magnet-submit-btn"
-          >
+        <div class="magnet-input-wrapper" :class="{ 'magnet-focused': magnetFocused }">
+          <q-icon name="link" color="indigo-4" size="20px" class="magnet-icon" />
+          <q-input v-model="magnetURI" placeholder="粘贴磁力链 magnet:?xt=urn:btih:..." dark dense borderless
+            class="magnet-input" @keyup.enter="submitMagnet" @focus="magnetFocused = true"
+            @blur="magnetFocused = false" />
+          <q-btn flat round dense color="indigo-4" icon="play_circle_filled" size="md" @click="submitMagnet"
+            :disable="!magnetURI.trim()" class="magnet-submit-btn">
             <q-tooltip class="bg-dark text-white">播放磁力链</q-tooltip>
           </q-btn>
         </div>
@@ -400,44 +213,23 @@
             <span class="torrent-files-hint">选择要播放的文件</span>
           </div>
           <div class="torrent-files-list">
-            <div
-              v-for="(file, index) in torrentFiles"
-              :key="index"
-              class="torrent-file-item"
-              :class="{
-                'torrent-file-selected': selectedTorrentFile === file.path,
-              }"
-              @click="selectTorrentFile(file)"
-            >
-              <q-icon
-                :name="getFileIcon(file.name)"
-                size="20px"
-                class="torrent-file-icon"
-              />
+            <div v-for="(file, index) in torrentFiles" :key="index" class="torrent-file-item" :class="{
+              'torrent-file-selected': selectedTorrentFile === file.path,
+            }" @click="selectTorrentFile(file)">
+              <q-icon :name="getFileIcon(file.name)" size="20px" class="torrent-file-icon" />
               <div class="torrent-file-info">
                 <span class="torrent-file-name">{{ file.name }}</span>
                 <span class="torrent-file-size">{{
                   humanStorageSize(file.length)
-                }}</span>
+                  }}</span>
               </div>
-              <q-icon
-                v-if="selectedTorrentFile === file.path"
-                name="play_circle_filled"
-                size="24px"
-                color="indigo-4"
-              />
+              <q-icon v-if="selectedTorrentFile === file.path" name="play_circle_filled" size="24px" color="indigo-4" />
             </div>
           </div>
           <div class="torrent-files-actions">
             <q-btn flat color="grey-5" label="取消" @click="cancelTorrent" />
-            <q-btn
-              unelevated
-              color="indigo-6"
-              label="播放选中文件"
-              icon="play_arrow"
-              :disable="!selectedTorrentFile"
-              @click="playSelectedTorrentFile"
-            />
+            <q-btn unelevated color="indigo-6" label="播放选中文件" icon="play_arrow" :disable="!selectedTorrentFile"
+              @click="playSelectedTorrentFile" />
           </div>
         </div>
       </div>
@@ -452,18 +244,10 @@
           </div>
           <p class="torrent-name">{{ torrentName }}</p>
           <div class="torrent-progress-wrap">
-            <q-linear-progress
-              :value="torrentProgress / 100"
-              color="indigo-5"
-              track-color="grey-9"
-              size="6px"
-              rounded
-              class="q-mb-sm"
-            />
+            <q-linear-progress :value="torrentProgress / 100" color="indigo-5" track-color="grey-9" size="6px" rounded
+              class="q-mb-sm" />
             <div class="torrent-stats">
-              <span class="torrent-percent"
-                >{{ torrentProgress.toFixed(1) }}%</span
-              >
+              <span class="torrent-percent">{{ torrentProgress.toFixed(1) }}%</span>
               <span class="torrent-state">{{ torrentState }}</span>
               <span class="torrent-peers" v-if="torrentPeers > 0">
                 <q-icon name="people" size="12px" />
@@ -471,64 +255,31 @@
               </span>
             </div>
           </div>
-          <q-btn
-            unelevated
-            color="red-9"
-            text-color="red-3"
-            label="取消下载"
-            icon="cancel"
-            size="sm"
-            rounded
-            @click="cancelTorrent"
-            class="q-mt-md"
-          />
+          <q-btn unelevated color="red-9" text-color="red-3" label="取消下载" icon="cancel" size="sm" rounded
+            @click="cancelTorrent" class="q-mt-md" />
         </div>
       </div>
     </transition>
 
     <!-- 底部控制面板 -->
     <transition name="slide-up">
-      <div
-        class="glass-panel"
-        v-show="!controlsHidden || !isPlaying"
-        @mouseenter="showControls"
-        @mouseleave="startHideTimer"
-        @click.stop
-      >
+      <div class="glass-panel" v-show="!controlsHidden || !isPlaying" @mouseenter="showControls"
+        @mouseleave="startHideTimer" @click.stop>
         <!-- 进度条 -->
-        <div
-          class="progress-container"
-          ref="progressBar"
-          @mousedown="startSeek"
-          @mousemove="onProgressHover"
-          @mouseleave="hideTooltip"
-        >
+        <div class="progress-container" ref="progressBar" @mousedown="startSeek" @mousemove="onProgressHover"
+          @mouseleave="hideTooltip">
           <div class="progress-track">
             <!-- 缓冲进度 -->
-            <div
-              class="progress-buffered"
-              :style="{ width: bufferedPercent + '%' }"
-            ></div>
+            <div class="progress-buffered" :style="{ width: bufferedPercent + '%' }"></div>
             <!-- 播放进度 -->
-            <div
-              class="progress-fill"
-              :style="{ width: progressPercent + '%' }"
-            >
+            <div class="progress-fill" :style="{ width: progressPercent + '%' }">
               <div class="progress-glow"></div>
             </div>
             <!-- 拖拽手柄 -->
-            <div
-              class="progress-thumb"
-              :style="{ left: progressPercent + '%' }"
-              :class="{ seeking: isSeeking }"
-            ></div>
+            <div class="progress-thumb" :style="{ left: progressPercent + '%' }" :class="{ seeking: isSeeking }"></div>
           </div>
           <!-- 时间悬浮提示 -->
-          <div
-            class="progress-tooltip"
-            v-if="hoverTime !== null"
-            :style="{ left: hoverX + 'px' }"
-          >
+          <div class="progress-tooltip" v-if="hoverTime !== null" :style="{ left: hoverX + 'px' }">
             {{ hoverTime }}
           </div>
         </div>
@@ -537,44 +288,14 @@
         <div class="control-buttons">
           <!-- 左侧：播放控制 + 时间 -->
           <div class="ctrl-left">
-            <q-btn
-              flat
-              round
-              color="white"
-              size="sm"
-              icon="skip_previous"
-              @click="prevItem"
-            >
+            <q-btn flat round color="white" size="sm" icon="skip_previous" @click="prevItem">
               <q-tooltip class="bg-dark">上一个</q-tooltip>
             </q-btn>
-            <q-btn
-              flat
-              round
-              :color="isPlaying ? 'indigo-3' : 'white'"
-              size="md"
-              :icon="isPlaying ? 'pause_circle' : 'play_circle'"
-              class="play-btn"
-              @click="togglePlay"
-            />
-            <q-btn
-              flat
-              round
-              v-if="isPlaying"
-              color="white"
-              size="md"
-              icon="stop"
-              class="play-btn"
-              @click="stopPlay"
-            />
+            <q-btn flat round :color="isPlaying ? 'indigo-3' : 'white'" size="md"
+              :icon="isPlaying ? 'pause_circle' : 'play_circle'" class="play-btn" @click="togglePlay" />
+            <q-btn flat round v-if="isPlaying" color="white" size="md" icon="stop" class="play-btn" @click="stopPlay" />
 
-            <q-btn
-              flat
-              round
-              color="white"
-              size="sm"
-              icon="skip_next"
-              @click="nextItem"
-            >
+            <q-btn flat round color="white" size="sm" icon="skip_next" @click="nextItem">
               <q-tooltip class="bg-dark">下一个</q-tooltip>
             </q-btn>
             <div class="time-display">
@@ -582,59 +303,60 @@
               <span class="time-sep">/</span>
               <span class="time-total">{{ duration }}</span>
             </div>
-            <span class="top-title" v-if="currentVideoName && videoLoaded">
-              <!-- {{ currentVideoName }} -->
-              <q-btn
-                color="indigo-6"
-                grossy
-                @click="fetchKeyword(currentActress)"
-                >{{ currentActress }}</q-btn
-              >
+            <span class="top-title" v-if="currentData && videoLoaded">
+              <q-btn color="indigo-6" grossy @click="fetchKeyword(currentData.Code)">{{ currentData.Code }}</q-btn>
+              <q-splitter></q-splitter>
+              <q-btn color="indigo-6" grossy @click="fetchKeyword(currentData.Actress)">{{ currentData.Actress }}</q-btn>
             </span>
           </div>
 
           <q-space />
 
-          <!-- 右侧：音量 + 全屏 -->
+          <!-- 右侧：音量 + 设置 + 剪辑 + 标签 + 全屏 -->
           <div class="ctrl-right">
-            <div
-              class="volume-group"
-              @mouseenter="showVolume = true"
-              @mouseleave="showVolume = false"
-            >
-              <q-btn
-                flat
-                round
-                color="white"
-                size="sm"
-                @click="toggleMute"
-                :icon="volumeIcon"
-              />
+            <div class="volume-group" @mouseenter="showVolume = true" @mouseleave="showVolume = false">
+              <q-btn flat round color="white" size="sm" @click="toggleMute" :icon="volumeIcon" />
               <transition name="fade">
-                <q-slider
-                  v-show="showVolume"
-                  v-model="volume"
-                  :min="0"
-                  :max="1"
-                  :step="0.01"
-                  color="indigo-4"
-                  track-color="grey-8"
-                  class="volume-slider"
-                  @update:model-value="setVolume"
-                />
+                <q-slider v-show="showVolume" v-model="volume" :min="0" :max="1" :step="0.01" color="indigo-4"
+                  track-color="grey-8" class="volume-slider" @update:model-value="setVolume" />
               </transition>
             </div>
-            <q-btn
-              flat
-              round
-              color="white"
-              size="sm"
-              :icon="isFullscreen ? 'fullscreen_exit' : 'fullscreen'"
-              @click="toggleFullscreen"
-            >
+            <!-- 画面设置 -->
+            <q-btn flat round color="white" size="sm" icon="settings" v-if="videoLoaded">
+              <q-popup-proxy>
+                <PlayerSetting />
+              </q-popup-proxy>
+              <q-tooltip class="bg-dark">画面设置</q-tooltip>
+            </q-btn>
+            <!-- 剪辑 -->
+            <q-btn flat round color="white" size="sm" icon="content_cut" v-if="videoLoaded">
+              <q-popup-proxy>
+                <VideoCutParam
+                  :current-data="currentData"
+                  :current-time="currentTime"
+                  :duration="durationSeconds"
+                  @stop-video="videoRef?.pause()"
+                  @play-video="videoRef?.play()"
+                />
+              </q-popup-proxy>
+              <q-tooltip class="bg-dark">剪辑</q-tooltip>
+            </q-btn>
+            <!-- 标签 -->
+            <q-btn flat round color="white" size="sm" icon="ti-star" v-if="videoLoaded && currentData.Id">
+              <q-popup-proxy>
+                <EditVideoTag
+                  :current-data="currentData"
+                  @next-one="nextItem"
+                  @prev-one="prevItem"
+                />
+              </q-popup-proxy>
+              <q-tooltip class="bg-dark">标签</q-tooltip>
+            </q-btn>
+            <q-btn flat round color="white" size="sm" :icon="isFullscreen ? 'fullscreen_exit' : 'fullscreen'"
+              @click="toggleFullscreen">
               <q-tooltip class="bg-dark">{{
                 isFullscreen ? '退出全屏' : '全屏'
-              }}</q-tooltip>
+                }}</q-tooltip>
             </q-btn>
           </div>
         </div>
@@ -642,17 +364,11 @@
     </transition>
 
     <!-- 下载管理器悬浮按钮 -->
-    <q-btn
-      v-if="activeDownloads.length > 0"
-      round
-      color="indigo-6"
-      icon="download"
-      class="download-fab"
-      @click="showDownloadManager = true"
-    >
+    <q-btn v-if="activeDownloads.length > 0" round color="indigo-6" icon="download" class="download-fab"
+      @click="showDownloadManager = true">
       <q-badge color="red" floating rounded>{{
         activeDownloads.length
-      }}</q-badge>
+        }}</q-badge>
       <q-tooltip>下载管理</q-tooltip>
     </q-btn>
 
@@ -664,13 +380,7 @@
             <q-icon name="download" size="24px" />
             <span>下载管理器</span>
           </div>
-          <q-btn
-            flat
-            round
-            dense
-            icon="close"
-            @click="showDownloadManager = false"
-          />
+          <q-btn flat round dense icon="close" @click="showDownloadManager = false" />
         </q-card-section>
 
         <q-card-section class="download-manager-content">
@@ -680,72 +390,31 @@
           </div>
 
           <div v-else class="download-list">
-            <div
-              v-for="task in activeDownloads"
-              :key="task.infoHash"
-              class="download-item"
-              :class="{
-                'download-item-playing':
-                  task.infoHash === currentInfoHash && videoLoaded,
-              }"
-            >
+            <div v-for="task in activeDownloads" :key="task.infoHash" class="download-item" :class="{
+              'download-item-playing':
+                task.infoHash === currentInfoHash && videoLoaded,
+            }">
               <div class="download-item-info">
                 <div class="download-item-name">{{ task.name }}</div>
                 <div class="download-item-meta">
                   <span class="download-item-file" v-if="task.fileName">{{
                     task.fileName
-                  }}</span>
-                  <span
-                    class="download-item-state"
-                    :class="'state-' + task.state"
-                    >{{ task.state }}</span
-                  >
-                  <span class="download-item-percent"
-                    >{{ task.progress.toFixed(1) }}%</span
-                  >
+                    }}</span>
+                  <span class="download-item-state" :class="'state-' + task.state">{{ task.state }}</span>
+                  <span class="download-item-percent">{{ task.progress.toFixed(1) }}%</span>
                 </div>
-                <q-linear-progress
-                  :value="task.progress / 100"
-                  color="indigo-5"
-                  track-color="grey-9"
-                  size="4px"
-                  rounded
-                  class="q-mt-xs"
-                />
+                <q-linear-progress :value="task.progress / 100" color="indigo-5" track-color="grey-9" size="4px" rounded
+                  class="q-mt-xs" />
               </div>
               <div class="download-item-actions">
-                <q-btn
-                  flat
-                  round
-                  dense
-                  color="green"
-                  icon="play_arrow"
-                  size="sm"
-                  :disable="task.progress < 1"
-                  @click="playDownloadTask(task)"
-                >
+                <q-btn flat round dense color="green" icon="play_arrow" size="sm" :disable="task.progress < 1"
+                  @click="playDownloadTask(task)">
                   <q-tooltip>播放</q-tooltip>
                 </q-btn>
-                <q-btn
-                  flat
-                  round
-                  dense
-                  color="blue"
-                  icon="folder_open"
-                  size="sm"
-                  @click="openDownloadFolder(task)"
-                >
+                <q-btn flat round dense color="blue" icon="folder_open" size="sm" @click="openDownloadFolder(task)">
                   <q-tooltip>打开文件夹</q-tooltip>
                 </q-btn>
-                <q-btn
-                  flat
-                  round
-                  dense
-                  color="red"
-                  icon="close"
-                  size="sm"
-                  @click="removeDownloadTask(task)"
-                >
+                <q-btn flat round dense color="red" icon="close" label="删除" size="sm" @click="removeDownloadTask(task)">
                   <q-tooltip>删除</q-tooltip>
                 </q-btn>
               </div>
@@ -754,6 +423,9 @@
         </q-card-section>
       </q-card>
     </q-dialog>
+
+    <!-- 文件编辑对话框 -->
+    <FileEdit ref="fileEditRef" @success="executeWithNextItem(currentEditItem, async () => {})" />
   </div>
 </template>
 
@@ -765,20 +437,26 @@ import {
   ref,
   reactive,
   watch,
-  nextTick,
 } from 'vue';
 import { format, useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
-import { SearchAPI } from 'components/api/searchAPI';
+import { SearchAPI, DeleteFile, RefreshAPI, ResetMovieType } from 'components/api/searchAPI';
 import { getPng, getFileStream } from 'components/utils/images';
 import {
   MovieTypeSelects,
+  MovieTypeOptions,
   FieldEnum,
   DescEnum,
   formatTitle,
 } from 'components/utils';
 import { useSystemProperty } from 'stores/System';
+import PlayerSetting from 'components/PlayerSetting.vue';
+import VideoCutParam from 'components/VideoCutParam.vue';
+import EditVideoTag from 'components/EditVideoTag.vue';
+import IndexButton from 'components/IndexButton.vue';
+import FileEdit from '../file/components/FileEditDialog.vue';
+import { set } from '@vueuse/core';
 
 const $q = useQuasar();
 const router = useRouter();
@@ -791,9 +469,9 @@ const systemProperty = useSystemProperty();
 const videoRef = ref(null);
 const particleCanvas = ref(null);
 const progressBar = ref(null);
-const carouselTrack = ref(null);
 const searchResultsRef = ref(null);
-const showMenuControls = ref(false);
+const fileEditRef = ref(null);
+const currentEditItem = ref(null);
 
 // ── 播放状态 ──────────────────────────────────────────────────────────────────
 const currentVideoSrc = ref('');
@@ -806,6 +484,7 @@ const isFullscreen = ref(false);
 const isBuffering = ref(false);
 const currentTime = ref('00:00:00');
 const duration = ref('00:00:00');
+const currentData = ref({});
 // 使用 System store 中的音量
 const volume = computed({
   get: () => systemProperty.videoOptions.volume,
@@ -896,24 +575,10 @@ function goBack() {
   router.back();
 }
 
-function showMenuInfo() {
-  showMenuControls.value = !showMenuControls.value;
-  if (playlist.value.length == 0) {
-    fetchSearch();
-  }
-}
-
-function handleBannerMouseLeave(e) {
-  if (e.relatedTarget && e.relatedTarget.closest('.search-panel')) {
-    return;
-  }
-  searchDialog.value = false;
-}
 
 document.addEventListener('contextmenu', function (e) {
   e.preventDefault(); // 阻止默认行为
-  showMenuControls.value = true;
-  searchDialog.value = true;
+  searchDialog.value = !searchDialog.value;
 });
 
 // ── 播放列表操作 ──────────────────────────────────────────────────────────────
@@ -927,10 +592,10 @@ function switchToItem(index) {
   loadVideo(
     src,
     item.Title || item.Name || item.Code || `#${index + 1}`,
-    getPng(item.Id)
+    getPng(item.Id),
+    item
   );
   searchDialog.value = false;
-  scrollToActiveItem();
 }
 
 function prevItem() {
@@ -947,26 +612,6 @@ function nextItem() {
   );
 }
 
-function prevPage() {
-  changePage(-1);
-}
-
-function nextPage() {
-  changePage(1);
-}
-
-function scrollToActiveItem() {
-  nextTick(() => {
-    if (!carouselTrack.value) return;
-    const el = carouselTrack.value.querySelector('.carousel-item-active');
-    if (el)
-      el.scrollIntoView({
-        behavior: 'smooth',
-        inline: 'center',
-        block: 'nearest',
-      });
-  });
-}
 
 async function playFromSearch(item) {
   const idx = playlist.value.findIndex((p) => p.Id === item.Id);
@@ -977,7 +622,65 @@ async function playFromSearch(item) {
 function fetchKeyword(keyword) {
   searchParams.Keyword = keyword;
   searchParams.Page = 1;
+  showControls.value = true;
   fetchSearch();
+}
+
+// ── 标签颜色 ──────────────────────────────────────────────────────────────
+function getTagColor(tag) {
+  const colorMap = {
+    'A级': '#ef4444',
+    'B级': '#f97316',
+    'C级': '#eab308',
+    'D级': '#22c55e',
+    'A级推荐': '#ec4899',
+    'B级推荐': '#8b5cf6',
+    '收藏': '#3b82f6',
+    '未分类': '#6b7280',
+  };
+  return colorMap[tag] || '#6b7280';
+}
+
+// ── 公共方法：切换到下一个后再执行操作 ───────────────────────────────────────
+async function executeWithNextItem(item, action) {
+  if (currentData.value.Id === item.Id) {
+    nextItem();
+    setTimeout(async () => {
+      await action();
+      await RefreshAPI(item.BaseDir);
+      setTimeout(() => {
+        fetchSearch();
+      }, 500);
+    }, 1000);
+  } else {
+    await action();
+    await RefreshAPI(item.BaseDir);
+    setTimeout(() => {
+      fetchSearch();
+    }, 500);
+  }
+}
+
+// ── 删除视频 ────────────────────────────────────────────────────────────────
+async function deleteVideo(item) {
+  await executeWithNextItem(item, async () => {
+    const res = await DeleteFile(item.Id);
+    if (!res || res.Code !== 200) {
+      $q.notify({ message: res?.Message || '删除失败', position: 'top-right' });
+    }
+  });
+}
+
+// ── 设置类型 ────────────────────────────────────────────────────────────────
+async function setMovieType(item, Type) {
+  await executeWithNextItem(item, async () => {
+    const res = await ResetMovieType(item.Id, Type);
+    if (res?.Code === 200) {
+      $q.notify({ type: 'negative', message: res.Message, position: 'top-right' });
+    } else {
+      $q.notify({ type: 'warning', message: res?.Message || '设置失败', position: 'top-right' });
+    }
+  });
 }
 
 // ── 搜索 ──────────────────────────────────────────────────────────────────────
@@ -1182,11 +885,12 @@ function handleDrop(e) {
   }
 }
 
-function loadVideo(src, name, poster) {
+function loadVideo(src, name, poster, item = {}) {
   currentVideoSrc.value = src;
   currentVideoName.value = name || '未知视频';
   currentPoster.value = poster || '';
   videoLoaded.value = true;
+  currentData.value = item;
 
   setTimeout(() => {
     if (videoRef.value) {
@@ -1296,9 +1000,8 @@ async function playSelectedTorrentFile() {
     if (!result?.skipped) {
       startPolling(currentInfoHash.value, newTask);
     }
-    const streamUrl = `/api/torrent/stream/${
-      currentInfoHash.value
-    }?file=${encodeURIComponent(selectedTorrentFile.value)}`;
+    const streamUrl = `/api/torrent/stream/${currentInfoHash.value
+      }?file=${encodeURIComponent(selectedTorrentFile.value)}`;
     loadVideo(streamUrl, fileName);
     if (result?.skipped) {
       $q.notify({
@@ -1403,9 +1106,8 @@ async function cancelTorrent() {
 
 // ── 下载管理器 ─────────────────────────────────────────────────────────────────
 function playDownloadTask(task) {
-  const streamUrl = `/api/torrent/stream/${
-    task.infoHash
-  }?file=${encodeURIComponent(task.filePath)}`;
+  const streamUrl = `/api/torrent/stream/${task.infoHash
+    }?file=${encodeURIComponent(task.filePath)}`;
   currentInfoHash.value = task.infoHash;
   loadVideo(streamUrl, task.fileName);
 }
@@ -1715,7 +1417,8 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  display: block;
+  display: flex;
+  gap: 8px;
   padding: 0 20px;
   text-shadow: 0 1px 8px rgba(99, 102, 241, 0.6);
 }
@@ -1735,6 +1438,45 @@ onUnmounted(() => {
   background: rgba(99, 102, 241, 0.25) !important;
   border-color: rgba(99, 102, 241, 0.5);
   box-shadow: 0 0 18px rgba(99, 102, 241, 0.35);
+}
+
+.fixed-top-center {
+  position: fixed;
+  top: 1px;
+  transform: translateX(10%);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 18px;
+  border-radius: 24px;
+  width: 60vw;
+}
+
+.top-video-name {
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 600;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: calc(100% - 100px);
+}
+
+.top-video-tag {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.fixed-top-right-btns {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 1000;
+  display: flex;
+  gap: 8px;
 }
 
 .fixed-top-right-btn {
@@ -1884,6 +1626,7 @@ onUnmounted(() => {
 .carousel-arrow-left {
   left: 8px;
 }
+
 .carousel-arrow-right {
   right: 8px;
 }
@@ -1968,11 +1711,13 @@ onUnmounted(() => {
 }
 
 @keyframes pulse-ring {
+
   0%,
   100% {
     transform: scale(0.9);
     opacity: 0.4;
   }
+
   50% {
     transform: scale(1.1);
     opacity: 0.8;
@@ -2036,10 +1781,12 @@ onUnmounted(() => {
   background: transparent;
   border: none;
 }
+
 .magnet-input :deep(.q-field__native) {
   color: #c4b5fd;
   font-size: 0.88rem;
 }
+
 .magnet-input :deep(.q-field__native::placeholder) {
   color: rgba(165, 148, 249, 0.38);
 }
@@ -2215,9 +1962,11 @@ onUnmounted(() => {
   color: #a5b4fc;
   font-weight: 600;
 }
+
 .torrent-state {
   color: rgba(134, 239, 172, 0.8);
 }
+
 .torrent-peers {
   color: rgba(165, 148, 249, 0.7);
   display: flex;
@@ -2233,12 +1982,10 @@ onUnmounted(() => {
   right: 0;
   z-index: 20;
   padding: 16px 24px 24px;
-  background: linear-gradient(
-    to top,
-    rgba(6, 6, 16, 0.95) 0%,
-    rgba(6, 6, 16, 0.6) 60%,
-    transparent 100%
-  );
+  background: linear-gradient(to top,
+      rgba(6, 6, 16, 0.95) 0%,
+      rgba(6, 6, 16, 0.6) 60%,
+      transparent 100%);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
@@ -2371,9 +2118,11 @@ onUnmounted(() => {
 .time-current {
   color: rgba(255, 255, 255, 0.9);
 }
+
 .time-sep {
   color: rgba(255, 255, 255, 0.3);
 }
+
 .time-total {
   color: rgba(255, 255, 255, 0.45);
 }
@@ -2393,7 +2142,7 @@ onUnmounted(() => {
 .search-panel {
   position: relative;
   height: 800px;
-  margin: 0 auto;
+  margin: 5% auto;
   width: 80%;
   /* margin-top: 78px; */
   background: rgba(9, 9, 22, 0.92);
@@ -2447,10 +2196,12 @@ onUnmounted(() => {
   border-radius: 8px;
   width: 72vw;
 }
+
 .search-input :deep(.q-field__native) {
   color: #c4b5fd;
   font-size: 0.88rem;
 }
+
 .search-input :deep(.q-field__native::placeholder) {
   color: rgba(165, 148, 249, 0.35);
 }
@@ -2488,6 +2239,7 @@ onUnmounted(() => {
 .search-results::-webkit-scrollbar {
   width: 4px;
 }
+
 .search-results::-webkit-scrollbar-thumb {
   background: rgba(99, 102, 241, 0.25);
   border-radius: 2px;
@@ -2502,15 +2254,16 @@ onUnmounted(() => {
 }
 
 .search-cards {
-  columns: 3;
-  gap: 10px;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: space-evenly;
 }
 
 .search-card {
-  margin-bottom: 4px;
+  margin-bottom: 8px;
   display: flex;
-  gap: 10px;
-  padding: 10px;
+  padding: 8px;
   border-radius: 12px;
   background: rgba(22, 22, 45, 0.55);
   border: 1px solid rgba(99, 102, 241, 0.12);
@@ -2519,17 +2272,17 @@ onUnmounted(() => {
     transform 0.2s;
   position: relative;
   overflow: hidden;
+  width: calc(100% - 20px);
+  max-width: 334px;
 }
 
 .search-card::after {
   /* content: ''; */
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    135deg,
-    rgba(99, 102, 241, 0.07) 0%,
-    transparent 60%
-  );
+  background: linear-gradient(135deg,
+      rgba(99, 102, 241, 0.07) 0%,
+      transparent 60%);
   opacity: 0;
   transition: opacity 0.3s;
 }
@@ -2543,6 +2296,29 @@ onUnmounted(() => {
   background: rgba(32, 32, 60, 0.65);
   box-shadow: 0 4px 20px rgba(99, 102, 241, 0.15);
   transform: translateX(3px);
+}
+
+/* 当前播放卡片高亮 */
+.search-card-playing {
+  border-color: rgba(139, 92, 246, 0.9) !important;
+  background: rgba(45, 35, 80, 0.75) !important;
+  box-shadow: 0 0 16px rgba(139, 92, 246, 0.45),
+    0 0 32px rgba(99, 102, 241, 0.2);
+}
+
+.search-card-playing-indicator {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(139, 92, 246, 0.55);
+  animation: playing-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes playing-pulse {
+  0%, 100% { background: rgba(139, 92, 246, 0.5); }
+  50% { background: rgba(139, 92, 246, 0.3); }
 }
 
 .search-card-thumb {
@@ -2627,6 +2403,11 @@ onUnmounted(() => {
   border: 1px solid rgba(244, 114, 182, 0.22);
 }
 
+.tag-level {
+  color: #fff;
+  font-weight: 600;
+}
+
 .search-card-meta {
   display: flex;
   gap: 8px;
@@ -2671,9 +2452,11 @@ onUnmounted(() => {
   color: #c4b5fd;
   font-weight: 600;
 }
+
 .page-sep {
   color: rgba(255, 255, 255, 0.25);
 }
+
 .page-total {
   color: rgba(165, 180, 252, 0.45);
 }
@@ -2683,6 +2466,7 @@ onUnmounted(() => {
 .fade-leave-active {
   transition: opacity 0.3s ease;
 }
+
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
@@ -2692,6 +2476,7 @@ onUnmounted(() => {
 .slide-down-leave-active {
   transition: transform 0.35s ease, opacity 0.35s ease;
 }
+
 .slide-down-enter-from,
 .slide-down-leave-to {
   transform: translateY(-100%);
@@ -2702,6 +2487,7 @@ onUnmounted(() => {
 .slide-up-leave-active {
   transition: transform 0.35s ease, opacity 0.35s ease;
 }
+
 .slide-up-enter-from,
 .slide-up-leave-to {
   transform: translateY(20px);
@@ -2713,32 +2499,49 @@ onUnmounted(() => {
   .glass-panel {
     padding: 12px 16px 20px;
   }
+
   .volume-slider {
     width: 60px;
   }
+
   .top-title {
     font-size: 0.85rem;
   }
+
+  .fixed-top-center {
+    max-width: 70vw;
+  }
+
+  .top-video-name {
+    max-width: 320px;
+    font-size: 0.9rem;
+  }
+
   .magnet-input-area {
     width: 88vw;
     bottom: 78px;
   }
+
   .search-panel {
     width: 100vw;
     max-width: 100vw;
   }
+
   .carousel-banner {
     padding: 8px 46px;
     height: 74px;
   }
+
   .carousel-item {
     width: 40px;
     height: 56px;
   }
+
   .drop-zone {
     width: 80vw;
     height: 42vh;
   }
+
   .time-display {
     font-size: 0.75rem;
   }

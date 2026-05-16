@@ -50,6 +50,9 @@ export const formatTitle = (title: string | undefined, length?: number) => {
   if (!title) {
     return '';
   }
+  // 移除括号及括号内内容
+  title = title.replace(/\([^)]*\)/g, '');
+  title = title.replace(/\（[^）]*\）/g, '');
   if (title.lastIndexOf(']') >= 0) {
     title = title.substring(title.lastIndexOf(']') + 1);
   }

@@ -67,10 +67,10 @@
       </q-toolbar>
     </q-header>
 
-    <q-drawer v-model="drawerLeft" :width="200" :breakpoint="700" bordered>
+    <q-drawer v-model="drawerLeft" :width="drawerWidth" :breakpoint="700" bordered>
       <q-scroll-area
         class="fit"
-        style="background-color: rgba(0, 0, 0, 0.8); color: aliceblue"
+        :style="drawerStyle"
       >
         <q-list>
           <q-item-label header> 你的搜索工具</q-item-label>
@@ -118,33 +118,48 @@ const view = reactive({
 
 // 动态 header 样式
 const headerStyle = computed(() => {
-  return systemProperty.theme === 'natural' 
-    ? 'background: rgba(248, 245, 240, 0.95) !important; color: #3d352a;'
+  return systemProperty.theme === 'natural'
+    ? 'background: linear-gradient(90deg, #94a3b8 0%, #cbd5e1 100%) !important; color: white;'
     : 'background: rgba(0, 0, 0, 0.85) !important; color: white;';
+});
+
+// 动态抽屉样式 - 与主题保持一致
+const drawerStyle = computed(() => {
+  return systemProperty.theme === 'natural'
+    ? 'background-color: rgba(245, 243, 255, 0.95); color: #5b21b6;'
+    : 'background-color: rgba(0, 0, 0, 0.85); color: aliceblue;';
+});
+
+// 响应式抽屉宽度
+const drawerWidth = computed(() => {
+  return $q.screen.width > 1200 ? 240 : 200;
 });
 
 let logoutTimer = null;
 
-logoutTimer = setInterval(() => {
-  const time = parseInt(
-    (systemProperty.expireTime - new Date().getTime()) / 1000
-  );
-  timeLogout.value = time;
-  if (time > 3600) {
-    timeLogoutShow.value = `${Math.round(time / 3600, 1)}小时`;
-  } else if (time > 60) {
-    timeLogoutShow.value = `${Math.round(time / 60, 1)}分钟`;
-  } else {
-    timeLogoutShow.value = `${time}秒`;
-  }
-  if (time < 60) {
-    console.log('即将退出', timeLogoutShow.value);
-  }
-  if (!systemProperty.expireTime || time < 0) {
-    localStorage.removeItem('isAuthenticated');
-    router.push('/');
-  }
-}, 3000);
+// 仅在用户已认证时启动定时器
+if (localStorage.getItem('isAuthenticated')) {
+  logoutTimer = setInterval(() => {
+    const time = parseInt(
+      (systemProperty.expireTime - new Date().getTime()) / 1000
+    );
+    timeLogout.value = time;
+    if (time > 3600) {
+      timeLogoutShow.value = `${Math.round(time / 3600, 1)}小时`;
+    } else if (time > 60) {
+      timeLogoutShow.value = `${Math.round(time / 60, 1)}分钟`;
+    } else {
+      timeLogoutShow.value = `${time}秒`;
+    }
+    if (time < 60) {
+      console.log('即将退出', timeLogoutShow.value);
+    }
+    if (!systemProperty.expireTime || time < 0) {
+      localStorage.removeItem('isAuthenticated');
+      router.push('/');
+    }
+  }, 3000);
+}
 
 onUnmounted(() => {
   if (logoutTimer) {
@@ -242,12 +257,6 @@ const essentialLinks = [
     caption: 'forum.quasar.dev',
     icon: 'info',
     link: '/system',
-  },
-  {
-    title: '日志',
-    caption: 'forum.quasar.dev',
-    icon: 'chat',
-    link: '/systemLog',
   },
   {
     title: '沉浸',

@@ -1,15 +1,7 @@
 <template>
   <div
-    style="
-      padding: 12px 4px;
-      background-color: rgba(250, 250, 250, 0.9);
-      max-width: 400px;
-      max-height: 100vh;
-      height: auto;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-start;
-    "
+    :style="containerStyle"
+    class="edit-video-tag"
   >
     <div class="col">
       <q-btn flat dense> 种草来源 </q-btn>
@@ -119,7 +111,7 @@ import {
   TansferFile,
   TansferFileVcode,
 } from './api/searchAPI';
-import { onMounted, reactive, inject } from 'vue';
+import { onMounted, reactive, inject, computed } from 'vue';
 
 const $q = useQuasar();
 
@@ -141,6 +133,22 @@ const refreshDebounceFn = inject('refreshDebounceFn', () => {
 });
 
 const emmits = defineEmits(['nextOne', 'prevOne']);
+
+// 主题感知容器样式
+const containerStyle = computed(() => {
+  const isDark = systemProperty.theme === 'star';
+  return {
+    padding: '12px 4px',
+    backgroundColor: isDark ? 'rgba(30, 30, 40, 0.95)' : 'rgba(250, 250, 250, 0.9)',
+    maxWidth: '400px',
+    maxHeight: '100vh',
+    height: 'auto',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'flex-start',
+    color: isDark ? 'white' : '#333',
+  };
+});
 
 const toVcode = async (item, vcode) => {
   if (systemProperty.addPlayingTagGoNext) {

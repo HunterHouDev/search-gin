@@ -1,12 +1,7 @@
 <template>
   <div
-    class="justify-start q-gutter-sm"
-    style="
-      width: 32rem;
-      padding: 1rem 1rem;
-      border-radius: 10px;
-      background-color: rgba(250, 250, 250, 0.9);
-    "
+    :style="containerStyle"
+    class="player-setting justify-start q-gutter-sm"
   >
     
 
@@ -142,6 +137,7 @@
 </template>
 
 <script setup>
+import { computed } from 'vue';
 import { useSystemProperty } from 'src/stores/System';
 
 const systemProperty = useSystemProperty();
@@ -151,5 +147,17 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+});
+
+// 主题感知容器样式
+const containerStyle = computed(() => {
+  const isDark = systemProperty.theme === 'star';
+  return {
+    width: '32rem',
+    padding: '1rem 1rem',
+    borderRadius: '10px',
+    backgroundColor: isDark ? 'rgba(30, 30, 40, 0.95)' : 'rgba(250, 250, 250, 0.9)',
+    color: isDark ? 'white' : '#333',
+  };
 });
 </script>
