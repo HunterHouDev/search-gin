@@ -1,14 +1,12 @@
 package router
 
 import (
-	"net/http"
 	"os"
-	"path/filepath"
-	"strings"
 	"search-gin/internal/env"
 	"search-gin/internal/handler"
 	"search-gin/middleware"
 	"search-gin/pkg/utils"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -64,23 +62,6 @@ func BuildRouter(tempDir string) *gin.Engine {
 		})
 	}
 
-	indexHtml := filepath.Join(tempDir, "dist", "index.html")
-	if utils.ExistsFiles(indexHtml) {
-		utils.InfoFormat("static exists:%s \n", indexHtml)
-		router.LoadHTMLFiles(indexHtml)
-		staticFs := map[string]string{
-			"/css":    filepath.Join(tempDir, "dist", "css"),
-			"/js":     filepath.Join(tempDir, "dist", "js"),
-			"/assets": filepath.Join(tempDir, "dist", "assets"),
-		}
-		for k, v := range staticFs {
-			router.StaticFS(k, http.Dir(v))
-			utils.InfoFormat("static exists:%s \n", k)
-		}
-	} else {
-		utils.InfoFormat("static not exists:%s \n", indexHtml)
-	}
-
 	router.NoRoute(handler.Index)
 	router.GET("/", handler.Index)
 	router.POST("/api/login", handler.Login)
@@ -126,7 +107,7 @@ func BuildRouter(tempDir string) *gin.Engine {
 	router.POST("/api/setting", handler.PostSetting)
 	router.GET("/api/GetIpAddr", handler.GetIpAddr2)
 	router.GET("/api/shutDown", handler.GetShutdown)
-	
+
 	// 用户管理路由（需要认证）
 	router.GET("/api/users", handler.GetUsers)
 	router.POST("/api/user/add", handler.AddUser)

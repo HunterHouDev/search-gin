@@ -464,6 +464,9 @@
                       fileCutImageRef.open(item);
                     }
                   " icon="ti-cut" title="截图" />
+                  <!-- 删除按钮 -->
+                  <q-btn round ripple glossy :size="btnSize('footer')" color="negative" icon="delete" title="删除"
+                    @click="confirmDelete(item)" />
                 </div>
               </div>
 

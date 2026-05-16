@@ -2,15 +2,15 @@ package main
 
 import (
 	"context"
-	"search-gin/internal/router"
-	"search-gin/internal/service"
-	"search-gin/pkg/consts"
-	"search-gin/pkg/utils"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"search-gin/internal/router"
+	"search-gin/internal/service"
+	"search-gin/pkg/consts"
+	"search-gin/pkg/utils"
 	"syscall"
 	"time"
 
@@ -130,6 +130,26 @@ func main() {
 	}
 
 	app := router.BuildRouter(tempDir)
+
+	go func() {
+		time.Sleep(3 * time.Second)
+		indexHtml := filepath.Join(tempDir, "dist", "index.html")
+		if utils.ExistsFiles(indexHtml) {
+			utils.InfoFormat("static exists:%s \n", indexHtml)
+			app.LoadHTMLFiles(indexHtml)
+			staticFs := map[string]string{
+				"/css":    filepath.Join(tempDir, "dist", "css"),
+				"/js":     filepath.Join(tempDir, "dist", "js"),
+				"/assets": filepath.Join(tempDir, "dist", "assets"),
+			}
+			for k, v := range staticFs {
+				app.StaticFS(k, http.Dir(v))
+				utils.InfoFormat("static exists:%s \n", k)
+			}
+		} else {
+			utils.InfoFormat("static not exists:%s \n", indexHtml)
+		}
+	}()
 
 	port_nos := []string{consts.PortNo, consts.PortNo2, consts.PortNo3}
 	// port_nos := []string{":9901"}
