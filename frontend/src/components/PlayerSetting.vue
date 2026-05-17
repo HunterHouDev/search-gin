@@ -6,7 +6,7 @@
     
 
     <div class="row w100">
-      <div class="col"><q-btn flat dense> 播放器亮度 </q-btn></div>
+      <div class="col"><q-btn flat dense> 播放亮度 </q-btn></div>
       <q-btn flat dense>
         <q-slider
           v-model:model-value="systemProperty.videoOptions.brightness"
@@ -24,7 +24,7 @@
     </div>
     <div class="row w100">
       <div class="col">
-        <q-btn flat dense> 播放器种草后 </q-btn>
+        <q-btn flat dense> 播放种草后 </q-btn>
         <q-radio
           v-model="systemProperty.addPlayingTagGoNext"
           checked-icon="task_alt"

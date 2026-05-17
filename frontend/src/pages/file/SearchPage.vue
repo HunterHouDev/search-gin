@@ -104,7 +104,10 @@
       </q-input>
 
       <!-- 仅重复项选择 -->
-      <q-checkbox v-model="view.queryParam.OnlyRepeat" checked-icon="task_alt" unchecked-icon="ti-help" :val="true" flat
+      <q-checkbox v-model="view.queryParam.OnlyRepeat" 
+        color="red" :keepColor="true"
+        checked-icon="task_alt" 
+        unchecked-icon="ti-help" :val="true" flat
         dense @update:model-value="fetchSearch">
         <q-tooltip class="bg-white text-primary"> 去重 </q-tooltip>
       </q-checkbox>
