@@ -330,7 +330,7 @@
           v-if="view.resultData.Data && view.resultData.Data.length > 0">
           <!-- 卡片列表 -->
           <q-card v-for="item in view.resultData.Data" :key="item.Id" :id="item.Id"
-            v-memo="[item.Id, item.Tags, item.Actress, item.Code, isLarge, isMedium, isSmall]" v-bind:class="{
+            v-bind:class="{
               'large-result': isLarge,
               'medium-result': isMedium,
               'small-result': isSmall,

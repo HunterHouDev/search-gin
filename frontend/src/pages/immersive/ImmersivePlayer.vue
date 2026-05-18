@@ -19,18 +19,18 @@
         }}</q-btn>
       </span>
       <span class="meta-item">
-        <q-icon name="folder" size="10px" />
+        <q-icon name="folder" size="14px" />
         {{ currentData.BaseDir?.substring(currentData.BaseDir.lastIndexOf('/') + 1) || '' }}
       </span>
       <span class="meta-item">
-        <q-icon name="data_usage" size="10px" />
+        <q-icon name="data_usage" size="14px" />
         {{ humanStorageSize(currentData.Size) }}
       </span>
       <span class="meta-item">
-        <q-icon name="schedule" size="10px" />
+        <q-icon name="schedule" size="14px" />
         {{ getTimeAgo(currentData.MTime) }}
       </span>
-      <q-btn-dropdown dense flat size="xs" color="indigo-4"
+      <q-btn-dropdown dense flat size="md" color="indigo-4"
         :label="`${currentData.MovieType === '无' ? '分类' : currentData.MovieType}`" no-caps>
         <q-list style="min-width: 60px">
           <q-item v-for="mt in MovieTypeOptions" :key="mt.value" clickable v-close-popup>
@@ -38,10 +38,10 @@
           </q-item>
         </q-list>
       </q-btn-dropdown>
-      <q-btn flat dense color="primary" icon="edit" size="xs" label="修改" @click.stop="fileEditRef.open(currentData)">
+      <q-btn flat dense color="primary" icon="edit" size="md" label="修改" @click.stop="fileEditRef.open(currentData)">
         <q-tooltip>修改</q-tooltip>
       </q-btn>
-      <q-btn flat dense color="negative" icon="delete" size="xs" label="删除" @click.stop="deleteVideo(currentData)">
+      <q-btn flat dense color="negative" icon="delete" size="md" label="删除" @click.stop="deleteVideo(currentData)">
         <q-tooltip>删除</q-tooltip>
       </q-btn>
     </div>
@@ -151,7 +151,7 @@
                       <q-icon name="schedule" size="10px" />
                       {{ getTimeAgo(item.MTime) }}
                     </span>
-                    <q-btn-dropdown dense flat size="xs" color="indigo-4"
+                    <q-btn-dropdown dense flat size="md" color="indigo-4"
                       :label="`${item.MovieType === '无' ? '分类' : item.MovieType}`" no-caps>
                       <q-list style="min-width: 60px">
                         <q-item v-for="mt in MovieTypeOptions" :key="mt.value" clickable v-close-popup>
@@ -159,11 +159,11 @@
                         </q-item>
                       </q-list>
                     </q-btn-dropdown>
-                    <q-btn flat dense color="primary" icon="edit" size="xs" label="修改"
+                    <q-btn flat dense color="primary" icon="edit" size="md" label="修改"
                       @click.stop="currentEditItem = item; fileEditRef.open(item)">
                       <q-tooltip>修改</q-tooltip>
                     </q-btn>
-                    <q-btn flat dense color="negative" icon="delete" size="xs" label="删除"
+                    <q-btn flat dense color="negative" icon="delete" size="md" label="删除"
                       @click.stop="deleteVideo(item)">
                       <q-tooltip>删除</q-tooltip>
                     </q-btn>
@@ -304,7 +304,7 @@
         @mouseleave="startHideTimer" @click.stop>
         <!-- 进度条 -->
         <div class="progress-container" ref="progressBar" @mousedown="startSeek" @mousemove="onProgressHover"
-          @mouseleave="hideTooltip">
+          @mouseleave="hideTooltip" @contextmenu.prevent="onProgressContextMenu">
           <div class="progress-track">
             <!-- 缓冲进度 -->
             <div class="progress-buffered" :style="{ width: bufferedPercent + '%' }"></div>
@@ -319,40 +319,19 @@
           <div class="progress-tooltip" v-if="hoverTime !== null" :style="{ left: hoverX + 'px' }">
             {{ hoverTime }}
           </div>
+
         </div>
 
         <!-- 控制按钮行 -->
         <div class="control-buttons">
-          <!-- 左侧：播放控制 + 时间 -->
-          <div class="ctrl-left">
-            <q-btn flat round color="white" size="md" icon="skip_previous" @click="prevItem">
-              <q-tooltip class="bg-dark">上一个</q-tooltip>
-            </q-btn>
-            <q-btn flat round :color="isPlaying ? 'indigo-3' : 'white'" size="md"
-              :icon="isPlaying ? 'pause_circle' : 'play_circle'" class="play-btn" @click="togglePlay" />
-            <q-btn flat round v-if="isPlaying" color="white" size="md" icon="stop" class="play-btn" @click="stopPlay" />
-
-            <q-btn flat round color="white" size="md" icon="skip_next" @click="nextItem">
-              <q-tooltip class="bg-dark">下一个</q-tooltip>
-            </q-btn>
-            <div class="time-display">
-              <span class="time-current">{{ currentTime }}</span>
-              <span class="time-sep">/</span>
-              <span class="time-total">{{ duration }}</span>
-            </div>
-          </div>
-
-          <q-space />
-
           <!-- 右侧：音量 + 设置 + 剪辑 + 标签 + 全屏 -->
           <div class="ctrl-right">
-            <div class="volume-group" @mouseenter="showVolume = true" @mouseleave="showVolume = false">
-              <q-btn flat round color="white" size="md" @click="toggleMute" :icon="volumeIcon" />
-              <transition name="fade">
-                <q-slider v-show="showVolume" v-model="volume" :min="0" :max="1" :step="0.01" color="indigo-4"
-                  track-color="grey-8" class="volume-slider" @update:model-value="setVolume" />
-              </transition>
-            </div>
+            <q-btn flat round color="white" size="md" :icon="isFullscreen ? 'fullscreen_exit' : 'fullscreen'"
+              @click="toggleFullscreen">
+              <q-tooltip class="bg-dark">{{
+                isFullscreen ? '退出全屏' : '全屏'
+                }}</q-tooltip>
+            </q-btn>
             <!-- 画面设置 -->
             <q-btn flat round color="white" size="md" icon="settings" v-if="videoLoaded">
               <q-popup-proxy>
@@ -376,6 +355,33 @@
               </q-popup-proxy>
               <q-tooltip class="bg-dark">标签</q-tooltip>
             </q-btn>
+
+
+            <div class="volume-group" @mouseenter="showVolume = true" @mouseleave="showVolume = false">
+              <q-btn flat round color="white" size="md" @click="toggleMute" :icon="volumeIcon" />
+              <transition name="fade">
+                <q-slider v-show="showVolume" v-model="volume" :min="0" :max="1" :step="0.01" color="indigo-4"
+                  track-color="grey-8" class="volume-slider" @update:model-value="setVolume" />
+              </transition>
+            </div>
+          </div>
+          <!-- 快进快退按钮组 -->
+          <div class="seek-buttons-popup">
+            <q-btn flat round color="white" size="md" icon="skip_previous" @click="prevItem">
+              <q-tooltip class="bg-dark">上一个</q-tooltip>
+            </q-btn>
+            <q-btn flat dense v-for="sec in seekSeconds" :key="sec" class="seek-btn" :class="{ 'seek-btn-rewind': sec < 0 }"
+              @click.stop="seekBySeconds(sec, false)" @contextmenu.prevent.stop="seekBySeconds(sec, true)">
+              {{ sec > 0 ? '+' + sec : sec }}s
+            </q-btn>
+
+            <q-btn flat round color="white" size="md" icon="skip_next" @click="nextItem">
+              <q-tooltip class="bg-dark">下一个</q-tooltip>
+            </q-btn>
+          </div>
+          <!-- 左侧：播放控制 + 时间 -->
+          <div class="ctrl-left">
+
             <!-- 截图 (非骑兵) -->
             <q-btn flat round color="green" size="md" icon="photo_camera"
               v-if="videoLoaded && currentData.MovieType !== '骑兵'" @click="curImage">
@@ -385,13 +391,18 @@
               v-if="videoLoaded && currentData.MovieType !== '骑兵'" @click="curImage('png')">
               <q-tooltip class="bg-dark">Png</q-tooltip>
             </q-btn>
-            <q-btn flat round color="white" size="md" :icon="isFullscreen ? 'fullscreen_exit' : 'fullscreen'"
-              @click="toggleFullscreen">
-              <q-tooltip class="bg-dark">{{
-                isFullscreen ? '退出全屏' : '全屏'
-                }}</q-tooltip>
-            </q-btn>
+            <q-btn flat round :color="isPlaying ? 'indigo-3' : 'white'" size="md"
+              :icon="isPlaying ? 'pause_circle' : 'play_circle'" class="play-btn" @click="togglePlay" />
+            <q-btn flat round v-if="isPlaying" color="white" size="md" icon="stop" class="play-btn" @click="stopPlay" />
+
+            <div class="time-display">
+              <span class="time-current">{{ currentTime }}</span>
+              <span class="time-sep">/</span>
+              <span class="time-total">{{ duration }}</span>
+            </div>
           </div>
+
+
         </div>
       </div>
     </transition>
@@ -475,7 +486,7 @@ import { format, useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 import { SearchAPI, DeleteFile, RefreshAPI, ResetMovieType, CutImage } from 'components/api/searchAPI';
-import { getPng, getFileStream } from 'components/utils/images';
+import { getPng, getJpg, getFileStream } from 'components/utils/images';
 import {
   MovieTypeSelects,
   MovieTypeOptions,
@@ -537,6 +548,8 @@ const controlsHidden = ref(false);
 const isSeeking = ref(false);
 const hoverTime = ref(null);
 const hoverX = ref(0);
+const seekButtonsVisible = ref(false);
+const seekSeconds = [-60, -30, 30, 60, 120];
 
 // ── 音量控制 ──────────────────────────────────────────────────────────────────
 const showVolume = ref(false);
@@ -566,14 +579,9 @@ const currentIndex = ref(-1);
 const searchDialog = ref(false);
 const searchLoading = ref(false);
 const searchResults = reactive({ Data: [], TotalPage: 0, ResultSize: '', TotalCount: 0 });
+// 从 Pinia store 初始化搜索参数
 const searchParams = reactive({
-  Keyword: '',
-  MovieType: '',
-  SortField: 'MTime',
-  SortType: 'desc',
-  OnlyRepeat: false,
-  Page: 1,
-  PageSize: 20,
+  ...systemProperty.FileSearchParam,
 });
 const pageOptions = ref([10, 20, 40, 60]);
 const gotoPage = ref(1);
@@ -658,7 +666,7 @@ function switchToItem(index) {
   loadVideo(
     src,
     item.Title || item.Name || item.Code || `#${index + 1}`,
-    getPng(item.Id),
+    getJpg(item.Id),
     item
   );
   searchDialog.value = false;
@@ -776,6 +784,8 @@ async function fetchSearch() {
       searchResults.TotalPage = data.TotalPage || 0;
       searchResults.ResultSize = data.ResultSize || '';
       searchResults.TotalCount = data.ResultCnt || 0;
+      // 搜索完成后同步到 Pinia store
+      systemProperty.syncSearchParam(searchParams);
     }
   } catch (e) {
     console.error('搜索请求异常:', e);
@@ -1268,7 +1278,9 @@ function onMetadataLoaded() {
 
 // ── 进度条拖拽 ────────────────────────────────────────────────────────────────
 function startSeek(e) {
+  if (e.button === 2) return; // 右键不处理，由 onProgressContextMenu 处理
   isSeeking.value = true;
+  seekButtonsVisible.value = true;
   doSeek(e);
   document.addEventListener('mousemove', doSeek);
   document.addEventListener('mouseup', endSeek);
@@ -1297,6 +1309,22 @@ function onProgressHover(e) {
 
 function hideTooltip() {
   hoverTime.value = null;
+}
+
+// ── 快进快退 ──────────────────────────────────────────────────────────────────
+function onProgressContextMenu(e) {
+  // 右键显示快进快退按钮
+  if (!progressBar.value || !durationSeconds.value) return;
+  e.preventDefault();
+}
+
+function seekBySeconds(sec, isRightClick = false) {
+  if (!videoRef.value) return;
+  // 右键点击时反转方向（快退）
+  const delta = isRightClick ? -Math.abs(sec) : sec;
+  const newTime = Math.max(0, Math.min(videoRef.value.duration, videoRef.value.currentTime + delta));
+  videoRef.value.currentTime = newTime;
+  seekButtonsVisible.value = false;
 }
 
 // ── 音量 ──────────────────────────────────────────────────────────────────────
@@ -1369,6 +1397,11 @@ function resetControlsTimer() {
 
 function onMouseMove() {
   showControls();
+  if (systemProperty.SettingInfo.Pages && systemProperty.SettingInfo.Pages.length > 0) {
+    pageOptions.value = systemProperty.SettingInfo.Pages.map((item) => {
+      return Number(item);
+    });
+  }
   if (isPlaying.value) resetControlsTimer();
 }
 
@@ -1519,8 +1552,7 @@ onUnmounted(() => {
 .fixed-top-center {
   position: fixed;
   top: 1px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 80px;
   z-index: 1000;
   display: flex;
   align-items: center;
@@ -1721,10 +1753,8 @@ onUnmounted(() => {
 }
 
 .video-wrapper video {
-  max-width: 100%;
-  max-height: 100%;
-  width: auto;
-  height: auto;
+  width: 100%;
+  height: 100%;
   border-radius: 6px;
   box-shadow: 0 0 80px rgba(80, 60, 180, 0.25);
   transition: filter 0.3s ease, transform 0.3s ease;
@@ -2060,13 +2090,13 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   z-index: 20;
-  padding: 16px 24px 24px;
+  padding: 8px 12px 12px;
   background: linear-gradient(to top,
       rgba(6, 6, 16, 0.95) 0%,
       rgba(6, 6, 16, 0.6) 60%,
       transparent 100%);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  /* backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px); */
 }
 
 /* ── 进度条 ───────────────────────────────────────────────────────────────── */
@@ -2158,9 +2188,52 @@ onUnmounted(() => {
   backdrop-filter: blur(8px);
 }
 
+/* ── 快进快退按钮 ─────────────────────────────────────────────────────────── */
+.seek-buttons-popup {
+  display: flex;
+  gap: 4px;
+  border-radius: 8px;
+  padding: 6px 8px;
+  backdrop-filter: blur(12px);
+  z-index: 100;
+}
+
+.seek-btn {
+  margin: 2px 4px;
+  color: #c4b5fd;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 42px;
+  text-align: center;
+  align-items: center;
+}
+
+.seek-btn:hover {
+  background: rgba(99, 102, 241, 0.5);
+  color: #fff;
+  transform: scale(1.1);
+}
+
+.seek-btn:active {
+  transform: scale(0.95);
+}
+
+.seek-btn.seek-btn-rewind {
+  color: #fca5a5;
+}
+
+.seek-btn.seek-btn-rewind:hover {
+  background: rgba(239, 68, 68, 0.5);
+  color: #fff;
+}
+
 /* ── 控制按钮行 ──────────────────────────────────────────────────────────── */
 .control-buttons {
   display: flex;
+  justify-content: space-between;
   align-items: center;
   gap: 6px;
 }
@@ -2220,9 +2293,11 @@ onUnmounted(() => {
 /* ── 搜索侧面板 ──────────────────────────────────────────────────────────── */
 .search-panel {
   position: relative;
-  height: 800px;
-  margin: 5% auto;
-  width: 80%;
+  height: 88vh;
+  margin: 20px auto;
+  width: 88%;
+  border-radius: 20px;
+  border: #10b981 1px solid;
   /* margin-top: 78px; */
   background: rgba(9, 9, 22, 0.92);
   backdrop-filter: blur(32px);
@@ -2495,7 +2570,6 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 3px;
-  font-size: 10px;
   color: rgba(165, 180, 252, 0.55);
 }
 
