@@ -400,7 +400,7 @@
               </q-chip>
             </div>
             <!-- 图片 -->
-            <q-img fit="fill" lazy="true" :class="{
+            <q-img fit="fill" :class="{
               'large-result-image': isLarge,
               'medium-result-image': isMedium,
               'small-result-image': isSmall,
