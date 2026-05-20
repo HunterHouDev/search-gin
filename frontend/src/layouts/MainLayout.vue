@@ -84,7 +84,7 @@
     </q-drawer>
     <q-page-container>
       <router-view v-slot="{ Component, route }">
-        <transition name="page-fade" mode="out-in">
+        <transition name="page-fade" mode="out-in" :css="false">
           <component :is="Component" :key="route.path" />
         </transition>
       </router-view>

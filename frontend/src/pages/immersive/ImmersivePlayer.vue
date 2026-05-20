@@ -200,6 +200,7 @@
       <video ref="videoRef" id="immersiveVideo" :src="currentVideoSrc" :poster="currentPoster" preload="auto" playsinline
         @timeupdate="onTimeUpdate" @loadedmetadata="onMetadataLoaded" @play="onPlay"
         @pause="onPause" @ended="onEnded" @waiting="onWaiting" @canplay="onCanPlay" @error="onVideoError"
+        :muted="false"
         :style="videoStyle"></video>
       <!-- 缓冲 loading 遮罩 -->
       <transition name="fade">
@@ -979,9 +980,15 @@ function loadVideo(src, name, poster, item = {}) {
   currentData.value = item;
 
   if (videoRef.value) {
+    // 先设置音量和取消静音，再开始播放
+    videoRef.value.muted = false;
+    videoRef.value.volume = volume.value > 0 ? volume.value : 0.8;
+    
     // 监听 loadedmetadata，元数据加载完成后再播放
     videoRef.value.addEventListener('loadedmetadata', () => {
-      videoRef.value.volume = volume.value;
+      // 确保元数据加载后音量仍然正确
+      videoRef.value.muted = false;
+      videoRef.value.volume = volume.value > 0 ? volume.value : 0.8;
 
       // 程序化 .play()，移动端必须在用户手势下调用才能带声音
       videoRef.value.play().catch((e) => {
@@ -1278,7 +1285,42 @@ function onEnded() {
 
 // 添加视频错误处理
 function onVideoError(e) {
-  console.error('Video playback error:', e);
+  const video = e.target;
+  // 如果视频 src 为空，则忽略错误（页面初始化时可能出现）
+  if (!currentVideoSrc.value) {
+    return;
+  }
+  
+  const error = video?.error;
+  let errorMsg = '视频播放失败';
+  
+  if (error) {
+    switch (error.code) {
+      case 1: // MEDIA_ERR_ABORTED
+        errorMsg = '视频加载被中断';
+        break;
+      case 2: // MEDIA_ERR_NETWORK
+        errorMsg = '网络错误，请检查网络连接';
+        break;
+      case 3: // MEDIA_ERR_DECODE
+        errorMsg = '视频解码失败，文件可能损坏';
+        break;
+      case 4: // MEDIA_ERR_SRC_NOT_SUPPORTED
+        errorMsg = '视频格式不支持';
+        break;
+      default:
+        errorMsg = `视频播放失败 (错误码: ${error.code})`;
+    }
+    // 添加具体的错误信息
+    if (error.message) {
+      console.error('Video playback error:', error.code, error.message);
+    } else {
+      console.error('Video playback error:', error.code, errorMsg);
+    }
+  } else {
+    console.error('Video playback error:', e);
+  }
+  
   if (currentInfoHash.value) {
     // 磁力链播放失败，提示等待缓冲
     $q.notify({
@@ -1288,7 +1330,7 @@ function onVideoError(e) {
       timeout: 3000,
     });
   } else {
-    $q.notify({ type: 'negative', message: '视频播放失败', position: 'top-right' });
+    $q.notify({ type: 'negative', message: errorMsg, position: 'top-right' });
   }
 }
 
@@ -2557,6 +2599,7 @@ onUnmounted(() => {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  line-clamp: 2;
   overflow: hidden;
 }
 
@@ -2732,6 +2775,23 @@ onUnmounted(() => {
 
   .time-display {
     font-size: 0.75rem;
+  }
+
+  /* 窄屏时控制按钮分三行布局 */
+  .control-buttons {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .ctrl-left,
+  .ctrl-right,
+  .seek-buttons-popup {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .seek-buttons-popup {
+    order: -1;
   }
 }
 

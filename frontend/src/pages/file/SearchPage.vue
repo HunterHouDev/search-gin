@@ -326,24 +326,9 @@
     <!-- 页面内容 -->
     <q-page-container class="scrollRef">
       <q-page>
-        <!-- 加载骨架屏 -->
-        <div v-if="isFetching" class="row q-gutter-sm justify-start q-pl-sm">
-          <q-card v-for="n in (systemProperty.showStyle === 'sm' ? 6 : 12)" :key="n"
-            class="search-result-card"
-            :class="{
-              'large-result': isLarge,
-              'medium-result': isMedium,
-              'small-result': isSmall,
-            }">
-            <q-skeleton height="180px" animation="wave" />
-            <q-card-section>
-              <q-skeleton type="text" width="60%" />
-              <q-skeleton type="text" width="40%" />
-            </q-card-section>
-          </q-card>
-        </div>
+
         <!-- 卡片列表 -->
-        <div v-else class="row q-gutter-sm justify-start q-pl-sm">
+        <div class="row q-gutter-sm justify-start q-pl-sm">
           <q-card v-for="item in view.resultData.Data" :key="item.Id" :id="item.Id"
             v-bind:class="{
               'large-result': isLarge,

@@ -198,6 +198,7 @@ const props = defineProps({
   currentId: { type: String, default: '' },
   currentTime: { type: String, default: '00:00:00' },
   isPlaying: { type: Boolean, default: false },
+  isSmall: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['play', 'close', 'keyword', 'edit', 'delete']);
@@ -205,7 +206,7 @@ const emit = defineEmits(['play', 'close', 'keyword', 'edit', 'delete']);
 // ── 状态 ───────────────────────────────────────────────────────────────
 const $q = useQuasar();
 const systemProperty = useSystemProperty();
-const isSmall = computed(() => $q.screen.lt.sm);
+const isSmall = computed(() => $q.screen.lt.sm || props.isSmall);
 
 const activeTab = ref('search');
 const searchLoading = ref(false);
@@ -275,7 +276,7 @@ function pageNoGoto() {
 
 async function setMovieType(item: any, type: string) {
   try {
-    await ResetMovieType({ Id: item.Id, MovieType: type });
+    await ResetMovieType(item.Id, type);
     item.MovieType = type;
   } catch (e) {
     console.error('ResetMovieType failed:', e);
@@ -383,8 +384,9 @@ defineExpose({ fetchSearch });
 .search-panel {
   position: relative;
   height: 88vh;
-  margin: 20px auto;
+  max-height: calc(100vh - 40px);
   width: 88%;
+  max-width: 1200px;
   border-radius: 20px;
   border: #10b981 1px solid;
   background: rgba(9, 9, 22, 0.92);
@@ -573,6 +575,7 @@ defineExpose({ fetchSearch });
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  line-clamp: 2;
   overflow: hidden;
 }
 

@@ -160,6 +160,7 @@
   <!-- SearchPanel 搜索面板 -->
   <SearchPanel
     ref="searchPanelRef"
+    isSmall
     :visible="view.showDrawer"
     :currentId="view.currentData.Id"
     :currentTime="view.currentTime"
@@ -169,7 +170,7 @@
     @keyword="onSearchPanelKeyword"
     @edit="onSearchPanelEdit"
     @delete="onSearchPanelDelete"
-    style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 2000; background: rgba(0,0,0,0.6)"
+    style="position: fixed; inset: 0; display: flex; justify-content: center; align-items: center; z-index: 2000; background: rgba(0,0,0,0.6)"
   />
   <FileEdit ref="fileEditRef" />
 </template>
@@ -193,7 +194,7 @@ import VideoVolumnBtn from 'components/VideoVolumnBtn.vue';
 import PlayerSetting from 'components/PlayerSetting.vue';
 import DeleteBtn from 'components/DeleteBtn.vue';
 import SearchPanel from './SearchPanel.vue';
-import FileEdit from '../file/components/FileEditDialog.vue';
+import FileEdit from 'pages/file/components/FileEditDialog.vue';
 import TagPop from './TagPop.vue';
 
 const $q = useQuasar();

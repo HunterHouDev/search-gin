@@ -1,0 +1,18 @@
+{
+    // 使用 IntelliSense 了解相关属性。 
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        
+        {
+            "name": "Launch Package",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}",   // 指向工作区根目录，即 D:\code\search-gin
+            "cwd": "${workspaceFolder}",
+            "checkGoVersion": false            // 如果你还遇到 Delve 版本问题，保留此行
+        }
+    ]
+}

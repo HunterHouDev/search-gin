@@ -9,6 +9,8 @@
       borderRadius: '8px',
       maxWidth: '100vw',
       maxHeight: isMobile() ? '80vh' : '90vh',
+      justifyContent: 'center',
+      alignItems: 'center',
     }"
   >
     <div
@@ -46,36 +48,21 @@
           transform: `${systemProperty.videoOptions.rotate}`,
         }"
       ></video>
-      <q-page-sticky
-        v-show="view.showDrawer"
-        position="top-right"
-        :offset="[0, -50]"
-        style="
-          width: 440px;
-          background-color: black;
-          z-index: 999;
-          overflow: auto;
-          height: auto;
-          max-height: 80vh;
-          max-width: 99vw;
-        "
-        :style="{
-          height: view.videoHeight + 'px',
-        }"
-      >
+      <div v-if="view.showDrawer" style="position: fixed; inset: 0; display: flex; justify-content: center; align-items: center; z-index: 2000; background: rgba(0,0,0,0.6)">
         <SearchPanel
           ref="searchPanelRef"
           :visible="view.showDrawer"
           :currentId="view.currentData.Id"
           :currentTime="view.currentVideoTime"
           :isPlaying="systemProperty.playerRunning"
+          isSmall
           @play="onSearchPanelPlay"
           @close="view.showDrawer = false"
           @keyword="onSearchPanelKeyword"
           @edit="onSearchPanelEdit"
           @delete="onSearchPanelDelete"
         />
-      </q-page-sticky>
+      </div>
       <FileEdit ref="fileEditRef" />
       <q-page-sticky position="top-left" :offset="[0, -50]">
         <div class="q-gutter-sm row justify-start">
@@ -485,18 +472,14 @@ const forwardTime = (time) => {
   }
 };
 
-const videoSideOpen = (params) => {
-  const { item } = params;
-  openVideo(item);
-};
-
 const onSearchPanelPlay = (item) => {
   openVideo({ item, queryParam: null });
   view.showDrawer = false;
 };
 
-const onSearchPanelKeyword = (keyword) => {
+const onSearchPanelKeyword = (_keyword) => {
   // 暂时关闭面板
+  console.log('onSearchPanelKeyword', _keyword);
 };
 
 const onSearchPanelEdit = (item) => {
