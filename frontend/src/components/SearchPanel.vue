@@ -480,7 +480,6 @@ defineExpose({ fetchSearch });
   background: rgba(22, 22, 45, 0.55);
   border: 1px solid rgba(99, 102, 241, 0.12);
   cursor: pointer;
-  transition: background 0.25s, border-color 0.25s, box-shadow 0.25s, transform 0.2s;
   position: relative;
   overflow: hidden;
   width: calc(100% - 20px);
