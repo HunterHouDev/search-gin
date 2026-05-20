@@ -196,7 +196,10 @@
     </transition>
 
     <!-- 视频区域 -->
-    <div class="video-wrapper" v-show="videoLoaded">
+    <div class="video-wrapper" v-show="videoLoaded"
+      @touchstart="onContainerTouchStart"
+      @touchend="onContainerTouchEnd"
+      @click="onDoubleTap">
       <video ref="videoRef" id="immersiveVideo" :src="currentVideoSrc" :poster="currentPoster" preload="auto" playsinline
         @timeupdate="onTimeUpdate" @loadedmetadata="onMetadataLoaded" @play="onPlay"
         @pause="onPause" @ended="onEnded" @waiting="onWaiting" @canplay="onCanPlay" @error="onVideoError"
@@ -302,10 +305,12 @@
     <!-- 底部控制面板 -->
     <transition name="slide-up">
       <div class="glass-panel" v-show="!controlsHidden || !isPlaying" @mouseenter="showControls"
-        @mouseleave="startHideTimer" @click.stop>
+        @mouseleave="startHideTimer" @click.stop @touchstart="touchControl = true" @touchend="touchControl = false">
         <!-- 进度条 -->
-        <div class="progress-container" ref="progressBar" @mousedown="startSeek" @mousemove="onProgressHover"
-          @mouseleave="hideTooltip" @contextmenu.prevent="onProgressContextMenu">
+        <div class="progress-container" ref="progressBar" 
+          @mousedown="startSeek" @mousemove="onProgressHover"
+          @mouseleave="hideTooltip" @contextmenu.prevent="onProgressContextMenu"
+          @touchstart.stop="onSeekBarTouchStart" @touchmove.stop="onSeekBarTouchMove" @touchend.stop="onSeekBarTouchEnd">
           <div class="progress-track">
             <!-- 缓冲进度 -->
             <div class="progress-buffered" :style="{ width: bufferedPercent + '%' }"></div>
@@ -314,7 +319,7 @@
               <div class="progress-glow"></div>
             </div>
             <!-- 拖拽手柄 -->
-            <div class="progress-thumb" :style="{ left: progressPercent + '%' }" :class="{ seeking: isSeeking }"></div>
+            <div class="progress-thumb" :style="{ left: progressPercent + '%' }" :class="{ seeking: isSeeking || touchSeekBar }"></div>
           </div>
           <!-- 时间悬浮提示 -->
           <div class="progress-tooltip" v-if="hoverTime !== null" :style="{ left: hoverX + 'px' }">
@@ -324,7 +329,7 @@
         </div>
 
         <!-- 控制按钮行 -->
-        <div class="control-buttons">
+        <div class="control-buttons mobile-compact">
           <!-- 右侧：音量 + 设置 + 剪辑 + 标签 + 全屏 -->
           <div class="ctrl-right">
             <q-btn flat round color="white" size="md" :icon="isFullscreen ? 'fullscreen_exit' : 'fullscreen'"
@@ -1468,6 +1473,102 @@ function resetControlsTimer() {
   }, 3000);
 }
 
+// ── 移动端触摸手势 ─────────────────────────────────────────────────────────
+let touchStartX = 0;
+let touchStartY = 0;
+let touchStartTime = 0;
+let touchControl = ref(false); // 是否在触摸控制条
+let touchSeekBar = ref(false); // 是否在触摸进度条
+
+function onContainerTouchStart(e) {
+  if (e.touches.length !== 1) return;
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+  touchStartTime = videoRef.value?.currentTime || 0;
+}
+
+function onContainerTouchEnd(e) {
+  const touch = e.changedTouches[0];
+  const deltaX = touch.clientX - touchStartX;
+  const deltaY = touch.clientY - touchStartY;
+  const absDeltaX = Math.abs(deltaX);
+  const absDeltaY = Math.abs(deltaY);
+
+  // 如果是点击控制区域，不处理手势
+  if (touchControl.value) return;
+
+  // 判断是否为点击（移动距离小）
+  if (absDeltaX < 30 && absDeltaY < 30) {
+    // 点击：切换控制栏显示
+    if (controlsHidden.value) {
+      showControls();
+    } else {
+      togglePlay();
+    }
+    return;
+  }
+
+  // 判断滑动方向：水平滑动快进快退，垂直滑动音量/亮度
+  if (absDeltaX > absDeltaY && absDeltaX > 50) {
+    // 水平滑动：快进快退（滑动屏幕宽度的50% = 10秒）
+    const seekDelta = (deltaX / window.innerWidth) * 20;
+    if (videoRef.value) {
+      videoRef.value.currentTime = Math.max(0, Math.min(
+        videoRef.value.duration,
+        touchStartTime + seekDelta
+      ));
+    }
+    $q.notify({
+      type: 'info',
+      message: `快${deltaX > 0 ? '进' : '退'} ${seekDelta.toFixed(0)}秒`,
+      position: 'center',
+      timeout: 800,
+    });
+  }
+}
+
+function onSeekBarTouchStart(e) {
+  touchSeekBar.value = true;
+  e.stopPropagation();
+}
+
+function onSeekBarTouchMove(e) {
+  if (!touchSeekBar.value || !progressBar.value) return;
+  const touch = e.touches[0];
+  const rect = progressBar.value.getBoundingClientRect();
+  const pct = Math.min(1, Math.max(0, (touch.clientX - rect.left) / rect.width));
+  if (videoRef.value) {
+    videoRef.value.currentTime = pct * videoRef.value.duration;
+  }
+  e.stopPropagation();
+}
+
+function onSeekBarTouchEnd(e) {
+  touchSeekBar.value = false;
+  e.stopPropagation();
+}
+
+// 双击左右区域快进快退
+let lastTap = 0;
+function onDoubleTap(e) {
+  const now = Date.now();
+  const rect = e.target.getBoundingClientRect();
+  const tapX = e.clientX - rect.left;
+  const halfWidth = rect.width / 2;
+  
+  if (now - lastTap < 300) {
+    // 双击
+    if (tapX < halfWidth) {
+      seekBySeconds(-10, false);
+    } else {
+      seekBySeconds(10, false);
+    }
+    lastTap = 0;
+  } else {
+    lastTap = now;
+  }
+}
+
 function onMouseMove() {
   showControls();
   if (systemProperty.SettingInfo.Pages && systemProperty.SettingInfo.Pages.length > 0) {
@@ -2168,8 +2269,8 @@ onUnmounted(() => {
       rgba(6, 6, 16, 0.95) 0%,
       rgba(6, 6, 16, 0.6) 60%,
       transparent 100%);
-  /* backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px); */
+  /* touch-action 支持触摸滑动 */
+  touch-action: none;
 }
 
 /* ── 进度条 ───────────────────────────────────────────────────────────────── */
@@ -2727,7 +2828,23 @@ onUnmounted(() => {
 /* ── 响应式 ───────────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .glass-panel {
-    padding: 12px 16px 20px;
+    padding: 10px 12px 24px;
+  }
+
+  /* 移动端进度条更大 */
+  .progress-track {
+    height: 8px !important;
+  }
+  
+  .progress-container {
+    height: 40px;
+    margin-bottom: 8px;
+  }
+  
+  .progress-thumb {
+    width: 20px !important;
+    height: 20px !important;
+    transform: translate(-50%, -50%) scale(1) !important;
   }
 
   .volume-slider {
@@ -2777,21 +2894,63 @@ onUnmounted(() => {
     font-size: 0.75rem;
   }
 
-  /* 窄屏时控制按钮分三行布局 */
-  .control-buttons {
-    flex-direction: column;
-    gap: 8px;
+  /* 移动端紧凑布局：单行排列 */
+  .control-buttons.mobile-compact {
+    flex-direction: row;
+    justify-content: space-between;
+    gap: 4px;
   }
 
   .ctrl-left,
-  .ctrl-right,
-  .seek-buttons-popup {
-    width: 100%;
-    justify-content: center;
+  .ctrl-right {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  
+  /* 隐藏截图等非必要按钮 */
+  .ctrl-left .q-btn:nth-child(-n+2) {
+    display: none;
   }
 
   .seek-buttons-popup {
-    order: -1;
+    display: none; /* 移动端通过滑动手势控制 */
+  }
+
+  /* 移动端按钮更大 */
+  .ctrl-left .q-btn,
+  .ctrl-right .q-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  
+  .play-btn {
+    min-width: 56px !important;
+    min-height: 56px !important;
+  }
+  
+  .play-btn .q-icon {
+    font-size: 32px;
+  }
+
+  .volume-group .volume-slider {
+    display: none;
+  }
+}
+
+/* 极小屏幕 (< 400px) */
+@media (max-width: 400px) {
+  .glass-panel {
+    padding: 8px 8px 28px;
+  }
+  
+  .ctrl-left .q-btn:nth-child(-n+3) {
+    display: none;
+  }
+  
+  .time-display {
+    font-size: 0.7rem;
+    margin-left: 4px;
   }
 }
 
