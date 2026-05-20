@@ -108,7 +108,17 @@
         </div>
       </q-header>
       <q-page-container class="scroll">
-        <div
+        <!-- 加载骨架屏 -->
+        <div v-if="isLoading" style="display: flex; flex-direction: row; flex-wrap: wrap">
+          <q-card v-for="n in 12" :key="n" class="q-ma-sm example-item">
+            <q-skeleton height="232px" animation="wave" />
+            <q-card-section>
+              <q-skeleton type="text" width="60%" />
+            </q-card-section>
+          </q-card>
+        </div>
+        <!-- 卡片列表 -->
+        <div v-else
           style="display: flex; flex-direction: row; flex-wrap: wrap"
           id="scrollTargetElement"
         >
@@ -247,6 +257,8 @@ const scrollTop = () => {
   }
 };
 
+const isLoading = ref(false);
+
 const { push } = useRouter();
 const fileEditRef = ref(null);
 
@@ -267,7 +279,7 @@ const view = reactive({
     SortField: 'Cnt',
     SortType: 'desc',
   },
-  resultData: {},
+  resultData: { Data: [] },
 });
 
 const focusEvent = (e) => {
@@ -306,8 +318,10 @@ const nextPage = (n) => {
 
 const fetchSearch = async () => {
   scrollTop();
+  isLoading.value = true;
   const { data } = await QueryActressList(view.queryParam);
-  view.resultData = data;
+  view.resultData = { ...data, Data: data.Data || [] };
+  isLoading.value = false;
 };
 
 const themeStyle = computed(() => {

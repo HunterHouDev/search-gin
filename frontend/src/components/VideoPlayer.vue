@@ -138,6 +138,7 @@
     @playing="systemProperty.playerRunning = true"
     @pause="systemProperty.playerRunning = false"
     @loadedmetadata="checkSubtitles"
+    @error="onVideoError"
     style="width: -webkit-fill-available; background-color: rgba(0, 0, 0, 0.9)"
     :style="{
       position: isMobile ? '' : 'fixed',
@@ -156,39 +157,28 @@
       @error="handleSubtitleError"
     />
   </video>
-  <q-page-sticky
-    position="top-left"
-    :offset="[10, -100]"
-    :style="{
-      zIndex: 9,
-      height: view.videoHeight * 0.8 + 'px',
-      width: isMobile ? '98vw' : view.videoWidth * 0.4 + 'px',
-    }"
-  >
-    <div
-      style="z-index: 9; margin-top: 10rem"
-      v-show="view.showDrawer"
-      :style="{ width: isMobile ? '98vw' : view.videoWidth * 0.45 + 'px' }"
-    >
-      <VideoListSide
-        rightClose
-        :detailHeight="view.videoHeight * 0.9"
-        :currentId="view.currentData.Id"
-        :currentTime="view.currentTime"
-        @open-video="videoSideOpen"
-        @closebtn="closeDrawer"
-        @forward-time="forwardTime"
-        ref="playerlist"
-      />
-    </div>
-  </q-page-sticky>
+  <!-- SearchPanel 搜索面板 -->
+  <SearchPanel
+    ref="searchPanelRef"
+    :visible="view.showDrawer"
+    :currentId="view.currentData.Id"
+    :currentTime="view.currentTime"
+    :isPlaying="systemProperty.playerRunning"
+    @play="onSearchPanelPlay"
+    @close="closeDrawer"
+    @keyword="onSearchPanelKeyword"
+    @edit="onSearchPanelEdit"
+    @delete="onSearchPanelDelete"
+    style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 2000; background: rgba(0,0,0,0.6)"
+  />
+  <FileEdit ref="fileEditRef" />
 </template>
 
 <script setup>
 import { useQuasar } from 'quasar';
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useSystemProperty } from 'stores/System';
-import { CutImage } from 'components/api/searchAPI';
+import { CutImage, DeleteFile } from 'components/api/searchAPI';
 import { VideoClass } from 'components/utils/video';
 import {
   getFileStream,
@@ -202,7 +192,8 @@ import VideoCutParam from 'components/VideoCutParam.vue';
 import VideoVolumnBtn from 'components/VideoVolumnBtn.vue';
 import PlayerSetting from 'components/PlayerSetting.vue';
 import DeleteBtn from 'components/DeleteBtn.vue';
-import VideoListSide from 'components/VideoListSide.vue';
+import SearchPanel from './SearchPanel.vue';
+import FileEdit from '../file/components/FileEditDialog.vue';
 import TagPop from './TagPop.vue';
 
 const $q = useQuasar();
@@ -217,7 +208,8 @@ const props = defineProps({
 
 const systemProperty = useSystemProperty();
 const vue3VideoPlayRef = ref(null);
-const playerlist = ref(null);
+const searchPanelRef = ref(null);
+const fileEditRef = ref(null);
 const videoClass = new VideoClass('videoPlayerID');
 let animationFrameId = null;
 let currentItemId = null;
@@ -253,8 +245,7 @@ const showDrawerFn = () => {
     view.showDrawer = false;
   } else {
     view.showDrawer = true;
-    console.log('refreshData', playerlist.value);
-    playerlist.value?.refreshData();
+    searchPanelRef.value?.fetchSearch();
   }
 };
 
@@ -283,12 +274,13 @@ const openVideo = async (item) => {
   view.videoUrl = getFileStream(item.Id);
   view.videoPoster = getJpg(item.Id);
   view.videoSubtitles = getVideoSrt(item.Srt);
-  setTimeout(() => {
+
+  // 监听 loadedmetadata 事件，src 加载完成后才操作 DOM
+  const handleLoaded = () => {
+    const videoLocation = systemProperty.getPlayerLocation(item.Id);
     videoClass.play();
     view.showVolumnBtn = true;
     videoClass.volumeUpdate(systemProperty.videoOptions.volume);
-    const videoLocation = systemProperty.getPlayerLocation(item.Id);
-    console.log('time-left', videoClass.duration() - videoLocation);
     if (
       videoLocation &&
       systemProperty.playerReLocation &&
@@ -297,7 +289,9 @@ const openVideo = async (item) => {
       videoClass.timeUpdate(videoLocation);
     }
     setVideoWidth();
-  }, 500);
+    vue3VideoPlayRef.value?.removeEventListener('loadedmetadata', handleLoaded);
+  };
+  vue3VideoPlayRef.value?.addEventListener('loadedmetadata', handleLoaded);
 
   showProgress();
   setVideoWidth();
@@ -306,7 +300,25 @@ const openVideo = async (item) => {
 const curImage = async () => {
   showDrawerFn();
   await CutImage(view.currentData.Id, 'shot', view.currentTime, false);
-  playerlist.value?.refreshData(2);
+  searchPanelRef.value?.fetchSearch();
+};
+
+const onSearchPanelPlay = (item) => {
+  openVideo(item);
+  closeDrawer();
+};
+
+const onSearchPanelKeyword = (keyword) => {
+  // 可在搜索面板内按关键词继续搜索，这里暂时关闭面板
+};
+
+const onSearchPanelEdit = (item) => {
+  fileEditRef.value?.open(item);
+};
+
+const onSearchPanelDelete = async (item) => {
+  await DeleteFile(item.Id);
+  searchPanelRef.value?.fetchSearch();
 };
 
 const forwardTime = (n) => {
@@ -365,6 +377,11 @@ const nextOne = (step) => {
 
 const handleSubtitleError = (e) => {
   console.error('字幕加载失败:', e);
+};
+
+const onVideoError = (e) => {
+  console.error('视频播放失败:', e);
+  $q.notify({ type: 'negative', message: '视频播放失败', position: 'top' });
 };
 
 const checkSubtitles = () => {

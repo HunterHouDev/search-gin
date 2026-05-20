@@ -63,17 +63,20 @@
           height: view.videoHeight + 'px',
         }"
       >
-        <VideoListSide
-          rightClose
-          :detailHeight="view.videoHeight"
+        <SearchPanel
+          ref="searchPanelRef"
+          :visible="view.showDrawer"
           :currentId="view.currentData.Id"
           :currentTime="view.currentVideoTime"
-          @open-video="videoSideOpen"
-          @closebtn="view.showDrawer = false"
-          @forward-time="forwardTime"
-          ref="playerlist"
+          :isPlaying="systemProperty.playerRunning"
+          @play="onSearchPanelPlay"
+          @close="view.showDrawer = false"
+          @keyword="onSearchPanelKeyword"
+          @edit="onSearchPanelEdit"
+          @delete="onSearchPanelDelete"
         />
       </q-page-sticky>
+      <FileEdit ref="fileEditRef" />
       <q-page-sticky position="top-left" :offset="[0, -50]">
         <div class="q-gutter-sm row justify-start">
           <q-btn
@@ -365,13 +368,15 @@ import { isMobile } from 'src/boot/platform';
 import { getFileStream, getJpg } from 'components/utils/images';
 import { VideoClass } from 'components/utils/video';
 import { parseTime, formatTitle } from 'components/utils';
+import { DeleteFile } from 'components/api/searchAPI';
 import { onKeyStroke, useDebounceFn, useClipboard } from '@vueuse/core';
 
 import PlayerSetting from 'components/PlayerSetting.vue';
 import VideoCutParam from 'components/VideoCutParam.vue';
 import EditVideoTag from 'components/EditVideoTag.vue';
 import VideoTimeBar from 'components/VideoTimeBar.vue';
-import VideoListSide from 'src/components/VideoListSide.vue';
+import SearchPanel from 'components/SearchPanel.vue';
+import FileEdit from 'src/pages/file/components/FileEditDialog.vue';
 import VideoVolumnBtn from 'components/VideoVolumnBtn.vue';
 import DeleteBtn from 'components/DeleteBtn.vue';
 
@@ -388,7 +393,8 @@ const hoverPlayer = computed(() => {
 let animationFrame = null;
 const systemProperty = useSystemProperty();
 let showProgress = null;
-const playerlist = ref(null);
+const searchPanelRef = ref(null);
+const fileEditRef = ref(null);
 const view = reactive({
   showDrawer: false,
   showExtraInfo: true,
@@ -482,6 +488,24 @@ const forwardTime = (time) => {
 const videoSideOpen = (params) => {
   const { item } = params;
   openVideo(item);
+};
+
+const onSearchPanelPlay = (item) => {
+  openVideo({ item, queryParam: null });
+  view.showDrawer = false;
+};
+
+const onSearchPanelKeyword = (keyword) => {
+  // 暂时关闭面板
+};
+
+const onSearchPanelEdit = (item) => {
+  fileEditRef.value?.open(item);
+};
+
+const onSearchPanelDelete = async (item) => {
+  await DeleteFile(item.Id);
+  searchPanelRef.value?.fetchSearch();
 };
 
 const moveFab = (ev) => {
@@ -600,6 +624,8 @@ const openVideo = async (params) => {
       videoElement.focus();
     }, 200);
 
+    // 取消旧的 RAF 循环，防止重复调用 openVideo 导致的 RAF 泄漏
+    cancelAnimationFrame(animationFrame);
     showProgress = () => {
       if (view.videoUrl) {
         const progress = parseInt(
@@ -627,10 +653,6 @@ const openVideo = async (params) => {
     frameWebFullscreen();
   }
   videoWidthDebounce();
-  const timeo = setTimeout(() => {
-    playerlist.value?.refreshData();
-    clearTimeout(timeo);
-  }, 2000);
 
   emmits('chooseData', item);
 };
@@ -667,16 +689,6 @@ const requestPiP = () => {
   isPip.value = !isPip.value;
 };
 
-const time1 = setTimeout(() => {
-  document
-    .getElementById('hoverVideoID')
-    ?.addEventListener('leavepictureinpicture', () => {
-      isPip.value = false;
-      hoverPlayer.value.play();
-    });
-  clearTimeout(time1);
-}, 3000);
-
 const emmits = defineEmits(['prevOne', 'nextOne', 'close', 'chooseData']);
 
 const prevOne = async () => {
@@ -691,6 +703,13 @@ const nextOne = async () => {
 
 onMounted(() => {
   systemProperty.PlayingMovie = {};
+  // PiP 事件监听必须在 DOM 就绪后注册
+  document
+    .getElementById('hoverVideoID')
+    ?.addEventListener('leavepictureinpicture', () => {
+      isPip.value = false;
+      hoverPlayer.value.play();
+    });
 });
 
 defineExpose({

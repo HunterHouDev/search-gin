@@ -197,8 +197,8 @@
 
     <!-- 视频区域 -->
     <div class="video-wrapper" v-show="videoLoaded">
-      <video ref="videoRef" id="immersiveVideo" :src="currentVideoSrc" :poster="currentPoster" preload="auto" autoplay
-        playsinline crossorigin="anonymous" @timeupdate="onTimeUpdate" @loadedmetadata="onMetadataLoaded" @play="onPlay"
+      <video ref="videoRef" id="immersiveVideo" :src="currentVideoSrc" :poster="currentPoster" preload="auto" playsinline
+        @timeupdate="onTimeUpdate" @loadedmetadata="onMetadataLoaded" @play="onPlay"
         @pause="onPause" @ended="onEnded" @waiting="onWaiting" @canplay="onCanPlay" @error="onVideoError"
         :style="videoStyle"></video>
       <!-- 缓冲 loading 遮罩 -->
@@ -982,6 +982,11 @@ function loadVideo(src, name, poster, item = {}) {
     if (videoRef.value) {
       videoRef.value.volume = volume.value;
 
+      // 程序化 .play()，移动端必须在用户手势下调用才能带声音
+      videoRef.value.play().catch((e) => {
+        console.warn('Autoplay blocked on mobile, user interaction needed:', e.message);
+      });
+
       // 确保音频上下文正常工作
       if (audioContext && audioContext.state === 'suspended') {
         audioContext
@@ -1258,7 +1263,7 @@ function onEnded() {
 // 添加视频错误处理
 function onVideoError(e) {
   console.error('Video playback error:', e);
-  // $q.notify({ type: 'negative', message: '视频播放失败', position: 'top' });
+  $q.notify({ type: 'negative', message: '视频播放失败', position: 'top-right' });
 }
 
 function onTimeUpdate() {
