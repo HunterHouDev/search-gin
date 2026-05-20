@@ -610,10 +610,11 @@ const openVideo = async (params) => {
   const videoElement = document.getElementById('hoverVideoID');
   const videoLocation = systemProperty.getPlayerLocation(item.Id);
   if (videoElement) {
-    videoElement.startTime = 5;
     videoElement.volume = systemProperty.videoOptions?.volume;
     videoElement.loop = systemProperty.videoOptions?.loop;
-    setTimeout(() => {
+
+    // 监听 loadedmetadata，确保视频元数据加载完成后再设置 currentTime
+    videoElement.addEventListener('loadedmetadata', () => {
       if (
         videoLocation &&
         systemProperty.playerReLocation &&
@@ -622,7 +623,7 @@ const openVideo = async (params) => {
         videoElement.currentTime = videoLocation;
       }
       videoElement.focus();
-    }, 200);
+    });
 
     // 取消旧的 RAF 循环，防止重复调用 openVideo 导致的 RAF 泄漏
     cancelAnimationFrame(animationFrame);

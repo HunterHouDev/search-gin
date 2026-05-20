@@ -978,8 +978,9 @@ function loadVideo(src, name, poster, item = {}) {
   videoLoaded.value = true;
   currentData.value = item;
 
-  setTimeout(() => {
-    if (videoRef.value) {
+  if (videoRef.value) {
+    // 监听 loadedmetadata，元数据加载完成后再播放
+    videoRef.value.addEventListener('loadedmetadata', () => {
       videoRef.value.volume = volume.value;
 
       // 程序化 .play()，移动端必须在用户手势下调用才能带声音
@@ -1003,8 +1004,8 @@ function loadVideo(src, name, poster, item = {}) {
       }
 
       if (!animationFrameId) animate();
-    }
-  }, 100);
+    });
+  }
 }
 
 // ── 磁力链 ────────────────────────────────────────────────────────────────────
@@ -1025,8 +1026,9 @@ async function submitMagnet() {
   try {
     const res = await axios.post('/api/torrent/add', { magnetURI: uri });
     console.log(res.data);
-    if (res.data?.Code === 200) {
-      const data = res.data.Data;
+    const code = res.data?.code ?? res.data?.Code;
+    const data = res.data?.data ?? res.data?.Data;
+    if (code === 200 && data) {
       currentInfoHash.value = data.infoHash;
       torrentName.value = data.name || '未知种子';
       torrentFiles.value = data.files || [];
@@ -1044,7 +1046,7 @@ async function submitMagnet() {
     } else {
       $q.notify({
         type: 'negative',
-        message: res.data?.message || '添加磁力链失败',
+        message: res.data?.message ?? res.data?.Message ?? '添加磁力链失败',
         position: 'top',
       });
       torrentLoading.value = false;
@@ -1052,7 +1054,7 @@ async function submitMagnet() {
   } catch (err) {
     $q.notify({
       type: 'negative',
-      message: '请求失败: ' + (err.response?.data?.message || err.message),
+      message: err.response?.data?.message ?? err.response?.data?.Message ?? '请求失败: ' + err.message,
       position: 'top',
     });
     torrentLoading.value = false;
@@ -1077,7 +1079,7 @@ async function playSelectedTorrentFile() {
       infoHash: currentInfoHash.value,
       filePath: selectedTorrentFile.value,
     });
-    const result = response.data?.data;
+    const result = response.data?.data ?? response.data?.Data;
     const newTask = {
       infoHash: currentInfoHash.value,
       name: torrentName.value,
@@ -1089,7 +1091,7 @@ async function playSelectedTorrentFile() {
     };
     activeDownloads.value.push(newTask);
     if (!result?.skipped) {
-      startPolling(currentInfoHash.value, newTask);
+      startPolling(currentInfoHash.value, newTask, selectedTorrentFile.value);
     }
     const streamUrl = `/api/torrent/stream/${currentInfoHash.value
       }?file=${encodeURIComponent(selectedTorrentFile.value)}`;
@@ -1105,7 +1107,7 @@ async function playSelectedTorrentFile() {
   } catch (err) {
     $q.notify({
       type: 'negative',
-      message: '启动下载失败: ' + (err.response?.data?.message || err.message),
+      message: '启动下载失败: ' + ((err.response?.data?.message ?? err.response?.data?.Message) || err.message),
       position: 'top',
     });
   }
@@ -1135,13 +1137,27 @@ function getFileIcon(fileName) {
   return 'insert_drive_file';
 }
 
-function startPolling(infoHash, task) {
+function startPolling(infoHash, task, filePath) {
   stopPolling();
+  const pollStartTime = Date.now();
+  const POLL_TIMEOUT_MS = 5 * 60 * 1000; // 5 分钟超时
   torrentPollTimer = setInterval(async () => {
+    // 超时检测
+    if (Date.now() - pollStartTime > POLL_TIMEOUT_MS) {
+      stopPolling();
+      $q.notify({
+        type: 'warning',
+        message: '下载超时，请检查网络或更换磁力链',
+        position: 'top',
+      });
+      return;
+    }
     try {
       const res = await axios.get(`/api/torrent/status/${infoHash}`);
-      if (res.data?.code === 200) {
-        const d = res.data.data;
+      // 兼容大小写字段
+      const d = res.data?.data ?? res.data?.Data;
+      const code = res.data?.code ?? res.data?.Code;
+      if (code === 200 && d) {
         torrentName.value = d.name;
         torrentProgress.value = d.progress;
         torrentState.value = d.state;
@@ -1153,7 +1169,7 @@ function startPolling(infoHash, task) {
         }
         if (d.progress >= 3 && !videoLoaded.value && !showTorrentFiles.value) {
           torrentState.value = '缓冲就绪，开始播放';
-          const streamUrl = `/api/torrent/stream/${infoHash}`;
+          const streamUrl = `/api/torrent/stream/${infoHash}?file=${encodeURIComponent(filePath)}`;
           const newIdx = playlist.value.findIndex((p) => p.Id === infoHash);
           currentIndex.value = newIdx;
           loadVideo(streamUrl, d.videoFile || d.name);
@@ -1263,7 +1279,17 @@ function onEnded() {
 // 添加视频错误处理
 function onVideoError(e) {
   console.error('Video playback error:', e);
-  $q.notify({ type: 'negative', message: '视频播放失败', position: 'top-right' });
+  if (currentInfoHash.value) {
+    // 磁力链播放失败，提示等待缓冲
+    $q.notify({
+      type: 'warning',
+      message: '缓冲不足，请等待下载进度增加',
+      position: 'top-right',
+      timeout: 3000,
+    });
+  } else {
+    $q.notify({ type: 'negative', message: '视频播放失败', position: 'top-right' });
+  }
 }
 
 function onTimeUpdate() {
