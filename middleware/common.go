@@ -48,6 +48,10 @@ func AuthMiddleware() gin.HandlerFunc {
 			"/login",
 			"/",
 			"/index.html",
+			"/api/file/",   // 文件流不需要token（由视频播放器使用）
+			"/api/png/",    // 图片资源
+			"/api/jpg/",    // 图片资源
+			"/api/tempimage/", // 临时图片
 		}
 		
 		// 检查是否在跳过列表中

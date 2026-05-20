@@ -59,27 +59,22 @@ export const getJpg = (Id: string) => {
 
 export const getFileStream = (id: string) => {
   const url = '/api/file/' + id;
-  if (StreamHost.length > 0) {
-    return StreamHost + url;
+  
+  // Electron 环境直接使用 localhost:10081
+  if (systemProperty.isElectron) {
+    return 'http://localhost:10081' + url;
   }
-  if (settingInfo.value.StreamHost) {
-    if (systemProperty.isElectron) {
-      ImageHost = 'http://localhost:10081';
-      return ImageHost + url;
-    }
-    if (settingInfo.value.StreamHost.indexOf(':') == 0) {
-      StreamHost =
-        window.location.protocol +
-        '//' +
-        window.location.hostname +
-        settingInfo.value.StreamHost;
-      return StreamHost + url;
-    }
-    // 为了避免将 undefined 赋值给 string 类型，使用空字符串作为默认值
-    StreamHost = settingInfo.value.StreamHost || '';
-    return StreamHost + url;
+  
+  // Web 环境优先使用相对路径（走当前端口，由 Quasar 代理转发）
+  if (!settingInfo.value.StreamHost) {
+    return url;
   }
-  return url;
+  
+  // 自定义 StreamHost 配置
+  if (settingInfo.value.StreamHost.indexOf(':') == 0) {
+    return window.location.protocol + '//' + window.location.hostname + settingInfo.value.StreamHost + url;
+  }
+  return settingInfo.value.StreamHost + url;
 };
 
 export const getTempImage = (id: string) => {

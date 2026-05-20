@@ -29,9 +29,10 @@ func BuildRouter(tempDir string) *gin.Engine {
 		}
 		config.AllowCredentials = true
 	} else {
-		// 开发环境：允许本地开发
-		config.AllowOrigins = []string{"http://localhost:8080", "http://127.0.0.1:8080", "http://localhost:9000"}
-		config.AllowCredentials = true
+		// 开发环境：允许所有 HTTP 来源（IP 地址访问需要）
+		config.AllowOrigins = []string{"*"}
+		// 注意：AllowOrigins 为 "*" 时 AllowCredentials 自动设为 false
+		// 如需携带 cookie/Authorization，前端需要配置 withCredentials
 	}
 	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Range", "Accept-Ranges", "Content-Range"}
 	config.ExposeHeaders = []string{"Content-Length", "Content-Range", "Accept-Ranges", "Content-Type"}
