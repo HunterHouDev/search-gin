@@ -644,6 +644,7 @@ func (fs *fileService) TaskExecuting() {
 	}{}
 
 	// 遍历并分类任务
+	consts.TransferTaskMutex.RLock()
 	for _, model := range consts.TransferTask {
 		switch {
 		case strings.EqualFold(model.Status, "等待"):
@@ -670,6 +671,7 @@ func (fs *fileService) TaskExecuting() {
 			}
 		}
 	}
+	consts.TransferTaskMutex.RUnlock()
 
 	// 启动任务（如果没有同类型任务在执行）
 	if len(taskGroups.executing) == 0 && len(taskGroups.todos) > 0 {
@@ -932,8 +934,10 @@ func (fs *fileService) CutImage(path string, typeImage string, start string) uti
 // ffmepgExec 执行ffmpeg命令
 func (fs *fileService) ffmepgExec(args []string, thisNow time.Time) utils.Result {
 	// 检查任务是否存在
+	consts.TransferTaskMutex.Lock()
 	task, exists := consts.TransferTask[thisNow]
 	if !exists {
+		consts.TransferTaskMutex.Unlock()
 		return utils.NewFailByMsg("任务不存在")
 	}
 
@@ -948,6 +952,7 @@ func (fs *fileService) ffmepgExec(args []string, thisNow time.Time) utils.Result
 	task.CreateTime = time.Now()
 	task.Command = ffmpegPath + " " + strings.Join(args, "  ")
 	consts.TransferTask[thisNow] = task
+	consts.TransferTaskMutex.Unlock()
 
 	utils.InfoFormat("执行命令: %v", task.Command)
 
@@ -960,6 +965,7 @@ func (fs *fileService) ffmepgExec(args []string, thisNow time.Time) utils.Result
 	// 获取命令输出
 	out, cmdErr := cmd.CombinedOutput()
 
+	consts.TransferTaskMutex.Lock()
 	// 更新任务日志
 	task.SetLog(string(out))
 	task.FinishTime = time.Now()
@@ -968,6 +974,7 @@ func (fs *fileService) ffmepgExec(args []string, thisNow time.Time) utils.Result
 	if cmdErr != nil {
 		task.SetStatus("执行失败")
 		consts.TransferTask[thisNow] = task
+		consts.TransferTaskMutex.Unlock()
 
 		utils.InfoFormat("命令执行失败: %v, 错误: %v, 参数: %v", string(out), cmdErr, args)
 		return utils.NewFailByMsg("转换失败")
@@ -976,6 +983,7 @@ func (fs *fileService) ffmepgExec(args []string, thisNow time.Time) utils.Result
 	// 执行成功
 	task.SetStatus("成功")
 	consts.TransferTask[thisNow] = task
+	consts.TransferTaskMutex.Unlock()
 
 	return utils.NewSuccessByMsg("转换成功")
 }

@@ -30,6 +30,7 @@ var TempImage = make(map[string]model.Movie)
 var TempImageMutex sync.RWMutex // 保护TempImage的并发访问
 
 var TransferTask = map[time.Time]model.TransferTaskModel{}
+var TransferTaskMutex sync.RWMutex // 保护TransferTask的并发访问
 
 // PNG Base Dictory
 const PNG = "png"

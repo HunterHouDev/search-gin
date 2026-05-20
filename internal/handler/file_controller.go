@@ -1,4 +1,4 @@
-﻿package handler
+package handler
 
 import (
 	"fmt"
@@ -339,7 +339,9 @@ func PostMerge(c *gin.Context) {
 	searchParam := model.MergeParam{}
 	err := c.Bind(&searchParam)
 	if err != nil {
-		c.JSON(http.StatusOK, err)
+		utils.InfoFormat("PostMerge 参数绑定失败: %v", err)
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数绑定失败"))
+		return
 	}
 	utils.InfoFormat("PostMerge： [%v]", searchParam)
 
@@ -348,25 +350,36 @@ func PostMerge(c *gin.Context) {
 	for _, file := range searchParam.Files {
 		curFile := service.SearchApp.FindOne(file)
 		dir = curFile.DirPath
-		// 由于 file 是字符串类型，不能直接与 nil 比较，这里假设当 file 为空字符串时进行相应处理
 		paths = append(paths, curFile.Path)
 	}
+	
+	if len(paths) == 0 {
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("没有找到要合并的文件"))
+		return
+	}
+	
 	listPath := dir + "\\list.txt"
 	file, err := os.Create(listPath)
 	if err != nil {
-		// 处理写入文件错误
 		utils.InfoFormat("创建文件 list.txt 时出错: %v", err)
+		c.JSON(http.StatusInternalServerError, utils.NewFailByMsg("创建合并列表文件失败"))
+		return
 	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			utils.InfoFormat("关闭文件 list.txt 时出错: %v", closeErr)
+		}
+	}()
 
 	for _, filePath := range paths {
-		// 原代码中 file 变量名冲突，循环中的 file 覆盖了之前定义的文件指针，这里将循环变量重命名为 filePath
 		_, err := file.WriteString("file '" + filePath + "'\n")
 		if err != nil {
-			// 处理写入文件错误
 			utils.InfoFormat("写入文件 list.txt 时出错: %v", err)
+			c.JSON(http.StatusInternalServerError, utils.NewFailByMsg("写入合并列表失败"))
+			return
 		}
 	}
-	file.Close()
+	
 	if searchParam.Dest == "" {
 		suffix := utils.GetSuffix(paths[0])
 		searchParam.Dest = dir + fmt.Sprintf("\\%d.%s", time.Now().UnixMilli(), suffix)
@@ -374,7 +387,9 @@ func PostMerge(c *gin.Context) {
 
 	task := model.NewMergeTask(paths, searchParam.Dest, listPath, searchParam.DeleteSource)
 	task.SetStatus("等待")
+	consts.TransferTaskMutex.Lock()
 	consts.TransferTask[task.CreateTime] = task
+	consts.TransferTaskMutex.Unlock()
 	c.JSON(http.StatusOK, utils.NewSuccessByMsg("任务创建成功"))
 
 }
@@ -397,12 +412,15 @@ func GetTransferToMp4(c *gin.Context) {
 	}
 
 	exists := false
+	consts.TransferTaskMutex.RLock()
 	for _, taskModel := range consts.TransferTask {
 		if taskModel.Path == movieFile.Path && taskModel.Status != "执行失败" {
 			exists = true
 			break
 		}
 	}
+	consts.TransferTaskMutex.RUnlock()
+	
 	if exists {
 		c.JSON(http.StatusOK, utils.NewFailByMsg("任务不可重复"))
 		return
@@ -412,7 +430,9 @@ func GetTransferToMp4(c *gin.Context) {
 		if xcode != "" {
 			task.VCode = xcode
 		}
+		consts.TransferTaskMutex.Lock()
 		consts.TransferTask[task.CreateTime] = task
+		consts.TransferTaskMutex.Unlock()
 		c.JSON(http.StatusOK, utils.NewSuccessByMsg("任务创建成功"))
 	}
 
@@ -432,7 +452,9 @@ func GetMergeSrt(c *gin.Context) {
 	}
 	task := model.NewMergeSrtTask(movieFile.Path, movieFile.Name, movieFile.Srt)
 	task.SetStatus("等待")
+	consts.TransferTaskMutex.Lock()
 	consts.TransferTask[task.CreateTime] = task
+	consts.TransferTaskMutex.Unlock()
 	c.JSON(http.StatusOK, utils.NewSuccessByMsg("任务创建成功"))
 }
 
@@ -450,33 +472,46 @@ func GetCutMovie(c *gin.Context) {
 	from := utils.GetSuffix(movieFile.Path)
 	task := model.NewCutTask(movieFile.Path, movieFile.Name, start, end, from)
 	task.SetStatus("等待")
+	consts.TransferTaskMutex.Lock()
 	consts.TransferTask[task.CreateTime] = task
+	consts.TransferTaskMutex.Unlock()
 	c.JSON(http.StatusOK, utils.NewSuccessByMsg("任务创建成功"))
 
 }
 
 func GetTransferTask(c *gin.Context) {
 	result := utils.NewSuccess()
-	result.Data = consts.TransferTask
+	consts.TransferTaskMutex.RLock()
+	tasks := make(map[time.Time]model.TransferTaskModel, len(consts.TransferTask))
+	for k, v := range consts.TransferTask {
+		tasks[k] = v
+	}
+	consts.TransferTaskMutex.RUnlock()
+	result.Data = tasks
 	c.JSON(http.StatusOK, result)
 }
 
 func GetDelTransferTask(c *gin.Context) {
 	create := c.Param("create")
+	consts.TransferTaskMutex.Lock()
 	var ti time.Time
 	var task model.TransferTaskModel
 	for k, v := range consts.TransferTask {
 		if v.Name == create {
 			ti = k
 			task = v
+			break
 		}
 	}
 	if task.Status == "执行中" {
+		consts.TransferTaskMutex.Unlock()
 		r := utils.Fail()
 		r.Message = "执行中无法删除"
 		c.JSON(http.StatusOK, r)
+		return
 	}
 	delete(consts.TransferTask, ti)
+	consts.TransferTaskMutex.Unlock()
 	result := utils.NewSuccess()
 	c.JSON(http.StatusOK, result)
 }
