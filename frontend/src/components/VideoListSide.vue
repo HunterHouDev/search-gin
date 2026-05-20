@@ -117,7 +117,6 @@
                     height: 80px;
                     border-radius: 6px 6px 0 0;
                     background: linear-gradient(45deg, #f5f5f5, #e0e0e0);
-                    transition: transform 0.3s ease;
                     overflow: hidden;
                   "
                 >

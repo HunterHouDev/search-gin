@@ -1,15 +1,6 @@
 <template>
-  <q-layout
-    view="hHh Lpr lff"
-    container
-    style="height: 100vh"
-    class="shadow-2 rounded-borders"
-  >
-    <q-header 
-      reveal 
-      class="main-header"
-      :style="headerStyle"
-    >
+  <q-layout view="hHh Lpr lff" container style="height: 100vh" class="shadow-2 rounded-borders">
+    <q-header reveal class="main-header" :style="headerStyle">
       <q-toolbar class="q-electron-drag">
         <q-btn flat @click="drawerLeft = !drawerLeft" round dense icon="menu" />
         <q-toolbar-title style="-webkit-app-region: drag">
@@ -17,76 +8,34 @@
             <q-btn flat color="white" dense size="lg" align="left">搜 索</q-btn>
           </a>
         </q-toolbar-title>
-        <EssentialLink
-          v-for="link in essentialLinks"
-          :key="link.title"
-          v-bind="link"
-          v-show="isWideScreen"
-        />
+        <EssentialLink v-for="link in essentialLinks" :key="link.title" v-bind="link" v-show="isWideScreen" />
         <q-space v-if="isWideScreen" />
         <q-btn dense flat size="lg" icon="refresh" @click="refreshThis"></q-btn>
-        <q-btn
-          flat
-          dense
-          size="lg"
-          :icon="view.fullscreen ? 'fullscreen_exit' : 'fullscreen'"
-          v-model="view.fullscreen"
-          @click="clickFullscreen"
-        />
-        <q-btn dense flat color="red" v-if="shutdownLeftSecond"
-          >关机倒计时：{{ shutdownLeftSecond }}
+        <q-btn flat dense size="lg" :icon="view.fullscreen ? 'fullscreen_exit' : 'fullscreen'" v-model="view.fullscreen"
+          @click="clickFullscreen" />
+        <q-btn dense flat color="red" v-if="shutdownLeftSecond">关机倒计时：{{ shutdownLeftSecond }}
         </q-btn>
 
         <q-btn dense flat icon="ti-na" @click="confirmShutDown" />
-        <q-btn
-          v-if="isDesktop"
-          dense
-          flat
-          icon="ti-minus"
-          @click="minusScreen"
-        />
-        <q-btn
-          v-if="isDesktop"
-          flat
-          size="lg"
-          icon="ti-close"
-          @click="closeWindow"
-        />
-        <q-btn
-          flat
-          dense
-          color="red"
-          @click="openChatDialogRef"
-          v-if="isDesktop"
-          label="a"
-          style="position: hidden"
-        ></q-btn>
-        <q-btn dense flat color="red" v-if="timeLogout < 60 * 30"
-          >时长:{{ timeLogoutShow }}
+        <q-btn v-if="isDesktop" dense flat icon="ti-minus" @click="minusScreen" />
+        <q-btn v-if="isDesktop" flat size="lg" icon="ti-close" @click="closeWindow" />
+        <q-btn flat dense color="red" @click="openChatDialogRef" v-if="isDesktop" label="a"
+          style="position: hidden"></q-btn>
+        <q-btn dense flat color="red" v-if="timeLogout < 60 * 30">时长:{{ timeLogoutShow }}
         </q-btn>
       </q-toolbar>
     </q-header>
 
     <q-drawer v-model="drawerLeft" :width="drawerWidth" :breakpoint="700" bordered>
-      <q-scroll-area
-        class="fit"
-        :style="drawerStyle"
-      >
+      <q-scroll-area class="fit" :style="drawerStyle">
         <q-list>
           <q-item-label header> 你的搜索工具</q-item-label>
-          <EssentialLink
-            v-for="link in essentialLinks"
-            :key="link.title"
-            v-bind="link"
-          />
+          <EssentialLink v-for="link in essentialLinks" :key="link.title" v-bind="link" />
         </q-list>
       </q-scroll-area>
     </q-drawer>
     <q-page-container>
-      <router-view v-slot="{ Component, route }">
-        <transition name="page-fade" mode="out-in" :css="false">
-          <component :is="Component" :key="route.path" />
-        </transition>
+      <router-view>
       </router-view>
     </q-page-container>
   </q-layout>
@@ -270,19 +219,13 @@ const essentialLinks = [
 </script>
 
 <style lang="scss" scoped>
-// 主 Header 样式
+// 主 Header 样式 - 移除过渡动画避免闪屏
 .main-header {
   backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--q-border);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
-  transition: background-color 0.4s ease;
 }
 
-// 页面切换过渡动画
-.page-fade-enter-active,
-.page-fade-leave-active {
-  transition: opacity 0.25s ease, transform 0.25s ease;
-}
 
 .page-fade-enter-from {
   opacity: 0;
@@ -312,6 +255,5 @@ const essentialLinks = [
 // 抽屉样式优化
 :deep(.q-drawer) {
   backdrop-filter: blur(16px);
-  transition: transform 0.3s ease;
 }
 </style>

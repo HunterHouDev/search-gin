@@ -111,7 +111,6 @@ onUnmounted(() => {
   .q-tab {
     font-weight: 500;
     letter-spacing: 0.5px;
-    transition: all 0.3s ease;
 
     &--active {
       font-weight: 600;

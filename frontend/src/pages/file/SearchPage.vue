@@ -76,7 +76,6 @@
           max-width: 400px;
           border-radius: 12px;
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-          transition: all 0.3s ease;
         " outlined glossy :debounce="1000" id="searchBtn" v-model="view.queryParam.Keyword" filled clearable
         @clear="keywordChange" @update:model-value="keywordChange" class="search-input">
         <template v-slot:prepend>
@@ -335,7 +334,6 @@
               'medium-result': isMedium,
               'small-result': isSmall,
             }" class="search-result-card" :style="{
-                transition: isFetching ? 'none' : 'all 0.3s ease-out',
                 backgroundColor:
                   item.Id == view.currentDataInPlayer.Id
                     ? 'rgba(99, 102, 241, 0.2)'
@@ -400,25 +398,20 @@
               </q-chip>
             </div>
             <!-- 图片 -->
-            <q-img fit="fill" :class="{
+            <q-img fit="cover" :class="{
               'large-result-image': isLarge,
               'medium-result-image': isMedium,
               'small-result-image': isSmall,
             }" :src="getImage(item.Id)" @contextmenu="(e) => pictureRightClick(item, e)"
-              @click="openFileInfoRef(item)" style="
+              @click="openFileInfoRef(item)"
+              no-spinner
+              style="
                 border-radius: 6px 6px 0 0;
-                background: linear-gradient(135deg, rgba(30, 30, 50, 0.8), rgba(15, 15, 26, 0.9));
-                transition: opacity 0.4s ease-in-out, transform 0.3s ease;
                 overflow: hidden;
-                will-change: opacity;
               ">
-              <template v-slot:loading>
-                <q-spinner-ios color="white" size="2em">Loading...</q-spinner-ios>
-              </template>
               <template v-slot:error>
-                <!-- 图片加载失败时显示的占位图 -->
-                <div class="text-subtitle1 text-white">
-                  <q-icon name="image_not_supported" size="2em"></q-icon>
+                <div class="absolute-full flex flex-center" style="background: rgba(30, 30, 50, 0.9);">
+                  <q-icon name="image_not_supported" size="2em" color="grey-6"></q-icon>
                 </div>
               </template>
               <q-inner-loading :showing="item.Id == view.currentDataInEditor.Id">
@@ -1184,34 +1177,8 @@ const searchKeyword = async (keyword) => {
   await fetchSearch();
 };
 
-const pageTimestamps = new Map();
-const CACHE_EXPIRE_TIME = 10 * 60 * 1000;
-
-const clearImageCache = (currentPage) => {
-  const now = Date.now();
-  pageTimestamps.set(currentPage, now);
-  if (window.caches) {
-    caches.keys().then((names) => {
-      names.forEach((name) => {
-        if (name.includes('image')) {
-          const match = name.match(/page-(\d+)/);
-          if (match) {
-            const page = parseInt(match[1]);
-            const timestamp = pageTimestamps.get(page);
-            if (timestamp && now - timestamp > CACHE_EXPIRE_TIME) {
-              caches.delete(name);
-              pageTimestamps.delete(page);
-            }
-          }
-        }
-      });
-    });
-  }
-};
-
 const gotoPageNo = async (no) => {
   console.log('gotoPageNo', no);
-  clearImageCache(view.queryParam.Page);
   if (no && no > 0) {
     view.queryParam.Page = Number(no);
   } else {
@@ -1478,15 +1445,13 @@ onUnmounted(() => {
   -ms-overflow-style: none;
 }
 
-// 统一标签样式
+// 统一标签样式 - 移除过渡动画避免闪屏
 .q-chip {
   border-radius: 6px;
-  transition: all 0.3s ease;
   background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 
   &:hover {
-    transform: translateY(-1px);
     background: rgba(0, 0, 0, 1);
   }
 }
@@ -1611,7 +1576,6 @@ onUnmounted(() => {
 
   a {
     border-radius: 2px;
-    transition: background 0.3s ease;
 
     &:hover {
       background: rgba(255, 255, 255, 0.8);
@@ -1688,9 +1652,8 @@ onUnmounted(() => {
   }
 }
 
-// 输入框聚焦效果
+// 输入框聚焦效果 - 移除过渡动画避免闪屏
 .q-input {
-  transition: box-shadow 0.3s ease;
 
   &:focus-within {
     box-shadow: 0 0 0 2px rgba(255, 165, 0, 0.3);
@@ -1698,7 +1661,6 @@ onUnmounted(() => {
 }
 
 .q-btn {
-  transition: all 0.2s ease;
 
   &:hover {
     transform: scale(1.08);
@@ -1715,7 +1677,6 @@ onUnmounted(() => {
   width: 28px;
   height: 28px;
   min-height: 28px;
-  transition: all 0.3s ease;
   opacity: 0.6;
 
   &:hover {
@@ -1732,17 +1693,12 @@ onUnmounted(() => {
   }
 }
 
-.theme-icon {
-  transition: transform 0.3s ease, filter 0.3s ease;
-}
-
 .theme-selector-btn:hover .theme-icon {
   transform: rotate(15deg) scale(1.05);
 }
 
 :deep(.q-item) {
   min-height: 40px;
-  transition: background 0.2s ease;
 
   &:hover {
     background: var(--q-menu-hover);

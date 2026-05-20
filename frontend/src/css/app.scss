@@ -92,7 +92,6 @@
 body {
   background-color: var(--q-bg-darker);
   color: var(--q-text-primary);
-  transition: background-color 0.4s ease, color 0.4s ease;
 }
 
 // 全局过渡优化
@@ -100,45 +99,30 @@ html {
   scroll-behavior: smooth;
 }
 
-// 防止闪烁的基础样式
-.q-page-container,
-.q-layout,
-.q-drawer {
-  transition: background-color 0.4s ease !important;
-}
-
 // 卡片样式
 .q-card {
   background: var(--q-bg-card) !important;
   backdrop-filter: blur(32px);
   border: 1px solid var(--q-border);
-  transition: background 0.4s ease, border-color 0.4s ease, box-shadow 0.3s ease !important;
 }
 
-// 输入框样式
+// 输入框样式 - 移除过渡动画避免闪屏
 .q-field--dark .q-field__control,
 .q-field .q-field__control {
   background: var(--q-bg-input) !important;
   color: var(--q-text-primary) !important;
-  transition: background 0.4s ease, color 0.4s ease, border-color 0.3s ease !important;
 }
 
 .q-field .q-field__label,
 .q-field .q-field__native {
   color: var(--q-text-primary) !important;
-  transition: color 0.3s ease;
 }
 
-// 按钮样式
+// 按钮样式 - 移除过渡动画避免闪屏
 .q-btn {
-  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, transform 0.15s ease, box-shadow 0.2s ease !important;
-  
-  &:hover {
-    transform: translateY(-1px);
-  }
   
   &:active {
-    transform: translateY(0px) scale(0.98);
+    transform: scale(0.98);
   }
   
   &.q-btn--flat:hover {
@@ -190,7 +174,6 @@ html {
 ::-webkit-scrollbar-thumb {
   background: var(--q-scrollbar);
   border-radius: 3px;
-  transition: background 0.2s ease;
   
   &:hover {
     background: var(--q-scrollbar-hover);
@@ -203,22 +186,10 @@ html {
   scrollbar-color: var(--q-scrollbar) transparent;
 }
 
-// 动画
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
 }
-
-.slide-enter-active,
-.slide-leave-active {
-  transition: transform 0.3s ease, opacity 0.3s ease;
-}
-
 .slide-enter-from {
   transform: translateY(-20px);
   opacity: 0;
@@ -229,35 +200,14 @@ html {
   opacity: 0;
 }
 
-// 图片加载优化
-.q-img {
-  transition: opacity 0.4s ease !important;
-  
-  &.q-img--loading {
-    opacity: 0.6;
-  }
-  
-  &.q-img--loaded {
-    opacity: 1;
-  }
-  
-  .q-img__image {
-    transition: opacity 0.4s ease !important;
-  }
-  
-  .q-img__loading {
-    background: var(--q-bg-card) !important;
-  }
-}
 
 // 骨架屏优化
 .q-skeleton {
   background: var(--q-bg-input) !important;
 }
 
-// 列表项过渡
+// 列表项过渡 -
 .q-item {
-  transition: background-color 0.2s ease !important;
   
   &:hover {
     background-color: var(--q-hover-bg) !important;
@@ -280,10 +230,6 @@ html {
   color: white;
 }
 
-// 抽屉过渡
-.q-drawer {
-  transition: transform 0.3s ease, background-color 0.4s ease !important;
-}
 
 // ============== 弹窗样式 ==============
 // 对话框

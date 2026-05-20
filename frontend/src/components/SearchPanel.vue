@@ -180,7 +180,7 @@
 import { ref, reactive, computed, watch } from 'vue';
 import { format } from 'quasar';
 import { useQuasar } from 'quasar';
-import { SearchAPI, ResetMovieType, DeleteFile } from 'components/api/searchAPI';
+import { SearchAPI, ResetMovieType } from 'components/api/searchAPI'; // DeleteFile
 import { QueryDirImageBase64, DeleteFileByPathUseEncode } from 'components/api/searchAPI';
 import { getPng, getTempImage } from 'components/utils/images';
 import {
@@ -205,7 +205,6 @@ const emit = defineEmits(['play', 'close', 'keyword', 'edit', 'delete']);
 
 // ── 状态 ───────────────────────────────────────────────────────────────
 const $q = useQuasar();
-const systemProperty = useSystemProperty();
 const isSmall = computed(() => $q.screen.lt.sm || props.isSmall);
 
 const activeTab = ref('search');
@@ -482,7 +481,6 @@ defineExpose({ fetchSearch });
   background: rgba(22, 22, 45, 0.55);
   border: 1px solid rgba(99, 102, 241, 0.12);
   cursor: pointer;
-  transition: background 0.25s, border-color 0.25s, box-shadow 0.25s, transform 0.2s;
   position: relative;
   overflow: hidden;
   width: calc(100% - 20px);
@@ -494,7 +492,6 @@ defineExpose({ fetchSearch });
   inset: 0;
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.07) 0%, transparent 60%);
   opacity: 0;
-  transition: opacity 0.3s;
 }
 
 .search-card:hover::after { opacity: 1; }
@@ -554,7 +551,6 @@ defineExpose({ fetchSearch });
   justify-content: center;
   background: rgba(0, 0, 0, 0.35);
   opacity: 0;
-  transition: opacity 0.25s;
 }
 
 .search-card:hover .search-card-play-overlay { opacity: 1; }
