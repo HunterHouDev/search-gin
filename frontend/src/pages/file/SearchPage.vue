@@ -76,6 +76,7 @@
           max-width: 400px;
           border-radius: 12px;
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          transition: all 0.3s ease;
         " outlined glossy :debounce="1000" id="searchBtn" v-model="view.queryParam.Keyword" filled clearable
         @clear="keywordChange" @update:model-value="keywordChange" class="search-input">
         <template v-slot:prepend>
@@ -254,8 +255,8 @@
     <q-footer elevated :style="themeStyle" class="glossy">
       <div class="flex flex-center">
         <!-- 页码输入框 -->
-        <q-btn icon="settings" color="orange" flat dense>
-          <q-popup-proxy style="background: rgba(250, 250, 250, 0.8)">
+        <q-btn icon="settings" color="orange" flat dense @mouseenter="view.pageSetting = true">
+          <q-popup-proxy v-model="view.pageSetting" style="background: rgba(250, 250, 250, 0.8)">
             <div class="q-gutter-md" style="
                 width: 18rem;
                 height: 8rem;
@@ -325,15 +326,16 @@
     <!-- 页面内容 -->
     <q-page-container class="scrollRef">
       <q-page>
-
-        <!-- 卡片列表 -->
-        <div class="row q-gutter-sm justify-start q-pl-sm">
+        <div class="row q-gutter-sm justify-start q-pl-sm"
+          v-if="view.resultData.Data && view.resultData.Data.length > 0">
+          <!-- 卡片列表 -->
           <q-card v-for="item in view.resultData.Data" :key="item.Id" :id="item.Id"
             v-bind:class="{
               'large-result': isLarge,
               'medium-result': isMedium,
               'small-result': isSmall,
             }" class="search-result-card" :style="{
+                transition: isFetching ? 'none' : 'all 0.3s ease-out',
                 backgroundColor:
                   item.Id == view.currentDataInPlayer.Id
                     ? 'rgba(99, 102, 241, 0.2)'
@@ -398,20 +400,23 @@
               </q-chip>
             </div>
             <!-- 图片 -->
-            <q-img fit="cover" :class="{
+            <q-img fit="fill" lazy="true" :class="{
               'large-result-image': isLarge,
               'medium-result-image': isMedium,
               'small-result-image': isSmall,
             }" :src="getImage(item.Id)" @contextmenu="(e) => pictureRightClick(item, e)"
-              @click="openFileInfoRef(item)"
-              no-spinner
-              style="
+              @click="openFileInfoRef(item)" style="
                 border-radius: 6px 6px 0 0;
+                background: linear-gradient(135deg, rgba(30, 30, 50, 0.8), rgba(15, 15, 26, 0.9));
                 overflow: hidden;
               ">
+              <template v-slot:loading>
+                <q-spinner-ios color="white" size="2em">Loading...</q-spinner-ios>
+              </template>
               <template v-slot:error>
-                <div class="absolute-full flex flex-center" style="background: rgba(30, 30, 50, 0.9);">
-                  <q-icon name="image_not_supported" size="2em" color="grey-6"></q-icon>
+                <!-- 图片加载失败时显示的占位图 -->
+                <div class="text-subtitle1 text-white">
+                  <q-icon name="image_not_supported" size="2em"></q-icon>
                 </div>
               </template>
               <q-inner-loading :showing="item.Id == view.currentDataInEditor.Id">
@@ -650,7 +655,7 @@ import {
   SearchAPI,
   TransferTasksInfo,
 } from 'components/api/searchAPI';
-import { computed, onMounted, onUnmounted, provide, reactive, ref } from 'vue';
+import { computed, onMounted, onUnmounted, provide, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { GetSettingInfo } from 'components/api/settingAPI';
@@ -719,7 +724,7 @@ const view = reactive({
     SortField: 'MTime',
     SortType: 'desc',
   },
-  resultData: { Data: [] },
+  resultData: {},
 });
 
 const source = ref('Hello');
@@ -1177,8 +1182,34 @@ const searchKeyword = async (keyword) => {
   await fetchSearch();
 };
 
+const pageTimestamps = new Map();
+const CACHE_EXPIRE_TIME = 10 * 60 * 1000;
+
+const clearImageCache = (currentPage) => {
+  const now = Date.now();
+  pageTimestamps.set(currentPage, now);
+  if (window.caches) {
+    caches.keys().then((names) => {
+      names.forEach((name) => {
+        if (name.includes('image')) {
+          const match = name.match(/page-(\d+)/);
+          if (match) {
+            const page = parseInt(match[1]);
+            const timestamp = pageTimestamps.get(page);
+            if (timestamp && now - timestamp > CACHE_EXPIRE_TIME) {
+              caches.delete(name);
+              pageTimestamps.delete(page);
+            }
+          }
+        }
+      });
+    });
+  }
+};
+
 const gotoPageNo = async (no) => {
   console.log('gotoPageNo', no);
+  clearImageCache(view.queryParam.Page);
   if (no && no > 0) {
     view.queryParam.Page = Number(no);
   } else {
@@ -1313,6 +1344,28 @@ const fetchTasking = async () => {
 const thisRoute = useRoute();
 const { resolve, push } = useRouter();
 
+// 主动 push 后，短时间内跳过 watch 响应（避免重复 fetchSearch）
+let skipWatch = false;
+// 初始加载阶段跳过 watch，等 onMounted 中 queryParam 初始化完成后再响应
+let isInitializing = true;
+
+// 监听 URL query 变化（仅浏览器前进后退时触发）
+watch(
+  () => thisRoute.query,
+  () => {
+    if (skipWatch || isInitializing) return;
+    const { Page, PageSize, MovieType, SortField, SortType, Keyword } = thisRoute.query;
+    if (Object.keys(thisRoute.query).length === 0) return;
+    view.queryParam.Page = Number(Page) || 1;
+    view.queryParam.PageSize = Number(PageSize) || 10;
+    view.queryParam.MovieType = MovieType || '';
+    view.queryParam.SortField = SortField || 'publish_time';
+    view.queryParam.SortType = SortType || 'desc';
+    view.queryParam.Keyword = Keyword || '';
+    fetchSearch(true);
+  }
+);
+
 const saveParam = (skipPush = false) => {
   systemProperty.syncSearchParam(view.queryParam);
   systemProperty.expireTime = new Date().getTime() + 1000 * 60 * 60 * 2;
@@ -1331,6 +1384,7 @@ const saveParam = (skipPush = false) => {
     currentQuery.SortField !== SortField ||
     currentQuery.SortType !== SortType
   ) {
+    skipWatch = true;
     push({
       path: '/search',
       query: {
@@ -1342,6 +1396,7 @@ const saveParam = (skipPush = false) => {
         Keyword,
       },
     });
+    setTimeout(() => { skipWatch = false; }, 100);
   }
 };
 
@@ -1415,6 +1470,7 @@ onMounted(async () => {
     }
   }
   // 提前设置标志位（IndexButton 的 heartBeat 有延迟，fetchSearch 是异步的）
+  isInitializing = false;
   skipIndexRefresh = true;  // 初始化期间不响应 IndexButton 的 refreshDone
   fetchSearch(true);  // 异步执行
   // fetchSearch 完成后允许 IndexButton 触发搜索
@@ -1445,13 +1501,15 @@ onUnmounted(() => {
   -ms-overflow-style: none;
 }
 
-// 统一标签样式 - 移除过渡动画避免闪屏
+// 统一标签样式
 .q-chip {
   border-radius: 6px;
+  transition: all 0.3s ease;
   background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 
   &:hover {
+    transform: translateY(-1px);
     background: rgba(0, 0, 0, 1);
   }
 }
@@ -1576,6 +1634,7 @@ onUnmounted(() => {
 
   a {
     border-radius: 2px;
+    transition: background 0.3s ease;
 
     &:hover {
       background: rgba(255, 255, 255, 0.8);
@@ -1652,8 +1711,9 @@ onUnmounted(() => {
   }
 }
 
-// 输入框聚焦效果 - 移除过渡动画避免闪屏
+// 输入框聚焦效果
 .q-input {
+  transition: box-shadow 0.3s ease;
 
   &:focus-within {
     box-shadow: 0 0 0 2px rgba(255, 165, 0, 0.3);
@@ -1661,6 +1721,7 @@ onUnmounted(() => {
 }
 
 .q-btn {
+  transition: all 0.2s ease;
 
   &:hover {
     transform: scale(1.08);
@@ -1677,6 +1738,7 @@ onUnmounted(() => {
   width: 28px;
   height: 28px;
   min-height: 28px;
+  transition: all 0.3s ease;
   opacity: 0.6;
 
   &:hover {
@@ -1693,12 +1755,17 @@ onUnmounted(() => {
   }
 }
 
+.theme-icon {
+  transition: transform 0.3s ease, filter 0.3s ease;
+}
+
 .theme-selector-btn:hover .theme-icon {
   transform: rotate(15deg) scale(1.05);
 }
 
 :deep(.q-item) {
   min-height: 40px;
+  transition: background 0.2s ease;
 
   &:hover {
     background: var(--q-menu-hover);

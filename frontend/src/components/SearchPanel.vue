@@ -180,7 +180,7 @@
 import { ref, reactive, computed, watch } from 'vue';
 import { format } from 'quasar';
 import { useQuasar } from 'quasar';
-import { SearchAPI, ResetMovieType } from 'components/api/searchAPI'; // DeleteFile
+import { SearchAPI, ResetMovieType, DeleteFile } from 'components/api/searchAPI';
 import { QueryDirImageBase64, DeleteFileByPathUseEncode } from 'components/api/searchAPI';
 import { getPng, getTempImage } from 'components/utils/images';
 import {
@@ -198,14 +198,14 @@ const props = defineProps({
   currentId: { type: String, default: '' },
   currentTime: { type: String, default: '00:00:00' },
   isPlaying: { type: Boolean, default: false },
-  isSmall: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['play', 'close', 'keyword', 'edit', 'delete']);
 
 // ── 状态 ───────────────────────────────────────────────────────────────
 const $q = useQuasar();
-const isSmall = computed(() => $q.screen.lt.sm || props.isSmall);
+const systemProperty = useSystemProperty();
+const isSmall = computed(() => $q.screen.lt.sm);
 
 const activeTab = ref('search');
 const searchLoading = ref(false);
@@ -275,7 +275,7 @@ function pageNoGoto() {
 
 async function setMovieType(item: any, type: string) {
   try {
-    await ResetMovieType(item.Id, type);
+    await ResetMovieType( item.Id,  type );
     item.MovieType = type;
   } catch (e) {
     console.error('ResetMovieType failed:', e);
@@ -383,14 +383,13 @@ defineExpose({ fetchSearch });
 .search-panel {
   position: relative;
   height: 88vh;
-  max-height: calc(100vh - 40px);
+  margin: 20px auto;
   width: 88%;
-  max-width: 1200px;
   border-radius: 20px;
   border: #10b981 1px solid;
   background: rgba(9, 9, 22, 0.92);
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
+  /* backdrop-filter: blur(32px); - 移除以提升性能 */
+  /* -webkit-backdrop-filter: blur(32px); */
   border-left: 1px solid rgba(99, 102, 241, 0.25);
   display: flex;
   flex-direction: column;
@@ -481,6 +480,7 @@ defineExpose({ fetchSearch });
   background: rgba(22, 22, 45, 0.55);
   border: 1px solid rgba(99, 102, 241, 0.12);
   cursor: pointer;
+  transition: background 0.25s, border-color 0.25s, box-shadow 0.25s, transform 0.2s;
   position: relative;
   overflow: hidden;
   width: calc(100% - 20px);
@@ -492,6 +492,7 @@ defineExpose({ fetchSearch });
   inset: 0;
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.07) 0%, transparent 60%);
   opacity: 0;
+  transition: opacity 0.3s;
 }
 
 .search-card:hover::after { opacity: 1; }
@@ -551,6 +552,7 @@ defineExpose({ fetchSearch });
   justify-content: center;
   background: rgba(0, 0, 0, 0.35);
   opacity: 0;
+  transition: opacity 0.25s;
 }
 
 .search-card:hover .search-card-play-overlay { opacity: 1; }
@@ -571,7 +573,6 @@ defineExpose({ fetchSearch });
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  line-clamp: 2;
   overflow: hidden;
 }
 

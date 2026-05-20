@@ -131,7 +131,6 @@
               fit="fill"
               :src="getActressImage(item.Name)"
               class="item-img"
-              no-transition
               @click="fileEditRef.open(item)"
             >
               <div
@@ -341,7 +340,6 @@ onMounted(() => {
 .example-item {
   width: fit-content;
   height: fit-content;
-  min-height: 260px; // 固定最小高度，避免骨架屏切换时布局抖动
 }
 
 .item-img {
