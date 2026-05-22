@@ -3,11 +3,11 @@
 package handler
 
 import (
-	"search-gin/pkg/consts"
+	"net/http"
 	"search-gin/internal/model"
 	"search-gin/internal/service"
+	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
-	"net/http"
 	"sync/atomic"
 
 	"github.com/gin-gonic/gin"
@@ -31,6 +31,9 @@ func PostSearch(c *gin.Context) {
 // @Produce json
 // @Router /api/search/movies [post]
 func PostMovies(c *gin.Context) {
+	if service.SearchEngin.IsEmpty() {
+		service.FileApp.ScanAll()
+	}
 	// 初始化搜索参数结构体
 	searchParam := model.SearchParam{}
 
