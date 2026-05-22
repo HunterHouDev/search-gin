@@ -77,20 +77,20 @@ export const MovieTypeOptions = [
 ];
 
 export const MovieTypeSelects = [
-  { label: '全', value: '' },
+  { label: '全部', value: '' },
   ...MovieTypeOptions,
   { label: '无', value: '无' },
 ];
 
 export const DescEnum = [
-  { label: '正', value: 'asc' },
-  { label: '倒', value: 'desc' },
+  { label: '↑', value: 'asc' },
+  { label: '↓', value: 'desc' },
 ];
 
 export const FieldEnum = [
-  { label: '时', value: 'MTime' },
-  { label: '容', value: 'Size' },
-  { label: '名', value: 'Code' },
+  { label: '时间', value: 'MTime' },
+  { label: '大小', value: 'Size' },
+  { label: '名称', value: 'Code' },
 ];
 
 class EEnum {

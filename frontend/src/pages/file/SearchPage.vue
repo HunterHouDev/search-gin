@@ -21,28 +21,11 @@
         <DataPop url />
       </q-btn>
       <!-- 排序字段选择 -->
-      <q-btn-toggle v-if="!isSmall" :size="btnSize('head')" glossy v-model="view.queryParam.SortField"
-        @update:model-value="fetchSearch()" :options="FieldEnum" />
-      <!-- 移动端排序字段选择-->
-      <q-btn-dropdown glossy v-if="isSmall" color="primary" :size="btnSize('head')" style="width: 4rem"
-        :label="getLabelByValue(view.queryParam.SortField, FieldEnum)">
+      <q-btn-dropdown glossy  color="primary" :size="btnSize('head')" style="width: 5.5rem"
+        :label="getLabelByValue(currentSort, sortOptions)">
         <q-list>
-          <q-item v-for="item in FieldEnum" :key="item.label" clickable v-close-popup @click="
-            view.queryParam.SortField = item.value;
-          fetchSearch();
-          ">
-            <q-item-section>
-              <q-item-label>{{ item.label }}</q-item-label>
-            </q-item-section>
-          </q-item>
-        </q-list>
-      </q-btn-dropdown>
-      <!-- 移动端排序类型选择  -->
-      <q-btn-dropdown glossy color="primary" dense :size="btnSize('head')" style="width: 3.5rem"
-        :label="getLabelByValue(view.queryParam.SortType, DescEnum)">
-        <q-list>
-          <q-item v-for="item in DescEnum" :key="item.label" clickable v-close-popup @click="
-            view.queryParam.SortType = item.value;
+          <q-item v-for="item in sortOptions" :key="item.label" clickable v-close-popup @click="
+            currentSort = item.value;
           fetchSearch();
           ">
             <q-item-section>
@@ -122,7 +105,7 @@
         </template>
         <q-list style="min-width: 160px; padding: 8px 0;">
           <q-item clickable v-close-popup @click="setTheme('star')" :active="systemProperty.theme === 'star'"
-            class="q-mx-sm rounded-lg">
+            class="q-mx-xs rounded-lg">
             <q-item-section avatar>
               <div class="w-8 h-8 rounded-lg flex items-center justify-center"
                 style="background: linear-gradient(135deg, #4f46e5, #7c3aed);">
@@ -153,8 +136,6 @@
               <q-icon name="check" color="primary" size="18px" />
             </q-item-section>
           </q-item>
-          <!-- 分隔线 -->
-          <q-separator class="my-2" />
           <!-- 显示模式 -->
           <div class="q-px-md q-py-xs">
             <q-item-label header class="text-grey-5 text-xs font-medium">显示模式</q-item-label>
@@ -189,8 +170,6 @@
               <q-icon name="check" color="primary" size="18px" />
             </q-item-section>
           </q-item>
-          <!-- 分隔线 -->
-          <q-separator class="my-2" />
           <!-- 卡片大小 -->
           <div class="q-px-md q-py-xs">
             <q-item-label header class="text-grey-5 text-xs font-medium">卡片大小</q-item-label>
@@ -244,7 +223,13 @@
       </q-btn-dropdown>
       <!-- 设置按钮 -->
       <q-fab icon="ti-pencil-alt" direction="left" :color="view.runningTaskCount > 0 ? 'red' : 'orange'" glossy
-        style="position: fixed; right: 10px; top: 60px">
+        :style="fabStyle"
+        @touchstart.prevent="onFabDragStart"
+        @touchmove.prevent="onFabDragMove"
+        @mousedown.prevent="onFabDragStart"
+        @mousemove="onFabDragMove"
+        @mouseup="onFabDragEnd"
+        @mouseleave="onFabDragEnd">
         <q-fab-action @click="openListEditRef('filelist')" color="primary" label="编辑" />
         <q-fab-action @click="openListEditRef('tasking')" color="primary" label="任务" />
         <q-fab-action @click="openListEditRef('setting')" color="primary" label="主题" />
@@ -255,7 +240,7 @@
     <q-footer elevated :style="themeStyle" class="glossy">
       <div class="flex flex-center">
         <!-- 页码输入框 -->
-        <q-btn icon="settings" color="orange" flat dense @mouseenter="view.pageSetting = true">
+        <q-btn icon="settings" color="orange" flat dense>
           <q-popup-proxy v-model="view.pageSetting" style="background: rgba(250, 250, 250, 0.8)">
             <div class="q-gutter-md" style="
                 width: 18rem;
@@ -708,6 +693,54 @@ const moveView = reactive({
   targetPathDialog: false,
   targetId: '',
 });
+
+// 悬浮按钮自由拖动
+const fabPos = reactive({ x: 10, y: 150 });
+const fabDragging = ref(false);
+const fabStart = reactive({ x: 0, y: 0, posX: 0, posY: 0 });
+
+const fabStyle = computed(() => ({
+  position: 'fixed',
+  right: `${fabPos.x}px`,
+  top: `${fabPos.y}px`,
+  cursor: fabDragging.value ? 'grabbing' : 'grab',
+  touchAction: 'none',
+  userSelect: 'none',
+}));
+
+const onFabDragStart = (e) => {
+  fabDragging.value = true;
+  fabStart.posX = fabPos.x;
+  fabStart.posY = fabPos.y;
+  if ('touches' in e) {
+    fabStart.x = e.touches[0].clientX;
+    fabStart.y = e.touches[0].clientY;
+  } else {
+    fabStart.x = e.clientX;
+    fabStart.y = e.clientY;
+  }
+};
+
+const onFabDragMove = (e) => {
+  if (!fabDragging.value) return;
+  let clientX, clientY;
+  if ('touches' in e) {
+    clientX = e.touches[0].clientX;
+    clientY = e.touches[0].clientY;
+  } else {
+    clientX = e.clientX;
+    clientY = e.clientY;
+  }
+  const dx = fabStart.x - clientX;
+  const dy = clientY - fabStart.y;
+  fabPos.x = Math.max(0, Math.min(window.innerWidth - 60, fabStart.posX + dx));
+  fabPos.y = Math.max(0, Math.min(window.innerHeight - 60, fabStart.posY + dy));
+};
+
+const onFabDragEnd = () => {
+  fabDragging.value = false;
+};
+
 const view = reactive({
   renameCount: 0,
   indexDone: 0,
@@ -726,6 +759,28 @@ const view = reactive({
     SortType: 'desc',
   },
   resultData: {},
+});
+
+const sortOptions = computed(() => {
+  const options = [];
+  for (const field of FieldEnum) {
+    for (const desc of DescEnum) {
+      options.push({
+        label: `${field.label}   ${desc.label}`,
+        value: `${field.value}_${desc.value}`
+      });
+    }
+  }
+  return options;
+});
+
+const currentSort = computed({
+  get: () => `${view.queryParam.SortField}_${view.queryParam.SortType}`,
+  set: (val) => {
+    const [field, type] = val.split('_');
+    view.queryParam.SortField = field;
+    view.queryParam.SortType = type;
+  }
 });
 
 const source = ref('Hello');
@@ -1585,7 +1640,7 @@ onUnmounted(() => {
 
 .small-result {
   padding: 1px;
-  width: 180px;
+  width: calc((100% - 30px) / 2);
   height: 240px;
   overflow: hidden;
   align-items: center;

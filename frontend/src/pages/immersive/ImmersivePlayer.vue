@@ -75,27 +75,13 @@
         <div class="search-conditions">
           <div class="filter-item">
             <div class="filter-row">
-              <span class="filter-label">类型</span>
-              <q-select v-if="isSmall" v-model="searchParams.MovieType" :options="MovieTypeSelects" dense emit-value
+              <q-select  v-model="searchParams.MovieType" :options="MovieTypeSelects" dense emit-value
                 map-options borderless dark style="min-width: 120px" @update:model-value="fetchSearch" />
-              <q-btn-toggle v-else v-model="searchParams.MovieType" :options="MovieTypeSelects" no-caps glossy
-                toggle-color="indigo-6" color="dark" text-color="grey-4" @update:model-value="fetchSearch" />
             </div>
 
             <div class="filter-row">
-              <span class="filter-label">排序</span>
-              <q-select v-if="isSmall" v-model="searchParams.SortField" :options="FieldEnum" dense emit-value
+              <q-select  v-model="currentSort" :options="sortOptions" dense emit-value
                 map-options borderless dark style="min-width: 120px" @update:model-value="fetchSearch" />
-              <q-btn-toggle v-else v-model="searchParams.SortField" :options="FieldEnum" no-caps glossy toggle-color="indigo-6"
-                color="dark" text-color="grey-4" @update:model-value="fetchSearch" />
-            </div>
-
-            <div class="filter-row">
-              <span class="filter-label">顺序</span>
-              <q-select v-if="isSmall" v-model="searchParams.SortType" :options="DescEnum" dense emit-value
-                map-options borderless dark style="min-width: 100px" @update:model-value="fetchSearch" />
-              <q-btn-toggle v-else v-model="searchParams.SortType" :options="DescEnum" no-caps glossy toggle-color="indigo-6"
-                color="dark" text-color="grey-4" @update:model-value="fetchSearch" />
             </div>
             <div class="filter-row">
               <IndexButton flat @refresh-done="fetchSearch" color="red" toggle-color="indigo-6" glossy />
@@ -646,7 +632,29 @@ const bufferedPercent = computed(() => {
 });
 
 const isSmall = computed(() => {
-  return systemProperty.showStyle === 'sm';
+  return systemProperty.showStyle === 'sm' || $q.screen.lt.sm || $q.platform.is.mobile;
+});
+
+const sortOptions = computed(() => {
+  const options = [];
+  for (const field of FieldEnum) {
+    for (const desc of DescEnum) {
+      options.push({
+        label: `${field.label} ${desc.label}`,
+        value: `${field.value}_${desc.value}`
+      });
+    }
+  }
+  return options;
+});
+
+const currentSort = computed({
+  get: () => `${searchParams.SortField}_${searchParams.SortType}`,
+  set: (val) => {
+    const [field, type] = val.split('_');
+    searchParams.SortField = field;
+    searchParams.SortType = type;
+  }
 });
 
 const volumeIcon = computed(() => {
@@ -1514,7 +1522,7 @@ function onContainerTouchEnd(e) {
     return;
   }
 
-  // 判断滑动方向：水平滑动快进快退，垂直滑动音量/亮度
+  // 判断滑动方向：水平滑动快进快退，垂直滑动上下切换视频
   if (absDeltaX > absDeltaY && absDeltaX > 50) {
     // 水平滑动：快进快退（滑动屏幕宽度的50% = 10秒）
     const seekDelta = (deltaX / window.innerWidth) * 20;
@@ -1530,6 +1538,13 @@ function onContainerTouchEnd(e) {
       position: 'center',
       timeout: 800,
     });
+  } else if (absDeltaY > 50) {
+    // 垂直滑动：上滑下一个，下滑上一个
+    if (deltaY < 0) {
+      nextItem();
+    } else {
+      prevItem();
+    }
   }
 }
 
@@ -2519,9 +2534,9 @@ onUnmounted(() => {
 .filter-item {
   display: flex;
   flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .search-input :deep(.q-field__control) {

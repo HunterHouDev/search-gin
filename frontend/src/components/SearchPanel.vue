@@ -18,29 +18,15 @@
     <div class="search-conditions" v-show="activeTab === 'search'">
       <div class="filter-item">
         <div class="filter-row">
-          <span class="filter-label">类型</span>
           <!-- 移动端下拉框，PC 端 q-btn-toggle -->
-          <q-select v-if="isSmall" v-model="searchParams.MovieType" :options="MovieTypeSelects" dense emit-value
+          <q-select  v-model="searchParams.MovieType" :options="MovieTypeSelects" dense emit-value
             map-options borderless style="min-width: 120px" @update:model-value="fetchSearch">
           </q-select>
-          <q-btn-toggle v-else v-model="searchParams.MovieType" :options="MovieTypeSelects" no-caps glossy
-            toggle-color="indigo-6" color="dark" text-color="grey-4" @update:model-value="fetchSearch" />
         </div>
         <div class="filter-row">
-          <span class="filter-label">排序</span>
-          <q-select v-if="isSmall" v-model="searchParams.SortField" :options="FieldEnum" dense emit-value
+          <q-select  v-model="currentSort" :options="sortOptions" dense emit-value
             map-options borderless style="min-width: 120px" @update:model-value="fetchSearch">
           </q-select>
-          <q-btn-toggle v-else v-model="searchParams.SortField" :options="FieldEnum" no-caps glossy toggle-color="indigo-6"
-            color="dark" text-color="grey-4" @update:model-value="fetchSearch" />
-        </div>
-        <div class="filter-row">
-          <span class="filter-label">顺序</span>
-          <q-select v-if="isSmall" v-model="searchParams.SortType" :options="DescEnum" dense emit-value map-options
-            borderless style="min-width: 100px" @update:model-value="fetchSearch">
-          </q-select>
-          <q-btn-toggle v-else v-model="searchParams.SortType" :options="DescEnum" no-caps glossy toggle-color="indigo-6"
-            color="dark" text-color="grey-4" @update:model-value="fetchSearch" />
         </div>
         <div class="filter-row">
           <IndexButton flat @refresh-done="fetchSearch" color="red" toggle-color="indigo-6" glossy />
@@ -154,7 +140,7 @@
           <div v-for="item in localImages" :key="item.Id" class="local-image-item">
             <q-img fit="fill" :src="getTempImage(item.Id)" style="border-radius: 6px; overflow: hidden;">
               <template v-slot:error>
-                <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.3)">
+                <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,1)">
                   <q-icon name="image_not_supported" size="2em" color="grey-6" />
                 </div>
               </template>
@@ -222,6 +208,28 @@ const searchParams = reactive({
   SortType: 'desc',
   Page: 1,
   PageSize: 20,
+});
+
+const sortOptions = computed(() => {
+  const options: { label: string; value: string }[] = [];
+  for (const field of FieldEnum) {
+    for (const desc of DescEnum) {
+      options.push({
+        label: `${field.label}${desc.label}`,
+        value: `${field.value}_${desc.value}`
+      });
+    }
+  }
+  return options;
+});
+
+const currentSort = computed({
+  get: () => `${searchParams.SortField}_${searchParams.SortType}`,
+  set: (val: string) => {
+    const [field, type] = val.split('_');
+    searchParams.SortField = field;
+    searchParams.SortType = type;
+  }
 });
 
 // ── 工具函数 ──────────────────────────────────────────────────────────
@@ -388,8 +396,8 @@ defineExpose({ fetchSearch });
   border-radius: 20px;
   border: #10b981 1px solid;
   background: rgba(9, 9, 22, 0.92);
-  /* backdrop-filter: blur(32px); - 移除以提升性能 */
-  /* -webkit-backdrop-filter: blur(32px); */
+  backdrop-filter: blur(32px); 
+  -webkit-backdrop-filter: blur(32px);
   border-left: 1px solid rgba(99, 102, 241, 0.25);
   display: flex;
   flex-direction: column;
@@ -475,15 +483,18 @@ defineExpose({ fetchSearch });
 .search-card {
   margin-bottom: 8px;
   display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
   padding: 8px;
   border-radius: 12px;
-  background: rgba(22, 22, 45, 0.55);
+  background: rgba(22, 22, 45, 0.75);
   border: 1px solid rgba(99, 102, 241, 0.12);
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  width: calc(100% - 20px);
-  max-width: 334px;
+  /* width: calc(100% - 20px); */
+  min-width: 300px;
+  max-width: 350px;
 }
 
 .search-card::after {
@@ -628,7 +639,7 @@ defineExpose({ fetchSearch });
   gap: 8px;
   padding: 10px 20px;
   border-top: 1px solid rgba(99, 102, 241, 0.15);
-  background: rgba(8, 8, 20, 0.6);
+  background: rgba(8, 8, 20, 0.9);
   flex-wrap: wrap;
 }
 

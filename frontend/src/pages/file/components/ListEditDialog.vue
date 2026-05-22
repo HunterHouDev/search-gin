@@ -136,13 +136,7 @@
               </div>
             </q-btn-dropdown>
             <q-btn glossy color="red" @click="deleteBySelector">删除 </q-btn>
-
             <q-btn glossy color="red" @click="mergeFiles">合并 </q-btn>
-            <q-btn
-              :color="view.showFilter ? 'primary' : 'red'"
-              label="筛选"
-              v-on:click="view.showFilter = !view.showFilter"
-            ></q-btn>
           </div>
         </q-page-sticky>
         <q-page-sticky
@@ -215,84 +209,6 @@
                 </q-btn>
                 <q-btn glossy color="black" @click="nextPage(-1)">上 </q-btn>
                 <q-btn glossy color="black" @click="nextPage(1)">下 </q-btn>
-
-                <q-btn-dropdown
-                  v-if="view.showFilter"
-                  dense
-                  glossy
-                  color="primary"
-                  style="width: 3.5rem"
-                  :label="getLabelByValue(view.queryParam.SortField, FieldEnum)"
-                >
-                  <q-list>
-                    <q-item
-                      v-for="item in FieldEnum"
-                      :key="item.label"
-                      clickable
-                      v-close-popup
-                      @click="
-                        view.queryParam.SortField = item.value;
-                        fetchSearch();
-                      "
-                    >
-                      <q-item-section>
-                        <q-item-label>{{ item.label }}</q-item-label>
-                      </q-item-section>
-                    </q-item>
-                  </q-list>
-                </q-btn-dropdown>
-                <!-- 移动端排序类型选择 -->
-                <q-btn-dropdown
-                  glossy
-                  v-if="view.showFilter"
-                  color="primary"
-                  style="width: 3.5rem"
-                  :label="getLabelByValue(view.queryParam.SortType, DescEnum)"
-                >
-                  <q-list>
-                    <q-item
-                      v-for="item in DescEnum"
-                      :key="item.label"
-                      clickable
-                      v-close-popup
-                      @click="
-                        view.queryParam.SortType = item.value;
-                        fetchSearch();
-                      "
-                    >
-                      <q-item-section>
-                        <q-item-label>{{ item.label }}</q-item-label>
-                      </q-item-section>
-                    </q-item>
-                  </q-list>
-                </q-btn-dropdown>
-                <q-btn-dropdown
-                  glossy
-                  v-if="view.showFilter"
-                  color="primary"
-                  style="width: 4rem"
-                  :label="
-                    getLabelByValue(view.queryParam.MovieType, MovieTypeSelects)
-                  "
-                >
-                  <q-list>
-                    <q-item
-                      v-for="item in MovieTypeSelects"
-                      :key="item.label"
-                      clickable
-                      v-close-popup
-                      glossy
-                      @click="
-                        view.queryParam.MovieType = item.value;
-                        fetchSearch();
-                      "
-                    >
-                      <q-item-section class="cursor-pointer">
-                        <q-item-label>{{ item.label }}</q-item-label>
-                      </q-item-section>
-                    </q-item>
-                  </q-list>
-                </q-btn-dropdown>
               </div>
 
               <div
@@ -926,10 +842,7 @@
                                 his.MovieType,
                                 MovieTypeOptions
                               ) || '全部'
-                            }-${getLabelByValue(
-                              his.SortField,
-                              FieldEnum
-                            )} -${getLabelByValue(his.SortType, DescEnum)} `
+                            }-${sortOptions.find(o => o.value === `${his.SortField}_${his.SortType}`)?.label || ''} `
                           }}
                         </div>
                         <div style="float: right">
@@ -962,7 +875,6 @@ import {
 } from 'components/utils';
 import { buttonEnum } from 'components/model/Setting';
 import {
-  MovieTypeSelects,
   parseTimeZH,
   getLabelByValue,
 } from 'components/utils';
@@ -994,7 +906,6 @@ const showStyleOptions = [
 const tab = ref('filelist');
 const tabTask = ref('等待');
 const view = reactive({
-  showFilter: false,
   autoRefresh: true,
   selectAll: false,
   showDiaolg: false,
@@ -1010,6 +921,19 @@ const view = reactive({
   totalCount: [0, 0, 0, 0, 0],
   chooseInput: false,
   input: '',
+});
+
+const sortOptions = computed(() => {
+  const options = [];
+  for (const field of FieldEnum) {
+    for (const desc of DescEnum) {
+      options.push({
+        label: `${field.label}${desc.label}`,
+        value: `${field.value}_${desc.value}`
+      });
+    }
+  }
+  return options;
 });
 
 const checkThis = (item) => {
