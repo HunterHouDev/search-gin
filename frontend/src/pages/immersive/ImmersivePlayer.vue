@@ -191,7 +191,8 @@
     <div class="video-wrapper" v-show="videoLoaded"
       @touchstart="onContainerTouchStart"
       @touchend="onContainerTouchEnd"
-      @click="onDoubleTap">
+      @click="onDoubleTap"
+      @wheel.prevent="onWheel">
       <video ref="videoRef" id="immersiveVideo" :src="currentVideoSrc" :poster="currentPoster" preload="auto" playsinline
         @timeupdate="onTimeUpdate" @loadedmetadata="onMetadataLoaded" @play="onPlay"
         @pause="onPause" @ended="onEnded" @waiting="onWaiting" @canplay="onCanPlay" @error="onVideoError"
@@ -1264,7 +1265,11 @@ function removeDownloadTask(task) {
 
 // ── 播放控制 ──────────────────────────────────────────────────────────────────
 function togglePlay() {
-  if (!videoRef.value || !videoLoaded.value) return;
+  if (!videoRef.value || !currentVideoSrc.value) {
+    // 当前没有播放资源时，打开搜索弹窗
+    searchDialog.value = !searchDialog.value;
+    return;
+  }
   isPlaying.value ? videoRef.value.pause() : videoRef.value.play();
 }
 
@@ -1545,6 +1550,22 @@ function onContainerTouchEnd(e) {
     } else {
       prevItem();
     }
+  }
+}
+
+// 鼠标滚轮：上滚上一个，下滚下一个（防抖 500ms）
+let wheelTimer = null;
+function onWheel(e) {
+  if (touchControl.value) return;
+  if (wheelTimer) return;
+  wheelTimer = setTimeout(() => { wheelTimer = null; }, 500);
+
+  if (e.deltaY > 0) {
+    // 向下滚 → 下一个
+    nextItem();
+  } else {
+    // 向上滚 → 上一个
+    prevItem();
   }
 }
 
