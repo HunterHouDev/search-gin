@@ -76,19 +76,25 @@
           <div class="filter-item">
             <div class="filter-row">
               <span class="filter-label">类型</span>
-              <q-btn-toggle v-model="searchParams.MovieType" :options="MovieTypeSelects" no-caps glossy
+              <q-select v-if="isSmall" v-model="searchParams.MovieType" :options="MovieTypeSelects" dense emit-value
+                map-options borderless dark style="min-width: 120px" @update:model-value="fetchSearch" />
+              <q-btn-toggle v-else v-model="searchParams.MovieType" :options="MovieTypeSelects" no-caps glossy
                 toggle-color="indigo-6" color="dark" text-color="grey-4" @update:model-value="fetchSearch" />
             </div>
 
             <div class="filter-row">
               <span class="filter-label">排序</span>
-              <q-btn-toggle v-model="searchParams.SortField" :options="FieldEnum" no-caps glossy toggle-color="indigo-6"
+              <q-select v-if="isSmall" v-model="searchParams.SortField" :options="FieldEnum" dense emit-value
+                map-options borderless dark style="min-width: 120px" @update:model-value="fetchSearch" />
+              <q-btn-toggle v-else v-model="searchParams.SortField" :options="FieldEnum" no-caps glossy toggle-color="indigo-6"
                 color="dark" text-color="grey-4" @update:model-value="fetchSearch" />
             </div>
 
             <div class="filter-row">
               <span class="filter-label">顺序</span>
-              <q-btn-toggle v-model="searchParams.SortType" :options="DescEnum" no-caps glossy toggle-color="indigo-6"
+              <q-select v-if="isSmall" v-model="searchParams.SortType" :options="DescEnum" dense emit-value
+                map-options borderless dark style="min-width: 100px" @update:model-value="fetchSearch" />
+              <q-btn-toggle v-else v-model="searchParams.SortType" :options="DescEnum" no-caps glossy toggle-color="indigo-6"
                 color="dark" text-color="grey-4" @update:model-value="fetchSearch" />
             </div>
             <div class="filter-row">

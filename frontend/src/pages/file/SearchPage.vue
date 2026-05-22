@@ -474,6 +474,7 @@
               <div class="content-row" :style="{
                 height: isLarge ? '51px' : '34px',
                 fontSize: isLarge ? '14px' : '14px',
+                color: 'grey',
                 backgroundColor: 'rgba(250, 250, 250,0.8)',
               }">
                 <span style="
