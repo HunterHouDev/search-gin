@@ -1,4 +1,5 @@
 <template>
+  <div>
   <q-layout view="lHh lpr lFf" container style="height: 93vh" class="shadow-2 rounded-borders" :class="{ 'theme-natural': systemProperty.theme === 'natural' }" :style="themeStyle">
     <!-- 头部 -->
     <q-header :style="themeStyle" elevated class="q-gutter-sm flex justify-center" style="
@@ -17,9 +18,7 @@
           {{ `r:${view.renameCount}` }}
         </template>
       </q-btn>
-      <q-btn icon="ti-bar-chart-alt" class="cursor-pointer" dense :size="btnSize('head')" color="red" flat>
-        <DataPop url />
-      </q-btn>
+      
       <!-- 排序字段选择 -->
       <q-btn-dropdown glossy  color="primary" :size="btnSize('head')" style="width: 5.5rem"
         :label="getLabelByValue(currentSort, sortOptions)">
@@ -53,7 +52,18 @@
           </q-item>
         </q-list>
       </q-btn-dropdown>
-
+      <q-btn icon="ti-bar-chart-alt" class="cursor-pointer" dense :size="btnSize('head')" color="red" flat>
+        <DataPop url />
+      </q-btn>
+      <!-- 仅重复项选择 -->
+      <q-checkbox v-model="view.queryParam.OnlyRepeat" 
+        color="red" :keepColor="true"
+        checked-icon="task_alt" 
+        unchecked-icon="ti-help" :val="true" flat
+        dense @update:model-value="fetchSearch">
+        <q-tooltip class="bg-white text-primary"> 去重 </q-tooltip>
+      </q-checkbox>
+      
       <!-- 搜索框 -->
       <q-input dense type="search" style="
           max-width: 400px;
@@ -86,14 +96,7 @@
         </template>
       </q-input>
 
-      <!-- 仅重复项选择 -->
-      <q-checkbox v-model="view.queryParam.OnlyRepeat" 
-        color="red" :keepColor="true"
-        checked-icon="task_alt" 
-        unchecked-icon="ti-help" :val="true" flat
-        dense @update:model-value="fetchSearch">
-        <q-tooltip class="bg-white text-primary"> 去重 </q-tooltip>
-      </q-checkbox>
+      
       <span v-if="isLarge || isMedium" style="align-items: center; align-content: center">
         {{ view.resultShow }}
       </span>
@@ -614,6 +617,7 @@
       </q-card-actions>
     </q-card>
   </q-dialog>
+  </div>
 </template>
 
 <script setup>

@@ -162,11 +162,11 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup>
 import { ref, reactive, computed, watch } from 'vue';
 import { format } from 'quasar';
 import { useQuasar } from 'quasar';
-import { SearchAPI, ResetMovieType, DeleteFile } from 'components/api/searchAPI';
+import { SearchAPI, ResetMovieType } from 'components/api/searchAPI';
 import { QueryDirImageBase64, DeleteFileByPathUseEncode } from 'components/api/searchAPI';
 import { getPng, getTempImage } from 'components/utils/images';
 import {
@@ -176,7 +176,6 @@ import {
   DescEnum,
   formatTitle,
 } from 'components/utils';
-import { useSystemProperty } from 'stores/System';
 import IndexButton from 'components/IndexButton.vue';
 
 const props = defineProps({
@@ -190,14 +189,13 @@ const emit = defineEmits(['play', 'close', 'keyword', 'edit', 'delete']);
 
 // ── 状态 ───────────────────────────────────────────────────────────────
 const $q = useQuasar();
-const systemProperty = useSystemProperty();
 const isSmall = computed(() => $q.screen.lt.sm);
 
 const activeTab = ref('search');
 const searchLoading = ref(false);
 const imagesLoading = ref(false);
-const searchResults = reactive({ Data: [] as any[], TotalPage: 0, TotalCount: 0 });
-const localImages = ref<any[]>([]);
+const searchResults = reactive({ Data: [] , TotalPage: 0, TotalCount: 0 });
+const localImages = ref<[]>([]);
 const gotoPage = ref(1);
 const pageOptions = ref([10, 20, 40, 60]);
 
@@ -211,7 +209,7 @@ const searchParams = reactive({
 });
 
 const sortOptions = computed(() => {
-  const options: { label: string; value: string }[] = [];
+  const options = [];
   for (const field of FieldEnum) {
     for (const desc of DescEnum) {
       options.push({
@@ -225,7 +223,7 @@ const sortOptions = computed(() => {
 
 const currentSort = computed({
   get: () => `${searchParams.SortField}_${searchParams.SortType}`,
-  set: (val: string) => {
+  set: (val) => {
     const [field, type] = val.split('_');
     searchParams.SortField = field;
     searchParams.SortType = type;
@@ -233,9 +231,9 @@ const currentSort = computed({
 });
 
 // ── 工具函数 ──────────────────────────────────────────────────────────
-const { humanStorageSize } = format as any;
+const { humanStorageSize } = format ;
 
-function getTagColor(tag: any) {
+function getTagColor(tag) {
   const colors = [
     'rgba(16, 185, 129, 0.25)', 'rgba(99, 102, 241, 0.25)',
     'rgba(245, 158, 11, 0.25)', 'rgba(239, 68, 68, 0.25)',
@@ -245,7 +243,7 @@ function getTagColor(tag: any) {
   return colors[tag % colors.length];
 }
 
-function getTimeAgo(MTime: string) {
+function getTimeAgo(MTime) {
   const diff = Date.now() - new Date(MTime).getTime();
   const days = Math.floor(diff / 86400000);
   if (days < 1) return '今日';
@@ -267,21 +265,21 @@ async function fetchSearch() {
   }
 }
 
-function currentPageSizeChange(val: number) {
+function currentPageSizeChange(val) {
   searchParams.PageSize = val;
   searchParams.Page = 1;
   fetchSearch();
 }
 
 function pageNoGoto() {
-  const page = parseInt(gotoPage.value as any);
+  const page = parseInt(gotoPage.value);
   if (!isNaN(page) && page >= 1 && page <= (searchResults.TotalPage || 1)) {
     searchParams.Page = page;
     fetchSearch();
   }
 }
 
-async function setMovieType(item: any, type: string) {
+async function setMovieType(item, type) {
   try {
     await ResetMovieType( item.Id,  type );
     item.MovieType = type;
@@ -304,7 +302,7 @@ async function loadLocalImages() {
   }
 }
 
-async function deleteLocalImage(path: string) {
+async function deleteLocalImage(path) {
   try {
     await DeleteFileByPathUseEncode(path);
     localImages.value = localImages.value.filter(i => i.Path !== path);
@@ -313,7 +311,7 @@ async function deleteLocalImage(path: string) {
   }
 }
 
-async function onDelete(item: any) {
+async function onDelete(item) {
   $q.dialog({
     title: '确认删除',
     message: `确定要删除「${formatTitle(item.Title, 20)}」吗？`,
@@ -325,7 +323,7 @@ async function onDelete(item: any) {
   });
 }
 
-function onEdit(item: any) {
+function onEdit(item) {
   emit('edit', item);
 }
 

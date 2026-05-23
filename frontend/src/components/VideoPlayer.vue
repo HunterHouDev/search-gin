@@ -139,6 +139,7 @@
     @pause="systemProperty.playerRunning = false"
     @loadedmetadata="checkSubtitles"
     @error="onVideoError"
+    @wheel.prevent="onWheel"
     style="width: -webkit-fill-available; background-color: rgba(0, 0, 0, 0.9)"
     :style="{
       position: isMobile ? '' : 'fixed',
@@ -385,6 +386,20 @@ const onVideoError = (e) => {
   $q.notify({ type: 'negative', message: '视频播放失败', position: 'top' });
 };
 
+let wheelTimer = null;
+const onWheel = (e) => {
+  if (!view.videoUrl) return;
+  if (wheelTimer) return;
+  if (e.deltaY < 0) {
+    nextOne(-1);
+    $q.notify({ type: 'info', message: '上一集', position: 'top', timeout: 800 });
+  } else {
+    nextOne(1);
+    $q.notify({ type: 'info', message: '下一集', position: 'top', timeout: 800 });
+  }
+  wheelTimer = setTimeout(() => { wheelTimer = null; }, 600);
+};
+
 const checkSubtitles = () => {
   const video = document.getElementById('videoPlayerID');
   const track = video.textTracks[0];
@@ -413,6 +428,7 @@ watch(() => systemProperty.playerRunning, (isRunning) => {
 
 onUnmounted(() => {
   stopProgress();
+  if (wheelTimer) { clearTimeout(wheelTimer); wheelTimer = null; }
 });
 
 onMounted(() => {

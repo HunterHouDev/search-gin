@@ -32,6 +32,7 @@
         @ended="nextOne"
         @playing="systemProperty.playerRunning = true"
         @pause="systemProperty.playerRunning = false"
+        @wheel.prevent="onWheel"
         v-touch-pan="touchVideo"
         style="
           touch-action: auto;
@@ -683,6 +684,20 @@ const prevOne = async () => {
 const nextOne = async () => {
   view.videoUrl = null;
   emmits('nextOne');
+};
+
+let wheelTimer = null;
+const onWheel = (e) => {
+  if (!view.videoUrl) return;
+  if (wheelTimer) return;
+  if (e.deltaY < 0) {
+    prevOne();
+    $q.notify({ type: 'info', message: '上一集', position: 'top', timeout: 800 });
+  } else {
+    nextOne();
+    $q.notify({ type: 'info', message: '下一集', position: 'top', timeout: 800 });
+  }
+  wheelTimer = setTimeout(() => { wheelTimer = null; }, 600);
 };
 
 onMounted(() => {

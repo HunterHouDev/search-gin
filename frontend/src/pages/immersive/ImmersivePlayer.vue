@@ -193,10 +193,11 @@
       @touchend="onContainerTouchEnd"
       @click="onDoubleTap"
       @wheel.prevent="onWheel">
-      <video ref="videoRef" id="immersiveVideo" :src="currentVideoSrc" :poster="currentPoster" preload="auto" playsinline
+      <video ref="videoRef" id="immersiveVideo" 
+        :src="currentVideoSrc" :poster="currentPoster"
+        playsinline
         @timeupdate="onTimeUpdate" @loadedmetadata="onMetadataLoaded" @play="onPlay"
         @pause="onPause" @ended="onEnded" @waiting="onWaiting" @canplay="onCanPlay" @error="onVideoError"
-        :muted="false"
         :style="videoStyle"></video>
       <!-- 缓冲 loading 遮罩 -->
       <transition name="fade">
@@ -520,7 +521,6 @@ const currentEditItem = ref(null);
 const currentVideoSrc = ref('');
 const currentPoster = ref('');
 const currentVideoName = ref('');
-const currentActress = ref('');
 const videoLoaded = ref(false);
 const isPlaying = ref(false);
 const isFullscreen = ref(false);
@@ -682,7 +682,6 @@ function switchToItem(index) {
   if (index < 0 || index >= playlist.value.length) return;
   currentIndex.value = index;
   const item = playlist.value[index];
-  currentActress.value = item.Actress || '';
   const src = item.TorrentStream || getFileStream(item.Id);
   loadVideo(
     src,
@@ -914,10 +913,9 @@ function initParticles() {
 function initAudioAnalyser() {
   if (!videoRef.value) return;
 
-  // 如果是同一个视频元素，不需要重新创建 source
-  if (connectedVideoElement === videoRef.value && source) {
-    // 检查音频上下文状态，如果处于 suspended 则恢复
-    if (audioContext && audioContext.state === 'suspended') {
+  // 如果是同一个视频元素且 source 已连接，只需恢复音频上下文
+  if (connectedVideoElement === videoRef.value && source && audioContext) {
+    if (audioContext.state === 'suspended') {
       audioContext
         .resume()
         .catch((e) => console.warn('Failed to resume audio context:', e));
@@ -925,7 +923,7 @@ function initAudioAnalyser() {
     return;
   }
 
-  // 如果是不同的视频元素，需要关闭旧的 audioContext 并创建新的
+  // 关闭旧的 audioContext（如果是不同的视频元素或首次初始化）
   if (audioContext) {
     try {
       audioContext.close();
@@ -935,6 +933,7 @@ function initAudioAnalyser() {
     audioContext = null;
     analyser = null;
     source = null;
+    connectedVideoElement = null;
   }
 
   try {
@@ -1003,9 +1002,9 @@ function loadVideo(src, name, poster, item = {}) {
     // 先设置音量和取消静音，再开始播放
     videoRef.value.muted = false;
     videoRef.value.volume = volume.value > 0 ? volume.value : 0.8;
-    
-    // 监听 loadedmetadata，元数据加载完成后再播放
-    videoRef.value.addEventListener('loadedmetadata', () => {
+
+    // 监听 loadedmetadata，元数据加载完成后再播放（使用 once 避免重复绑定）
+    videoRef.value.addEventListener('loadedmetadata', function onMeta() {
       // 确保元数据加载后音量仍然正确
       videoRef.value.muted = false;
       videoRef.value.volume = volume.value > 0 ? volume.value : 0.8;
@@ -1031,7 +1030,7 @@ function loadVideo(src, name, poster, item = {}) {
       }
 
       if (!animationFrameId) animate();
-    });
+    }, { once: true });
   }
 }
 
@@ -1270,7 +1269,19 @@ function togglePlay() {
     searchDialog.value = !searchDialog.value;
     return;
   }
-  isPlaying.value ? videoRef.value.pause() : videoRef.value.play();
+  if (isPlaying.value) {
+    videoRef.value.pause();
+  } else {
+    // 确保取消静音
+    videoRef.value.muted = false;
+    videoRef.value.play().catch((e) => {
+      console.warn('Play failed:', e.message);
+    });
+    // 恢复可能被挂起的音频上下文
+    if (audioContext && audioContext.state === 'suspended') {
+      audioContext.resume().catch((e) => console.warn('Failed to resume audio context:', e));
+    }
+  }
 }
 
 function stopPlay() {
@@ -1434,6 +1445,8 @@ function toggleMute() {
     volume.value = 0.8;
     videoRef.value.volume = 0.8;
   }
+  // 确保不是静音状态
+  videoRef.value.muted = false;
 }
 
 function setVolume(val) {

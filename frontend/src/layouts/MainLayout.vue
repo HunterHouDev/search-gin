@@ -89,10 +89,11 @@
         </transition>
       </router-view>
     </q-page-container>
+      <ShutdownComponent ref="shutdown" />
+      <ListEdit ref="listEditRef" />
+      <ChatDeepseek ref="chatRef" />
   </q-layout>
-  <ShutdownComponent ref="shutdown" />
-  <ListEdit ref="listEditRef" />
-  <ChatDeepseek ref="chatRef" />
+
 </template>
 
 <script setup>
