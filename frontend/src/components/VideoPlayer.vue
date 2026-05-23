@@ -264,11 +264,6 @@ const closeDrawer = () => {
   view.showDrawer = false;
 };
 
-const videoSideOpen = (params) => {
-  const { item } = params;
-  openVideo(item);
-};
-
 const openVideo = async (item) => {
   currentItemId = item.Id;
   view.currentData = item;
@@ -312,6 +307,7 @@ const onSearchPanelPlay = (item) => {
 
 const onSearchPanelKeyword = (keyword) => {
   // 可在搜索面板内按关键词继续搜索，这里暂时关闭面板
+  console.log('onSearchPanelKeyword', keyword);
 };
 
 const onSearchPanelEdit = (item) => {

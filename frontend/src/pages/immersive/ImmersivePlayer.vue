@@ -6,31 +6,8 @@
     <q-btn flat color="white" icon="arrow_back" class="fixed-top-left-btn" @click.stop="goBack">
       <q-tooltip class="bg-dark text-white">返回</q-tooltip>
     </q-btn>
-
-    <!-- 顶部中央视频信息 -->
-    <div class="fixed-top-center" v-if="videoLoaded">
-      <span class="top-video-tag tag tag-level" v-for="(tag, index) in currentData.Tags" :key="tag"
-        :style="{ background: getTagColor(index) }">{{ tag }}</span>
-      <span class="top-video-name">
-        {{ formatTitle(currentData.Name) }}
-      </span>
-      <span class="meta-item">
-        <q-btn color="indigo-6" flat dense grossy @click="fetchKeyword(currentData.Actress)">{{ currentData.Actress
-        }}</q-btn>
-      </span>
-      <span class="meta-item">
-        <q-icon name="folder" size="14px" />
-        {{ currentData.BaseDir?.substring(currentData.BaseDir.lastIndexOf('/') + 1) || '' }}
-      </span>
-      <span class="meta-item">
-        <q-icon name="data_usage" size="14px" />
-        {{ humanStorageSize(currentData.Size) }}
-      </span>
-      <span class="meta-item">
-        <q-icon name="schedule" size="14px" />
-        {{ getTimeAgo(currentData.MTime) }}
-      </span>
-      <q-btn-dropdown dense flat size="md" color="indigo-4"
+    <div class="fixed-top-right-btn" :style="{ flexDirection: isSmall ? 'column' : 'row' }">
+      <q-btn-dropdown dense flat size="md" color="white" v-if="currentData.MovieType"
         :label="`${currentData.MovieType === '无' ? '分类' : currentData.MovieType}`" no-caps>
         <q-list style="min-width: 60px">
           <q-item v-for="mt in MovieTypeOptions" :key="mt.value" clickable v-close-popup>
@@ -38,17 +15,134 @@
           </q-item>
         </q-list>
       </q-btn-dropdown>
-      <q-btn flat dense color="primary" icon="edit" size="md" label="修改" @click.stop="fileEditRef.open(currentData)">
+      <q-btn flat dense v-if="currentData.Id" color="white" icon="edit" size="md" label=""
+        @click.stop="fileEditRef.open(currentData)">
         <q-tooltip>修改</q-tooltip>
       </q-btn>
-      <q-btn flat dense color="negative" icon="delete" size="md" label="删除" @click.stop="deleteVideo(currentData)">
+      <q-btn flat dense v-if="currentData.Id" color="white" icon="delete" size="md" label=""
+        @click.stop="deleteVideo(currentData)">
         <q-tooltip>删除</q-tooltip>
       </q-btn>
+      <!-- 标签 -->
+      <q-btn flat v-if="currentData.Id" color="white" size="md" icon="ti-star">
+        <q-popup-proxy>
+          <EditVideoTag :current-data="currentData" @next-one="nextItem" @prev-one="prevItem" />
+        </q-popup-proxy>
+        <q-tooltip class="bg-dark">标签</q-tooltip>
+      </q-btn>
+      <!-- 剪辑 -->
+      <q-btn flat color="white" size="md" icon="content_cut" v-if="videoLoaded">
+        <q-popup-proxy>
+          <VideoCutParam :current-data="currentData" :current-time="currentTime" :duration="durationSeconds"
+            @stop-video="videoRef?.pause()" @play-video="videoRef?.play()" @prev-one-video="prevItem"
+            @next-one-video="nextItem" @forward-time="forwardTime" />
+        </q-popup-proxy>
+        <q-tooltip class="bg-dark">剪辑</q-tooltip>
+      </q-btn>
+      <!-- 画面设置 -->
+      <q-btn flat dense color="white" size="md" icon="settings" v-if="videoLoaded">
+        <q-popup-proxy>
+          <PlayerSetting />
+        </q-popup-proxy>
+        <q-tooltip class="bg-dark">画面设置</q-tooltip>
+      </q-btn>
+      <q-btn flat color="white" size="md" :icon="isFullscreen ? 'fullscreen_exit' : 'fullscreen'"
+        @click="toggleFullscreen">
+        <q-tooltip class="bg-dark">{{
+          isFullscreen ? '退出全屏' : '全屏'
+          }}</q-tooltip>
+      </q-btn>
+
     </div>
 
+    <!-- 顶部中央视频信息 -->
+    <div class="fixed-top-center" v-if="videoLoaded">
+      <span class="meta-item">
+        <q-btn color="indigo-6" flat dense grossy @click="fetchKeyword(currentData.Actress)">{{ currentData.Actress
+          }}</q-btn>
+      </span>
+      <span class="top-video-tag tag tag-level" v-for="(tag, index) in currentData.Tags" :key="tag"
+        :style="{ background: getTagColor(index) }">{{ tag }}</span>
+      <span class="top-video-name">
+        {{ formatTitle(currentData.Name) }}
+      </span>
+    </div>
+    <!-- 底部控制面板 -->
+    <transition name="slide-up">
+      <div class="glass-panel" v-show="!controlsHidden || !isPlaying" @mouseenter="showControls"
+        @mouseleave="startHideTimer" @click.stop @touchstart="touchControl = true" @touchend="touchControl = false">
+        <!-- 进度条 -->
+        <div class="progress-container" ref="progressBar" @mousedown="startSeek" @mousemove="onProgressHover"
+          @mouseleave="hideTooltip" @contextmenu.prevent="onProgressContextMenu" @touchstart.stop="onSeekBarTouchStart"
+          @touchmove.stop="onSeekBarTouchMove" @touchend.stop="onSeekBarTouchEnd">
+          <div class="progress-track">
+            <!-- 缓冲进度 -->
+            <div class="progress-buffered" :style="{ width: bufferedPercent + '%' }"></div>
+            <!-- 播放进度 -->
+            <div class="progress-fill" :style="{ width: progressPercent + '%' }">
+              <div class="progress-glow"></div>
+            </div>
+            <!-- 拖拽手柄 -->
+            <div class="progress-thumb" :style="{ left: progressPercent + '%' }"
+              :class="{ seeking: isSeeking || touchSeekBar }"></div>
+          </div>
+          <!-- 时间悬浮提示 -->
+          <div class="progress-tooltip" v-if="hoverTime !== null" :style="{ left: hoverX + 'px' }">
+            {{ hoverTime }}
+          </div>
+        </div>
+        <!-- 控制按钮行 -->
+        <div class="control-buttons mobile-compact" :style="{
+          display: 'flex',
+          flexDirection: isSmall ? 'column' : 'row'
+        }">
+          <!-- 快进快退按钮组 -->
+          <div class="seek-buttons-popup">
+            <q-btn flat round color="white" size="md" icon="skip_previous" @click="prevItem">
+              <q-tooltip class="bg-dark">上一个</q-tooltip>
+            </q-btn>
+            <q-btn flat dense v-for="sec in seekSeconds" :key="sec" class="seek-btn"
+              :class="{ 'seek-btn-rewind': sec < 0 }" @click.stop="seekBySeconds(sec, false)"
+              @contextmenu.prevent.stop="seekBySeconds(sec, true)">
+              {{ sec > 0 ? '+' + sec : sec }}s
+            </q-btn>
+            <q-btn flat round color="white" size="md" icon="skip_next" @click="nextItem">
+              <q-tooltip class="bg-dark">下一个</q-tooltip>
+            </q-btn>
+          </div>
+          <!-- 右侧：音量 + 设置 + 剪辑 + 标签 + 全屏 -->
+          <div class="ctrl-right">
+            <div class="volume-group" @mouseenter="showVolume = true" @mouseleave="showVolume = false">
+              <q-btn flat round color="white" size="md" @click="toggleMute" :icon="volumeIcon" />
+              <transition name="fade">
+                <q-slider v-show="showVolume" v-model="volume" :min="0" :max="1" :step="0.01" color="indigo-4"
+                  track-color="grey-8" class="volume-slider" @update:model-value="setVolume" />
+              </transition>
+            </div>
+            <div class="time-display">
+              <span class="time-current">{{ currentTime }}</span>
+              <span class="time-sep">/</span>
+              <span class="time-total">{{ duration }}</span>
+            </div>
+            <q-btn flat round :color="isPlaying ? 'indigo-3' : 'white'" size="md"
+              :icon="isPlaying ? 'pause_circle' : 'play_circle'" class="play-btn" @click="togglePlay" />
+            <q-btn flat round v-if="isPlaying" color="white" size="md" icon="stop" class="play-btn" @click="stopPlay" />
+            <!-- 截图 (非骑兵) -->
+            <q-btn flat round color="green" size="md" icon="photo_camera"
+              v-if="videoLoaded && currentData.MovieType !== '骑兵'" @click="curImage">
+              <q-tooltip class="bg-dark">截图</q-tooltip>
+            </q-btn>
+            <q-btn flat round color="red" size="md" icon="photo_camera"
+              v-if="videoLoaded && currentData.MovieType !== '骑兵'" @click="curImage('png')">
+              <q-tooltip class="bg-dark">Png</q-tooltip>
+            </q-btn>
+          </div>
+
+        </div>
+      </div>
+    </transition>
     <!-- 播放列表轮播 -->
     <transition name="slide-down">
-
       <!-- 搜索面板 - 合并到轮播中 -->
       <div class="search-panel" v-show="searchDialog" @click.stop>
         <!-- 头部 -->
@@ -75,13 +169,13 @@
         <div class="search-conditions">
           <div class="filter-item">
             <div class="filter-row">
-              <q-select  v-model="searchParams.MovieType" :options="MovieTypeSelects" dense emit-value
-                map-options borderless dark style="min-width: 120px" @update:model-value="fetchSearch" />
+              <q-select v-model="searchParams.MovieType" :options="MovieTypeSelects" dense emit-value map-options
+                borderless dark style="min-width: 120px" @update:model-value="fetchSearch" />
             </div>
 
             <div class="filter-row">
-              <q-select  v-model="currentSort" :options="sortOptions" dense emit-value
-                map-options borderless dark style="min-width: 120px" @update:model-value="fetchSearch" />
+              <q-select v-model="currentSort" :options="sortOptions" dense emit-value map-options borderless dark
+                style="min-width: 120px" @update:model-value="fetchSearch" />
             </div>
             <div class="filter-row">
               <IndexButton flat @refresh-done="fetchSearch" color="red" toggle-color="indigo-6" glossy />
@@ -188,17 +282,11 @@
     </transition>
 
     <!-- 视频区域 -->
-    <div class="video-wrapper" v-show="videoLoaded"
-      @touchstart="onContainerTouchStart"
-      @touchend="onContainerTouchEnd"
-      @click="onDoubleTap"
-      @wheel.prevent="onWheel">
-      <video ref="videoRef" id="immersiveVideo" 
-        :src="currentVideoSrc" :poster="currentPoster"
-        playsinline
-        @timeupdate="onTimeUpdate" @loadedmetadata="onMetadataLoaded" @play="onPlay"
-        @pause="onPause" @ended="onEnded" @waiting="onWaiting" @canplay="onCanPlay" @error="onVideoError"
-        :style="videoStyle"></video>
+    <div class="video-wrapper" v-show="videoLoaded" @touchstart="onContainerTouchStart" @touchend="onContainerTouchEnd"
+      @click="onDoubleTap" @wheel.prevent="onWheel">
+      <video ref="videoRef" id="immersiveVideo" :src="currentVideoSrc" :poster="currentPoster" playsinline
+        @timeupdate="onTimeUpdate" @loadedmetadata="onMetadataLoaded" @play="onPlay" @pause="onPause" @ended="onEnded"
+        @waiting="onWaiting" @canplay="onCanPlay" @error="onVideoError" :style="videoStyle"></video>
       <!-- 缓冲 loading 遮罩 -->
       <transition name="fade">
         <div class="video-buffering" v-if="isBuffering">
@@ -296,116 +384,7 @@
       </div>
     </transition>
 
-    <!-- 底部控制面板 -->
-    <transition name="slide-up">
-      <div class="glass-panel" v-show="!controlsHidden || !isPlaying" @mouseenter="showControls"
-        @mouseleave="startHideTimer" @click.stop @touchstart="touchControl = true" @touchend="touchControl = false">
-        <!-- 进度条 -->
-        <div class="progress-container" ref="progressBar" 
-          @mousedown="startSeek" @mousemove="onProgressHover"
-          @mouseleave="hideTooltip" @contextmenu.prevent="onProgressContextMenu"
-          @touchstart.stop="onSeekBarTouchStart" @touchmove.stop="onSeekBarTouchMove" @touchend.stop="onSeekBarTouchEnd">
-          <div class="progress-track">
-            <!-- 缓冲进度 -->
-            <div class="progress-buffered" :style="{ width: bufferedPercent + '%' }"></div>
-            <!-- 播放进度 -->
-            <div class="progress-fill" :style="{ width: progressPercent + '%' }">
-              <div class="progress-glow"></div>
-            </div>
-            <!-- 拖拽手柄 -->
-            <div class="progress-thumb" :style="{ left: progressPercent + '%' }" :class="{ seeking: isSeeking || touchSeekBar }"></div>
-          </div>
-          <!-- 时间悬浮提示 -->
-          <div class="progress-tooltip" v-if="hoverTime !== null" :style="{ left: hoverX + 'px' }">
-            {{ hoverTime }}
-          </div>
 
-        </div>
-
-        <!-- 控制按钮行 -->
-        <div class="control-buttons mobile-compact">
-          <!-- 右侧：音量 + 设置 + 剪辑 + 标签 + 全屏 -->
-          <div class="ctrl-right">
-            <q-btn flat round color="white" size="md" :icon="isFullscreen ? 'fullscreen_exit' : 'fullscreen'"
-              @click="toggleFullscreen">
-              <q-tooltip class="bg-dark">{{
-                isFullscreen ? '退出全屏' : '全屏'
-                }}</q-tooltip>
-            </q-btn>
-            <!-- 画面设置 -->
-            <q-btn flat round color="white" size="md" icon="settings" v-if="videoLoaded">
-              <q-popup-proxy>
-                <PlayerSetting />
-              </q-popup-proxy>
-              <q-tooltip class="bg-dark">画面设置</q-tooltip>
-            </q-btn>
-            <!-- 剪辑 -->
-            <q-btn flat round color="white" size="md" icon="content_cut" v-if="videoLoaded">
-              <q-popup-proxy>
-                <VideoCutParam :current-data="currentData" :current-time="currentTime" :duration="durationSeconds"
-                  @stop-video="videoRef?.pause()" @play-video="videoRef?.play()" @prev-one-video="prevItem"
-                  @next-one-video="nextItem" @forward-time="forwardTime" />
-              </q-popup-proxy>
-              <q-tooltip class="bg-dark">剪辑</q-tooltip>
-            </q-btn>
-            <!-- 标签 -->
-            <q-btn flat round color="white" size="md" icon="ti-star" v-if="videoLoaded && currentData.Id">
-              <q-popup-proxy>
-                <EditVideoTag :current-data="currentData" @next-one="nextItem" @prev-one="prevItem" />
-              </q-popup-proxy>
-              <q-tooltip class="bg-dark">标签</q-tooltip>
-            </q-btn>
-
-
-            <div class="volume-group" @mouseenter="showVolume = true" @mouseleave="showVolume = false">
-              <q-btn flat round color="white" size="md" @click="toggleMute" :icon="volumeIcon" />
-              <transition name="fade">
-                <q-slider v-show="showVolume" v-model="volume" :min="0" :max="1" :step="0.01" color="indigo-4"
-                  track-color="grey-8" class="volume-slider" @update:model-value="setVolume" />
-              </transition>
-            </div>
-          </div>
-          <!-- 快进快退按钮组 -->
-          <div class="seek-buttons-popup">
-            <q-btn flat round color="white" size="md" icon="skip_previous" @click="prevItem">
-              <q-tooltip class="bg-dark">上一个</q-tooltip>
-            </q-btn>
-            <q-btn flat dense v-for="sec in seekSeconds" :key="sec" class="seek-btn" :class="{ 'seek-btn-rewind': sec < 0 }"
-              @click.stop="seekBySeconds(sec, false)" @contextmenu.prevent.stop="seekBySeconds(sec, true)">
-              {{ sec > 0 ? '+' + sec : sec }}s
-            </q-btn>
-
-            <q-btn flat round color="white" size="md" icon="skip_next" @click="nextItem">
-              <q-tooltip class="bg-dark">下一个</q-tooltip>
-            </q-btn>
-          </div>
-          <!-- 左侧：播放控制 + 时间 -->
-          <div class="ctrl-left">
-
-            <!-- 截图 (非骑兵) -->
-            <q-btn flat round color="green" size="md" icon="photo_camera"
-              v-if="videoLoaded && currentData.MovieType !== '骑兵'" @click="curImage">
-              <q-tooltip class="bg-dark">截图</q-tooltip>
-            </q-btn>
-            <q-btn flat round color="red" size="md" icon="photo_camera"
-              v-if="videoLoaded && currentData.MovieType !== '骑兵'" @click="curImage('png')">
-              <q-tooltip class="bg-dark">Png</q-tooltip>
-            </q-btn>
-            <q-btn flat round :color="isPlaying ? 'indigo-3' : 'white'" size="md"
-              :icon="isPlaying ? 'pause_circle' : 'play_circle'" class="play-btn" @click="togglePlay" />
-            <q-btn flat round v-if="isPlaying" color="white" size="md" icon="stop" class="play-btn" @click="stopPlay" />
-
-            <div class="time-display">
-              <span class="time-current">{{ currentTime }}</span>
-              <span class="time-sep">/</span>
-              <span class="time-total">{{ duration }}</span>
-            </div>
-          </div>
-
-
-        </div>
-      </div>
-    </transition>
 
     <!-- 下载管理器悬浮按钮 -->
     <q-btn v-if="activeDownloads.length > 0" round color="indigo-6" icon="download" class="download-fab"
@@ -513,7 +492,6 @@ const systemProperty = useSystemProperty();
 const videoRef = ref(null);
 const particleCanvas = ref(null);
 const progressBar = ref(null);
-const searchResultsRef = ref(null);
 const fileEditRef = ref(null);
 const currentEditItem = ref(null);
 
@@ -604,9 +582,6 @@ const currentPageSizeChange = (size) => {
 
 // ── 粒子 / 音频 ───────────────────────────────────────────────────────────────
 let audioContext = null;
-let analyser = null;
-let source = null;
-let connectedVideoElement = null; // 记录已连接的视频元素
 let animationFrameId = null;
 let particles = [];
 let hideControlsTimer = null;
@@ -861,29 +836,6 @@ class Particle {
     this.pulseSpeed = Math.random() * 0.018 + 0.008;
   }
 
-  update(audioData = null) {
-    this.pulsePhase += this.pulseSpeed;
-    const pulse = Math.sin(this.pulsePhase) * 0.5 + 0.5;
-
-    if (audioData) {
-      const { bass = 0, mid = 0, treble = 0 } = audioData;
-      this.size = this.baseSize + bass * 4 + pulse * 1.5;
-      this.speedX *= 1 + bass * 0.08;
-      this.speedY *= 1 + bass * 0.08;
-      this.opacity = Math.min(0.85, 0.2 + bass * 0.5 + pulse * 0.25);
-      this.hue = 230 + mid * 60 + treble * 30;
-    } else {
-      this.size = this.baseSize + pulse * 1.2;
-      this.opacity = 0.15 + pulse * 0.25;
-    }
-
-    this.x += this.speedX;
-    this.y += this.speedY;
-
-    if (this.x < 0 || this.x > this.canvas.width) this.speedX *= -1;
-    if (this.y < 0 || this.y > this.canvas.height) this.speedY *= -1;
-  }
-
   draw(ctx) {
     ctx.save();
     ctx.globalAlpha = this.opacity;
@@ -910,70 +862,13 @@ function initParticles() {
   for (let i = 0; i < count; i++) particles.push(new Particle(canvas));
 }
 
-function initAudioAnalyser() {
-  if (!videoRef.value) return;
-
-  // 如果是同一个视频元素且 source 已连接，只需恢复音频上下文
-  if (connectedVideoElement === videoRef.value && source && audioContext) {
-    if (audioContext.state === 'suspended') {
-      audioContext
-        .resume()
-        .catch((e) => console.warn('Failed to resume audio context:', e));
-    }
-    return;
-  }
-
-  // 关闭旧的 audioContext（如果是不同的视频元素或首次初始化）
-  if (audioContext) {
-    try {
-      audioContext.close();
-    } catch (e) {
-      console.warn('Error closing audio context:', e);
-    }
-    audioContext = null;
-    analyser = null;
-    source = null;
-    connectedVideoElement = null;
-  }
-
-  try {
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    analyser = audioContext.createAnalyser();
-    analyser.fftSize = 256;
-
-    // 创建新的音频源并连接
-    source = audioContext.createMediaElementSource(videoRef.value);
-    source.connect(analyser);
-    analyser.connect(audioContext.destination);
-
-    // 记录已连接的视频元素
-    connectedVideoElement = videoRef.value;
-  } catch (e) {
-    console.warn('Audio analyser unavailable:', e);
-  }
-}
-
-function getAudioData() {
-  if (!analyser) return null;
-  const bufferLength = analyser.frequencyBinCount;
-  const dataArray = new Uint8Array(bufferLength);
-  analyser.getByteFrequencyData(dataArray);
-  const bass = dataArray.slice(0, 10).reduce((a, b) => a + b, 0) / 10 / 255;
-  const mid = dataArray.slice(10, 40).reduce((a, b) => a + b, 0) / 30 / 255;
-  const treble =
-    dataArray.slice(40).reduce((a, b) => a + b, 0) / (bufferLength - 40) / 255;
-  return { bass, mid, treble };
-}
-
 function animate() {
   if (!particleCanvas.value) return;
   const canvas = particleCanvas.value;
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = 'rgba(8, 8, 14, 0.12)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  const audioData = isPlaying.value ? getAudioData() : null;
   particles.forEach((p) => {
-    p.update(audioData);
     p.draw(ctx);
   });
   animationFrameId = requestAnimationFrame(animate);
@@ -999,9 +894,6 @@ function loadVideo(src, name, poster, item = {}) {
   currentData.value = item;
 
   if (videoRef.value) {
-    // 先设置音量和取消静音，再开始播放
-    videoRef.value.muted = false;
-    videoRef.value.volume = volume.value > 0 ? volume.value : 0.8;
 
     // 监听 loadedmetadata，元数据加载完成后再播放（使用 once 避免重复绑定）
     videoRef.value.addEventListener('loadedmetadata', function onMeta() {
@@ -1013,21 +905,6 @@ function loadVideo(src, name, poster, item = {}) {
       videoRef.value.play().catch((e) => {
         console.warn('Autoplay blocked on mobile, user interaction needed:', e.message);
       });
-
-      // 确保音频上下文正常工作
-      if (audioContext && audioContext.state === 'suspended') {
-        audioContext
-          .resume()
-          .then(() => {
-            initAudioAnalyser();
-          })
-          .catch((e) => {
-            console.warn('Failed to resume audio:', e);
-            initAudioAnalyser();
-          });
-      } else {
-        initAudioAnalyser();
-      }
 
       if (!animationFrameId) animate();
     }, { once: true });
@@ -1325,10 +1202,10 @@ function onVideoError(e) {
   if (!currentVideoSrc.value) {
     return;
   }
-  
+
   const error = video?.error;
   let errorMsg = '视频播放失败';
-  
+
   if (error) {
     switch (error.code) {
       case 1: // MEDIA_ERR_ABORTED
@@ -1355,7 +1232,7 @@ function onVideoError(e) {
   } else {
     console.error('Video playback error:', e);
   }
-  
+
   if (currentInfoHash.value) {
     // 磁力链播放失败，提示等待缓冲
     $q.notify({
@@ -1610,7 +1487,7 @@ function onDoubleTap(e) {
   const rect = e.target.getBoundingClientRect();
   const tapX = e.clientX - rect.left;
   const halfWidth = rect.width / 2;
-  
+
   if (now - lastTap < 300) {
     // 双击
     if (tapX < halfWidth) {
@@ -1778,27 +1655,38 @@ onUnmounted(() => {
   box-shadow: 0 0 18px rgba(99, 102, 241, 0.35);
 }
 
+.fixed-top-right-btn {
+  position: fixed;
+  top: 60px;
+  right: 10px;
+  z-index: 9999;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.fixed-top-right-btn:hover {
+  background: rgba(99, 102, 241, 0.25) !important;
+}
+
 .fixed-top-center {
   position: fixed;
   top: 1px;
-  left: 80px;
-  z-index: 1000;
+  left: 60px;
+  z-index: 9;
   display: flex;
   align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 6px 18px;
   border-radius: 24px;
   max-width: 90vw;
-  flex-wrap: wrap;
-  justify-content: center;
 }
 
 .top-video-name {
   font-size: 0.95rem;
   color: rgba(255, 255, 255, 0.95);
-  font-weight: 600;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6);
-  max-width: 280px;
+  max-width: 500px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2890,12 +2778,12 @@ onUnmounted(() => {
   .progress-track {
     height: 8px !important;
   }
-  
+
   .progress-container {
     height: 40px;
     margin-bottom: 8px;
   }
-  
+
   .progress-thumb {
     width: 20px !important;
     height: 20px !important;
@@ -2911,12 +2799,14 @@ onUnmounted(() => {
   }
 
   .fixed-top-center {
-    max-width: 95vw;
+    max-width: 80vw;
     gap: 6px;
+    display: flex;
+    flex-wrap: wrap;
   }
 
   .top-video-name {
-    max-width: 200px;
+    max-width: 300px;
     font-size: 0.85rem;
   }
 
@@ -2962,15 +2852,7 @@ onUnmounted(() => {
     align-items: center;
     gap: 2px;
   }
-  
-  /* 隐藏截图等非必要按钮 */
-  .ctrl-left .q-btn:nth-child(-n+2) {
-    display: none;
-  }
 
-  .seek-buttons-popup {
-    display: none; /* 移动端通过滑动手势控制 */
-  }
 
   /* 移动端按钮更大 */
   .ctrl-left .q-btn,
@@ -2978,12 +2860,12 @@ onUnmounted(() => {
     min-width: 44px;
     min-height: 44px;
   }
-  
+
   .play-btn {
     min-width: 56px !important;
     min-height: 56px !important;
   }
-  
+
   .play-btn .q-icon {
     font-size: 32px;
   }
@@ -2998,11 +2880,11 @@ onUnmounted(() => {
   .glass-panel {
     padding: 8px 8px 28px;
   }
-  
+
   .ctrl-left .q-btn:nth-child(-n+3) {
     display: none;
   }
-  
+
   .time-display {
     font-size: 0.7rem;
     margin-left: 4px;
