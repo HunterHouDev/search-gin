@@ -1,14 +1,10 @@
 <template>
   <q-dialog v-model="card" title="关机设置">
     <q-card class="my-card">
-      <div style="width: 280px; padding: 20px" class="q-gutter-sm">
+      <div style="width: 3000px; padding: 20px" class="q-gutter-sm">
         <div class="row justify-between">
-          <q-btn color="primary" v-close-popup @click="closeApp"
-            >关闭系统</q-btn
-          >
-          <q-btn color="primary" v-close-popup @click="clearTime()"
-            >清除定时</q-btn
-          >
+          <q-btn color="primary" v-close-popup @click="closeApp">关闭系统</q-btn>
+          <q-btn color="primary" v-close-popup @click="closePage()">关闭页面</q-btn>
         </div>
         <div class="text-h6">关机设置</div>
         <q-card-section class="q-pt-none">
@@ -16,14 +12,11 @@
             <q-radio v-model="view.shutdownType" val="now" label="立即" />
             <q-radio v-model="view.shutdownType" val="target" label="定时" />
           </div>
-          <div
-            v-if="view.shutdownType === 'target'"
-            style="
+          <div v-if="view.shutdownType === 'target'" style="
               display: flex;
               flex-direction: row;
               justify-content: space-between;
-            "
-          >
+            ">
             <q-input class="timeSelect" v-model="view.shutdownHH"></q-input>
             <q-input class="timeSelect" v-model="view.shutdownMM"></q-input>
             <q-input class="timeSelect" v-model="view.shutdownSS"></q-input>
@@ -31,6 +24,7 @@
         </q-card-section>
       </div>
       <q-card-actions align="right">
+        <q-btn color="primary" v-close-popup @click="clearTime()">清除定时</q-btn>
         <q-btn v-close-popup color="primary">取消</q-btn>
         <q-btn v-close-popup color="primary" @click="submitBtn">关机 </q-btn>
         <q-btn color="primary" v-close-popup @click="logout">退出登录</q-btn>
@@ -69,12 +63,16 @@ const clearTime = () => {
   systemProperty.shutdownLeftSecond = null;
 };
 
+const closePage = () => {
+  window.location.href = "about:blank"; window.close();
+}
+
 const closeApp = async () => {
- 
+
   const res = await AppShutDown();
   console.log(res);
   $q.notify({ message: `${res}`, position: 'center' });
-   setTimeout(() => {
+  setTimeout(() => {
     window.location.href = "about:blank"; window.close();
   }, 200);
 };
