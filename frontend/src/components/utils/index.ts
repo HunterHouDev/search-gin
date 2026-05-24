@@ -77,9 +77,9 @@ export const MovieTypeOptions = [
 ];
 
 export const MovieTypeSelects = [
-  { label: '全部', value: '' },
   ...MovieTypeOptions,
   { label: '无', value: '无' },
+  { label: '全部', value: '' },
 ];
 
 export const DescEnum = [

@@ -1,251 +1,245 @@
 <template>
   <div>
-  <q-layout view="lHh lpr lFf" container style="height: 93vh" class="shadow-2 rounded-borders" :class="{ 'theme-natural': systemProperty.theme === 'natural' }" :style="themeStyle">
-    <!-- 头部 -->
-    <q-header :style="themeStyle" elevated class="q-gutter-sm flex justify-center" style="
+    <q-layout view="lHh lpr lFf" container style="height: 93vh" class="shadow-2 rounded-borders"
+      :class="{ 'theme-natural': systemProperty.theme === 'natural' }" :style="themeStyle">
+      <!-- 头部 -->
+      <q-header :style="themeStyle" elevated class="q-gutter-sm flex justify-center" style="
         backdrop-filter: blur(10px);
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         border-bottom: 1px solid var(--q-border);
       ">
-      <!-- 索引按钮 -->
-      <IndexButton ref="indexButton" @refresh-done="onIndexRefresh" glossy dense :size="btnSize('head')" />
+        <!-- 索引按钮 -->
+        <IndexButton ref="indexButton" @refresh-done="onIndexRefresh" glossy dense :size="btnSize('head')" />
+        <!-- 主题选择器 -->
+        <q-btn-dropdown no-caps flat glossy dense>
+          <template v-slot:label>
+            <q-icon :name="themeIcon" size="14px" class="theme-icon" />
+            {{ currentThemeLabel }}
+          </template>
+          <q-list style="min-width: 160px; padding: 8px 0;">
+            <q-item clickable v-close-popup @click="setTheme('star')" :active="systemProperty.theme === 'star'"
+              class="q-mx-xs rounded-lg">
+              <q-item-section avatar>
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center"
+                  style="background: linear-gradient(135deg, #4f46e5, #7c3aed);">
+                  <q-icon name="star" color="white" size="16px" />
+                </div>
+              </q-item-section>
+              <q-item-section>
+                <q-item-label class="font-medium">星空主题</q-item-label>
+                <q-item-label caption class="text-xs">深蓝紫配色</q-item-label>
+              </q-item-section>
+              <q-item-section side v-if="systemProperty.theme === 'star'">
+                <q-icon name="check" color="primary" size="18px" />
+              </q-item-section>
+            </q-item>
+            <q-item clickable v-close-popup @click="setTheme('natural')" :active="systemProperty.theme === 'natural'"
+              class="q-mx-sm rounded-lg">
+              <q-item-section avatar>
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center"
+                  style="background: linear-gradient(135deg, #22c55e, #84cc16);">
+                  <q-icon name="eco" color="white" size="16px" />
+                </div>
+              </q-item-section>
+              <q-item-section>
+                <q-item-label class="font-medium">自然主题</q-item-label>
+                <q-item-label caption class="text-xs">温暖米色绿植</q-item-label>
+              </q-item-section>
+              <q-item-section side v-if="systemProperty.theme === 'natural'">
+                <q-icon name="check" color="primary" size="18px" />
+              </q-item-section>
+            </q-item>
+            <!-- 显示模式 -->
+            <div class="q-px-md q-py-xs">
+              <q-item-label header class="text-grey-5 text-xs font-medium">显示模式</q-item-label>
+            </div>
+            <q-item clickable v-close-popup @click="systemProperty.showImage = 'cover'"
+              :active="systemProperty.showImage === 'cover'" class="q-mx-sm rounded-lg">
+              <q-item-section avatar>
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10">
+                  <q-icon name="image" color="primary" size="16px" />
+                </div>
+              </q-item-section>
+              <q-item-section>
+                <q-item-label class="font-medium">封面模式</q-item-label>
+                <q-item-label caption class="text-xs">展示完整封面图</q-item-label>
+              </q-item-section>
+              <q-item-section side v-if="systemProperty.showImage === 'cover'">
+                <q-icon name="check" color="primary" size="18px" />
+              </q-item-section>
+            </q-item>
+            <q-item clickable v-close-popup @click="systemProperty.showImage = 'poster'"
+              :active="systemProperty.showImage === 'poster'" class="q-mx-sm rounded-lg">
+              <q-item-section avatar>
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10">
+                  <q-icon name="movie" color="primary" size="16px" />
+                </div>
+              </q-item-section>
+              <q-item-section>
+                <q-item-label class="font-medium">海报模式</q-item-label>
+                <q-item-label caption class="text-xs">展示电影海报</q-item-label>
+              </q-item-section>
+              <q-item-section side v-if="systemProperty.showImage === 'poster'">
+                <q-icon name="check" color="primary" size="18px" />
+              </q-item-section>
+            </q-item>
+            <!-- 卡片大小 -->
+            <div class="q-px-md q-py-xs">
+              <q-item-label header class="text-grey-5 text-xs font-medium">卡片大小</q-item-label>
+            </div>
+            <q-item clickable v-close-popup @click="setShowStyle('lg')" :active="systemProperty.showStyle === 'lg'"
+              class="q-mx-sm rounded-lg">
+              <q-item-section avatar>
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10">
+                  <q-icon name="view_module" color="primary" size="16px" />
+                </div>
+              </q-item-section>
+              <q-item-section>
+                <q-item-label class="font-medium">大</q-item-label>
+                <q-item-label caption class="text-xs">大尺寸卡片</q-item-label>
+              </q-item-section>
+              <q-item-section side v-if="systemProperty.showStyle === 'lg'">
+                <q-icon name="check" color="primary" size="18px" />
+              </q-item-section>
+            </q-item>
+            <q-item clickable v-close-popup @click="setShowStyle('md')" :active="systemProperty.showStyle === 'md'"
+              class="q-mx-sm rounded-lg">
+              <q-item-section avatar>
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10">
+                  <q-icon name="grid_view" color="primary" size="16px" />
+                </div>
+              </q-item-section>
+              <q-item-section>
+                <q-item-label class="font-medium">中</q-item-label>
+                <q-item-label caption class="text-xs">中等尺寸卡片</q-item-label>
+              </q-item-section>
+              <q-item-section side v-if="systemProperty.showStyle === 'md'">
+                <q-icon name="check" color="primary" size="18px" />
+              </q-item-section>
+            </q-item>
+            <q-item clickable v-close-popup @click="setShowStyle('sm')" :active="systemProperty.showStyle === 'sm'"
+              class="q-mx-sm rounded-lg">
+              <q-item-section avatar>
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10">
+                  <q-icon name="apps" color="primary" size="16px" />
+                </div>
+              </q-item-section>
+              <q-item-section>
+                <q-item-label class="font-medium">小</q-item-label>
+                <q-item-label caption class="text-xs">紧凑尺寸卡片</q-item-label>
+              </q-item-section>
+              <q-item-section side v-if="systemProperty.showStyle === 'sm'">
+                <q-icon name="check" color="primary" size="18px" />
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </q-btn-dropdown>
+        <!-- 重命名按钮 -->
+        <q-btn :loading="view.renameCount > 0" v-if="view.renameCount > 0" class="q-mt-sm" color="red"
+          :size="btnSize('head')" dense :label="`重命名 (${view.renameCount})`">
+          <template v-slot:loading>
+            <q-spinner-facebook size="xs"></q-spinner-facebook>
+            {{ `r:${view.renameCount}` }}
+          </template>
+        </q-btn>
 
-      <!-- 重命名按钮 -->
-      <q-btn :loading="view.renameCount > 0" v-if="view.renameCount > 0" class="q-mt-sm" color="red"
-        :size="btnSize('head')" dense :label="`重命名 (${view.renameCount})`">
-        <template v-slot:loading>
-          <q-spinner-facebook size="xs"></q-spinner-facebook>
-          {{ `r:${view.renameCount}` }}
-        </template>
-      </q-btn>
-      
-      <!-- 排序字段选择 -->
-      <q-btn-dropdown glossy  color="primary" :size="btnSize('head')" style="width: 5.5rem"
-        :label="getLabelByValue(currentSort, sortOptions)">
-        <q-list>
-          <q-item v-for="item in sortOptions" :key="item.label" clickable v-close-popup @click="
-            currentSort = item.value;
-          fetchSearch();
-          ">
-            <q-item-section>
-              <q-item-label>{{ item.label }}</q-item-label>
-            </q-item-section>
-          </q-item>
-        </q-list>
-      </q-btn-dropdown>
+        <!-- 排序字段选择 -->
+        <q-btn-dropdown glossy color="primary" :size="btnSize('head')" style="width: 5.5rem"
+          :label="getLabelByValue(currentSort, sortOptions)">
+          <q-list>
+            <q-item v-for="item in sortOptions" :key="item.label" clickable v-close-popup @click="
+              currentSort = item.value;
+            fetchSearch();
+            ">
+              <q-item-section>
+                <q-item-label>{{ item.label }}</q-item-label>
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </q-btn-dropdown>
 
-      <!-- 电影类型选择   style="width: 26rem" -->
-      <q-btn-toggle v-if="!isSmall" glossy push ripple stack :size="btnSize('head')" stretch
-        v-model="view.queryParam.MovieType" @update:model-value="fetchSearch()" :options="MovieTypeSelects" />
+        <!-- 电影类型选择   style="width: 26rem" -->
+        <q-btn-toggle v-if="!isSmall" glossy push ripple stack :size="btnSize('head')" stretch
+          v-model="view.queryParam.MovieType" @update:model-value="fetchSearch()" :options="MovieTypeSelects" />
 
-      <!-- 移动端电影类型选择 -->
-      <q-btn-dropdown v-if="isSmall" glossy push ripple color="primary"
-        :label="getLabelByValue(view.queryParam.MovieType, MovieTypeSelects)">
-        <q-list>
-          <q-item v-for="item in MovieTypeSelects" :key="item.label" clickable v-close-popup @click="
-            view.queryParam.MovieType = item.value;
-          fetchSearch();
-          ">
-            <q-item-section>
-              <q-item-label>{{ item.label }}</q-item-label>
-            </q-item-section>
-          </q-item>
-        </q-list>
-      </q-btn-dropdown>
-      <q-btn icon="ti-bar-chart-alt" class="cursor-pointer" dense :size="btnSize('head')" color="red" flat>
-        <DataPop url />
-      </q-btn>
-      <!-- 仅重复项选择 -->
-      <q-checkbox v-model="view.queryParam.OnlyRepeat" 
-        color="red" :keepColor="true"
-        checked-icon="task_alt" 
-        unchecked-icon="ti-help" :val="true" flat
-        dense @update:model-value="fetchSearch">
-        <q-tooltip class="bg-white text-primary"> 去重 </q-tooltip>
-      </q-checkbox>
-      
-      <!-- 搜索框 -->
-      <q-input dense type="search" style="
+        <!-- 移动端电影类型选择 -->
+        <q-btn-dropdown v-if="isSmall" glossy push ripple color="primary"
+          :label="getLabelByValue(view.queryParam.MovieType, MovieTypeSelects)">
+          <q-list>
+            <q-item v-for="item in MovieTypeSelects" :key="item.label" clickable v-close-popup @click="
+              view.queryParam.MovieType = item.value;
+            fetchSearch();
+            ">
+              <q-item-section>
+                <q-item-label>{{ item.label }}</q-item-label>
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </q-btn-dropdown>
+
+        <!-- 搜索框 -->
+        <q-input dense type="search" style="
           max-width: 400px;
           border-radius: 12px;
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
           transition: all 0.3s ease;
         " outlined glossy :debounce="1000" id="searchBtn" v-model="view.queryParam.Keyword" filled clearable
-        @clear="keywordChange" @update:model-value="keywordChange" class="search-input">
-        <template v-slot:prepend>
-          <q-icon name="ti-list" class="cursor-pointer">
-            <q-popup-proxy>
-              <div style="width: 200px; max-height: 50vh">
-                <q-list>
-                  <q-item clickable v-ripple v-for="word in suggestions" :key="word" @click="
-                    view.queryParam.Keyword = word;
-                  fetchSearch();
-                  ">
-                    <q-item-section>
-                      <q-item-label>{{ word }}</q-item-label>
-                    </q-item-section>
-                  </q-item>
-                </q-list>
-              </div>
-            </q-popup-proxy>
-          </q-icon>
-        </template>
-        <template v-slot:append>
-          <q-icon name="ti-search" title="搜" glossy class="cursor-pointer" @click="fetchSearch">
-          </q-icon>
-        </template>
-      </q-input>
+          @clear="keywordChange" @update:model-value="keywordChange" class="search-input">
+          <template v-slot:prepend>
+            <q-icon name="ti-list" class="cursor-pointer">
+              <q-popup-proxy>
+                <div style="width: 200px; max-height: 50vh">
+                  <q-list>
+                    <q-item clickable v-ripple v-for="word in suggestions" :key="word" @click="
+                      view.queryParam.Keyword = word;
+                    fetchSearch();
+                    ">
+                      <q-item-section>
+                        <q-item-label>{{ word }}</q-item-label>
+                      </q-item-section>
+                    </q-item>
+                  </q-list>
+                </div>
+              </q-popup-proxy>
+            </q-icon>
+          </template>
+          <template v-slot:append>
+            <q-icon name="ti-search" title="搜" glossy class="cursor-pointer" @click="fetchSearch">
+            </q-icon>
+          </template>
+        </q-input>
+        <q-btn icon="ti-bar-chart-alt" class="cursor-pointer" dense :size="btnSize('head')" color="red" flat>
+          <DataPop url />
+        </q-btn>
+        <!-- 仅重复项选择 -->
+        <q-checkbox v-model="view.queryParam.OnlyRepeat" color="red" :keepColor="true" checked-icon="task_alt"
+          unchecked-icon="ti-help" :val="true" flat dense @update:model-value="fetchSearch">
+          <q-tooltip class="bg-white text-primary"> 去重 </q-tooltip>
+        </q-checkbox>
 
-      
-      <span v-if="isLarge || isMedium" style="align-items: center; align-content: center">
-        {{ view.resultShow }}
-      </span>
-      <!-- 主题选择器 -->
-      <q-btn-dropdown no-caps flat color="primary" dense>
-        <template v-slot:label>
-          <q-icon :name="themeIcon" size="14px" class="theme-icon" />
-          {{ currentThemeLabel }}
-        </template>
-        <q-list style="min-width: 160px; padding: 8px 0;">
-          <q-item clickable v-close-popup @click="setTheme('star')" :active="systemProperty.theme === 'star'"
-            class="q-mx-xs rounded-lg">
-            <q-item-section avatar>
-              <div class="w-8 h-8 rounded-lg flex items-center justify-center"
-                style="background: linear-gradient(135deg, #4f46e5, #7c3aed);">
-                <q-icon name="star" color="white" size="16px" />
-              </div>
-            </q-item-section>
-            <q-item-section>
-              <q-item-label class="font-medium">星空主题</q-item-label>
-              <q-item-label caption class="text-xs">深蓝紫配色</q-item-label>
-            </q-item-section>
-            <q-item-section side v-if="systemProperty.theme === 'star'">
-              <q-icon name="check" color="primary" size="18px" />
-            </q-item-section>
-          </q-item>
-          <q-item clickable v-close-popup @click="setTheme('natural')" :active="systemProperty.theme === 'natural'"
-            class="q-mx-sm rounded-lg">
-            <q-item-section avatar>
-              <div class="w-8 h-8 rounded-lg flex items-center justify-center"
-                style="background: linear-gradient(135deg, #22c55e, #84cc16);">
-                <q-icon name="eco" color="white" size="16px" />
-              </div>
-            </q-item-section>
-            <q-item-section>
-              <q-item-label class="font-medium">自然主题</q-item-label>
-              <q-item-label caption class="text-xs">温暖米色绿植</q-item-label>
-            </q-item-section>
-            <q-item-section side v-if="systemProperty.theme === 'natural'">
-              <q-icon name="check" color="primary" size="18px" />
-            </q-item-section>
-          </q-item>
-          <!-- 显示模式 -->
-          <div class="q-px-md q-py-xs">
-            <q-item-label header class="text-grey-5 text-xs font-medium">显示模式</q-item-label>
-          </div>
-          <q-item clickable v-close-popup @click="systemProperty.showImage = 'cover'"
-            :active="systemProperty.showImage === 'cover'" class="q-mx-sm rounded-lg">
-            <q-item-section avatar>
-              <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10">
-                <q-icon name="image" color="primary" size="16px" />
-              </div>
-            </q-item-section>
-            <q-item-section>
-              <q-item-label class="font-medium">封面模式</q-item-label>
-              <q-item-label caption class="text-xs">展示完整封面图</q-item-label>
-            </q-item-section>
-            <q-item-section side v-if="systemProperty.showImage === 'cover'">
-              <q-icon name="check" color="primary" size="18px" />
-            </q-item-section>
-          </q-item>
-          <q-item clickable v-close-popup @click="systemProperty.showImage = 'poster'"
-            :active="systemProperty.showImage === 'poster'" class="q-mx-sm rounded-lg">
-            <q-item-section avatar>
-              <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10">
-                <q-icon name="movie" color="primary" size="16px" />
-              </div>
-            </q-item-section>
-            <q-item-section>
-              <q-item-label class="font-medium">海报模式</q-item-label>
-              <q-item-label caption class="text-xs">展示电影海报</q-item-label>
-            </q-item-section>
-            <q-item-section side v-if="systemProperty.showImage === 'poster'">
-              <q-icon name="check" color="primary" size="18px" />
-            </q-item-section>
-          </q-item>
-          <!-- 卡片大小 -->
-          <div class="q-px-md q-py-xs">
-            <q-item-label header class="text-grey-5 text-xs font-medium">卡片大小</q-item-label>
-          </div>
-          <q-item clickable v-close-popup @click="setShowStyle('lg')" :active="systemProperty.showStyle === 'lg'"
-            class="q-mx-sm rounded-lg">
-            <q-item-section avatar>
-              <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10">
-                <q-icon name="view_module" color="primary" size="16px" />
-              </div>
-            </q-item-section>
-            <q-item-section>
-              <q-item-label class="font-medium">大</q-item-label>
-              <q-item-label caption class="text-xs">大尺寸卡片</q-item-label>
-            </q-item-section>
-            <q-item-section side v-if="systemProperty.showStyle === 'lg'">
-              <q-icon name="check" color="primary" size="18px" />
-            </q-item-section>
-          </q-item>
-          <q-item clickable v-close-popup @click="setShowStyle('md')" :active="systemProperty.showStyle === 'md'"
-            class="q-mx-sm rounded-lg">
-            <q-item-section avatar>
-              <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10">
-                <q-icon name="grid_view" color="primary" size="16px" />
-              </div>
-            </q-item-section>
-            <q-item-section>
-              <q-item-label class="font-medium">中</q-item-label>
-              <q-item-label caption class="text-xs">中等尺寸卡片</q-item-label>
-            </q-item-section>
-            <q-item-section side v-if="systemProperty.showStyle === 'md'">
-              <q-icon name="check" color="primary" size="18px" />
-            </q-item-section>
-          </q-item>
-          <q-item clickable v-close-popup @click="setShowStyle('sm')" :active="systemProperty.showStyle === 'sm'"
-            class="q-mx-sm rounded-lg">
-            <q-item-section avatar>
-              <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10">
-                <q-icon name="apps" color="primary" size="16px" />
-              </div>
-            </q-item-section>
-            <q-item-section>
-              <q-item-label class="font-medium">小</q-item-label>
-              <q-item-label caption class="text-xs">紧凑尺寸卡片</q-item-label>
-            </q-item-section>
-            <q-item-section side v-if="systemProperty.showStyle === 'sm'">
-              <q-icon name="check" color="primary" size="18px" />
-            </q-item-section>
-          </q-item>
-        </q-list>
-      </q-btn-dropdown>
-      <!-- 设置按钮 -->
-      <q-fab icon="ti-pencil-alt" direction="left" :color="view.runningTaskCount > 0 ? 'red' : 'orange'" glossy
-        :style="fabStyle"
-        @touchstart.prevent="onFabDragStart"
-        @touchmove.prevent="onFabDragMove"
-        @mousedown.prevent="onFabDragStart"
-        @mousemove="onFabDragMove"
-        @mouseup="onFabDragEnd"
-        @mouseleave="onFabDragEnd">
-        <q-fab-action @click="openListEditRef('filelist')" color="primary" label="编辑" />
-        <q-fab-action @click="openListEditRef('tasking')" color="primary" label="任务" />
-        <q-fab-action @click="openListEditRef('setting')" color="primary" label="主题" />
-        <q-fab-action @click="openListEditRef('history')" color="primary" label="历史" />
-      </q-fab>
-    </q-header>
-    <!-- 底部 -->
-    <q-footer elevated :style="themeStyle" class="glossy">
-      <div class="flex flex-center">
-        <!-- 页码输入框 -->
-        <q-btn icon="settings" color="orange" flat dense>
-          <q-popup-proxy v-model="view.pageSetting" style="background: rgba(250, 250, 250, 0.8)">
-            <div class="q-gutter-md" style="
+
+        <span v-if="isLarge || isMedium" style="align-items: center; align-content: center">
+          {{ view.resultShow }}
+        </span>
+
+        <!-- 设置按钮 -->
+        <q-fab icon="ti-pencil-alt" direction="left" :color="view.runningTaskCount > 0 ? 'red' : 'orange'" glossy
+          :style="fabStyle" @touchstart.prevent="onFabDragStart" @touchmove.prevent="onFabDragMove"
+          @mousedown.prevent="onFabDragStart" @mousemove="onFabDragMove" @mouseup="onFabDragEnd"
+          @mouseleave="onFabDragEnd">
+          <q-fab-action @click="openListEditRef('filelist')" color="primary" label="编辑" />
+          <q-fab-action @click="openListEditRef('tasking')" color="primary" label="任务" />
+          <q-fab-action @click="openListEditRef('setting')" color="primary" label="主题" />
+          <q-fab-action @click="openListEditRef('history')" color="primary" label="历史" />
+        </q-fab>
+      </q-header>
+      <!-- 底部 -->
+      <q-footer elevated :style="themeStyle" class="glossy">
+        <div class="flex flex-center">
+          <!-- 页码输入框 -->
+          <q-btn icon="settings" color="orange" flat dense>
+            <q-popup-proxy v-model="view.pageSetting" style="background: rgba(250, 250, 250, 0.8)">
+              <div class="q-gutter-md" style="
                 width: 18rem;
                 height: 8rem;
                 display: flex;
@@ -253,370 +247,370 @@
                 justify-content: space-evenly;
               ">
 
-              <div class="row justify-between">
-                <q-btn flat dense> 每页大小 </q-btn>
-                <q-select size="sm" dense flat @update:model-value="currentPageSizeChange" filled bgColor="orange"
-                  style="text-align: center; width: 40%" v-model="view.queryParam.PageSize" :options="pageOptions">
-                </q-select>
+                <div class="row justify-between">
+                  <q-btn flat dense> 每页大小 </q-btn>
+                  <q-select size="sm" dense flat @update:model-value="currentPageSizeChange" filled bgColor="orange"
+                    style="text-align: center; width: 40%" v-model="view.queryParam.PageSize" :options="pageOptions">
+                  </q-select>
+                </div>
+                <div class="row justify-between">
+                  <q-btn flat dense>页码 </q-btn>
+                  <q-input v-model="gotoPage" :dense="true" style="text-align: center; width: 40%" bgColor="orange"
+                    :max="view.resultData.TotalPage" :min="1" :debounce="1000" @focus="focusEvent($event)"
+                    @update:model-value="pageNoGoto" />
+                </div>
               </div>
-              <div class="row justify-between">
-                <q-btn flat dense>页码 </q-btn>
-                <q-input v-model="gotoPage" :dense="true" style="text-align: center; width: 40%" bgColor="orange"
-                  :max="view.resultData.TotalPage" :min="1" :debounce="1000" @focus="focusEvent($event)"
-                  @update:model-value="pageNoGoto" />
-              </div>
-            </div>
-            <!-- 每页数量选择 -->
-          </q-popup-proxy>
-        </q-btn>
-        <!-- 分页器 -->
-        <q-pagination v-model="view.queryParam.Page" @update:model-value="gotoPageNo" color="deep-orange"
-          :ellipses="true" :max="view.resultData.TotalPage || 0" :max-pages="isSmall ? 5 : 10" boundary-numbers
-          direction-links></q-pagination>
+              <!-- 每页数量选择 -->
+            </q-popup-proxy>
+          </q-btn>
+          <!-- 分页器 -->
+          <q-pagination v-model="view.queryParam.Page" @update:model-value="gotoPageNo" color="deep-orange"
+            :ellipses="true" :max="view.resultData.TotalPage || 0" :max-pages="isSmall ? 5 : 10" boundary-numbers
+            direction-links></q-pagination>
 
-      </div>
-      <div style="position: fixed; right: 10px; bottom: 40px">
-        <q-btn icon="history" color="blue" glossy>
-          <q-popup-proxy v-model="view.showHistory" style="background: rgba(250, 250, 250, 0.9); width: 400px">
-            <div>
-              <span ripple flat>搜索记录
-                <q-btn ripple flat color="red" @click="systemProperty.SearchRecords = []">清空</q-btn></span>
-              <q-list bordered separator style="height: 50vh; overflow: auto">
-                <div v-for="(his, idx) in systemProperty.SearchRecords.sort(
-                  (a, b) => {
-                    return b.createdAt - a.createdAt;
-                  }
-                )" :key="idx">
-                  <div class="row justify-between cursor-pointer" style="margin: 4px; padding: 4px; color: blue" ripple
-                    v-close-popup align="left" @click="redirectUrl(his)">
-                    <div style="float: left">
-                      {{
-                        `${his.Page} -${his.PageSize} -${getLabelByValue(his.MovieType, MovieTypeOptions) ||
-                        '全部'
-                        }-${getLabelByValue(
-                          his.SortField,
-                          FieldEnum
-                        )} -${getLabelByValue(his.SortType, DescEnum)} `
-                      }}
-                    </div>
-                    <div style="float: right">
-                      {{ his.Keyword == null ? '无' : his.Keyword }} -
-                      {{ date.formatDate(his.createdAt, 'HH:mm') }}
+        </div>
+        <div style="position: fixed; right: 10px; bottom: 40px">
+          <q-btn icon="history" color="blue" glossy>
+            <q-popup-proxy v-model="view.showHistory" style="background: rgba(250, 250, 250, 0.9); width: 400px">
+              <div>
+                <span ripple flat>搜索记录
+                  <q-btn ripple flat color="red" @click="systemProperty.SearchRecords = []">清空</q-btn></span>
+                <q-list bordered separator style="height: 50vh; overflow: auto">
+                  <div v-for="(his, idx) in systemProperty.SearchRecords.sort(
+                    (a, b) => {
+                      return b.createdAt - a.createdAt;
+                    }
+                  )" :key="idx">
+                    <div class="row justify-between cursor-pointer" style="margin: 4px; padding: 4px; color: blue"
+                      ripple v-close-popup align="left" @click="redirectUrl(his)">
+                      <div style="float: left">
+                        {{
+                          `${his.Page} -${his.PageSize} -${getLabelByValue(his.MovieType, MovieTypeOptions) ||
+                          '全部'
+                          }-${getLabelByValue(
+                            his.SortField,
+                            FieldEnum
+                          )} -${getLabelByValue(his.SortType, DescEnum)} `
+                        }}
+                      </div>
+                      <div style="float: right">
+                        {{ his.Keyword == null ? '无' : his.Keyword }} -
+                        {{ date.formatDate(his.createdAt, 'HH:mm') }}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </q-list>
-            </div>
-          </q-popup-proxy>
-        </q-btn>
-      </div>
-    </q-footer>
-    <!-- 页面内容 -->
-    <q-page-container class="scrollRef">
-      <q-page>
-        <div class="row q-gutter-sm justify-start q-pl-sm"
-          v-if="view.resultData.Data && view.resultData.Data.length > 0">
-          <!-- 卡片列表 -->
-          <q-card v-for="item in view.resultData.Data" :key="item.Id" :id="item.Id"
-            v-bind:class="{
+                </q-list>
+              </div>
+            </q-popup-proxy>
+          </q-btn>
+        </div>
+      </q-footer>
+      <!-- 页面内容 -->
+      <q-page-container class="scrollRef">
+        <q-page>
+          <div class="row q-gutter-sm justify-start q-pl-sm"
+            v-if="view.resultData.Data && view.resultData.Data.length > 0">
+            <!-- 卡片列表 -->
+            <q-card v-for="item in view.resultData.Data" :key="item.Id" :id="item.Id" v-bind:class="{
               'large-result': isLarge,
               'medium-result': isMedium,
               'small-result': isSmall,
             }" class="search-result-card" :style="{
-                transition: isFetching ? 'none' : 'all 0.3s ease-out',
-                backgroundColor:
-                  item.Id == view.currentDataInPlayer.Id
-                    ? 'rgba(99, 102, 241, 0.2)'
-                    : item.Id == view.currentDataInEditor.Id
-                      ? 'rgba(234, 179, 8, 0.2)'
-                      : 'var(--q-bg-card)',
-              }">
-            <div class="card-top-tag" style="width: 80%">
-              <!-- 种草按钮 -->
-              <q-btn text-color="white" color="red" :size="btnSize('top')" dense class="glossy" style="max-width: 5rem"
-                @contextmenu="
-                  (e) => {
-                    refreshDebounceFn(item);
-                    e.returnValue = false;
-                  }
-                ">
-                <q-popup-proxy style="background-color: rgba(250, 250, 250, 0.9)">
-                  <TagPop :currentData="item" :current-tag="item.Tags" :delay="10" />
-                </q-popup-proxy>
-                <span>{{ `种草/${item.PageNo}` }}</span>
-              </q-btn>
+              transition: isFetching ? 'none' : 'all 0.3s ease-out',
+              backgroundColor:
+                item.Id == view.currentDataInPlayer.Id
+                  ? 'rgba(99, 102, 241, 0.2)'
+                  : item.Id == view.currentDataInEditor.Id
+                    ? 'rgba(234, 179, 8, 0.2)'
+                    : 'var(--q-bg-card)',
+            }">
+              <div class="card-top-tag" style="width: 80%">
+                <!-- 种草按钮 -->
+                <q-btn text-color="white" color="red" :size="btnSize('top')" dense class="glossy"
+                  style="max-width: 5rem" @contextmenu="
+                    (e) => {
+                      refreshDebounceFn(item);
+                      e.returnValue = false;
+                    }
+                  ">
+                  <q-popup-proxy style="background-color: rgba(250, 250, 250, 0.9)">
+                    <TagPop :currentData="item" :current-tag="item.Tags" :delay="10" />
+                  </q-popup-proxy>
+                  <span>{{ `种草/${item.PageNo}` }}</span>
+                </q-btn>
 
-              <!-- 标签列表 -->
+                <!-- 标签列表 -->
 
-              <q-chip square dense v-for="tag in item.Tags" :key="tag" :size="btnSize('top')" class="chip-tag">
-                <span @click="searchKeyword(tag)">{{
-                  tag?.substring(0, 4)
-                  }}</span>
-              </q-chip>
-            </div>
-            <div class="card-top-type" style="align-items: flex-end">
-              <!-- 电影类型选择按钮 -->
-              <q-btn dense :size="btnSize('top')" class="glossy" color="primary"
-                :label="`${item.MovieType === '无' ? `分类 ` : item.MovieType}`">
-                <q-menu>
-                  <q-list style="min-width: 68px">
-                    <q-item v-for="mt in MovieTypeOptions" :key="mt.value" clickable v-close-popup>
-                      <q-item-section @click="
-                        setMovieType(item.Id, mt.value);
-                      item.btnMovieType = false;
-                      ">{{ mt.label }}</q-item-section>
-                    </q-item>
-                    <q-item clickable v-close-popup>
-                      <q-item-section style="color: blue" @click="refreshDebounceFn(item)">刷新</q-item-section>
-                    </q-item>
-                  </q-list>
-                </q-menu>
-              </q-btn>
-              <q-btn dense glossy color="grey" size="sm" style="margin-top: 4px" v-if="formatSeries(item.Code)">
-                <span @click="searchKeyword(formatSeries(item.Code))">{{
-                  formatSeries(item.Code).substring(0, 4)
-                  }}</span>
-              </q-btn>
-              <q-btn dense flat text-color="green" size="sm" style="margin-top: 4px"
-                v-if="systemProperty.getPlayTime(item.Id)">
-                <span>{{ formatPlayTime(systemProperty.getPlayTime(item.Id)) }}</span>
-              </q-btn>
-              <!-- 文件类型标签 -->
-              <q-chip square v-if="item.FileType != 'mp4'" :size="btnSize('top')" dense color="orange">
-                <span @click="searchKeyword(item.FileType)">
-                  {{ item.FileType }}</span>
-              </q-chip>
-            </div>
-            <!-- 图片 -->
-            <q-img fit="fill" lazy="true" :class="{
-              'large-result-image': isLarge,
-              'medium-result-image': isMedium,
-              'small-result-image': isSmall,
-            }" :src="getImage(item.Id)" @contextmenu="(e) => pictureRightClick(item, e)"
-              @click="openFileInfoRef(item)" style="
+                <q-chip square dense v-for="tag in item.Tags" :key="tag" :size="btnSize('top')" class="chip-tag">
+                  <span @click="searchKeyword(tag)">{{
+                    tag?.substring(0, 4)
+                    }}</span>
+                </q-chip>
+              </div>
+              <div class="card-top-type" style="align-items: flex-end">
+                <!-- 电影类型选择按钮 -->
+                <q-btn dense :size="btnSize('top')" class="glossy" color="primary"
+                  :label="`${item.MovieType === '无' ? `分类 ` : item.MovieType}`">
+                  <q-menu>
+                    <q-list style="min-width: 68px">
+                      <q-item v-for="mt in MovieTypeOptions" :key="mt.value" clickable v-close-popup>
+                        <q-item-section @click="
+                          setMovieType(item.Id, mt.value);
+                        item.btnMovieType = false;
+                        ">{{ mt.label }}</q-item-section>
+                      </q-item>
+                      <q-item clickable v-close-popup>
+                        <q-item-section style="color: blue" @click="refreshDebounceFn(item)">刷新</q-item-section>
+                      </q-item>
+                    </q-list>
+                  </q-menu>
+                </q-btn>
+                <q-btn dense glossy color="grey" size="sm" style="margin-top: 4px" v-if="formatSeries(item.Code)">
+                  <span @click="searchKeyword(formatSeries(item.Code))">{{
+                    formatSeries(item.Code).substring(0, 4)
+                    }}</span>
+                </q-btn>
+                <q-btn dense flat text-color="green" size="sm" style="margin-top: 4px"
+                  v-if="systemProperty.getPlayTime(item.Id)">
+                  <span>{{ formatPlayTime(systemProperty.getPlayTime(item.Id)) }}</span>
+                </q-btn>
+                <!-- 文件类型标签 -->
+                <q-chip square v-if="item.FileType != 'mp4'" :size="btnSize('top')" dense color="orange">
+                  <span @click="searchKeyword(item.FileType)">
+                    {{ item.FileType }}</span>
+                </q-chip>
+              </div>
+              <!-- 图片 -->
+              <q-img fit="fill" lazy="true" :class="{
+                'large-result-image': isLarge,
+                'medium-result-image': isMedium,
+                'small-result-image': isSmall,
+              }" :src="getImage(item.Id)" @contextmenu="(e) => pictureRightClick(item, e)" @click="openFileInfoRef(item)"
+                style="
                 border-radius: 6px 6px 0 0;
                 background: linear-gradient(135deg, rgba(30, 30, 50, 0.8), rgba(15, 15, 26, 0.9));
                 overflow: hidden;
               ">
-              <template v-slot:loading>
-                <q-spinner-ios color="white" size="2em">Loading...</q-spinner-ios>
-              </template>
-              <template v-slot:error>
-                <!-- 图片加载失败时显示的占位图 -->
-                <div class="text-subtitle1 text-white">
-                  <q-icon name="image_not_supported" size="2em"></q-icon>
-                </div>
-              </template>
-              <q-inner-loading :showing="item.Id == view.currentDataInEditor.Id">
-                <q-spinner-gears size="80px" color="primary" label="编辑中" />
-              </q-inner-loading>
-              <q-inner-loading :showing="item.Id == view.currentDataInPlayer.Id" label="播放中" label-class="text-teal"
-                label-style="font-size: 1.1em" />
-            </q-img>
-            <div class="absolute-bottom float-btn" style="background-color: rgba(0, 0, 0, 0.3)">
-              <div>
-                <div class="btn-row">
-                  <!-- 播放按钮 -->
-                  <q-btn round ripple flat glossy color="white  " :size="btnSize('footer')" icon="play_circle_outline"
-                    @click="playBySystem(item)" title="播放" v-if="showButton('播放') && !isSmall" />
-                  <!-- 单页播放按钮 -->
-                  <q-btn round flat ripple glossy color="yellow" :size="btnSize('footer')" icon="fullscreen"
-                    title="单页播放" @click="playByPage(item)" />
-                  <!-- 小播放按钮 -->
-                  <q-btn round flat ripple glossy color="blue" :size="btnSize('footer')" icon="tv"
-                    @click="openFileInfoRef(item, true)" title="小播放" />
-                  <!-- 画中画按钮 -->
-                  <q-btn round flat ripple glossy color="white" :size="btnSize('footer')" icon="picture_in_picture"
-                    @click="picInPic(item)" @contextmenu="
-                      (e) => {
-                        picInPic(item, true);
-                        e.returnValue = false;
-                      }
-                    " title="画中画" />
-                </div>
-                <div class="btn-row">
-                  <!-- 编辑按钮 -->
-                  <q-btn round ripple glossy :size="btnSize('footer')" color="grey-8" icon="edit" @click="
-                    view.currentDataInEditor = item;
-                  fileEditRef.open(item);
-                  " v-if="showButton('编辑')" title="编辑" style="box-shadow: 0 2px 6px rgba(128, 128, 128, 0.2)" />
-                  <!-- 文件夹按钮 -->
-                  <q-btn round ripple glossy :size="btnSize('footer')" color="primary" icon="open_in_new"
-                    @click="openFolder(item)" v-if="showButton('文件夹') && !isSmall" title="文件夹" />
-                  <!-- 网搜按钮 -->
-                  <q-btn round ripple glossy :size="btnSize('footer')" color="brown-5" icon="ti-search" title="网搜"
-                    @click="searchCode(item)" />
-                  <!-- 截图按钮 -->
-                  <q-btn round ripple glossy :size="btnSize('footer')" color="black" @click="
-                    () => {
+                <template v-slot:loading>
+                  <q-spinner-ios color="white" size="2em">Loading...</q-spinner-ios>
+                </template>
+                <template v-slot:error>
+                  <!-- 图片加载失败时显示的占位图 -->
+                  <div class="text-subtitle1 text-white">
+                    <q-icon name="image_not_supported" size="2em"></q-icon>
+                  </div>
+                </template>
+                <q-inner-loading :showing="item.Id == view.currentDataInEditor.Id">
+                  <q-spinner-gears size="80px" color="primary" label="编辑中" />
+                </q-inner-loading>
+                <q-inner-loading :showing="item.Id == view.currentDataInPlayer.Id" label="播放中" label-class="text-teal"
+                  label-style="font-size: 1.1em" />
+              </q-img>
+              <div class="absolute-bottom float-btn" style="background-color: rgba(0, 0, 0, 0.3)">
+                <div>
+                  <div class="btn-row">
+                    <!-- 播放按钮 -->
+                    <q-btn round ripple flat glossy color="white  " :size="btnSize('footer')" icon="play_circle_outline"
+                      @click="playBySystem(item)" title="播放" v-if="showButton('播放') && !isSmall" />
+                    <!-- 单页播放按钮 -->
+                    <q-btn round flat ripple glossy color="yellow" :size="btnSize('footer')" icon="fullscreen"
+                      title="单页播放" @click="playByPage(item)" />
+                    <!-- 小播放按钮 -->
+                    <q-btn round flat ripple glossy color="blue" :size="btnSize('footer')" icon="tv"
+                      @click="openFileInfoRef(item, true)" title="小播放" />
+                    <!-- 画中画按钮 -->
+                    <q-btn round flat ripple glossy color="white" :size="btnSize('footer')" icon="picture_in_picture"
+                      @click="picInPic(item)" @contextmenu="
+                        (e) => {
+                          picInPic(item, true);
+                          e.returnValue = false;
+                        }
+                      " title="画中画" />
+                  </div>
+                  <div class="btn-row">
+                    <!-- 编辑按钮 -->
+                    <q-btn round ripple glossy :size="btnSize('footer')" color="grey-8" icon="edit" @click="
                       view.currentDataInEditor = item;
-                      fileCutImageRef.open(item);
-                    }
-                  " icon="ti-cut" title="截图" />
-                  <!-- 删除按钮 -->
-                  <q-btn round ripple glossy :size="btnSize('footer')" color="negative" icon="delete" title="删除"
-                    @click="confirmDelete(item)" />
+                    fileEditRef.open(item);
+                    " v-if="showButton('编辑')" title="编辑" style="box-shadow: 0 2px 6px rgba(128, 128, 128, 0.2)" />
+                    <!-- 文件夹按钮 -->
+                    <q-btn round ripple glossy :size="btnSize('footer')" color="primary" icon="open_in_new"
+                      @click="openFolder(item)" v-if="showButton('文件夹') && !isSmall" title="文件夹" />
+                    <!-- 网搜按钮 -->
+                    <q-btn round ripple glossy :size="btnSize('footer')" color="brown-5" icon="ti-search" title="网搜"
+                      @click="searchCode(item)" />
+                    <!-- 截图按钮 -->
+                    <q-btn round ripple glossy :size="btnSize('footer')" color="black" @click="
+                      () => {
+                        view.currentDataInEditor = item;
+                        fileCutImageRef.open(item);
+                      }
+                    " icon="ti-cut" title="截图" />
+                    <!-- 删除按钮 -->
+                    <q-btn round ripple glossy :size="btnSize('footer')" color="negative" icon="delete" title="删除"
+                      @click="confirmDelete(item)" />
+                  </div>
                 </div>
-              </div>
 
-              <div class="content-row" :style="{
-                height: isLarge ? '51px' : '34px',
-                fontSize: isLarge ? '14px' : '14px',
-                color: 'grey',
-                backgroundColor: 'rgba(250, 250, 250,0.8)',
-              }">
-                <span style="
+                <div class="content-row" :style="{
+                  height: isLarge ? '51px' : '34px',
+                  fontSize: isLarge ? '14px' : '14px',
+                  color: 'grey',
+                  backgroundColor: 'rgba(250, 250, 250,0.8)',
+                }">
+                  <span style="
                     color: green;
                     margin-right: 1px;
                     background-color: rgba(0, 0, 0, 0.1);
                   " class="cursor-pointer">{{ getTimeAgo(item.MTime) }}
-                  <q-popup-proxy>
-                    <div style="
+                    <q-popup-proxy>
+                      <div style="
                         width: 400px;
                         padding: 10px;
                         background-color: rgba(0, 0, 0, 0.1);
                       ">
-                      <div>
-                        <span style="
+                        <div>
+                          <span style="
                             color: rgb(161, 100, 19);
                             background-color: rgba(0, 0, 0, 0.1);
                             margin-right: 1px;
                           " class="cursor-pointer" @click="copyText(item.Actress)">{{ item.Actress }}</span>
+                        </div>
+                        <div>
+                          <span style="color: rgb(239, 30, 30)" class="cursor-pointer" @click="copyText(item.Code)">{{
+                            item.Code }}</span>
+                        </div>
+                        <div>
+                          {{ formatTitle(item.Title) }}
+                        </div>
+                        <div style="color: green" class="cursor-pointer" @click="searchKeyword(item.BaseDir)">
+                          {{ item.BaseDir }}
+                        </div>
+                        <div style="color: grey">
+                          {{ item.Path }}
+                        </div>
                       </div>
-                      <div>
-                        <span style="color: rgb(239, 30, 30)" class="cursor-pointer" @click="copyText(item.Code)">{{
-                          item.Code }}</span>
-                      </div>
-                      <div>
-                        {{ formatTitle(item.Title) }}
-                      </div>
-                      <div style="color: green" class="cursor-pointer" @click="searchKeyword(item.BaseDir)">
-                        {{ item.BaseDir }}
-                      </div>
-                      <div style="color: grey">
-                        {{ item.Path }}
-                      </div>
-                    </div>
-                  </q-popup-proxy>
-                </span>
-                <span @click="copyText(item.Title)" class="cursor-pointer" style="
+                    </q-popup-proxy>
+                  </span>
+                  <span @click="copyText(item.Title)" class="cursor-pointer" style="
                     color: rgb(239, 30, 30);
                     margin-right: 1px;
                     background-color: rgba(0, 0, 0, 0.1);
                   ">
-                  {{ humanStorageSize(item.Size) }}
-                </span>
-                <span style="
+                    {{ humanStorageSize(item.Size) }}
+                  </span>
+                  <span style="
                     color: rgb(161, 100, 19);
                     background-color: rgba(0, 0, 0, 0.1);
                     margin-right: 1px;
                   " class="cursor-pointer" @click="goActress(item.Actress)">{{ item.Actress }}</span>
 
-                <span style="
+                  <span style="
                     color: rgb(239, 30, 30);
                     background-color: rgba(0, 0, 0, 0.1);
                     margin-right: 4px;
                   " class="cursor-pointer" @click="copyText(item.Code)">{{ item.title ? item.Code?.substring(0,
-                  12):item.Code }}
-                  <q-tooltip class="bg-white text-primary">{{
-                    item.Code
-                    }}</q-tooltip>
-                </span>
+                    12) : item.Code }}
+                    <q-tooltip class="bg-white text-primary">{{
+                      item.Code
+                      }}</q-tooltip>
+                  </span>
 
-                {{ formatTitle(item.Title) }}
+                  {{ formatTitle(item.Title) }}
+                </div>
               </div>
+            </q-card>
+          </div>
+          <!-- 页面滚动器 -->
+          <q-page-scroller position="bottom-right" :scroll-offset="150" :offset="[18, 100]">
+            <q-btn fab icon="keyboard_arrow_up" color="accent" />
+          </q-page-scroller>
+
+          <div v-if="view.queryParam.Page < view.resultData.TotalPage">
+            <div style="height: 8vh">
+              <q-btn v-show="systemProperty.searchPageAutoPullData && isMoreLoading" color="primary"
+                label="加载中..."></q-btn>
             </div>
-          </q-card>
-        </div>
-        <!-- 页面滚动器 -->
-        <q-page-scroller position="bottom-right" :scroll-offset="150" :offset="[18, 100]">
-          <q-btn fab icon="keyboard_arrow_up" color="accent" />
-        </q-page-scroller>
 
-        <div v-if="view.queryParam.Page < view.resultData.TotalPage">
-          <div style="height: 8vh">
-            <q-btn v-show="systemProperty.searchPageAutoPullData && isMoreLoading" color="primary"
-              label="加载中..."></q-btn>
+            <div v-intersection="onIntersection" style="height: 8vh; color: #9e089e" @click="
+              () => {
+                pullNextPage();
+              }
+            ">
+              点击可加载更多数据
+            </div>
           </div>
+        </q-page>
+        <!-- 上一页按钮 -->
+        <q-page-sticky style="z-index: 9" position="bottom-left" v-if="view.queryParam.Page > 1"
+          :offset="[6, isSmall ? 200 : 366]">
+          <q-btn glossy class="page-sticky" flat text-color="blue" :label="`P${view.queryParam.Page - 1}`"
+            @click="gotoPageNo(view.queryParam.Page - 1)"></q-btn>
+        </q-page-sticky>
 
-          <div v-intersection="onIntersection" style="height: 8vh; color: #9e089e" @click="
-            () => {
-              pullNextPage();
-            }
-          ">
-            点击可加载更多数据
-          </div>
-        </div>
-      </q-page>
-      <!-- 上一页按钮 -->
-      <q-page-sticky style="z-index: 9" position="bottom-left" v-if="view.queryParam.Page > 1"
-        :offset="[6, isSmall ? 200 : 366]">
-        <q-btn glossy class="page-sticky" flat text-color="blue" :label="`P${view.queryParam.Page - 1}`"
-          @click="gotoPageNo(view.queryParam.Page - 1)"></q-btn>
-      </q-page-sticky>
+        <!-- 下一页按钮 -->
+        <q-page-sticky style="z-index: 9" position="bottom-right" :offset="[10, isSmall ? 200 : 366]">
+          <q-btn v-if="view.queryParam.Page < view.resultData.TotalPage" flat glossy class="page-sticky"
+            text-color="blue" :label="`P${view.queryParam.Page + 1}`"
+            @click="gotoPageNo(view.queryParam.Page + 1)"></q-btn>
+        </q-page-sticky>
+      </q-page-container>
+    </q-layout>
 
-      <!-- 下一页按钮 -->
-      <q-page-sticky style="z-index: 9" position="bottom-right" :offset="[10, isSmall ? 200 : 366]">
-        <q-btn v-if="view.queryParam.Page < view.resultData.TotalPage" flat glossy class="page-sticky" text-color="blue"
-          :label="`P${view.queryParam.Page + 1}`" @click="gotoPageNo(view.queryParam.Page + 1)"></q-btn>
-      </q-page-sticky>
-    </q-page-container>
-  </q-layout>
+    <!-- 视频播放器 -->
 
-  <!-- 视频播放器 -->
+    <InnerVideoPlayer ref="videoRef" @next-one="viewNextOne('play')" @prev-one="viewPrevOne('play')"
+      @refresh-disk="refreshDebounceFn" @choose-data="
+        (d) => {
+          saveParam();
+          view.currentDataInPlayer = d;
+        }
+      " @close="view.currentDataInPlayer = {}" />
 
-  <InnerVideoPlayer ref="videoRef" @next-one="viewNextOne('play')" @prev-one="viewPrevOne('play')"
-    @refresh-disk="refreshDebounceFn" @choose-data="
-      (d) => {
-        saveParam();
-        view.currentDataInPlayer = d;
-      }
-    " @close="view.currentDataInPlayer = {}" />
+    <!-- 文件编辑对话框 -->
+    <FileEdit ref="fileEditRef" @plus-one="view.renameCount = view.renameCount + 1"
+      @sub-one="view.renameCount = view.renameCount - 1" @next-one="viewNextOne('info')" @prev-one="viewPrevOne('info')"
+      @success="refreshDebounceFn" @hide="view.currentDataInEditor = {}" />
+    <!-- 文件信息对话框 -->
+    <FileInfo ref="fileInfoRef" @next-one="viewNextOne('edit')" @prev-one="viewPrevOne('edit')"
+      @hide="view.currentDataInEditor = {}" />
 
-  <!-- 文件编辑对话框 -->
-  <FileEdit ref="fileEditRef" @plus-one="view.renameCount = view.renameCount + 1"
-    @sub-one="view.renameCount = view.renameCount - 1" @next-one="viewNextOne('info')" @prev-one="viewPrevOne('info')"
-    @success="refreshDebounceFn" @hide="view.currentDataInEditor = {}" />
-  <!-- 文件信息对话框 -->
-  <FileInfo ref="fileInfoRef" @next-one="viewNextOne('edit')" @prev-one="viewPrevOne('edit')"
-    @hide="view.currentDataInEditor = {}" />
-
-  <!-- 列表编辑对话框 @close="fetchSearch" -->
-  <ListEdit ref="listEditRef" @callback-word="
-    (e) => {
-      searchKeyword(e);
-    }
-  " />
-  <!-- 截图对话框 -->
-  <Screenshot ref="fileCutImageRef" @next-one="viewNextOne('cut')" @prev-one="viewPrevOne('cut')"
-    @hide="view.currentDataInEditor = {}" @close="
-      () => {
-        window.location.reload();
+    <!-- 列表编辑对话框 @close="fetchSearch" -->
+    <ListEdit ref="listEditRef" @callback-word="
+      (e) => {
+        searchKeyword(e);
       }
     " />
-  <q-dialog v-model="moveView.targetPathDialog" title="移动文件">
-    <q-card style="min-width: 350px; width: 600px">
-      <q-card-section>
-        <!-- <div class="text-h6"  @click="moveView.targetPath = moveView.originPath">地址:{{ moveView.originPath }}</div> -->
-        <q-input bg-color="green" label="原始地址" outlined :readonly="true" stack-label filled autogrow
-          v-model="moveView.originPath" @click="moveView.targetPath = moveView.originPath">
-        </q-input>
-      </q-card-section>
+    <!-- 截图对话框 -->
+    <Screenshot ref="fileCutImageRef" @next-one="viewNextOne('cut')" @prev-one="viewPrevOne('cut')"
+      @hide="view.currentDataInEditor = {}" @close="
+        () => {
+          window.location.reload();
+        }
+      " />
+    <q-dialog v-model="moveView.targetPathDialog" title="移动文件">
+      <q-card style="min-width: 350px; width: 600px">
+        <q-card-section>
+          <!-- <div class="text-h6"  @click="moveView.targetPath = moveView.originPath">地址:{{ moveView.originPath }}</div> -->
+          <q-input bg-color="green" label="原始地址" outlined :readonly="true" stack-label filled autogrow
+            v-model="moveView.originPath" @click="moveView.targetPath = moveView.originPath">
+          </q-input>
+        </q-card-section>
 
-      <q-card-section class="q-pt-none">
-        <q-input label="文件夹" stack-label filled autogrow v-model="moveView.targetPath">
-        </q-input>
-      </q-card-section>
-      <q-card-section class="q-pt-none">
-        <q-input label="文件名" stack-label filled autogrow v-model="moveView.targetName" />
-      </q-card-section>
+        <q-card-section class="q-pt-none">
+          <q-input label="文件夹" stack-label filled autogrow v-model="moveView.targetPath">
+          </q-input>
+        </q-card-section>
+        <q-card-section class="q-pt-none">
+          <q-input label="文件名" stack-label filled autogrow v-model="moveView.targetName" />
+        </q-card-section>
 
-      <q-card-actions align="right" class="text-primary">
-        <q-btn flat label="取消" v-close-popup />
-        <q-btn flat label="移动" @click="moveThis" v-close-popup />
-      </q-card-actions>
-    </q-card>
-  </q-dialog>
+        <q-card-actions align="right" class="text-primary">
+          <q-btn flat label="取消" v-close-popup />
+          <q-btn flat label="移动" @click="moveThis" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </div>
 </template>
 
