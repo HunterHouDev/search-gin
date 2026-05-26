@@ -30,6 +30,7 @@ type Movie struct {
 	MTime     string `xorm:"DateTime"`
 	PTime     string `xorm:"DateTime"`
 	MovieType string
+	PathUpper string
 	ImageBase string   `json:"ImageBase,omitempty"`
 	ImageList []string `json:"ImageList,omitempty"`
 	Tags      []string
@@ -171,6 +172,10 @@ func GetPageOfFiles(files []Movie, pageNo int, pageSize int) ([]Movie, int64) {
 	}
 	length := len(files)
 	start := (pageNo - 1) * pageSize
+
+	if start >= length {
+		return []Movie{}, 0
+	}
 
 	end := length
 	if length-start >= pageSize {

@@ -471,7 +471,11 @@ func downImageItem(url string, dirPath string, prefix string, suffix string, wg 
 }
 
 func (fs *searchService) MakeNfo(toFile model.Movie) {
-	nfo, _ := os.Create(toFile.Nfo)
+	nfo, err := os.Create(toFile.Nfo)
+	if err != nil {
+		utils.InfoFormat("创建nfo文件失败: %v", err)
+		return
+	}
 	defer nfo.Close()
 	nfoStr := "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?> \n"
 	nfoStr += "<movie>\n"
@@ -508,7 +512,10 @@ var httpClient = &http.Client{Timeout: 30 * time.Second, // 设置15秒超时
 
 func httpGet(url string) (*http.Response, error) {
 
-	request, _ := http.NewRequest("GET", url, nil)
+	request, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
 	request.Header.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36  115Browser/26.0.6.6")
 	request.Header.Add("sec-ch-ua-platform", "Windows")
 	request.Header.Add("ssec-ch-ua-mobile", "?0")
@@ -570,11 +577,10 @@ func (fs *searchService) RequestBusToFile(srcFile model.Movie) (utils.Result, mo
 	}
 
 	resp, err := httpGet(url)
-	if err != nil {
-		utils.InfoFormat("err:%v", err)
+	if err != nil || resp == nil {
 		result.Fail()
-		result.Message = "请求失败：" + resp.Status + " url:" + url
-		utils.InfoFormat("请求失败： url [%v] \n\n", url)
+		result.Message = "请求失败：url:" + url
+		utils.InfoFormat("请求失败： url [%v] err [%v]\n\n", url, err)
 		return result, newFile
 	}
 	defer resp.Body.Close()

@@ -48,6 +48,7 @@ func WriteDictionaryToJson(path string, dict model.Setting) {
 	outStream, openErr := os.OpenFile(path, os.O_TRUNC|os.O_RDWR, os.ModePerm)
 	if openErr != nil {
 		fmt.Println("openErr", openErr)
+		return
 	}
 	defer func(outStream *os.File) {
 		err := outStream.Close()

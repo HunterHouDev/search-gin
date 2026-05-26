@@ -35,7 +35,7 @@ func ValidatePath(userPath string, allowedDirs []string) (string, error) {
 		}
 		
 		// 检查路径是否在允许的目录内
-		if strings.HasPrefix(absPath, absAllowed) {
+		if absPath == absAllowed || strings.HasPrefix(absPath, absAllowed+string(filepath.Separator)) {
 			return absPath, nil
 		}
 	}

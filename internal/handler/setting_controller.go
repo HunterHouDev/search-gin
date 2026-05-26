@@ -78,17 +78,21 @@ func Login(c *gin.Context) {
 // 这里简单存储在内存中
 
 func GetSettingInfo(c *gin.Context) {
-	c.JSON(http.StatusOK, consts.OSSetting)
+	setting := consts.GetOSSetting()
+	safeSetting := setting
+	safeSetting.Users = nil
+	c.JSON(http.StatusOK, safeSetting)
 }
 func PostSetting(c *gin.Context) {
 	setInfo := model.Setting{}
 	err := c.ShouldBindJSON(&setInfo)
 	if err != nil {
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数绑定失败"))
 		return
 	}
-	setInfo.SelfPath = consts.OSSetting.SelfPath
-	consts.OSSetting = setInfo
-	service.FlushDictionary(consts.OSSetting.SelfPath)
+	setInfo.SelfPath = consts.GetOSSetting().SelfPath
+	consts.SetOSSetting(setInfo)
+	service.FlushDictionary(consts.GetOSSetting().SelfPath)
 	res := utils.NewSuccess()
 	c.JSON(http.StatusOK, res)
 }

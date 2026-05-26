@@ -78,7 +78,7 @@ func (p *TransferTaskModel) SetStatus(sts string) {
 }
 
 func (p *TransferTaskModel) GetLast() int64 {
-	return p.FinishTime.Unix() - p.CreateTime.Unix()/1000
+	return (p.FinishTime.Unix() - p.CreateTime.Unix()) / 1000
 }
 
 func (p *TransferTaskModel) SetLog(log string) {

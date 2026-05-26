@@ -2,6 +2,7 @@ package handler
 
 import (
 	"search-gin/internal/service"
+	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 	"net/http"
 	"strings"
@@ -33,11 +34,17 @@ func PostOpenFolderByPath(c *gin.Context) {
 	forms := make(map[string]string)
 	err := c.ShouldBindJSON(&forms)
 	if err != nil {
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数绑定失败"))
 		return
 	}
 	dirpath := forms["dirpath"]
 	dirpath = strings.ReplaceAll(dirpath, utils.PathSeparator+utils.PathSeparator, utils.PathSeparator)
-	utils.ExecCmdExplorer(dirpath)
+	validatedPath, err := utils.ValidatePath(dirpath, consts.OSSetting.Dirs)
+	if err != nil {
+		c.JSON(http.StatusForbidden, utils.NewFailByMsg("路径不在允许范围内"))
+		return
+	}
+	utils.ExecCmdExplorer(validatedPath)
 	res := utils.NewSuccessByMsg("打开成功")
 	c.JSON(http.StatusOK, res)
 }
@@ -48,11 +55,17 @@ func PostDeleteFolerByPath(c *gin.Context) {
 	forms := make(map[string]string)
 	err := c.ShouldBindJSON(&forms)
 	if err != nil {
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数绑定失败"))
 		return
 	}
 	dirpath := forms["dirpath"]
 	dirpath = strings.ReplaceAll(dirpath, utils.PathSeparator+utils.PathSeparator, utils.PathSeparator)
-	service.FileApp.DownDeleteDir(dirpath)
-	res := utils.NewSuccessByMsg("打开成功")
+	validatedPath, err := utils.ValidatePath(dirpath, consts.OSSetting.Dirs)
+	if err != nil {
+		c.JSON(http.StatusForbidden, utils.NewFailByMsg("路径不在允许范围内"))
+		return
+	}
+	service.FileApp.DownDeleteDir(validatedPath)
+	res := utils.NewSuccessByMsg("删除成功")
 	c.JSON(http.StatusOK, res)
 }

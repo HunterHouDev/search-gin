@@ -40,7 +40,7 @@ func PostMovies(c *gin.Context) {
 	// 绑定HTTP请求体到结构体
 	err := c.Bind(&searchParam)
 	if err != nil {
-		// 绑定失败时直接返回
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数绑定失败"))
 		return
 	}
 
@@ -71,8 +71,8 @@ func PostActress(c *gin.Context) {
 	// 绑定HTTP请求体到结构体
 	err := c.Bind(&param)
 	if err != nil {
-		// 记录参数绑定错误日志
-		utils.InfoNormal(param, err)
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数绑定失败"))
+		return
 	}
 
 	// 检查搜索引擎索引是否为空，如果为空则执行扫描

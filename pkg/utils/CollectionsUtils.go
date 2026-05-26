@@ -20,6 +20,19 @@ func HasItem(lib []string, item string) bool {
 	return false
 }
 
+func HasItemSet(set map[string]struct{}, item string) bool {
+	_, ok := set[item]
+	return ok
+}
+
+func ToSet(lib []string) map[string]struct{} {
+	set := make(map[string]struct{}, len(lib))
+	for _, item := range lib {
+		set[item] = struct{}{}
+	}
+	return set
+}
+
 func ExtendsItems[T any](lib []T, items []T) []T {
 	lib = append(lib, items...)
 	return lib

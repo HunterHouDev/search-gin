@@ -34,17 +34,20 @@ func NewLRUCache(capacity int) *LRUCache {
 
 // Get 获取缓存值
 func (c *LRUCache) Get(key string) (interface{}, bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
+	c.mu.RLock()
 	element, ok := c.cache[key]
 	if !ok {
+		c.mu.RUnlock()
 		return nil, false
 	}
+	value := element.Value.(*CacheItem).Value
+	c.mu.RUnlock()
 
-	// 移动到链表头部
+	c.mu.Lock()
 	c.list.MoveToFront(element)
-	return element.Value.(*CacheItem).Value, true
+	c.mu.Unlock()
+
+	return value, true
 }
 
 // Set 设置缓存值

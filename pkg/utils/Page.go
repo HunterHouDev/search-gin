@@ -37,6 +37,9 @@ func (p *Page) SetProgress(progress int32) {
 
 func (p *Page) SetResultCnt(resultCnt int, pageNo int) {
 	p.ResultCnt = resultCnt
+	if p.PageSize == 0 {
+		p.PageSize = 10
+	}
 	totalPage := resultCnt/p.PageSize + 1
 	p.TotalPage = totalPage
 	var pageList []int

@@ -42,15 +42,18 @@ func (fs *bucketFile) isEmpty() bool {
 	return !fs.isNotEmpty()
 }
 
-func (fs *bucketFile) put(model model.Movie) {
+func (fs *bucketFile) put(m model.Movie) {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
-	fs.FileLib[model.Id] = model
-	fs.TotalSize = fs.TotalSize + model.Size
+	if m.PathUpper == "" {
+		m.PathUpper = strings.ToUpper(m.Path)
+	}
+	fs.FileLib[m.Id] = m
+	fs.TotalSize = fs.TotalSize + m.Size
 	fs.TotalCount = fs.TotalCount + 1
 
 	// 构建类型倒排索引
-	fs.buildTypeIndex(model)
+	fs.buildTypeIndex(m)
 }
 
 // buildTypeIndex 为文件构建类型倒排索引
@@ -131,8 +134,10 @@ func (fs *bucketFile) searchBucket(searchParam model.SearchParam) model.SearchRe
 
 	// 对候选文件进行模糊匹配
 	for _, file := range candidates {
-		// 检查文件路径是否包含所有关键词
-		filePath := strings.ToUpper(file.Path)
+		filePath := file.PathUpper
+		if filePath == "" {
+			filePath = strings.ToUpper(file.Path)
+		}
 		matchAll := true
 		for _, keyword := range keywords {
 			if !strings.Contains(filePath, keyword) {

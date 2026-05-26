@@ -298,7 +298,10 @@ func (se *searchEnginCore) buildIndexEngin() {
 	se.KeywordHistoryCache.Clear()
 
 	se.buildIndexEnginTotalInfo()
+	var wg sync.WaitGroup
+	wg.Add(3)
 	go func() {
+		defer wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
 				AddLogMemory("构建演员数据发生异常: %v", r)
@@ -308,6 +311,7 @@ func (se *searchEnginCore) buildIndexEngin() {
 		se.buildActressData()
 	}()
 	go func() {
+		defer wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
 				AddLogMemory("构建重复数据发生异常: %v", r)
@@ -317,6 +321,7 @@ func (se *searchEnginCore) buildIndexEngin() {
 		se.buildRepeatData()
 	}()
 	go func() {
+		defer wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
 				AddLogMemory("构建其他数据发生异常: %v", r)
@@ -325,6 +330,7 @@ func (se *searchEnginCore) buildIndexEngin() {
 		}()
 		se.buildOthersData()
 	}()
+	wg.Wait()
 
 }
 

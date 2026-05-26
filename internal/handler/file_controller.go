@@ -22,8 +22,11 @@ import (
 func GetPlay(c *gin.Context) {
 	id := c.Param("id")
 	file := service.SearchApp.FindOne(id)
+	if file.IsNull() {
+		c.JSON(http.StatusNotFound, utils.NewFailByMsg("文件不存在"))
+		return
+	}
 	
-	// 验证文件路径是否在允许的目录内
 	sanitizePath, err := utils.ValidatePath(file.Path, consts.OSSetting.Dirs)
 	if err != nil {
 		utils.InfoFormat("命令注入攻击尝试: %s, 错误: %v", file.Path, err)
@@ -35,15 +38,12 @@ func GetPlay(c *gin.Context) {
 	
 	if consts.OSSetting.SystemPlayer == "ffplay" {
 		go func() {
-			params := []string{"-window_title", file.Title, // 添加窗口标题参数
-				// "-noborder",            // 添加无边框参数
-				"-alwaysontop",         // 窗口置顶参数
-				"-seek_interval", "30", // 添加视频帧间隔参数
-				// "-fs", // 添加全屏
-				"-stats", // 添加全屏和显示统计信息参数
+			params := []string{"-window_title", file.Title,
+				"-alwaysontop",
+				"-seek_interval", "30",
+				"-stats",
 			}
 			if len(consts.OSSetting.SystemPlayerWidth) > 0 {
-				// params = append(params, "-x", "1280")  // 添加视频帧间隔参数
 				arr := strings.Split(consts.OSSetting.SystemPlayerWidth, ",")
 				params = append(params, "-x", arr[0])
 				if len(arr) > 1 {
@@ -52,11 +52,9 @@ func GetPlay(c *gin.Context) {
 
 			}
 			if len(consts.OSSetting.SystemPlayerVolumn) > 0 {
-				// params = append(params, "-volume", "30")
 				params = append(params, "-volume", consts.OSSetting.SystemPlayerVolumn)
 			}
 
-			// 构建ffplay命令路径
 			ffplayPath := "./ffplay.exe"
 			if service.TempDir != "" {
 				ffplayPath = filepath.Join(service.TempDir, "ffplay.exe")
@@ -67,12 +65,9 @@ func GetPlay(c *gin.Context) {
 			err := cmd.Start()
 			if err != nil {
 				utils.InfoFormat("播放失败: %v, 错误: %v", sanitizePath, err)
-				res := utils.Fail()
-				c.JSON(http.StatusOK, res)
 			}
 		}()
 	} else {
-		// 验证后的路径
 		utils.ExecCmdStart(sanitizePath)
 	}
 
@@ -332,7 +327,7 @@ func GetActressImage(c *gin.Context) {
 			}
 		}
 	}
-
+	c.Status(http.StatusNotFound)
 }
 
 func PostMerge(c *gin.Context) {
@@ -525,6 +520,7 @@ func GetCutImage(c *gin.Context) {
 		r := utils.Fail()
 		r.Message = "文件不存在"
 		c.JSON(http.StatusOK, r)
+		return
 	}
 	res := service.FileApp.CutImage(movieFile.Path, typeImage, start)
 	c.JSON(http.StatusOK, res)

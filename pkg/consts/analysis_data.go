@@ -17,14 +17,19 @@ var TagMenu sync.Map
 var FolderTime sync.Map
 
 var LogMemory = []Log{}
+var logMemoryMutex sync.Mutex
 
 func AddLogMemory(format string, v ...any) {
 	msg := fmt.Sprintf(format, v...)
 	log := Log{Time: time.Now().Local().String(), Msg: msg}
+	logMemoryMutex.Lock()
 	LogMemory = append(LogMemory, log)
 	if len(LogMemory) > 1000 {
-		LogMemory = LogMemory[len(LogMemory)-800:]
+		newLog := make([]Log, 0, 800)
+		newLog = append(newLog, LogMemory[len(LogMemory)-800:]...)
+		LogMemory = newLog
 	}
+	logMemoryMutex.Unlock()
 }
 
 type Log struct {
@@ -78,6 +83,27 @@ func AddFolderTime(folder MenuSize) {
 }
 
 var SmallDir []MenuSize
+var smallDirMutex sync.Mutex
+
+func AppendSmallDir(item MenuSize) {
+	smallDirMutex.Lock()
+	SmallDir = append(SmallDir, item)
+	smallDirMutex.Unlock()
+}
+
+func GetSmallDir() []MenuSize {
+	smallDirMutex.Lock()
+	result := make([]MenuSize, len(SmallDir))
+	copy(result, SmallDir)
+	smallDirMutex.Unlock()
+	return result
+}
+
+func ClearSmallDir() {
+	smallDirMutex.Lock()
+	SmallDir = []MenuSize{}
+	smallDirMutex.Unlock()
+}
 
 func TypeSizePlus(targetType string, targetSize int64) {
 	if targetType == "" {

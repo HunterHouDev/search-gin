@@ -343,6 +343,7 @@ func GetIpAddr() string {
 		utils.InfoFormat("GetIpAddrError:%v \n\n", err)
 		return "127.0.0.1"
 	}
+	defer conn.Close()
 	localAddr := conn.LocalAddr().(*net.UDPAddr)
 	ip := strings.Split(localAddr.String(), ":")[0]
 	return ip
@@ -462,6 +463,7 @@ func (fs *fileService) goWalkWithResult(baseDir string, types []string, resultCh
 // Walk 迭代方式遍历目录获取文件库
 func (fs *fileService) Walk(baseDir string, types []string, deep bool) []model.Movie {
 	var result []model.Movie
+	typeSet := utils.ToSet(types)
 
 	// 使用栈来模拟递归过程
 	dirStack := []string{baseDir}
@@ -496,7 +498,7 @@ func (fs *fileService) Walk(baseDir string, types []string, deep bool) []model.M
 
 					name := path.Name()
 					suffix := utils.GetSuffix(name)
-					if utils.HasItem(types, suffix) {
+					if utils.HasItemSet(typeSet, suffix) {
 						file := model.EasyFile(currentDir, pathAbs, name, suffix, info.Size(), info.ModTime(), "")
 						result = append(result, file)
 					}
@@ -523,6 +525,7 @@ basePath 基础路径
 */
 func (fs *fileService) WalkInnter(currentDir string, types []string, totalSize int64, queryChild bool, basePath string) ([]model.Movie, int64) {
 	var result []model.Movie
+	typeSet := utils.ToSet(types)
 	// 使用栈来模拟递归过程
 	type stackItem struct {
 		path       string
@@ -584,7 +587,7 @@ func (fs *fileService) WalkInnter(currentDir string, types []string, totalSize i
 						name := path.Name()
 						suffix := utils.GetSuffix(name)
 
-						if utils.HasItem(types, suffix) {
+						if utils.HasItemSet(typeSet, suffix) {
 							file := model.EasyFile(currentPath, pathAbs, name, suffix, info.Size(), info.ModTime(), basePath)
 							fileMap[currentPath] = append(fileMap[currentPath], file)
 						}
