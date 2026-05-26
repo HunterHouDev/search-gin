@@ -345,22 +345,10 @@
                                 <q-item-label>H265</q-item-label>
                               </q-item-section>
                             </q-item>
-                            <q-item>
-                              <q-item-section
-                                v-close-popup
-                                @click="makeMergeSrt(item)"
-                              >
-                                <q-item-label>字幕</q-item-label>
-                              </q-item-section>
-                            </q-item>
                           </q-list>
                         </q-btn-dropdown>
 
                         <q-btn
-                          style="color: #9e089e"
-                          dense
-                          flat
-                          glossy
                           class="mr10 cursor-pointer"
                           target="_blank"
                           @click="searchCode(item)"
@@ -885,14 +873,11 @@ import {
   DeleteFile,
   FilesMerge,
   TransferTasksInfo,
-  DelTransferTasksInfo,
   TansferFileVcode,
-  MergeSrt,
   CloseTag,
+  DelTransferTasksInfo,
   AddTag,
 } from 'components/api/searchAPI';
-import { PostSettingInfo } from 'src/components/api/settingAPI';
-import { useSystemProperty } from 'stores/System';
 import { getPng } from 'components/utils/images';
 
 import Sortable from 'sortablejs';
@@ -1081,10 +1066,6 @@ const showTimeUse = (end, start) => {
       new Date(start).getTime()) /
     1000
   }`;
-};
-
-const makeMergeSrt = (item) => {
-  commonExec(MergeSrt(item.Id));
 };
 
 const toMp4 = (item) => {

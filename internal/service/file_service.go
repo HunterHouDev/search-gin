@@ -22,6 +22,21 @@ import (
 type fileService struct {
 }
 
+// 硬件加速相关（惰性检测，首次转码时自动识别）
+ var (
+	hwAccelH264Encoder string
+	hwAccelH265Encoder string
+	hwAccelModeName    string
+	hwAccelDetected    bool
+	hwAccelMutex       sync.Mutex
+
+	// 硬件解码参数（与编码器匹配，如 "-hwaccel cuda -hwaccel_output_format cuda"）
+	hwAccelDecodeParams string
+
+	// 强制重新检测标志（用户切换硬件加速设置时重置）
+	hwAccelForceDetect bool
+)
+
 var (
 	noPic       []byte
 	contentType string
@@ -636,14 +651,12 @@ func (fs *fileService) WalkInnter(currentDir string, types []string, totalSize i
 func (fs *fileService) TaskExecuting() {
 	// 任务分类
 	taskGroups := struct {
-		todos             []model.TransferTaskModel
-		todosCuts         []model.TransferTaskModel
-		todosMerges       []model.TransferTaskModel
-		todosMergeSrt     []model.TransferTaskModel
-		executing         []model.TransferTaskModel
-		executingCuts     []model.TransferTaskModel
-		executingMerges   []model.TransferTaskModel
-		executingMergeSrt []model.TransferTaskModel
+		todos         []model.TransferTaskModel
+		todosCuts     []model.TransferTaskModel
+		todosMerges   []model.TransferTaskModel
+		executing     []model.TransferTaskModel
+		executingCuts []model.TransferTaskModel
+		executingMerges []model.TransferTaskModel
 	}{}
 
 	// 遍历并分类任务
@@ -658,8 +671,6 @@ func (fs *fileService) TaskExecuting() {
 				taskGroups.todosMerges = append(taskGroups.todosMerges, model)
 			case strings.EqualFold(model.Type, "转码"):
 				taskGroups.todos = append(taskGroups.todos, model)
-			case strings.EqualFold(model.Type, "合并Srt"):
-				taskGroups.todosMergeSrt = append(taskGroups.todosMergeSrt, model)
 			}
 		case strings.EqualFold(model.Status, "执行中"):
 			switch {
@@ -669,19 +680,13 @@ func (fs *fileService) TaskExecuting() {
 				taskGroups.executingMerges = append(taskGroups.executingMerges, model)
 			case strings.EqualFold(model.Type, "转码"):
 				taskGroups.executing = append(taskGroups.executing, model)
-			case strings.EqualFold(model.Type, "合并Srt"):
-				taskGroups.executingMergeSrt = append(taskGroups.executingMergeSrt, model)
 			}
 		}
 	}
 	consts.TransferTaskMutex.RUnlock()
 
-	// 启动任务（如果没有同类型任务在执行）
 	if len(taskGroups.executing) == 0 && len(taskGroups.todos) > 0 {
 		go fs.TransferFormatter(taskGroups.todos[0])
-	}
-	if len(taskGroups.executingMergeSrt) == 0 && len(taskGroups.todosMergeSrt) > 0 {
-		go fs.MergeSrt(taskGroups.todosMergeSrt[0])
 	}
 	if len(taskGroups.executingCuts) == 0 && len(taskGroups.todosCuts) > 0 {
 		go fs.CutFormatter(taskGroups.todosCuts[0])
@@ -694,37 +699,6 @@ func (fs *fileService) TaskExecuting() {
 	time.AfterFunc(2*time.Second, fs.TaskExecuting)
 }
 
-// MergeSrt 合并字幕到视频
-func (fs *fileService) MergeSrt(model model.TransferTaskModel) utils.Result {
-	from := model.Path
-	suffix := utils.GetSuffix(model.Path)
-
-	// 确保输出格式与输入不同
-	if suffix == model.To {
-		if suffix == "mp4" {
-			model.To = "mov"
-		} else {
-			model.To = "mp4"
-		}
-	}
-
-	dest := strings.ReplaceAll(model.Path, "."+suffix, "."+model.To)
-	thisNow := model.CreateTime
-
-	// 构建ffmpeg参数
-	args := []string{"-i", from, "-vf", "subtitles=" + model.Srt, dest}
-	res := fs.ffmepgExec(args, thisNow)
-
-	// 成功后删除源文件（如果配置了）
-	if res.IsSuccess() && consts.OSSetting.CutThenDelete {
-		if err := os.Remove(model.Path); err != nil {
-			utils.InfoFormat("删除源文件失败: %s, 错误: %v", model.Path, err)
-			// 不影响返回结果，只记录错误
-		}
-	}
-
-	return res
-}
 
 // TransferFormatter 视频转码格式化
 func (fs *fileService) TransferFormatter(model model.TransferTaskModel) utils.Result {
@@ -762,7 +736,7 @@ func (fs *fileService) transferFormatWithCopy(model model.TransferTaskModel) uti
 	res := fs.ffmepgExec(args, thisNow)
 
 	// 成功后删除源文件（如果配置了）
-	if res.IsSuccess() && consts.OSSetting.CutThenDelete {
+	if res.IsSuccess() && consts.GetOSSetting().CutThenDelete {
 		if err := os.Remove(model.Path); err != nil {
 			utils.InfoFormat("删除源文件失败: %s, 错误: %v", model.Path, err)
 		}
@@ -787,10 +761,17 @@ func (fs *fileService) TransferFormatter264(model model.TransferTaskModel) utils
 	dest := strings.ReplaceAll(model.Path, "."+suffix, "."+model.To)
 	thisNow := model.CreateTime
 
-	args := []string{"-i", from, "-c:v", "libx264", dest}
+	encoder := fs.getH264Encoder()
+	decodeParams := fs.getHwDecodeParams()
+	qualityParam := fs.getHwQualityParam()
+	args := []string{}
+	if decodeParams != "" {
+		args = append(args, strings.Fields(decodeParams)...)
+	}
+	args = append(args, "-i", from, "-c:v", encoder, qualityParam, "23", dest)
 	res := fs.ffmepgExec(args, thisNow)
 
-	if res.IsSuccess() && consts.OSSetting.CutThenDelete {
+	if res.IsSuccess() && consts.GetOSSetting().CutThenDelete {
 		if err := os.Remove(model.Path); err != nil {
 			utils.InfoFormat("删除源文件失败: %s, 错误: %v", model.Path, err)
 		}
@@ -815,10 +796,17 @@ func (fs *fileService) TransferFormatter265(model model.TransferTaskModel) utils
 	dest := strings.ReplaceAll(model.Path, "."+suffix, "."+model.To)
 	thisNow := model.CreateTime
 
-	args := []string{"-i", from, "-c:v", "libx265", dest}
+	encoder := fs.getH265Encoder()
+	decodeParams := fs.getHwDecodeParams()
+	qualityParam := fs.getHwQualityParam()
+	args := []string{}
+	if decodeParams != "" {
+		args = append(args, strings.Fields(decodeParams)...)
+	}
+	args = append(args, "-i", from, "-c:v", encoder, qualityParam, "28", dest)
 	res := fs.ffmepgExec(args, thisNow)
 
-	if res.IsSuccess() && consts.OSSetting.CutThenDelete {
+	if res.IsSuccess() && consts.GetOSSetting().CutThenDelete {
 		if err := os.Remove(model.Path); err != nil {
 			utils.InfoFormat("删除源文件失败: %s, 错误: %v", model.Path, err)
 		}
@@ -865,7 +853,7 @@ func (fs *fileService) CutFormatter(model model.TransferTaskModel) utils.Result 
 	res := fs.ffmepgExec(args, thisNow)
 
 	// 成功后删除源文件（如果配置了）
-	if res.IsSuccess() && consts.OSSetting.CutThenDelete {
+	if res.IsSuccess() && consts.GetOSSetting().CutThenDelete {
 		if err := os.Remove(model.Path); err != nil {
 			utils.InfoFormat("删除源文件失败: %s, 错误: %v", model.Path, err)
 			// 不影响返回结果，只记录错误
@@ -895,16 +883,21 @@ func (fs *fileService) CutImage(path string, typeImage string, start string) uti
 	dest += "." + strings.ToLower(typeImage)
 
 	// 构建ffmpeg参数
-	args := []string{
-		"-y",         // 覆盖已存在的文件
-		"-ss", start, // 起始时间
-		"-i", path, // 输入文件
-		"-f", "image2",
-		"-vframes", "1", // 只截取一帧
-		"-an", // 无音频
-		"-vcodec", "mjpeg",
-		dest, // 输出文件
+	args := []string{"-y", "-ss", start}
+
+	// 如果启用硬件加速，插入硬件解码参数加快截图速度
+	decodeParams := fs.getHwDecodeParams()
+	if decodeParams != "" {
+		args = append(args, strings.Fields(decodeParams)...)
 	}
+
+	args = append(args, "-i", path,
+		"-f", "image2",
+		"-vframes", "1",
+		"-an",
+		"-vcodec", "mjpeg",
+		dest,
+	)
 
 	// 构建ffmpeg路径
 	ffmpegPath := "ffmpeg.exe"
@@ -989,4 +982,160 @@ func (fs *fileService) ffmepgExec(args []string, thisNow time.Time) utils.Result
 	consts.TransferTaskMutex.Unlock()
 
 	return utils.NewSuccessByMsg("转换成功")
+}
+
+// detectHwAccel 检测平台上可用的最佳硬件编码器（惰性调用，首次转码时自动识别）
+// 如果 hwAccelForceDetect 为 true，则强制重新检测并重置标志
+func (fs *fileService) detectHwAccel() {
+	hwAccelMutex.Lock()
+	defer hwAccelMutex.Unlock()
+
+	// 如果未检测到过，或用户要求强制重新检测
+	if hwAccelDetected && !hwAccelForceDetect {
+		return
+	}
+	forceDetect := hwAccelForceDetect
+	hwAccelForceDetect = false // 重置标志
+
+	// 清除之前的检测结果（强制重新检测时）
+	if forceDetect {
+		hwAccelH264Encoder = ""
+		hwAccelH265Encoder = ""
+		hwAccelModeName = ""
+		hwAccelDecodeParams = ""
+	}
+
+	ffmpegPath := "ffmpeg.exe"
+	if TempDir != "" {
+		ffmpegPath = filepath.Join(TempDir, "ffmpeg.exe")
+	}
+
+	cmd := exec.Command(ffmpegPath, "-encoders")
+	if runtime.GOOS == "windows" {
+		utils.FixOnWin(cmd)
+	}
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		utils.InfoFormat("硬件加速检测失败(ffmpeg -encoders): %v", err)
+		// 失败时不标记 hwAccelDetected，允许后续重新检测
+		return
+	}
+
+	output := string(out)
+
+	// 按优先级检测可用编码器：NVENC > AMF > QSV > VAAPI > VideoToolbox
+	type hwEncoder struct {
+		h264   string
+		h265   string
+		name   string
+		decode string // 对应的硬件解码参数
+	}
+	encoders := []hwEncoder{
+		{"h264_nvenc", "hevc_nvenc", "NVIDIA NVENC", "-hwaccel cuda -hwaccel_output_format cuda"},
+		{"h264_amf", "hevc_amf", "AMD AMF", "-hwaccel dxva2"},
+		{"h264_qsv", "hevc_qsv", "Intel QSV", "-hwaccel qsv -hwaccel_output_format qsv"},
+		{"h264_vaapi", "hevc_vaapi", "VAAPI", "-hwaccel vaapi -hwaccel_output_format vaapi"},
+		{"h264_videotoolbox", "hevc_videotoolbox", "VideoToolbox", "-hwaccel videotoolbox"},
+	}
+
+	for _, e := range encoders {
+		h264Ok := strings.Contains(output, e.h264)
+		h265Ok := strings.Contains(output, e.h265)
+		if h264Ok && h265Ok {
+			hwAccelH264Encoder = e.h264
+			hwAccelH265Encoder = e.h265
+			hwAccelModeName = e.name
+			hwAccelDecodeParams = e.decode
+			hwAccelDetected = true // 成功检测后才标记
+			utils.InfoFormat("硬件加速检测成功: %s (h264=%s, h265=%s) 解码参数=%s", e.name, e.h264, e.h265, e.decode)
+			return
+		}
+	}
+
+	// 回退：只检测到 H264 编码器也凑合能用
+	for _, e := range encoders {
+		if strings.Contains(output, e.h264) {
+			hwAccelH264Encoder = e.h264
+			hwAccelModeName = e.name
+			hwAccelDecodeParams = e.decode
+			hwAccelDetected = true // 成功检测后才标记
+			utils.InfoFormat("硬件加速部分检测成功(仅H264): %s", e.name)
+			return
+		}
+	}
+
+	utils.InfoFormat("未检测到任何硬件加速编码器，将使用软件编码")
+	hwAccelDetected = true // 检测完毕但未找到，标记为已检测过（避免每次转码都跑 ffmpeg）
+}
+
+// getH264Encoder 获取当前应使用的 H264 编码器
+func (fs *fileService) getH264Encoder() string {
+	if consts.GetOSSetting().HardwareAcceleration {
+		fs.detectHwAccel()
+		if hwAccelH264Encoder != "" {
+			return hwAccelH264Encoder
+		}
+	}
+	return "libx264"
+}
+
+// getH265Encoder 获取当前应使用的 H265 编码器
+func (fs *fileService) getH265Encoder() string {
+	if consts.GetOSSetting().HardwareAcceleration {
+		fs.detectHwAccel()
+		if hwAccelH265Encoder != "" {
+			return hwAccelH265Encoder
+		}
+	}
+	return "libx265"
+}
+
+// GetHwAccelModeName 暴露硬件加速模式名称给外部
+func GetHwAccelModeName() string {
+	return hwAccelModeName
+}
+
+// getHwDecodeParams 获取硬件解码参数（在 -i 之前插入）
+func (fs *fileService) getHwDecodeParams() string {
+	if consts.GetOSSetting().HardwareAcceleration {
+		fs.detectHwAccel()
+		if hwAccelDecodeParams != "" {
+			return hwAccelDecodeParams
+		}
+	}
+	return ""
+}
+
+// getHwQualityParam 获取硬件编码器的质量参数
+// 软件编码器(libx264/libx265)用 -crf，硬件编码器用 -q
+func (fs *fileService) getHwQualityParam() string {
+	if consts.GetOSSetting().HardwareAcceleration {
+		fs.detectHwAccel()
+		if hwAccelH264Encoder != "" || hwAccelH265Encoder != "" {
+			return "-q"
+		}
+	}
+	return "-crf"
+}
+
+// HwAccelSettingChanged 检查硬件加速设置是否发生变化（与上次保存时不同）
+var lastHwAccelSetting bool
+func HwAccelSettingChanged() bool {
+	current := consts.GetOSSetting().HardwareAcceleration
+	hwAccelMutex.Lock()
+	defer hwAccelMutex.Unlock()
+	if lastHwAccelSetting != current {
+		lastHwAccelSetting = current
+		return true
+	}
+	return false
+}
+
+// ForceHwAccelDetect 强制下次转码时重新检测硬件加速
+func ForceHwAccelDetect() {
+	hwAccelMutex.Lock()
+	defer hwAccelMutex.Unlock()
+	hwAccelForceDetect = true
+	hwAccelDetected = false
+	utils.InfoFormat("硬件加速设置已更改，下次转码时将重新检测")
 }

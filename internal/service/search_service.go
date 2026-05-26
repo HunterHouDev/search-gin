@@ -3,12 +3,12 @@ package service
 import (
 	"crypto/tls"
 	"fmt"
-	"search-gin/pkg/consts"
-	"search-gin/internal/model"
-	"search-gin/pkg/utils"
 	"io"
 	"net/http"
 	"os"
+	"search-gin/internal/model"
+	"search-gin/pkg/consts"
+	"search-gin/pkg/utils"
 	"strings"
 	"sync"
 	"time"
@@ -41,13 +41,13 @@ func (fs *searchService) SearchDataSource(searchParam model.SearchParam) utils.P
 
 func (fs *searchService) SetMovieType(movie model.Movie, movieType string) utils.Result {
 	newMovieType := "{{" + movieType + "}}"
-	
+
 	if movie.MovieType != "" && movie.MovieType != "无" {
 		originVideoType := utils.GetMovieType(movie.Path)
 		if originVideoType == movieType {
 			return utils.NewSuccessByMsg("执行成功")
 		}
-		
+
 		originalPaths := []string{movie.Path, movie.Jpg, movie.Png, movie.Nfo, movie.Gif}
 		newPaths := make([]string, len(originalPaths))
 		for i, p := range originalPaths {
@@ -55,7 +55,7 @@ func (fs *searchService) SetMovieType(movie model.Movie, movieType string) utils
 				newPaths[i] = strings.ReplaceAll(p, originVideoType, movieType)
 			}
 		}
-		
+
 		successCount := 0
 		for i := range originalPaths {
 			if originalPaths[i] == "" || !utils.ExistsFiles(originalPaths[i]) {
@@ -75,24 +75,24 @@ func (fs *searchService) SetMovieType(movie model.Movie, movieType string) utils
 		}
 		return utils.NewSuccessByMsg("执行成功")
 	}
-	
+
 	suffix := "." + utils.GetSuffix(movie.Path)
 	newSuffix := newMovieType + suffix
 	newFilePath := strings.ReplaceAll(movie.Path, suffix, newSuffix)
-	
+
 	if err := os.Rename(movie.Path, newFilePath); err != nil {
 		return utils.NewFailByMsg("重命名视频失败: " + err.Error())
 	}
-	
+
 	newName := strings.TrimSuffix(newFilePath, suffix)
-	
+
 	files := []struct{ src, target string }{
 		{movie.Png, newName + ".png"},
 		{movie.Jpg, newName + ".jpg"},
 		{movie.Nfo, newName + ".nfo"},
 		{movie.Gif, newName + ".gif"},
 	}
-	
+
 	for _, f := range files {
 		if f.src != "" && utils.ExistsFiles(f.src) {
 			if err := os.Rename(f.src, f.target); err != nil {
@@ -654,85 +654,6 @@ func (fs *searchService) RequestBusToFile(srcFile model.Movie) (utils.Result, mo
 	return result, newFile
 }
 
-//
-//func (fs *searchService) RequestLibToFile(srcFile model.Movie) (utils.Result, model.Movie) {
-//
-//	result := utils.Result{}
-//	newFile := model.Movie{}
-//	newFile.Id = srcFile.Id
-//	if srcFile.Code == "" || isOM(srcFile.Name) {
-//		result.Fail()
-//		return result, newFile
-//	}
-//	// 搜索列表信息
-//	url := "https://g60y.com/cn/vl_searchbyid.php?keyword=" + srcFile.Code
-//	resp, err := httpGet(url)
-//	if err != nil {
-//		utils.InfoFormat("err", err)
-//		result.Fail()
-//		return result, newFile
-//	}
-//	defer resp.Body.Close()
-//	if resp.StatusCode != 200 {
-//		if strings.Contains(url, "_") {
-//			url = strings.ReplaceAll(url, "_", "-")
-//		} else if strings.Contains(url, "-") {
-//			url = strings.ReplaceAll(url, "-", "_")
-//		}
-//		resp, _ = httpGet(url)
-//		if resp.StatusCode != 200 {
-//			utils.InfoFormat("status error:", resp.StatusCode, resp.Status)
-//			result.Fail()
-//			result.Message = "请求失败：" + resp.Status + " url:" + url
-//			return result, newFile
-//		}
-//	}
-//	doc, err := goquery.NewDocumentFromReader(resp.Body)
-//	if err != nil {
-//		result.Fail()
-//		result.Message = "html解析失败"
-//		utils.InfoFormat("err:%v", err)
-//	}
-//	targetUrl := ""
-//	listVideo := doc.Find(" .videos .video")
-//	listVideo.Each(func(i int, s *goquery.Selection) {
-//		code := s.Find(".id").Text()
-//		if strings.EqualFold(code, srcFile.Code) {
-//			// if strings.ToUpper(code) == strings.ToUpper(srcFile.Code) {
-//			newFile.Code = code
-//			newFile.Title = s.Find(".title").Text()
-//			newFile.Png = s.Find("img").AttrOr("src", "")
-//			targetUrl = s.Find("a").AttrOr("href", "")
-//		}
-//	})
-//	var detailDoc *goquery.Document
-//	if targetUrl == "" {
-//		result.Fail()
-//		result.Message = "未找到"
-//		utils.InfoFormat("err:", err)
-//		return result, newFile
-//	} else {
-//		detailUrl := "https://g60y.com/cn/" + targetUrl
-//		detailResp, err2 := httpGet(detailUrl)
-//		if err2 != nil {
-//			utils.InfoFormat("err:", err2)
-//		}
-//		detailDoc, err2 = goquery.NewDocumentFromReader(detailResp.Body)
-//		if err2 != nil {
-//			utils.InfoFormat("err:", err2)
-//		}
-//	}
-//	imageDiv := detailDoc.Find("#video_jacket_img")
-//	newFile.Jpg = imageDiv.AttrOr("src", "")
-//	actressDiv := detailDoc.Find(".star a")
-//	makerDiv := detailDoc.Find(".maker a")
-//	newFile.Studio = makerDiv.Text()
-//	newFile.Actress = actressDiv.Text()
-//	result.Success()
-//	result.Data = newFile
-//	return result, newFile
-//}
-
 func (fs *searchService) FindOne(Id string) model.Movie {
 	return SearchEngin.FindById(Id)
 }
@@ -922,116 +843,7 @@ func choose2To1(tr bool, str1 string, str2 string) string {
 	}
 }
 
-//func (fs *searchService) SortAct(lib []model.Actress, sortType string) {
-//	if sortType == "desc" {
-//		sort.Slice(lib, func(i, j int) bool {
-//			return lib[i].Cnt > lib[j].Cnt
-//		})
-//	} else {
-//		sort.Slice(lib, func(i, j int) bool {
-//			return lib[i].Cnt < lib[j].Cnt
-//		})
-//	}
-//
-//}
-
 func (fs *searchService) Delete(id string) {
 	file := fs.FindOne(id)
 	FileApp.DeleteOne(file.DirPath, file.Title)
 }
-
-//func (fs *searchService) OnlyRepeat(files []model.Movie) []model.Movie {
-//	var result []model.Movie
-//	codeMap := make(map[string]model.Movie)
-//	for _, movie := range files {
-//		forCode := movie.Code
-//		if forCode == "" {
-//			continue
-//		}
-//		forCode = strings.ReplaceAll(forCode, "-", "")
-//		forCode = strings.ReplaceAll(forCode, "_", "")
-//		ele, ok := codeMap[forCode]
-//		if ok {
-//			result = append(result, ele)
-//			result = append(result, movie)
-//			continue
-//		} else {
-//			codeMap[forCode] = movie
-//		}
-//
-//	}
-//	return result
-//}
-
-//func (fs *searchService) SearchByKeyWord(files []model.Movie, totalSize int64, keyWord string, movieType string) ([]model.Movie, int64) {
-//
-//	if (keyWord == "" || keyWord == "undefined") && (movieType == "" || movieType == "undefined") {
-//		return files, totalSize
-//	}
-//	var result []model.Movie
-//	var size int64
-//	for _, file := range files {
-//		if movieType != "" {
-//			if file.MovieType != movieType {
-//				continue
-//			}
-//		}
-//		isAdd := false
-//		if len(keyWord) > 0 {
-//			arr := strings.Split(keyWord, " ")
-//			for i := 0; i < len(arr); i++ {
-//				words := arr[i]
-//				if len(words) == 0 || words == " " {
-//					break
-//				}
-//				if strings.Contains(strings.ToUpper(file.Code), strings.ToUpper(words)) {
-//					isAdd = true
-//					break
-//				} else if strings.Contains(strings.ToUpper(file.Name), strings.ToUpper(words)) {
-//					isAdd = true
-//					break
-//				} else if strings.Contains(strings.ToUpper(file.Actress), strings.ToUpper(words)) {
-//					isAdd = true
-//					break
-//				} else if strings.Contains(strings.ToUpper(file.Path), strings.ToUpper(words)) {
-//					isAdd = true
-//					break
-//				}
-//			}
-//		} else {
-//			isAdd = true
-//		}
-//
-//		if isAdd {
-//			result = append(result, file)
-//			size = size + file.Size
-//		}
-//
-//	}
-//
-//	return result, size
-//}
-
-//func (fs *searchService) SearchActressByKeyWord(files []model.Actress, keyWord string) ([]model.Actress, int) {
-//
-//	if keyWord == "" || keyWord == "undefined" {
-//		return files, len(files)
-//	}
-//	var result []model.Actress
-//	cnt := 0
-//	for _, file := range files {
-//		if strings.Contains(strings.ToUpper(file.Name), strings.ToUpper(keyWord)) {
-//			result = append(result, file)
-//		}
-//	}
-//
-//	return result, cnt
-//}
-
-//func (fs *searchService) DataSize(data []model.Movie) int64 {
-//	var dataSize int64
-//	for _, d := range data {
-//		dataSize = dataSize + d.Size
-//	}
-//	return dataSize
-//}

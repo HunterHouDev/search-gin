@@ -24,6 +24,9 @@ type Setting struct {
 	SystemPlayerWidth  string
 	SystemPlayer       string
 
+	HardwareAcceleration bool   // 是否启用硬件加速
+	HardwareAccelMode    string // 硬件加速模式名称（如 NVIDIA NVENC）
+
 	Tags           []string
 	TagsLib        []string
 	Dirs           []string

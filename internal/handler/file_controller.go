@@ -433,24 +433,19 @@ func GetTransferToMp4(c *gin.Context) {
 
 }
 
-func GetMergeSrt(c *gin.Context) {
-	id := c.Param("id")
-	utils.InfoFormat("GetMergeSrt file [%v] ", id)
-	movieFile := service.SearchApp.FindOne(id)
-	if !utils.ExistsFiles(movieFile.Path) {
-		c.JSON(http.StatusOK, utils.NewFailByMsg("文件不存在"))
+func GetCutImage(c *gin.Context) {
+	idInt := c.Param("id")
+	typeImage := c.Param("typeImage")
+	start := c.Param("start")
+	movieFile := service.SearchApp.FindOne(idInt)
+	if movieFile.IsNull() {
+		r := utils.Fail()
+		r.Message = "文件不存在"
+		c.JSON(http.StatusOK, r)
 		return
 	}
-	if !utils.ExistsFiles(movieFile.Srt) {
-		c.JSON(http.StatusOK, utils.NewFailByMsg("字幕不存在"))
-		return
-	}
-	task := model.NewMergeSrtTask(movieFile.Path, movieFile.Name, movieFile.Srt)
-	task.SetStatus("等待")
-	consts.TransferTaskMutex.Lock()
-	consts.TransferTask[task.CreateTime] = task
-	consts.TransferTaskMutex.Unlock()
-	c.JSON(http.StatusOK, utils.NewSuccessByMsg("任务创建成功"))
+	res := service.FileApp.CutImage(movieFile.Path, typeImage, start)
+	c.JSON(http.StatusOK, res)
 }
 
 func GetCutMovie(c *gin.Context) {
@@ -509,19 +504,4 @@ func GetDelTransferTask(c *gin.Context) {
 	consts.TransferTaskMutex.Unlock()
 	result := utils.NewSuccess()
 	c.JSON(http.StatusOK, result)
-}
-
-func GetCutImage(c *gin.Context) {
-	idInt := c.Param("id")
-	typeImage := c.Param("typeImage")
-	start := c.Param("start")
-	movieFile := service.SearchApp.FindOne(idInt)
-	if movieFile.IsNull() {
-		r := utils.Fail()
-		r.Message = "文件不存在"
-		c.JSON(http.StatusOK, r)
-		return
-	}
-	res := service.FileApp.CutImage(movieFile.Path, typeImage, start)
-	c.JSON(http.StatusOK, res)
 }

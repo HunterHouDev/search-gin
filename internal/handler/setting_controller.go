@@ -81,6 +81,10 @@ func GetSettingInfo(c *gin.Context) {
 	setting := consts.GetOSSetting()
 	safeSetting := setting
 	safeSetting.Users = nil
+	// 如果启用硬件加速且已检测到模式，同步给前端展示
+	if safeSetting.HardwareAcceleration && safeSetting.HardwareAccelMode == "" {
+		safeSetting.HardwareAccelMode = service.GetHwAccelModeName()
+	}
 	c.JSON(http.StatusOK, safeSetting)
 }
 func PostSetting(c *gin.Context) {
@@ -93,6 +97,10 @@ func PostSetting(c *gin.Context) {
 	setInfo.SelfPath = consts.GetOSSetting().SelfPath
 	consts.SetOSSetting(setInfo)
 	service.FlushDictionary(consts.GetOSSetting().SelfPath)
+	// 如果硬件加速开关发生变化，强制重新检测
+	if service.HwAccelSettingChanged() {
+		service.ForceHwAccelDetect()
+	}
 	res := utils.NewSuccess()
 	c.JSON(http.StatusOK, res)
 }

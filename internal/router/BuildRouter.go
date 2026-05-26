@@ -74,7 +74,6 @@ func BuildRouter(tempDir string) *gin.Engine {
 	router.GET("/api/actressImgae/:path", handler.GetActressImage)
 
 	router.GET("/api/play/:id", handler.GetPlay)
-	router.GET("/api/mergeSrt/:id", handler.GetMergeSrt)
 	router.GET("/api/tranferToMp4/:id/:xcode", handler.GetTransferToMp4)
 	router.POST("/api/mergeFiles", handler.PostMerge)
 	router.GET("/api/cutMovie/:id/:start/:end", handler.GetCutMovie)

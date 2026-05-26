@@ -77,10 +77,6 @@ export const TansferFile = async (data: string) => {
   return res && res.data;
 };
 
-export const MergeSrt = async (data: string) => {
-  const res = await commonAxios().get(`/api/mergeSrt/${data}`);
-  return res && res.data;
-};
 
 
 

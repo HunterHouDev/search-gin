@@ -62,17 +62,6 @@ func NewCutTask(path string, name string, start string, end string, to string) T
 	return res
 }
 
-func NewMergeSrtTask(path string, name string, srt string) TransferTaskModel {
-	res := TransferTaskModel{
-		Path:       path,
-		Type:       "合并Srt",
-		Name:       name,
-		Srt:        srt,
-		CreateTime: time.Now(),
-	}
-	return res
-}
-
 func (p *TransferTaskModel) SetStatus(sts string) {
 	p.Status = sts
 }

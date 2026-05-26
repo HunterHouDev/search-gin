@@ -100,6 +100,34 @@
               </div>
             </template>
           </q-field>
+          
+          <q-field color="primary" label="硬件加速编码" stack-label hint="开启后H264/H265转码将调用GPU硬件加速">
+            <template v-slot:control>
+              <div class="row q-gutter-md items-center">
+                <q-radio
+                  v-model="view.settingInfo.HardwareAcceleration"
+                  checked-icon="task_alt"
+                  unchecked-icon="panorama_fish_eye"
+                  :val="true"
+                  label="开启"
+                />
+                <q-radio
+                  v-model="view.settingInfo.HardwareAcceleration"
+                  checked-icon="task_alt"
+                  unchecked-icon="panorama_fish_eye"
+                  :val="false"
+                  label="关闭"
+                />
+                <span v-if="view.settingInfo.HardwareAcceleration && view.settingInfo.HardwareAccelMode" class="text-caption text-positive" style="margin-left: 8px;">
+                  当前: {{ view.settingInfo.HardwareAccelMode }}
+                </span>
+                <span v-else-if="view.settingInfo.HardwareAcceleration" class="text-caption text-warning" style="margin-left: 8px;">
+                  首次转码时自动检测
+                </span>
+              </div>
+            </template>
+          </q-field>
+
           <q-field color="primary" label="Buttons" stack-label>
             <template v-slot:control>
               <MutiSelector

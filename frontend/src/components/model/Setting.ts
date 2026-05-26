@@ -20,6 +20,8 @@ export class SettingInfo {
   ImageHost: string | undefined;
   StreamHost: string | undefined;
   IsDb = false;
+  HardwareAcceleration = false;
+  HardwareAccelMode = '';
 }
 
 export const buttonEnum = [

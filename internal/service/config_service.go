@@ -21,6 +21,13 @@ func InitSetting() {
 	dict.ControllerHost =   consts.PortNo
 	dict.ImageHost =  consts.PortNo2
 	dict.StreamHost =  consts.PortNo3
+
+	// 如果启用硬件加速，主动检测并同步模式名称
+	if dict.HardwareAcceleration {
+		FileApp.detectHwAccel()
+		dict.HardwareAccelMode = GetHwAccelModeName()
+	}
+
 	consts.OSSetting = dict
 }
 
