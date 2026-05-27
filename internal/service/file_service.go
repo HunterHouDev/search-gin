@@ -1,10 +1,11 @@
 package service
 
 import (
+	"bytes"
 	"context"
-	"search-gin/pkg/consts"
-	"search-gin/internal/model"
-	"search-gin/pkg/utils"
+	"image"
+	"image/color"
+	"image/png"
 	"io"
 	"net"
 	"net/http"
@@ -12,6 +13,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"search-gin/internal/model"
+	"search-gin/pkg/consts"
+	"search-gin/pkg/utils"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -45,9 +49,16 @@ type fileService struct {
 
 var (
 	noPic       []byte
-	contentType string
-	noPicMutex  sync.RWMutex // 保护noPic和contentType的并发访问
+	contentType = "image/png"
 )
+
+func init() {
+	var buf bytes.Buffer
+	if err := generatePlaceholderPNG(&buf); err != nil {
+		panic("初始化默认图片失败: " + err.Error())
+	}
+	noPic = buf.Bytes()
+}
 
 // GetPng 获取PNG图片
 func (fs *fileService) GetPng(c *gin.Context) {
@@ -115,16 +126,21 @@ func (fileService *fileService) HeartBeat() {
 	defer ticker.Stop()
 
 	for {
-		if consts.OSSetting.EnableTimeScan {
-			now := time.Now()
-			diff := now.Sub(consts.LastScanTime)
-			if diff.Seconds() > 180 {
-				for _, v := range consts.OSSetting.Dirs {
-					removeWalk(v, true)
-				}
-			}
-		}
-		<-ticker.C
+	 select {
+	 case <-TaskCtx.Done():
+	  return
+	 case <-ticker.C:
+	  setting := consts.GetOSSetting()
+	  if setting.EnableTimeScan {
+	   now := time.Now()
+	   diff := now.Sub(consts.LastScanTime)
+	   if diff.Seconds() > 180 {
+	    for _, v := range setting.Dirs {
+	     removeWalk(v, true)
+	    }
+	   }
+	  }
+	 }
 	}
 }
 
@@ -193,48 +209,60 @@ func removeWalk(baseDir string, deep bool) {
 
 // writeNoPic 无图时返回默认图片
 func (fs *fileService) writeNoPic(c *gin.Context) {
-	// 先尝试读取已缓存的图片
-	noPicMutex.RLock()
-	if noPic != nil && contentType != "" {
-		defer noPicMutex.RUnlock()
-		c.Data(http.StatusOK, contentType, noPic)
-		return
-	}
-	noPicMutex.RUnlock()
-
-	// 缓存未命中，获取默认图片
-	noPicMutex.Lock()
-	defer noPicMutex.Unlock()
-
-	// 双重检查锁定模式
-	if noPic != nil && contentType != "" {
-		c.Data(http.StatusOK, contentType, noPic)
-		return
-	}
-
-	// 从网络获取默认图片
-	imgURL := "https://gimg2.baidu.com/image_search/src=http%3A%2F%2Fwww.bianminchewu.com%2Fimgs%2F18%2F0804%2F1533370482927057.png&refer=http%3A%2F%2Fwww.bianminchewu.com&app=2002&size=f9999,10000&q=a80&n=0&g=0n&fmt=auto?sec=1666008344&t=9da005a04a6c6209595f46dd05477c0f"
-	response, err := httpClient.Get(imgURL)
-	if err != nil || response.StatusCode != http.StatusOK {
-		utils.InfoFormat("获取默认图片失败: %v", err)
-		c.Status(http.StatusServiceUnavailable)
-		return
-	}
-	defer func() {
-		if closeErr := response.Body.Close(); closeErr != nil {
-			utils.InfoFormat("关闭响应体失败: %v", closeErr)
-		}
-	}()
-
-	noPic, err = io.ReadAll(response.Body)
-	if err != nil {
-		utils.InfoFormat("读取默认图片失败: %v", err)
-		c.Status(http.StatusServiceUnavailable)
-		return
-	}
-
-	contentType = response.Header.Get("Content-Type")
 	c.Data(http.StatusOK, contentType, noPic)
+}
+
+// generatePlaceholderPNG 生成一个简单的占位PNG图片
+func generatePlaceholderPNG(w io.Writer) error {
+	width, height := 200, 200
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+
+	// 填充灰色背景
+	bgColor := color.RGBA{R: 204, G: 204, B: 204, A: 255}
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			img.Set(x, y, bgColor)
+		}
+	}
+
+	// 绘制简单的 "?" 图标（十字形）
+	lineColor := color.RGBA{R: 153, G: 153, B: 153, A: 255}
+	centerX, centerY := width/2, height/2
+	thickness := 6
+	size := 30
+
+	// 水平线
+	for x := centerX - size; x <= centerX+size; x++ {
+		for dy := -thickness / 2; dy <= thickness/2; dy++ {
+			img.Set(x, centerY+dy, lineColor)
+		}
+	}
+	// 竖直线（下半部分，形成 ? 的竖）
+	for y := centerY; y <= centerY+size; y++ {
+		for dx := -thickness / 2; dx <= thickness/2; dx++ {
+			img.Set(centerX+dx, y, lineColor)
+		}
+	}
+	// 顶部弧线简化为小方块
+	for x := centerX - size + 10; x < centerX+size-10; x++ {
+		for y := centerY - size; y < centerY-size+thickness; y++ {
+			img.Set(x, y, lineColor)
+		}
+	}
+	// 左侧弧线
+	for x := centerX - size; x < centerX-size+thickness; x++ {
+		for y := centerY - size; y < centerY; y++ {
+			img.Set(x, y, lineColor)
+		}
+	}
+	// 右侧弧线
+	for x := centerX + size - thickness; x < centerX+size; x++ {
+		for y := centerY - size; y < centerY; y++ {
+			img.Set(x, y, lineColor)
+		}
+	}
+
+	return png.Encode(w, img)
 }
 
 // DeleteOne 删除指定文件夹下的指定文件名的文件
@@ -373,19 +401,20 @@ func GetIpAddr() string {
 // ScanAll 全局扫描
 func (fs *fileService) ScanAll() {
 	// 检查是否已经有索引构建任务在执行
-	if atomic.LoadInt32(&consts.IndexDone) > 0 {
+	if !atomic.CompareAndSwapInt32(&consts.IndexDone, 0, 1) {
 		AddLogMemory("索引构建任务正在执行中，跳过本次扫描")
 		return
 	}
+	defer atomic.StoreInt32(&consts.IndexDone, 0)
 
 	// 统计初始化
 	consts.TypeMenu.Clear()
 	consts.SeriesCount.Clear()
 	consts.TagMenu.Clear()
-	consts.SmallDir = []consts.MenuSize{}
+	consts.ClearSmallDir()
 
 	// 初始化查询条件
-	setting := consts.OSSetting
+	setting := consts.GetOSSetting()
 	dirList := make([]string, len(setting.Dirs))
 	copy(dirList, setting.Dirs)
 
@@ -395,17 +424,10 @@ func (fs *fileService) ScanAll() {
 	queryTypes = utils.ExtendsItems(queryTypes, setting.ImageTypes)
 
 	consts.InitFolderTime()
-	// 设置索引构建状态
-	atomic.StoreInt32(&consts.IndexDone, 1)
-	defer atomic.StoreInt32(&consts.IndexDone, 0)
 
 	fs.Walks(dirList, queryTypes)
 	SearchEngin.buildIndexEngin()
 	consts.LastScanTime = time.Now()
-
-	// 清空切片
-	clear(queryTypes)
-	clear(dirList)
 }
 
 // ScanTarget 扫描指定文件夹
@@ -421,8 +443,11 @@ func (fs *fileService) Walks(baseDir []string, types []string) []model.Movie {
 	dirSize := len(baseDir)
 
 	// 检查是否已经有索引构建任务在执行
-	if atomic.LoadInt32(&consts.IndexDone) == 0 {
-		// 只有当没有索引构建任务时，才设置IndexDone
+	if atomic.LoadInt32(&consts.IndexDone) == 1 {
+		// 如果 IndexDone 为 1，说明 ScanAll 已经获取了所有权，不再重复设置
+		// 如果 IndexDone 为 dirSize，说明是从 ScanTarget 调用
+	} else if atomic.LoadInt32(&consts.IndexDone) == 0 {
+		// 只有当没有索引构建任务时，才设置 IndexDone
 		atomic.StoreInt32(&consts.IndexDone, int32(dirSize))
 		defer atomic.StoreInt32(&consts.IndexDone, 0)
 	}
@@ -430,9 +455,8 @@ func (fs *fileService) Walks(baseDir []string, types []string) []model.Movie {
 	// 重置搜索引擎
 	SearchEngin.Reset()
 
-	// 创建一个通道来收集扫描结果
+	// 创建一个通道来收集扫描结果（容量为 dirSize，避免 goroutine leak）
 	resultChan := make(chan []model.Movie, dirSize)
-	defer close(resultChan)
 
 	wg.Add(dirSize)
 	for i := 0; i < dirSize; i++ {
@@ -444,6 +468,8 @@ func (fs *fileService) Walks(baseDir []string, types []string) []model.Movie {
 
 	// 等待所有扫描完成
 	wg.Wait()
+	// 通道不再需要，关闭它
+	close(resultChan)
 
 	// 收集结果
 	for i := 0; i < dirSize; i++ {

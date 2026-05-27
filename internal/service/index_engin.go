@@ -205,16 +205,22 @@ func (se *searchEnginCore) PageAsync(searchParam model.SearchParam) model.PageRe
 			}()
 			indexWrapper := index.searchBucket(searchParam)
 			if indexWrapper.IsNotEmpty() {
-				resultChan <- indexWrapper
+				select {
+				case resultChan <- indexWrapper:
+				case <-time.After(30 * time.Second):
+					AddLogMemory("发送搜索结果超时，丢弃结果")
+				}
 			}
 		})
 		return true
 	})
 
-	// 启动goroutine等待所有搜索完成并关闭通道
+	// 等待所有搜索完成并关闭通道
+	done := make(chan struct{})
 	go func() {
 		pool.Wait()
 		close(resultChan)
+		close(done)
 	}()
 
 	// 收集搜索结果，添加超时控制
@@ -230,9 +236,23 @@ func (se *searchEnginCore) PageAsync(searchParam model.SearchParam) model.PageRe
 			resultWrapper.FileList = append(resultWrapper.FileList, data.FileList...)
 			resultWrapper.SearchCount += len(data.FileList)
 			resultWrapper.SearchSize += data.Size
+		case <-done:
+			// 所有 goroutine 已完成，通道将关闭
+			for data := range resultChan {
+				resultWrapper.FileList = append(resultWrapper.FileList, data.FileList...)
+				resultWrapper.SearchCount += len(data.FileList)
+				resultWrapper.SearchSize += data.Size
+			}
+			goto searchDone
 		case <-timeout:
-			// 搜索超时
+			// 搜索超时，等待 goroutine 完成
 			AddLogMemory("搜索超时，部分结果可能未返回")
+			<-done // 等待所有 goroutine 完成
+			for data := range resultChan {
+				resultWrapper.FileList = append(resultWrapper.FileList, data.FileList...)
+				resultWrapper.SearchCount += len(data.FileList)
+				resultWrapper.SearchSize += data.Size
+			}
 			goto searchDone
 		}
 	}
@@ -339,9 +359,10 @@ func (se *searchEnginCore) buildIndexEnginTotalInfo() {
 	se.SearchIndexMap.Range(func(key, value any) bool {
 		index := value.(*bucketFile)
 		if index.isNotEmpty() {
+			index.mu.RLock()
 			se.TotalSize += index.TotalSize
 			se.TotalCount += index.TotalCount
-
+			index.mu.RUnlock()
 		}
 		return true
 	})
