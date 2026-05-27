@@ -1,8 +1,7 @@
 package service
 
 import (
-	"bytes"
-	"io"
+	"fmt"
 	"math/rand"
 	"os"
 	"search-gin/internal/model"
@@ -15,8 +14,7 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
-type searchService struct {
-}
+type searchService struct{}
 
 func (fs *searchService) SearchDataSource(searchParam model.SearchParam) utils.Page {
 	result := utils.NewPage()
@@ -33,7 +31,6 @@ func (fs *searchService) SearchDataSource(searchParam model.SearchParam) utils.P
 	}
 	result.Data = searchResult.FileList
 	return result
-
 }
 
 func (fs *searchService) SetMovieType(movie model.Movie, movieType string) utils.Result {
@@ -102,101 +99,56 @@ func (fs *searchService) SetMovieType(movie model.Movie, movieType string) utils
 
 func (fs *searchService) AddTag(id string, tag string) utils.Result {
 	movie := fs.FindOne(id)
-	//video
 	newTags := strings.Split(tag, ",")
+
 	if len(movie.Tags) > 0 {
 		originTagStr := utils.GetTagStr(movie.Path)
-		if originTagStr == tag {
-			return utils.NewSuccessByMsg("执行成功")
-		}
-		if strings.Contains(originTagStr, tag) {
+		if originTagStr == tag || strings.Contains(originTagStr, tag) {
 			return utils.NewSuccessByMsg("已添加")
 		}
+
 		newTagStr := originTagStr
 		for _, str := range newTags {
-			if strings.Contains(originTagStr, str) {
-				continue
+			if !strings.Contains(originTagStr, str) {
+				newTagStr += "," + str
 			}
-			newTagStr = newTagStr + "," + str
 		}
 		newTagStr = "《" + newTagStr + "》"
-		originTagStr = "《" + utils.GetTagStr(movie.Path) + "》"
-		path := strings.ReplaceAll(movie.Path, originTagStr, newTagStr)
-		err := os.Rename(movie.Path, path)
-		if err != nil {
-			utils.InfoFormat("%v", err)
-			return utils.NewFailByMsg(err.Error())
-		}
-		path = strings.ReplaceAll(movie.Jpg, originTagStr, newTagStr)
-		err = os.Rename(movie.Jpg, path)
-		if err != nil {
-			utils.InfoFormat("%v", err)
-		}
-		path = strings.ReplaceAll(movie.Png, originTagStr, newTagStr)
-		err = os.Rename(movie.Png, path)
-		if err != nil {
-			utils.InfoFormat("%v", err)
-		}
-		path = strings.ReplaceAll(movie.Nfo, originTagStr, newTagStr)
-		err = os.Rename(movie.Nfo, path)
-		if err != nil {
-			utils.InfoFormat("%v", err)
-		}
-		path = strings.ReplaceAll(movie.Gif, originTagStr, newTagStr)
-		err = os.Rename(movie.Gif, path)
-		if err != nil {
-			utils.InfoFormat("%v", err)
+		originTagStr = "《" + originTagStr + "》"
+
+		files := []string{movie.Path, movie.Jpg, movie.Png, movie.Nfo, movie.Gif}
+		for _, file := range files {
+			newPath := strings.ReplaceAll(file, originTagStr, newTagStr)
+			if err := os.Rename(file, newPath); err != nil {
+				utils.InfoFormat("rename %s failed: %v", file, err)
+			}
 		}
 		return utils.NewSuccessByMsg("执行成功")
 	}
 
-	newMovieType := "《" + tag + "》"
-	utils.InfoFormat("%v", tag)
 	suffix := "." + utils.GetSuffix(movie.Path)
-	newSuffix := newMovieType + suffix
-	newFilePath := strings.ReplaceAll(movie.Path, suffix, newSuffix)
-	if strings.Contains(newFilePath, "《") && strings.Contains(newFilePath, "》") {
-		newFilePath = strings.ReplaceAll(newFilePath, "《,》", "")
-		newFilePath = strings.ReplaceAll(newFilePath, "《》", "")
-	}
-	err := os.Rename(movie.Path, newFilePath)
+	newFilePath := strings.ReplaceAll(movie.Path, suffix, "《"+tag+"》"+suffix)
+	newFilePath = strings.ReplaceAll(newFilePath, "《》", "")
 	newName := strings.TrimSuffix(newFilePath, suffix)
-	if err != nil {
-		utils.InfoFormat("%v", err)
-		return utils.NewFailByMsg(err.Error())
-	}
-	//png
-	if utils.ExistsFiles(movie.Png) {
-		suffix = "." + utils.GetSuffix(movie.Png)
-		os.Rename(movie.Png, newName+suffix)
+
+	if err := os.Rename(movie.Path, newFilePath); err != nil {
+		return utils.NewFailByMsg("重命名失败: " + err.Error())
 	}
 
-	//jpg
-	if utils.ExistsFiles(movie.Jpg) {
-		suffix = "." + utils.GetSuffix(movie.Jpg)
-		os.Rename(movie.Jpg, newName+suffix)
-	}
-
-	//nfo
-	if utils.ExistsFiles(movie.Nfo) {
-		suffix = "." + utils.GetSuffix(movie.Nfo)
-		os.Rename(movie.Nfo, newName+suffix)
-
-	}
-	//Gif
-	if utils.ExistsFiles(movie.Gif) {
-		suffix = "." + utils.GetSuffix(movie.Gif)
-		os.Rename(movie.Gif, newName+suffix)
-
+	for _, file := range []string{movie.Png, movie.Jpg, movie.Nfo, movie.Gif} {
+		if file != "" && utils.ExistsFiles(file) {
+			ext := "." + utils.GetSuffix(file)
+			os.Rename(file, newName+ext)
+		}
 	}
 	return utils.NewSuccessByMsg("执行成功")
 }
 func (fs *searchService) ClearTag(id string, tag string) utils.Result {
 	movie := fs.FindOne(id)
-	//video
 	if len(movie.Tags) == 0 {
 		return utils.NewSuccessByMsg("执行成功")
 	}
+
 	originTagStr := utils.GetTagStr(movie.Path)
 	newTagStr := strings.ReplaceAll(originTagStr, tag, "")
 	if len(movie.Tags) == 1 {
@@ -204,179 +156,154 @@ func (fs *searchService) ClearTag(id string, tag string) utils.Result {
 	}
 	newTagStr = strings.TrimSuffix(newTagStr, ",")
 	path := strings.ReplaceAll(movie.Path, "《"+originTagStr+"》", "《"+newTagStr+"》")
-	err := os.Rename(movie.Path, path)
-	utils.InfoFormat("originPath [%s]", movie.Path)
-	utils.InfoFormat("remove tag [%s]", tag)
-	utils.InfoFormat("originTagStr [%s]", originTagStr)
-	utils.InfoFormat("newTagStr [%s]", newTagStr)
-	utils.InfoFormat("newPath [%s]", path)
-	if err != nil {
+
+	if err := os.Rename(movie.Path, path); err != nil {
 		result := utils.Result{}
-		utils.InfoFormat("重命名失败 [%s]", path)
 		result.Message = "重命名失败" + path
 		return result
 	}
+
 	newName := strings.TrimSuffix(path, "."+movie.FileType)
-	os.Rename(movie.Jpg, newName+".jpg")
-	os.Rename(movie.Png, newName+".png")
-	os.Rename(movie.Nfo, newName+".nfo")
-	os.Rename(movie.Gif, newName+".gif")
+	files := []string{movie.Jpg, movie.Png, movie.Nfo, movie.Gif}
+	for _, f := range files {
+		os.Rename(f, newName+"."+utils.GetSuffix(f))
+	}
 	return utils.NewSuccessByMsg("执行成功")
 }
 
 func (fs *searchService) MoveCut(srcFile model.Movie, toFile model.Movie) utils.Result {
 	result := utils.Result{}
-	root := srcFile.DirPath
-	utils.InfoFormat("MoveCut： srcFile [%v] \n\n", srcFile)
-	utils.InfoFormat("MoveCut： toFile [%v] \n\n", toFile)
+
 	if toFile.Actress == "" && toFile.Code == "" {
 		result.Message = "信息不全"
 		return result
 	}
-	path := root + utils.PathSeparator + toFile.Actress
-	if toFile.Studio != "" {
-		path = path + utils.PathSeparator + toFile.Studio
-	}
+
+	// 构建目标路径
 	title := toFile.Title
 	title = strings.ReplaceAll(title, ":", "~")
 	title = strings.ReplaceAll(title, ".", "~")
 	title = strings.ReplaceAll(title, "!", "~")
 
 	dirname := "[" + toFile.Actress + "] " + toFile.Code + " " + title
+	path := srcFile.DirPath + utils.PathSeparator + toFile.Actress
+	if toFile.Studio != "" {
+		path += utils.PathSeparator + toFile.Studio
+	}
 	dirpath := path + utils.PathSeparator + dirname
 	os.MkdirAll(dirpath, os.ModePerm)
+
 	filename := dirname + "." + utils.GetSuffix(srcFile.Path)
 	finalPath := dirpath + utils.PathSeparator + filename
-	if finalPath != srcFile.Path {
-		os.Rename(srcFile.Path, finalPath)
-	}
 	jpgPath := utils.ConcatSuffix(finalPath, "jpg")
 	pngPath := utils.ConcatSuffix(finalPath, "png")
 	nfoPath := utils.ConcatSuffix(finalPath, "nfo")
 
-	jpgOut, createErr := os.Create(jpgPath)
-	if createErr != nil {
-		//TODO 创建失败  标题 特殊字符处理 改为 演员+番号
-		dirname = "[" + toFile.Actress + "]" + toFile.Code + ""
+	// 创建 JPG 文件
+	var jpgOut *os.File
+	var createErr error
+	if jpgOut, createErr = os.Create(jpgPath); createErr != nil {
+		// 创建失败时，简化目录名重试
+		dirname = "[" + toFile.Actress + "]" + toFile.Code
 		dirpath = path + utils.PathSeparator + dirname
 		os.MkdirAll(dirpath, os.ModePerm)
 		filename = dirname + "." + utils.GetSuffix(srcFile.Path)
 		finalPath = dirpath + utils.PathSeparator + filename
 		jpgPath = utils.ConcatSuffix(finalPath, "jpg")
-		jpgOut, createErr = os.Create(jpgPath)
-		if createErr != nil {
+		if jpgOut, createErr = os.Create(jpgPath); createErr != nil {
 			result.Fail()
-			utils.InfoFormat("createErr: %v", createErr)
-			os.Rename(finalPath, srcFile.Path)
 			result.Message = "文件创建失败：" + jpgPath
+			os.Rename(finalPath, srcFile.Path)
 			return result
 		}
 	}
+
+	// 下载 JPG
 	url := toFile.Jpg
 	if !strings.Contains(url, consts.GetOSSetting().BaseUrl) {
 		url = consts.GetOSSetting().BaseUrl + url
 	}
-	resp, downErr := httpGet(url)
-	if downErr != nil {
+	if err := downloadFile(jpgOut, url); err != nil {
 		result.Fail()
-		utils.InfoFormat("downErr: %v ", downErr)
-		os.Rename(finalPath, srcFile.Path)
 		result.Message = "文件下载失败：" + toFile.Jpg
-		return result
-	}
-	body, readErr := io.ReadAll(bytes.NewReader(resp.Body()))
-	if readErr != nil {
-		result.Fail()
-		utils.InfoFormat("readErr:%v", readErr)
 		os.Rename(finalPath, srcFile.Path)
-		result.Message = "请求读取response失败"
 		return result
 	}
-	jpgOut.Write(body)
 	jpgOut.Close()
+
+	// 生成或下载 PNG
 	if toFile.Png == "" {
-		pngErr := utils.ImageToPng(jpgPath)
-		if pngErr != nil {
+		if err := utils.ImageToPng(jpgPath); err != nil {
 			result.Fail()
-			utils.InfoFormat("pngErr:%v", pngErr)
-			os.Rename(finalPath, srcFile.Path)
 			result.Message = "png生成失败"
-			// return result
+			os.Rename(finalPath, srcFile.Path)
+			return result
 		}
 	} else {
-		pngOut, createErr := os.Create(pngPath)
-		if createErr != nil {
+		pngOut, err := os.Create(pngPath)
+		if err != nil {
 			result.Fail()
-			utils.InfoFormat("downErr:%v", downErr)
-			os.Rename(finalPath, srcFile.Path)
 			result.Message = "png文件下载失败：" + toFile.Png
-			return result
-		}
-		resp2, downErr := httpGet(url)
-		if downErr != nil {
-			result.Fail()
-			utils.InfoFormat("downErr:%v", downErr)
 			os.Rename(finalPath, srcFile.Path)
-			result.Message = "文件下载失败：" + toFile.Jpg
 			return result
 		}
-		body, readErr := io.ReadAll(bytes.NewReader(resp2.Body()))
-		if readErr != nil {
+		if err := downloadFile(pngOut, toFile.Png); err != nil {
 			result.Fail()
-			utils.InfoFormat("readErr:%v", readErr)
+			result.Message = "png下载失败"
 			os.Rename(finalPath, srcFile.Path)
-			result.Message = "请求读取response失败"
 			return result
 		}
-		pngOut.Write(body)
 		pngOut.Close()
 	}
+
+	// 更新文件路径
 	toFile.Jpg = jpgPath
 	toFile.Nfo = nfoPath
 	toFile.Png = pngPath
+
 	result.Success()
 	result.Message = "【" + dirname + "】" + result.Message
 	return result
-
 }
 
+// downloadFile 将指定 URL 的内容下载到文件
+func downloadFile(f *os.File, url string) error {
+	resp, err := httpGet(url)
+	if err != nil {
+		return err
+	}
+	if _, err = f.Write(resp.Body()); err != nil {
+		return fmt.Errorf("读取 response 失败: %w", err)
+	}
+	return nil
+}
 func (fs *searchService) DownJpgMakePng(finalPath string, url string, makePng bool) utils.Result {
-
 	result := utils.Result{}
 	jpgPath := utils.ConcatSuffix(finalPath, "jpg")
 	jpgOut, createErr := os.Create(jpgPath)
 	if createErr != nil {
-		utils.InfoFormat("createErr:%v  \n\n\n", createErr)
 		result.Fail()
 		result.Message = "文件创建失败：" + jpgPath
 		return result
 	}
 	defer jpgOut.Close()
+
 	if !strings.Contains(url, "https") {
 		url = consts.GetOSSetting().BaseUrl + url
 	}
 	start := time.Now()
 	resp, downErr := httpGet(url)
-	ti := time.Since(start)
-	AddLogMemory("DownJpg  time:%d  %s %d", ti.Milliseconds(), url, downErr)
+	AddLogMemory("DownJpg  time:%d  %s %d", time.Since(start).Milliseconds(), url, downErr)
 	if downErr != nil {
 		result.Fail()
-		utils.InfoFormat("downErr:%v  \n\n", downErr)
 		result.Message = "文件下载失败：" + url
 		return result
 	}
-	//body, readErr := ioutil.ReadAll(bytes.NewReader(resp.Body()))
-	//if readErr != nil {
-	//	result.Fail()
-	//	utils.InfoFormat("readErr:%v  \n\n", readErr)
-	//	result.Message = "请求读取response失败"
-	//	return result
-	//}
 	jpgOut.Write(resp.Body())
 	if makePng {
 		pngErr := utils.ImageToPng(jpgPath)
 		if pngErr != nil {
-			utils.InfoFormat("pngErr:%v  \n\n", pngErr)
+			utils.InfoFormat("pngErr:%v", pngErr)
 		}
 	}
 	result.Success()
@@ -388,37 +315,26 @@ func (fs *searchService) DownJpgAsPng(finalPath string, url string) utils.Result
 	pngPath := utils.ConcatSuffix(finalPath, "png")
 	pngOut, createErr := os.Create(pngPath)
 	if createErr != nil {
-	 utils.InfoFormat("createErr:%v  \n\n", createErr)
-	 result.Fail()
-	 return result
+		result.Fail()
+		return result
 	}
 	defer pngOut.Close()
+
 	if !strings.Contains(url, "https") {
 		url = consts.GetOSSetting().BaseUrl + url
 	}
 	start := time.Now()
 	resp, downErr := httpGet(url)
-	ti := time.Since(start)
-	AddLogMemory("DownPng  time:%d  %s %d", ti.Milliseconds(), url, downErr)
+	AddLogMemory("DownPng  time:%d  %s %d", time.Since(start).Milliseconds(), url, downErr)
 	if downErr != nil {
 		result.Fail()
-		utils.InfoFormat("downErr:%v  \n\n", downErr)
 		result.Message = "文件下载失败：" + url
 		return result
 	}
-	//body, readErr := ioutil.ReadAll(resp.Body)
-	//if readErr != nil {
-	//	result.Fail()
-	//	utils.InfoFormat("readErr:%v  \n\n", readErr)
-	//	result.Message = "请求读取response失败"
-	//	return result
-	//}
 	pngOut.Write(resp.Body())
-	pngOut.Close()
 	result.Success()
 	return result
 }
-
 var httpClient = resty.New().
 	SetTimeout(10 * time.Second).
 	SetRetryCount(3).
@@ -491,9 +407,7 @@ func (fs *searchService) Rename(movie model.MovieEdit) utils.Result {
 
 	newPath := cleanPath(movieLib.DirPath)
 	newDir := newPath
-	utils.InfoFormat("newTitle: %v\n\n", newDir)
 	if movie.MoveOut {
-		// os.MkdirAll(movie.Actress, os.ModePerm)
 		if movie.Actress != "" {
 			arr := strings.Split(newPath, utils.PathSeparator)
 			if utils.HasItem(arr, movie.Actress) {
@@ -502,7 +416,6 @@ func (fs *searchService) Rename(movie model.MovieEdit) utils.Result {
 			}
 			newDir += utils.PathSeparator + movie.Actress
 		}
-		utils.InfoFormat("newTitle: %v\n\n", newDir)
 		if movie.Title != "" {
 			newDir += utils.PathSeparator
 			newCode := movie.Code
@@ -512,78 +425,33 @@ func (fs *searchService) Rename(movie model.MovieEdit) utils.Result {
 			newDir += choose2To1(!strings.HasPrefix(movie.Title, movie.Actress), choose2To1(movie.Actress != "", movie.Actress, ""), "")
 			newDir += choose2To1(!strings.Contains(movie.Title, newCode), choose2To1(newCode != "", " "+newCode, ""), "")
 			newTitle := strings.Split(movie.Title, "{{")
-			utils.InfoFormat("newDir: %v\n\n", newDir)
-			// newTitle[0] 限制前10个字符
 			newTitleStart := newTitle[0]
 			if len(newTitleStart) > 10 {
 				newTitleStart = newTitleStart[:10]
 			}
 			newDir += " " + cleanPath(newTitleStart)
 		}
-		utils.InfoFormat("newDir: %v\n\n", newDir)
-		err := os.MkdirAll(newDir, os.ModePerm)
-		if err != nil {
-			utils.InfoFormat("err: %v\n\n", err)
+		if err := os.MkdirAll(newDir, os.ModePerm); err != nil {
 			res.FailByMsg("执行失败")
 			res.Data = err
 			return res
 		}
 	}
 	newPath = newDir + utils.PathSeparator + movie.Name
-	err := os.Rename(oldPath, newPath)
-	if err != nil {
-		utils.InfoFormat("err: %v\n\n", err)
+	if err := os.Rename(oldPath, newPath); err != nil {
 		res.FailByMsg("执行失败")
 		res.Data = err
 		return res
 	}
-	//png
-	targetSuffix := ".png"
-	suffix := "." + utils.GetSuffix(oldPath)
-	oldPath = strings.ReplaceAll(oldPath, suffix, targetSuffix)
-	newPath = strings.ReplaceAll(newPath, suffix, targetSuffix)
-	if utils.ExistsFiles(oldPath) {
-		err = os.Rename(oldPath, newPath)
-		if err != nil {
-			utils.InfoNormal(err)
-		}
+
+	// 重命名附属文件
+	suffix := "." + utils.GetSuffix(movieLib.Path)
+	for _, ext := range []string{".png", ".gif", ".jpg", ".nfo"} {
+		renamed := renameFile(suffix, ext, newPath, movieLib)
+		_ = renamed
 	}
 
-	//gif
-	targetSuffix = ".gif"
-	suffix = "." + utils.GetSuffix(oldPath)
-	oldPath = strings.ReplaceAll(oldPath, suffix, targetSuffix)
-	newPath = strings.ReplaceAll(newPath, suffix, targetSuffix)
-	if utils.ExistsFiles(oldPath) {
-		err = os.Rename(oldPath, newPath)
-		if err != nil {
-			utils.InfoNormal(err)
-		}
-	}
-
-	//jpg
-	targetSuffix = ".jpg"
-	suffix = "." + utils.GetSuffix(oldPath)
-	oldPath = strings.ReplaceAll(oldPath, suffix, targetSuffix)
-	newPath = strings.ReplaceAll(newPath, suffix, targetSuffix)
-	if utils.ExistsFiles(oldPath) {
-		err = os.Rename(oldPath, newPath)
-		if err != nil {
-			utils.InfoNormal(err)
-		}
-	}
-
-	//nfo
-	targetSuffix = ".nfo"
-	suffix = "." + utils.GetSuffix(oldPath)
-	oldPath = strings.ReplaceAll(oldPath, suffix, targetSuffix)
-	newPath = strings.ReplaceAll(newPath, suffix, targetSuffix)
-	if utils.ExistsFiles(oldPath) {
-		err = os.Rename(oldPath, newPath)
-		if err != nil {
-			utils.InfoNormal(err)
-		}
-	}
+	// 下载 JPG/PNG
 	if movie.Png != "" && strings.HasPrefix(movie.Png, "http") {
 		if movie.Jpg != "" && strings.HasPrefix(movie.Jpg, "http") {
 			res = fs.DownJpgMakePng(newPath, movie.Jpg, false)
@@ -606,6 +474,19 @@ func (fs *searchService) Rename(movie model.MovieEdit) utils.Result {
 	return res
 }
 
+// renameFile 重命名附属文件（如 jpg/png/gif/nfo），将旧后缀替换为新后缀
+func renameFile(oldSuffix, newSuffix, newPath string, movieLib model.Movie) bool {
+	oldPath := strings.ReplaceAll(movieLib.Path, oldSuffix, newSuffix)
+	if !utils.ExistsFiles(oldPath) {
+		return false
+	}
+	if err := os.Rename(oldPath, strings.ReplaceAll(newPath, oldSuffix, newSuffix)); err != nil {
+		utils.InfoNormal(err)
+		return false
+	}
+	return true
+}
+
 func (fs *searchService) Move(id string, newDir string, title string) utils.Result {
 	res := utils.NewSuccess()
 	movieLib := fs.FindOne(id)
@@ -624,35 +505,31 @@ func (fs *searchService) Move(id string, newDir string, title string) utils.Resu
 	newPath := newDir + utils.PathSeparator + title
 	err := os.Rename(oldPath, newPath+"."+movieLib.FileType)
 	if err != nil {
-		utils.InfoFormat("err: %v\n\n", err)
 		res.FailByMsg("执行失败")
 		res.Data = err
 		return res
 	}
-	utils.InfoFormat("file move from [%s] to [%s]", oldPath, newPath+"."+movieLib.FileType)
+
 	if utils.ExistsFiles(movieLib.Png) {
 		os.Rename(movieLib.Png, newPath+".png")
-		utils.InfoFormat("png move from [%s] to [%s]", movieLib.Png, newPath+".png")
 	}
 	if utils.ExistsFiles(movieLib.Jpg) {
 		os.Rename(movieLib.Jpg, newPath+".jpg")
 	}
 	if utils.ExistsFiles(movieLib.Gif) {
 		os.Rename(movieLib.Gif, newPath+".gif")
-		utils.InfoFormat("gif move from [%s] to [%s]", movieLib.Gif, newPath+".gif")
 	}
 	return res
-}
-
-func choose2To1(tr bool, str1 string, str2 string) string {
-	if tr {
-		return str1
-	} else {
-		return str2
-	}
 }
 
 func (fs *searchService) Delete(id string) {
 	file := fs.FindOne(id)
 	FileApp.DeleteOne(file.DirPath, file.Title)
+}
+
+func choose2To1(tr bool, str1 string, str2 string) string {
+	if tr {
+		return str1
+	}
+	return str2
 }
