@@ -1,16 +1,15 @@
 package service
 
 import (
-	"crypto/tls"
-	"fmt"
+	"bytes"
 	"io"
-	"net/http"
+	"math/rand"
 	"os"
 	"search-gin/internal/model"
 	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
+	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -274,8 +273,8 @@ func (fs *searchService) MoveCut(srcFile model.Movie, toFile model.Movie) utils.
 		}
 	}
 	url := toFile.Jpg
-	if !strings.Contains(url, consts.OSSetting.BaseUrl) {
-		url = consts.OSSetting.BaseUrl + url
+	if !strings.Contains(url, consts.GetOSSetting().BaseUrl) {
+		url = consts.GetOSSetting().BaseUrl + url
 	}
 	resp, downErr := httpGet(url)
 	if downErr != nil {
@@ -285,7 +284,7 @@ func (fs *searchService) MoveCut(srcFile model.Movie, toFile model.Movie) utils.
 		result.Message = "文件下载失败：" + toFile.Jpg
 		return result
 	}
-	body, readErr := io.ReadAll(resp.Body)
+	body, readErr := io.ReadAll(bytes.NewReader(resp.Body()))
 	if readErr != nil {
 		result.Fail()
 		utils.InfoFormat("readErr:%v", readErr)
@@ -313,7 +312,7 @@ func (fs *searchService) MoveCut(srcFile model.Movie, toFile model.Movie) utils.
 			result.Message = "png文件下载失败：" + toFile.Png
 			return result
 		}
-		resp, downErr := httpGet(url)
+		resp2, downErr := httpGet(url)
 		if downErr != nil {
 			result.Fail()
 			utils.InfoFormat("downErr:%v", downErr)
@@ -321,8 +320,7 @@ func (fs *searchService) MoveCut(srcFile model.Movie, toFile model.Movie) utils.
 			result.Message = "文件下载失败：" + toFile.Jpg
 			return result
 		}
-		body, readErr := io.ReadAll(resp.Body)
-		resp.Body.Close() // 关闭响应体避免资源泄漏
+		body, readErr := io.ReadAll(bytes.NewReader(resp2.Body()))
 		if readErr != nil {
 			result.Fail()
 			utils.InfoFormat("readErr:%v", readErr)
@@ -336,7 +334,6 @@ func (fs *searchService) MoveCut(srcFile model.Movie, toFile model.Movie) utils.
 	toFile.Jpg = jpgPath
 	toFile.Nfo = nfoPath
 	toFile.Png = pngPath
-	go fs.MakeNfo(toFile)
 	result.Success()
 	result.Message = "【" + dirname + "】" + result.Message
 	return result
@@ -356,10 +353,10 @@ func (fs *searchService) DownJpgMakePng(finalPath string, url string, makePng bo
 	}
 	defer jpgOut.Close()
 	if !strings.Contains(url, "https") {
-		url = consts.OSSetting.BaseUrl + url
+		url = consts.GetOSSetting().BaseUrl + url
 	}
 	start := time.Now()
-	resp, downErr := httpGetV2(url)
+	resp, downErr := httpGet(url)
 	ti := time.Since(start)
 	AddLogMemory("DownJpg  time:%d  %s %d", ti.Milliseconds(), url, downErr)
 	if downErr != nil {
@@ -368,7 +365,7 @@ func (fs *searchService) DownJpgMakePng(finalPath string, url string, makePng bo
 		result.Message = "文件下载失败：" + url
 		return result
 	}
-	//body, readErr := ioutil.ReadAll(resp.Body())
+	//body, readErr := ioutil.ReadAll(bytes.NewReader(resp.Body()))
 	//if readErr != nil {
 	//	result.Fail()
 	//	utils.InfoFormat("readErr:%v  \n\n", readErr)
@@ -391,13 +388,16 @@ func (fs *searchService) DownJpgAsPng(finalPath string, url string) utils.Result
 	pngPath := utils.ConcatSuffix(finalPath, "png")
 	pngOut, createErr := os.Create(pngPath)
 	if createErr != nil {
-		utils.InfoFormat("createErr:%v  \n\n", createErr)
+	 utils.InfoFormat("createErr:%v  \n\n", createErr)
+	 result.Fail()
+	 return result
 	}
+	defer pngOut.Close()
 	if !strings.Contains(url, "https") {
-		url = consts.OSSetting.BaseUrl + url
+		url = consts.GetOSSetting().BaseUrl + url
 	}
 	start := time.Now()
-	resp, downErr := httpGetV2(url)
+	resp, downErr := httpGet(url)
 	ti := time.Since(start)
 	AddLogMemory("DownPng  time:%d  %s %d", ti.Milliseconds(), url, downErr)
 	if downErr != nil {
@@ -419,138 +419,48 @@ func (fs *searchService) DownJpgAsPng(finalPath string, url string) utils.Result
 	return result
 }
 
-func (fs *searchService) DownImage(toFile model.Movie) utils.Result {
-	if len(toFile.ImageList) <= 0 {
-		return utils.NewFailByMsg("No Image avaliable")
-	}
-	var wg sync.WaitGroup
-	wg.Add(len(toFile.ImageList))
-	for i := 0; i < len(toFile.ImageList); i++ {
-		go downImageItem(toFile.ImageList[i], toFile.DirPath, toFile.Code, fmt.Sprintf("%d", i), &wg)
-	}
-	wg.Wait()
-	return utils.NewSuccessByMsg("下载完成!")
+var httpClient = resty.New().
+	SetTimeout(10 * time.Second).
+	SetRetryCount(3).
+	SetRetryWaitTime(1 * time.Second).
+	SetRetryMaxWaitTime(5 * time.Second).
+	SetHeaders(map[string]string{
+		"Accept":           "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+		"Accept-Language":  "zh-CN,zh;q=0.9,en;q=0.8",
+		"Accept-Encoding":  "gzip, deflate, br",
+		"Cache-Control":    "no-cache",
+		"Pragma":           "no-cache",
+		"sec-ch-ua":        `"Chromium";v="111", "Not_A Brand";v="8"`,
+		"sec-ch-ua-mobile": "?0",
+		"sec-ch-ua-platform": `"Windows"`,
+		"Sec-Fetch-Dest":   "document",
+		"Sec-Fetch-Mode":   "navigate",
+		"Sec-Fetch-Site":   "none",
+		"Sec-Fetch-User":   "?1",
+		"Upgrade-Insecure-Requests": "1",
+	}).
+	// 每次请求随机UA，防止被统一特征拦截
+	OnBeforeRequest(func(c *resty.Client, r *resty.Request) error {
+		ua := browsers[rand.Intn(len(browsers))]
+		r.SetHeader("User-Agent", ua)
+		r.SetHeader("Cookie", "random="+strconv.Itoa(rand.Intn(999999)))
+		return nil
+	}).
+	OnError(func(req *resty.Request, err error) {
+		utils.InfoNormal("http请求失败:", err)
+	})
 
+// 常见浏览器UA列表，随机切换
+var browsers = []string{
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36",
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
+	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/111.0",
 }
 
-func downImageItem(url string, dirPath string, prefix string, suffix string, wg *sync.WaitGroup) utils.Result {
-	defer wg.Done()
-	result := utils.NewResult()
-	filepath := dirPath + utils.PathSeparator + prefix
-	if len(suffix) > 0 {
-		filepath = filepath + "-" + suffix + ".jpg"
-	}
-	filepath = filepath + ".jpg"
-	if !strings.HasPrefix(url, "http") {
-		url = consts.OSSetting.BaseUrl + url
-	}
-	utils.InfoFormat("jpg url:%v", url)
-	jpgOut, createErr := os.Create(filepath)
-	if createErr != nil {
-		result.Message = "png生成失败"
-		return result
-	}
-	defer jpgOut.Close()
-	resp, downErr := httpGet(url)
-	if downErr != nil {
-		result.Fail()
-		utils.InfoFormat("downErr:%v", downErr)
-		result.Message = "文件下载失败：" + url
-		return result
-	}
-	body, readErr := io.ReadAll(resp.Body)
-	if readErr != nil {
-		result.Fail()
-		utils.InfoFormat("readErr:%v", readErr)
-		result.Message = "请求读取response失败"
-		return result
-	}
-	jpgOut.Write(body)
-	jpgOut.Close()
-	resp.Body.Close()
-	return result
-}
-
-func (fs *searchService) MakeNfo(toFile model.Movie) {
-	nfo, err := os.Create(toFile.Nfo)
-	if err != nil {
-		utils.InfoFormat("创建nfo文件失败: %v", err)
-		return
-	}
-	defer nfo.Close()
-	nfoStr := "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?> \n"
-	nfoStr += "<movie>\n"
-	nfoStr += "<year>" + toFile.PTime + "</year>\n"
-	nfoStr += "<title>" + toFile.Title + "</title>\n"
-	nfoStr += "<releasedate>" + toFile.PTime + "</releasedate>\n"
-	nfoStr += "<runtime>" + toFile.PTime + "</runtime>\n"
-	nfoStr += "<poster>" + toFile.Jpg + "</poster>\n"
-	nfoStr += "<thumb>" + toFile.Jpg + "</thumb>\n"
-	nfoStr += "<fanart>" + toFile.Jpg + "</fanart>\n"
-	nfoStr += "<maker>" + toFile.Supplier + "</maker>\n"
-	nfoStr += "<studio>" + toFile.Studio + "</studio>\n"
-	nfoStr += "<num>" + toFile.Code + "</num>\n"
-	nfoStr += "<release>" + toFile.PTime + "</release>\n"
-	nfoStr += "<cover>" + toFile.Jpg + ".jpg" + "</cover>\n"
-	nfoStr += "<art>"
-	nfoStr += "<poster>" + toFile.Png + "</poster>\n"
-	nfoStr += "</art>"
-	nfoStr += "<actor>"
-	nfoStr += "<name>" + toFile.Actress + "</name>\n"
-	nfoStr += "<type>Actor</type>\n"
-	nfoStr += "</actor>\n"
-	nfoStr += "<year>" + toFile.PTime + "</year>\n"
-	nfoStr += "</movie>\n"
-	nfo.WriteString(nfoStr)
-}
-
-var httpClient = &http.Client{Timeout: 30 * time.Second, // 设置15秒超时
-	Transport: &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true, // 如果你需要跳过证书验证，设置为true
-		},
-	}}
-
-func httpGet(url string) (*http.Response, error) {
-
-	request, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-	request.Header.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36  115Browser/26.0.6.6")
-	request.Header.Add("sec-ch-ua-platform", "Windows")
-	request.Header.Add("ssec-ch-ua-mobile", "?0")
-	request.Header.Add("sec-ch-ua", "Chromium\";v=\"111\", \"Not(A:Brand\";v=\"8")
-	client := httpClient
-	resp, err := client.Do(request)
-	if err != nil {
-		utils.InfoNormal(err)
-	}
-	return resp, err
-}
-
-var client = resty.New().SetTimeout(8 * time.Second).SetRetryWaitTime(5 * time.Second)
-
-func httpGetV2(url string) (*resty.Response, error) {
-	resp, err := client.R().
-		EnableTrace().
-		Get(url)
-	if err != nil {
-		utils.InfoNormal(err)
-		resp, err = client.R().
-			EnableTrace().
-			Get(url)
-		if err != nil {
-			utils.InfoNormal(err)
-			resp, err = client.R().
-				EnableTrace().
-				Get(url)
-			if err != nil {
-				utils.InfoNormal(err)
-			}
-		}
-	}
-	return resp, err
+func httpGet(url string) (*resty.Response, error) {
+	return httpClient.R().EnableTrace().Get(url)
 }
 
 func (fs *searchService) FindOne(Id string) model.Movie {

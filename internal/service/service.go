@@ -61,8 +61,8 @@ func (q *taskQueue) executeTask(task *scanTask) {
 	consts.TagMenu.Clear()
 	consts.SmallDir = []consts.MenuSize{}
 
-	// 初始化查询条件
-	setting := consts.OSSetting
+	// 线程安全：使用 GetOSSetting() 读取配置
+	setting := consts.GetOSSetting()
 	queryTypes := make([]string, 0)
 	queryTypes = utils.ExtendsItems(queryTypes, setting.VideoTypes)
 	queryTypes = utils.ExtendsItems(queryTypes, setting.DocsTypes)

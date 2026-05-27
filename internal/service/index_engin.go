@@ -25,9 +25,11 @@ type searchEnginCore struct {
 	ActressSizeWrapperNullKeyword  []model.Actress
 	ActressCountWrapperNullKeyword []model.Actress
 	ActressMap                     map[string]model.Actress
-	TotalSize                      int64
-	TotalCount                     int
-	KeywordHistoryCache            *utils.LRUCache // 替换 sync.Map 为 LRU 缓存
+	// TotalSizeMutex 保护 TotalSize/TotalCount 的并发读写（buildOthersData 在 goroutine 中修改）
+	TotalSizeMutex   sync.RWMutex
+	TotalSize        int64
+	TotalCount       int
+	KeywordHistoryCache *utils.LRUCache // 替换 sync.Map 为 LRU 缓存
 }
 
 func (se *searchEnginCore) Reset() {
@@ -35,6 +37,14 @@ func (se *searchEnginCore) Reset() {
 		se.SearchIndexMap.Delete(key)
 		return true
 	})
+	// 清空所有状态
+	se.LastSortField = ""
+	se.LastSortType = ""
+	se.RepeatSearch = nil
+	se.ActressMap = nil
+	se.KeywordHistoryCache.Clear()
+	se.TotalSize = 0
+	se.TotalCount = 0
 }
 
 func (se *searchEnginCore) Init(baseDirs []string) {
@@ -91,7 +101,11 @@ func (se *searchEnginCore) PageActress(searchParam model.SearchParam) model.Page
 
 func (se *searchEnginCore) returnRepeatSearch() model.PageResultWrapper {
 	resultWrapper := model.NewPageWrapper()
-	resultWrapper.FileList = se.RepeatSearch
+	// 拷贝切片，避免与缓存共享底层数组
+	if len(se.RepeatSearch) > 0 {
+		resultWrapper.FileList = make([]model.Movie, len(se.RepeatSearch))
+		copy(resultWrapper.FileList, se.RepeatSearch)
+	}
 	resultWrapper.ResultCount = len(se.RepeatSearch)
 	resultWrapper.LibCount = len(se.RepeatSearch)
 	resultWrapper.SearchCount = len(se.RepeatSearch)

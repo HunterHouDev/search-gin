@@ -503,8 +503,12 @@ func (fs *fileService) goWalkWithResult(baseDir string, types []string, resultCh
 	AddLogMemory("扫描目录:[%s] 耗时:[%d] 大小:[%s]", baseDir, ti.Milliseconds(), utils.GetSizeStr(size))
 	consts.AddFolderTime(thisTime)
 
-	// 发送结果到通道
-	resultChan <- files
+	// 发送结果到通道（非阻塞，避免 goroutine 泄漏）
+	select {
+	case resultChan <- files:
+	default:
+		// 通道满，丢弃结果
+	}
 }
 
 // Walk 迭代方式遍历目录获取文件库
@@ -552,8 +556,8 @@ func (fs *fileService) Walk(baseDir string, types []string, deep bool) []model.M
 				}
 			}
 		} else {
-			// 尝试删除空目录
-			if err := os.Remove(currentDir); err != nil {
+			// 尝试删除空目录（使用 RemoveAll 兼容非空目录）
+			if err := os.RemoveAll(currentDir); err != nil {
 				utils.InfoFormat("删除空目录失败: %s, 错误: %v", currentDir, err)
 			}
 		}
@@ -647,7 +651,7 @@ func (fs *fileService) WalkInnter(currentDir string, types []string, totalSize i
 					if emptyFile.ModTime().Day() == yesterday.Day() &&
 						emptyFile.ModTime().Month() == yesterday.Month() &&
 						emptyFile.ModTime().Year() == yesterday.Year() {
-						if err := os.Remove(currentPath); err != nil {
+						if err := os.RemoveAll(currentPath); err != nil {
 							utils.InfoFormat("删除空目录失败: %s, 错误: %v", currentPath, err)
 						}
 					}
@@ -657,7 +661,7 @@ func (fs *fileService) WalkInnter(currentDir string, types []string, totalSize i
 			// 第二次访问，处理目录级别的操作
 			// 记录小目录信息
 			currentSize := sizeMap[currentPath]
-			if currentSize <= 20000000 && utils.IndexOf(consts.OSSetting.Dirs, currentPath) < 0 {
+			if currentSize <= 20000000 && utils.IndexOf(consts.GetOSSetting().Dirs, currentPath) < 0 {
 				consts.SmallDir = append(consts.SmallDir, consts.NewMenuSizeFold(currentPath, currentSize, true))
 			}
 
