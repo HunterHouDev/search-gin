@@ -57,11 +57,6 @@ export const FilesMerge = async (data: object) => {
   return res && res.data;
 };
 
-export const SyncFileInfo = async (data: object) => {
-  const res = await commonAxios().post('/api/sync', data);
-  return res && res.data;
-};
-
 export const TransferTasksInfo = async () => {
   const res = await commonAxios().get('/api/transferTasks');
   return res && res.data;
@@ -92,11 +87,6 @@ export const CutFile = async (id: string, start: string, end: string) => {
 
 export const ResetMovieType = async (data: string, movieType: string) => {
   const res = await commonAxios().get(`/api/setMovieType/${data}/${movieType}`);
-  return res && res.data;
-};
-
-export const DownImageList = async (data: string) => {
-  const res = await commonAxios().get(`/api/imageList/${data}`);
   return res && res.data;
 };
 

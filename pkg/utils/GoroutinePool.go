@@ -10,6 +10,7 @@ type GoroutinePool struct {
 	capacity int
 	jobs     chan func()
 	wg       sync.WaitGroup
+	closed   bool
 }
 
 // NewGoroutinePool 创建goroutine池
@@ -39,11 +40,15 @@ func NewGoroutinePool(capacity int) *GoroutinePool {
 
 // Submit 提交任务
 func (p *GoroutinePool) Submit(job func()) {
+	if p.closed {
+		return
+	}
 	p.jobs <- job
 }
 
-// Wait 等待所有任务完成
+// Wait 等待所有任务完成并关闭池
 func (p *GoroutinePool) Wait() {
+	p.closed = true
 	close(p.jobs)
 	p.wg.Wait()
 }

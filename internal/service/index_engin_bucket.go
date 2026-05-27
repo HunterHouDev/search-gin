@@ -11,22 +11,22 @@ type bucketFile struct {
 	TotalSize    int64
 	TotalCount   int
 	FileLib      map[string]model.Movie
-	// 倒排索引，类型 -> 文件ID列表
-	TypeIndex map[string][]string
+	// 倒排索引，类型 -> 文件ID集合 (O(1) 去重)
+	TypeIndex map[string]map[string]struct{}
 	mu        sync.RWMutex
 }
 
-func newInstance(name string) bucketFile {
-	return bucketFile{
+func newInstance(name string) *bucketFile {
+	return &bucketFile{
 		InstanceName: name,
 		TotalSize:    0,
 		TotalCount:   0,
 		FileLib:      map[string]model.Movie{},
-		TypeIndex:    map[string][]string{},
+		TypeIndex:    map[string]map[string]struct{}{},
 	}
 }
 
-func newInstanceWithFiles(baseDir string, files []model.Movie) bucketFile {
+func newInstanceWithFiles(baseDir string, files []model.Movie) *bucketFile {
 	bucket := newInstance(baseDir)
 	for _, file := range files {
 		bucket.put(file)
@@ -57,24 +57,14 @@ func (fs *bucketFile) put(m model.Movie) {
 }
 
 // buildTypeIndex 为文件构建类型倒排索引（O(1) 去重）
-func (fs *bucketFile) buildTypeIndex(model model.Movie) {
- if model.MovieType == "" {
-  return
- }
-
- // 用 set 加速去重：取出已有 ID 列表，用 map 判重
- fileIds, ok := fs.TypeIndex[model.MovieType]
- if ok {
-  seen := make(map[string]struct{}, len(fileIds))
-  for _, id := range fileIds {
-   seen[id] = struct{}{}
-  }
-  if _, exists := seen[model.Id]; !exists {
-   fs.TypeIndex[model.MovieType] = append(fileIds, model.Id)
-  }
- } else {
-  fs.TypeIndex[model.MovieType] = []string{model.Id}
- }
+func (fs *bucketFile) buildTypeIndex(m model.Movie) {
+	if m.MovieType == "" {
+		return
+	}
+	if _, ok := fs.TypeIndex[m.MovieType]; !ok {
+		fs.TypeIndex[m.MovieType] = map[string]struct{}{}
+	}
+	fs.TypeIndex[m.MovieType][m.Id] = struct{}{}
 }
 
 func (fs *bucketFile) get(id string) model.Movie {
@@ -92,32 +82,24 @@ func (fs *bucketFile) searchBucket(searchParam model.SearchParam) model.SearchRe
 	keyWord := searchParam.Keyword
 	movieType := searchParam.MovieType
 
-	// 获取候选文件列表
-	var candidates []model.Movie
-
 	fs.mu.RLock()
-	if movieType != "" && movieType != model.UndefinedStr {
-		// 使用类型倒排索引筛选
-		if fileIds, ok := fs.TypeIndex[movieType]; ok {
-			for _, id := range fileIds {
-				if file, ok := fs.FileLib[id]; ok {
-					candidates = append(candidates, file)
+
+	if keyWord == "" || keyWord == model.UndefinedStr {
+		// 无关键词，按类型筛选后直接返回
+		if movieType != "" && movieType != model.UndefinedStr {
+			if fileIds, ok := fs.TypeIndex[movieType]; ok {
+				for id := range fileIds {
+					if file, ok := fs.FileLib[id]; ok {
+						resultWrapper.AddWrapperItem(file)
+					}
 				}
 			}
+		} else {
+			for _, file := range fs.FileLib {
+				resultWrapper.AddWrapperItem(file)
+			}
 		}
-	} else {
-		// 没有类型限制，遍历所有文件
-		for _, file := range fs.FileLib {
-			candidates = append(candidates, file)
-		}
-	}
-	fs.mu.RUnlock()
-
-	// 如果没有关键词，返回所有候选文件
-	if keyWord == "" || keyWord == model.UndefinedStr {
-		for _, file := range candidates {
-			resultWrapper.AddWrapperItem(file)
-		}
+		fs.mu.RUnlock()
 		return resultWrapper
 	}
 
@@ -131,23 +113,39 @@ func (fs *bucketFile) searchBucket(searchParam model.SearchParam) model.SearchRe
 		}
 	}
 
-	// 对候选文件进行模糊匹配
-	for _, file := range candidates {
-		filePath := file.PathUpper
-		if filePath == "" {
-			filePath = strings.ToUpper(file.Path)
-		}
-		matchAll := true
-		for _, keyword := range keywords {
-			if !strings.Contains(filePath, keyword) {
-				matchAll = false
-				break
+	// 遍历时直接过滤，不构建中间切片
+	if movieType != "" && movieType != model.UndefinedStr {
+		if fileIds, ok := fs.TypeIndex[movieType]; ok {
+			for id := range fileIds {
+				if file, ok := fs.FileLib[id]; ok {
+					if matchKeywords(file, keywords) {
+						resultWrapper.AddWrapperItem(file)
+					}
+				}
 			}
 		}
-		if matchAll {
-			resultWrapper.AddWrapperItem(file)
+	} else {
+		for _, file := range fs.FileLib {
+			if matchKeywords(file, keywords) {
+				resultWrapper.AddWrapperItem(file)
+			}
 		}
 	}
 
+	fs.mu.RUnlock()
 	return resultWrapper
+}
+
+// matchKeywords 检查文件路径是否匹配所有关键词
+func matchKeywords(file model.Movie, keywords []string) bool {
+	filePath := file.PathUpper
+	if filePath == "" {
+		filePath = strings.ToUpper(file.Path)
+	}
+	for _, keyword := range keywords {
+		if !strings.Contains(filePath, keyword) {
+			return false
+		}
+	}
+	return true
 }

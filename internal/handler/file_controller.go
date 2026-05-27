@@ -12,7 +12,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -34,7 +33,7 @@ func GetPlay(c *gin.Context) {
 		return
 	}
 	
-	fmt.Printf("GetPlay [%v] \n", sanitizePath)
+	utils.InfoFormat("GetPlay [%v]", sanitizePath)
 	
 	if consts.OSSetting.SystemPlayer == "ffplay" {
 		go func() {
@@ -164,50 +163,6 @@ func GetDelete(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 
-// PostSync 同步 挂图 20231010 自动刮涂失败 功能遗弃
-func PostSync(c *gin.Context) {
-	currentFile := model.MovieEdit{}
-	err := c.ShouldBindJSON(&currentFile)
-	if err != nil {
-		utils.InfoFormat("PostSync err [%v] ", err)
-	}
-
-	curFile := service.SearchApp.FindOne(currentFile.Id)
-	utils.InfoFormat("PostSync curFile [%v] \n ", curFile)
-
-	result, newFile := service.SearchApp.RequestBusToFile(curFile)
-	if result.Code != 200 {
-		c.JSON(http.StatusOK, result)
-		return
-	}
-	utils.InfoFormat("PostSync newFile [%v] \n", newFile)
-	result = service.SearchApp.MoveCut(curFile, newFile)
-	c.JSON(http.StatusOK, result)
-}
-
-// GetImageList 下拉相关图片
-func GetImageList(c *gin.Context) {
-	id := c.Param("id")
-	utils.InfoFormat("id:%s", id)
-	curFile := service.SearchApp.FindOne(id)
-	result, newFile := service.SearchApp.RequestBusToFile(curFile)
-	if result.Code != 200 {
-		c.JSON(http.StatusOK, result)
-		return
-	}
-	if len(newFile.ImageList) == 0 {
-		result.Fail()
-		result.Message = "无图可用"
-		c.JSON(http.StatusOK, result)
-		return
-	}
-	curFile.Jpg = newFile.Jpg
-	curFile.ImageList = newFile.ImageList
-	curFile.Actress = newFile.Actress
-	result = service.SearchApp.DownImage(curFile)
-	c.JSON(http.StatusOK, result)
-}
-
 // GetRefreshIndex 刷新索引
 func GetRefreshTargetIndex(c *gin.Context) {
 	dir := c.Param("dir")
@@ -219,13 +174,6 @@ func GetRefreshTargetIndex(c *gin.Context) {
 }
 
 func GetRefreshIndex(c *gin.Context) {
-	// 检查是否已经有索引构建任务在执行
-	if atomic.LoadInt32(&consts.IndexDone) > 0 {
-		res := utils.NewFailByMsg("索引构建任务正在执行中，请稍候再试")
-		c.JSON(http.StatusOK, res)
-		return
-	}
-
 	service.FileApp.ScanAll()
 	res := utils.NewSuccessByMsg("扫描结束！")
 	c.JSON(http.StatusOK, res)

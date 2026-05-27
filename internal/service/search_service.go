@@ -14,8 +14,6 @@ import (
 	"time"
 
 	"github.com/go-resty/resty/v2"
-
-	"github.com/PuerkitoBio/goquery"
 )
 
 type searchService struct {
@@ -269,7 +267,7 @@ func (fs *searchService) MoveCut(srcFile model.Movie, toFile model.Movie) utils.
 		jpgOut, createErr = os.Create(jpgPath)
 		if createErr != nil {
 			result.Fail()
-			fmt.Println("createErr:", createErr)
+			utils.InfoFormat("createErr: %v", createErr)
 			os.Rename(finalPath, srcFile.Path)
 			result.Message = "文件创建失败：" + jpgPath
 			return result
@@ -352,7 +350,11 @@ func (fs *searchService) DownJpgMakePng(finalPath string, url string, makePng bo
 	jpgOut, createErr := os.Create(jpgPath)
 	if createErr != nil {
 		utils.InfoFormat("createErr:%v  \n\n\n", createErr)
+		result.Fail()
+		result.Message = "文件创建失败：" + jpgPath
+		return result
 	}
+	defer jpgOut.Close()
 	if !strings.Contains(url, "https") {
 		url = consts.OSSetting.BaseUrl + url
 	}
@@ -374,7 +376,6 @@ func (fs *searchService) DownJpgMakePng(finalPath string, url string, makePng bo
 	//	return result
 	//}
 	jpgOut.Write(resp.Body())
-	jpgOut.Close()
 	if makePng {
 		pngErr := utils.ImageToPng(jpgPath)
 		if pngErr != nil {
@@ -550,108 +551,6 @@ func httpGetV2(url string) (*resty.Response, error) {
 		}
 	}
 	return resp, err
-}
-
-func isOM(name string) bool {
-	return strings.Contains(name, "斯巴达")
-}
-
-func (fs *searchService) RequestBusToFile(srcFile model.Movie) (utils.Result, model.Movie) {
-
-	result := utils.Result{}
-	newFile := model.Movie{}
-	code := srcFile.Code
-	if code == "" {
-		utils.InfoFormat("RequestBusToFile srcFile [%v] \n\n", srcFile)
-		result.Fail()
-		result.Message = "Code：" + code + " srcFile:" + srcFile.Name
-		return result, newFile
-	}
-	if strings.Contains(code, "{{") {
-		code = strings.Split(code, "{{")[0]
-	}
-	url := consts.OSSetting.BaseUrl + code
-	if isOM(srcFile.Name) {
-		url = consts.OSSetting.OMUrl + code
-		url = strings.ReplaceAll(url, "{{斯巴达}}", "")
-	}
-
-	resp, err := httpGet(url)
-	if err != nil || resp == nil {
-		result.Fail()
-		result.Message = "请求失败：url:" + url
-		utils.InfoFormat("请求失败： url [%v] err [%v]\n\n", url, err)
-		return result, newFile
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		if strings.Contains(url, "_") {
-			url = strings.ReplaceAll(url, "_", "-")
-		} else if strings.Contains(url, "-") {
-			url = strings.ReplaceAll(url, "-", "_")
-		}
-		resp, _ = httpGet(url)
-		if resp.StatusCode != 200 {
-			utils.InfoFormat("status error:%v %v", resp.StatusCode, resp.Status)
-			result.Fail()
-			result.Message = "请求失败：" + resp.Status + " url:" + url
-			utils.InfoFormat("请求失败： url [%v] \n", url)
-			return result, newFile
-		}
-
-	}
-	doc, err := goquery.NewDocumentFromReader(resp.Body)
-	if err != nil {
-		result.Fail()
-		result.Message = "html解析失败"
-		utils.InfoFormat("err:%v", err)
-	}
-	bigImage := doc.Find(".bigImage img")
-	utils.InfoFormat("NewDocument  [%v] \n\n", doc)
-
-	newFile.Id = srcFile.Id
-	newFile.Title = bigImage.AttrOr("title", "")
-	newFile.Jpg = bigImage.AttrOr("src", "")
-	info := doc.Find(".header")
-	info.Each(func(_ int, selection *goquery.Selection) {
-		item := selection.Text()
-		if strings.HasPrefix(item, "發行日期:") {
-			newFile.PTime = selection.Parent().Text()
-			newFile.PTime = strings.Replace(newFile.PTime, "發行日期:", "", 1)
-		} else if strings.HasPrefix(item, "長度:") {
-			newFile.Length = selection.Parent().Text()
-			newFile.Length = strings.Replace(newFile.Length, "長度:", "", 1)
-		} else if strings.HasPrefix(item, "演員") {
-			stars := doc.Find(".star-name")
-			stars.Each(func(_ int, selection *goquery.Selection) {
-				starName := selection.Text()
-				newFile.Actress += strings.TrimSpace(starName)
-			})
-		} else if strings.HasPrefix(item, "導演:") {
-			newFile.Director = selection.Next().Text()
-		} else if strings.HasPrefix(item, "製作商:") {
-			newFile.Supplier = selection.Next().Text()
-		} else if strings.HasPrefix(item, "發行商:") {
-			newFile.Studio = selection.Next().Text()
-		} else if strings.HasPrefix(item, "系列:") {
-			newFile.Series = selection.Next().Text()
-		} else if strings.HasPrefix(item, "識別碼:") {
-			newFile.Code = selection.Next().Text()
-		}
-	})
-	waterFall := doc.Find(".sample-box")
-	var imageList []string
-	waterFall.Each(func(_ int, selection *goquery.Selection) {
-		item := selection.AttrOr("href", "")
-		if len(item) > 0 {
-			imageList = append(imageList, item)
-		}
-
-	})
-	newFile.ImageList = imageList
-	result.Success()
-	result.Data = newFile
-	return result, newFile
 }
 
 func (fs *searchService) FindOne(Id string) model.Movie {

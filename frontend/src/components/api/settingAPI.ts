@@ -7,7 +7,7 @@ export const GeMemeryLog = async () => {
 };
 
 export const GetSettingInfo = async () => {
-  const res = await commonAxios().get('/api/buttoms');
+  const res = await commonAxios().get('/api/settingInfo');
   return res;
 };
 

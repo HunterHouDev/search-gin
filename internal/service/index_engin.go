@@ -20,7 +20,7 @@ type repeatModel struct {
 type searchEnginCore struct {
 	LastSortField                  string
 	LastSortType                   string
-	SearchIndexMap                 sync.Map // map[string]bucketFile
+	SearchIndexMap                 sync.Map // map[string]*bucketFile
 	RepeatSearch                   []model.Movie
 	ActressSizeWrapperNullKeyword  []model.Actress
 	ActressCountWrapperNullKeyword []model.Actress
@@ -83,7 +83,6 @@ func (se *searchEnginCore) PageActress(searchParam model.SearchParam) model.Page
 
 	resultWrapper := model.PageActressResultWrapper{}
 	list, size := model.GetActressPageOfFiles(result, searchParam.Page, searchParam.PageSize)
-	result = nil
 	resultWrapper.FileList = list
 	resultWrapper.Size = size
 	resultWrapper.ResultCount = len(list)
@@ -119,9 +118,9 @@ func (se *searchEnginCore) Page(searchParam model.SearchParam) model.PageResultW
 	resultWrapper.ResultCount = searchParam.PageSize
 	// 优化遍历性能，避免不必要的搜索
 	se.SearchIndexMap.Range(func(key, value interface{}) bool {
-		index := value.(bucketFile)
+		index := value.(*bucketFile)
 		if index.isEmpty() {
-			return true
+		 return true
 		}
 		indexWrapper := index.searchBucket(searchParam)
 		if !indexWrapper.IsNotEmpty() {
@@ -194,7 +193,7 @@ func (se *searchEnginCore) PageAsync(searchParam model.SearchParam) model.PageRe
 
 	// 并发搜索所有 bucket
 	se.SearchIndexMap.Range(func(key, value interface{}) bool {
-		index := value.(bucketFile)
+		index := value.(*bucketFile)
 		if index.isEmpty() {
 			return true
 		}
@@ -261,7 +260,7 @@ func (se *searchEnginCore) addHistory(uniqueWords string, resultWrapper model.Pa
 func (se *searchEnginCore) FindById(id string) model.Movie {
 	var result = model.Movie{}
 	se.SearchIndexMap.Range(func(key, value any) bool {
-		index := value.(bucketFile)
+		index := value.(*bucketFile)
 		if index.isEmpty() {
 			return true
 		}
@@ -279,7 +278,7 @@ func (se *searchEnginCore) FindActressByName(id string) model.Actress {
 	return model.Actress{}
 }
 
-func (se *searchEnginCore) setBucket(baseDir string, bucket bucketFile) {
+func (se *searchEnginCore) setBucket(baseDir string, bucket *bucketFile) {
 	se.SearchIndexMap.Store(baseDir, bucket)
 }
 
@@ -338,7 +337,7 @@ func (se *searchEnginCore) buildIndexEnginTotalInfo() {
 	se.TotalCount = 0
 	se.TotalSize = 0
 	se.SearchIndexMap.Range(func(key, value any) bool {
-		index := value.(bucketFile)
+		index := value.(*bucketFile)
 		if index.isNotEmpty() {
 			se.TotalSize += index.TotalSize
 			se.TotalCount += index.TotalCount
@@ -352,7 +351,7 @@ func (se *searchEnginCore) buildActressData() {
 	start := time.Now()
 	se.ActressMap = make(map[string]model.Actress)
 	se.SearchIndexMap.Range(func(key, value any) bool {
-		index := value.(bucketFile)
+		index := value.(*bucketFile)
 		if index.isNotEmpty() {
 			index.mu.RLock()
 			for _, movie := range index.FileLib {
@@ -387,7 +386,7 @@ func (se *searchEnginCore) buildRepeatData() {
 	fileRepeats := make(map[string]model.Movie, se.TotalCount/5)
 
 	se.SearchIndexMap.Range(func(key, value any) bool {
-		index := value.(bucketFile)
+		index := value.(*bucketFile)
 		if index.isNotEmpty() {
 			index.mu.RLock()
 			for _, movie := range index.FileLib {
@@ -449,7 +448,7 @@ func (se *searchEnginCore) buildRepeatData() {
 func (se *searchEnginCore) buildOthersData() {
 	start := time.Now()
 	se.SearchIndexMap.Range(func(key, value any) bool {
-		index := value.(bucketFile)
+		index := value.(*bucketFile)
 		if index.isNotEmpty() {
 			index.mu.RLock()
 			for _, movie := range index.FileLib {

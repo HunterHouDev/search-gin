@@ -15,7 +15,7 @@ search-gin.exe
 
 # 配置
 setting.json
-gin.log
+**/gin.log
 
 # 旧项目目录（已从历史清除）
 electron_quasar/

@@ -8,7 +8,6 @@ import (
 	"search-gin/internal/service"
 	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
-	"sync/atomic"
 
 	"github.com/gin-gonic/gin"
 )
@@ -77,11 +76,7 @@ func PostActress(c *gin.Context) {
 
 	// 检查搜索引擎索引是否为空，如果为空则执行扫描
 	if service.SearchEngin.IsEmpty() {
-		// 检查是否已经有索引构建任务在执行
-		if atomic.LoadInt32(&consts.IndexDone) == 0 {
-			// 执行全量文件扫描以构建索引
-			service.FileApp.ScanAll()
-		}
+		service.FileApp.ScanAll()
 	}
 
 	// 调用搜索引擎获取演员分页搜索结果

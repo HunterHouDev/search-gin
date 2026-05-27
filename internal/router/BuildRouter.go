@@ -83,11 +83,8 @@ func BuildRouter(tempDir string) *gin.Engine {
 	router.POST("/api/file/rename", handler.PostRename)
 	router.GET("/api/file/addTag/:id/:tag", handler.GetAddTag)
 	router.GET("/api/file/clearTag/:id/:tag", handler.GetClearTag)
-	router.GET("/api/imageList/:id", handler.GetImageList)
 	router.GET("/api/dir/:id/:sort", handler.GetDirInfo)
 	router.GET("/api/delete/:id", handler.GetDelete)
-
-	router.POST("/api/sync", handler.PostSync)
 
 	router.GET("/api/openFolder/:id", handler.GetOpenFolder)
 	router.POST("/api/OpenFolerByPath", handler.PostOpenFolderByPath)
@@ -100,7 +97,6 @@ func BuildRouter(tempDir string) *gin.Engine {
 	router.GET("/api/DeleteFileByPathUseEncode/:path", handler.GetDeleteFileByPathUseEncode)
 	router.GET("/api/tempimage/:path", handler.GetTempImage)
 
-	router.GET("/api/buttoms", handler.GetSettingInfo)
 	router.GET("/api/refreshTargetIndex/:dir", handler.GetRefreshTargetIndex)
 	router.GET("/api/refreshIndex", handler.GetRefreshIndex)
 	router.GET("/api/settingInfo", handler.GetSettingInfo)
