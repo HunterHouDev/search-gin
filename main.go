@@ -177,8 +177,24 @@ func main() {
 	}()
 	// 启动转换执行任务
 	go func() {
-		defer utils.RecoverPanic()
-		service.FileApp.TaskExecuting()
+	 defer utils.RecoverPanic()
+	 service.FileApp.TaskExecuting()
+	}()
+
+	// 定时清理过期 token
+	go func() {
+	 defer utils.RecoverPanic()
+	 ticker := time.NewTicker(30 * time.Minute)
+	 defer ticker.Stop()
+	 for {
+	  select {
+	  case <-ticker.C:
+	   consts.CleanExpiredTokens()
+	  case <-service.TaskCtx.Done():
+	   utils.InfoFormat("token清理协程已停止")
+	   return
+	  }
+	 }
 	}()
 	//默认启动页面
 	// go utils.ExecCmdStart("http://127.0.0.1" + consts.PortNo + "/")
@@ -198,6 +214,8 @@ func main() {
 			srv.Close()
 			log.Printf("端口 %s 已关闭", srv.Addr)
 		}
+		// 3. 取消任务调度上下文
+		service.TaskCancel()
 		cancel()
 		// 3. 等待关闭完成或超时
 		<-ctx.Done()

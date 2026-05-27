@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"search-gin/pkg/consts"
 	"search-gin/internal/model"
 	"search-gin/pkg/utils"
@@ -17,6 +18,11 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+)
+
+// TaskCtx 任务调度上下文，用于优雅关闭
+var (
+	TaskCtx, TaskCancel = context.WithCancel(context.Background())
 )
 
 type fileService struct {
@@ -208,7 +214,7 @@ func (fs *fileService) writeNoPic(c *gin.Context) {
 
 	// 从网络获取默认图片
 	imgURL := "https://gimg2.baidu.com/image_search/src=http%3A%2F%2Fwww.bianminchewu.com%2Fimgs%2F18%2F0804%2F1533370482927057.png&refer=http%3A%2F%2Fwww.bianminchewu.com&app=2002&size=f9999,10000&q=a80&n=0&g=0n&fmt=auto?sec=1666008344&t=9da005a04a6c6209595f46dd05477c0f"
-	response, err := http.Get(imgURL)
+	response, err := httpClient.Get(imgURL)
 	if err != nil || response.StatusCode != http.StatusOK {
 		utils.InfoFormat("获取默认图片失败: %v", err)
 		c.Status(http.StatusServiceUnavailable)
@@ -661,25 +667,25 @@ func (fs *fileService) TaskExecuting() {
 
 	// 遍历并分类任务
 	consts.TransferTaskMutex.RLock()
-	for _, model := range consts.TransferTask {
+	for _, t := range consts.TransferTask {
 		switch {
-		case strings.EqualFold(model.Status, "等待"):
+		case strings.EqualFold(t.Status, model.StatusPending):
 			switch {
-			case strings.EqualFold(model.Type, "分切"):
-				taskGroups.todosCuts = append(taskGroups.todosCuts, model)
-			case strings.EqualFold(model.Type, "合并"):
-				taskGroups.todosMerges = append(taskGroups.todosMerges, model)
-			case strings.EqualFold(model.Type, "转码"):
-				taskGroups.todos = append(taskGroups.todos, model)
+			case strings.EqualFold(t.Type, model.TaskTypeCut):
+				taskGroups.todosCuts = append(taskGroups.todosCuts, t)
+			case strings.EqualFold(t.Type, model.TaskTypeMerge):
+				taskGroups.todosMerges = append(taskGroups.todosMerges, t)
+			case strings.EqualFold(t.Type, model.TaskTypeTrans):
+				taskGroups.todos = append(taskGroups.todos, t)
 			}
-		case strings.EqualFold(model.Status, "执行中"):
+		case strings.EqualFold(t.Status, model.StatusExecuting):
 			switch {
-			case strings.EqualFold(model.Type, "分切"):
-				taskGroups.executingCuts = append(taskGroups.executingCuts, model)
-			case strings.EqualFold(model.Type, "合并"):
-				taskGroups.executingMerges = append(taskGroups.executingMerges, model)
-			case strings.EqualFold(model.Type, "转码"):
-				taskGroups.executing = append(taskGroups.executing, model)
+			case strings.EqualFold(t.Type, model.TaskTypeCut):
+				taskGroups.executingCuts = append(taskGroups.executingCuts, t)
+			case strings.EqualFold(t.Type, model.TaskTypeMerge):
+				taskGroups.executingMerges = append(taskGroups.executingMerges, t)
+			case strings.EqualFold(t.Type, model.TaskTypeTrans):
+				taskGroups.executing = append(taskGroups.executing, t)
 			}
 		}
 	}
@@ -695,8 +701,18 @@ func (fs *fileService) TaskExecuting() {
 		go fs.MergeFiles(taskGroups.todosMerges[0])
 	}
 
-	// 继续调度
-	time.AfterFunc(2*time.Second, fs.TaskExecuting)
+	// 继续调度（支持优雅退出）
+	if TaskCtx.Err() == nil {
+		time.AfterFunc(2*time.Second, func() {
+			select {
+			case <-TaskCtx.Done():
+				utils.InfoFormat("任务调度器已停止")
+				return
+			default:
+				fs.TaskExecuting()
+			}
+		})
+	}
 }
 
 
@@ -714,7 +730,14 @@ func (fs *fileService) TransferFormatter(model model.TransferTaskModel) utils.Re
 	}
 }
 
-// transferFormatWithCopy 使用直接复制编码的转码方法
+// cleanupSourceIfNeeded 如果配置了转码后删除源文件，则执行删除
+func (fs *fileService) cleanupSourceIfNeeded(path string) {
+	if consts.GetOSSetting().CutThenDelete {
+		if err := os.Remove(path); err != nil {
+			utils.InfoFormat("删除源文件失败: %s, 错误: %v", path, err)
+		}
+	}
+}
 func (fs *fileService) transferFormatWithCopy(model model.TransferTaskModel) utils.Result {
 	from := model.Path
 	suffix := utils.GetSuffix(model.Path)
@@ -736,10 +759,8 @@ func (fs *fileService) transferFormatWithCopy(model model.TransferTaskModel) uti
 	res := fs.ffmepgExec(args, thisNow)
 
 	// 成功后删除源文件（如果配置了）
-	if res.IsSuccess() && consts.GetOSSetting().CutThenDelete {
-		if err := os.Remove(model.Path); err != nil {
-			utils.InfoFormat("删除源文件失败: %s, 错误: %v", model.Path, err)
-		}
+	if res.IsSuccess() {
+		fs.cleanupSourceIfNeeded(model.Path)
 	}
 
 	return res
@@ -771,10 +792,8 @@ func (fs *fileService) TransferFormatter264(model model.TransferTaskModel) utils
 	args = append(args, "-i", from, "-c:v", encoder, qualityParam, "23", dest)
 	res := fs.ffmepgExec(args, thisNow)
 
-	if res.IsSuccess() && consts.GetOSSetting().CutThenDelete {
-		if err := os.Remove(model.Path); err != nil {
-			utils.InfoFormat("删除源文件失败: %s, 错误: %v", model.Path, err)
-		}
+	if res.IsSuccess() {
+		fs.cleanupSourceIfNeeded(model.Path)
 	}
 
 	return res
@@ -806,10 +825,8 @@ func (fs *fileService) TransferFormatter265(model model.TransferTaskModel) utils
 	args = append(args, "-i", from, "-c:v", encoder, qualityParam, "28", dest)
 	res := fs.ffmepgExec(args, thisNow)
 
-	if res.IsSuccess() && consts.GetOSSetting().CutThenDelete {
-		if err := os.Remove(model.Path); err != nil {
-			utils.InfoFormat("删除源文件失败: %s, 错误: %v", model.Path, err)
-		}
+	if res.IsSuccess() {
+		fs.cleanupSourceIfNeeded(model.Path)
 	}
 
 	return res
@@ -825,10 +842,7 @@ func (fs *fileService) MergeFiles(model model.TransferTaskModel) utils.Result {
 
 	// 成功后删除源文件（如果配置了）
 	if res.IsSuccess() && model.DeleteSource {
-		if err := os.Remove(model.Path); err != nil {
-			utils.InfoFormat("删除源文件失败: %s, 错误: %v", model.Path, err)
-			// 不影响返回结果，只记录错误
-		}
+		fs.cleanupSourceIfNeeded(model.Path)
 	}
 
 	return res
@@ -854,10 +868,7 @@ func (fs *fileService) CutFormatter(model model.TransferTaskModel) utils.Result 
 
 	// 成功后删除源文件（如果配置了）
 	if res.IsSuccess() && consts.GetOSSetting().CutThenDelete {
-		if err := os.Remove(model.Path); err != nil {
-			utils.InfoFormat("删除源文件失败: %s, 错误: %v", model.Path, err)
-			// 不影响返回结果，只记录错误
-		}
+		fs.cleanupSourceIfNeeded(model.Path)
 	}
 
 	return res

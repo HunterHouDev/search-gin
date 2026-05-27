@@ -2,6 +2,25 @@ package model
 
 import "time"
 
+// 任务类型常量
+const (
+	TaskTypeCut   = "分切"
+	TaskTypeMerge = "合并"
+	TaskTypeTrans = "转码"
+)
+
+// 任务状态常量
+const (
+	StatusPending    = "等待"
+	StatusExecuting  = "执行中"
+	StatusCompleted  = "完成"
+	StatusFailed     = "失败"
+	StatusCancelled  = "取消"
+)
+
+// 前端 undefined 字符串常量（前端 stringify 后传入）
+const UndefinedStr = "undefined"
+
 type TransferTaskModel struct {
 	Name       string
 	Path       string
@@ -27,7 +46,7 @@ type TransferTaskModel struct {
 func NewMergeTask(files []string, dest string, concat string, DeleteSource bool) TransferTaskModel {
 	res := TransferTaskModel{
 		Files:        files,
-		Type:         "合并",
+		Type:         TaskTypeMerge,
 		Dest:         dest,
 		VCode:        "copy",
 		ConcatFile:   concat,
@@ -39,7 +58,7 @@ func NewMergeTask(files []string, dest string, concat string, DeleteSource bool)
 func NewTask(path string, name string, from string, to string) TransferTaskModel {
 	res := TransferTaskModel{
 		Path:       path,
-		Type:       "转码",
+		Type:       TaskTypeTrans,
 		VCode:      "copy",
 		Name:       name,
 		From:       from,
@@ -52,7 +71,7 @@ func NewTask(path string, name string, from string, to string) TransferTaskModel
 func NewCutTask(path string, name string, start string, end string, to string) TransferTaskModel {
 	res := TransferTaskModel{
 		Path:       path,
-		Type:       "分切",
+		Type:       TaskTypeCut,
 		Name:       name,
 		Start:      start,
 		End:        end,

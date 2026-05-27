@@ -57,7 +57,10 @@ func Login(c *gin.Context) {
 	
 	// 生成简单token（基于时间戳和随机数）
 	tokenBytes := make([]byte, 16)
-	rand.Read(tokenBytes)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		c.JSON(http.StatusInternalServerError, utils.NewFailByMsg("生成token失败，系统错误"))
+		return
+	}
 	token := hex.EncodeToString(tokenBytes)
 	
 	// 存储token到内存（简单实现，生产环境应使用Redis等）

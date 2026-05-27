@@ -56,26 +56,25 @@ func (fs *bucketFile) put(m model.Movie) {
 	fs.buildTypeIndex(m)
 }
 
-// buildTypeIndex 为文件构建类型倒排索引
+// buildTypeIndex 为文件构建类型倒排索引（O(1) 去重）
 func (fs *bucketFile) buildTypeIndex(model model.Movie) {
-	if model.MovieType == "" {
-		return
-	}
+ if model.MovieType == "" {
+  return
+ }
 
-	// 去重检查
-	has := false
-	fileIds, ok := fs.TypeIndex[model.MovieType]
-	if ok {
-		for _, id := range fileIds {
-			if id == model.Id {
-				has = true
-				break
-			}
-		}
-	}
-	if !has {
-		fs.TypeIndex[model.MovieType] = append(fileIds, model.Id)
-	}
+ // 用 set 加速去重：取出已有 ID 列表，用 map 判重
+ fileIds, ok := fs.TypeIndex[model.MovieType]
+ if ok {
+  seen := make(map[string]struct{}, len(fileIds))
+  for _, id := range fileIds {
+   seen[id] = struct{}{}
+  }
+  if _, exists := seen[model.Id]; !exists {
+   fs.TypeIndex[model.MovieType] = append(fileIds, model.Id)
+  }
+ } else {
+  fs.TypeIndex[model.MovieType] = []string{model.Id}
+ }
 }
 
 func (fs *bucketFile) get(id string) model.Movie {
@@ -97,7 +96,7 @@ func (fs *bucketFile) searchBucket(searchParam model.SearchParam) model.SearchRe
 	var candidates []model.Movie
 
 	fs.mu.RLock()
-	if movieType != "" && movieType != "undefined" {
+	if movieType != "" && movieType != model.UndefinedStr {
 		// 使用类型倒排索引筛选
 		if fileIds, ok := fs.TypeIndex[movieType]; ok {
 			for _, id := range fileIds {
@@ -115,7 +114,7 @@ func (fs *bucketFile) searchBucket(searchParam model.SearchParam) model.SearchRe
 	fs.mu.RUnlock()
 
 	// 如果没有关键词，返回所有候选文件
-	if keyWord == "" || keyWord == "undefined" {
+	if keyWord == "" || keyWord == model.UndefinedStr {
 		for _, file := range candidates {
 			resultWrapper.AddWrapperItem(file)
 		}

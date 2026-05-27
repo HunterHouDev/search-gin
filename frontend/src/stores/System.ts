@@ -6,8 +6,6 @@ import recordWrapper from 'components/model/RecordWrapper';
 
 export const useSystemProperty = defineStore({
   id: 'system',
-  // eslint-disabl
-  // 修复拼写错误，改为正确的persist配置
   persist: {
     enabled: true,
     // 自定义持久化参数

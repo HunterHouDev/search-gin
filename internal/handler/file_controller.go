@@ -381,7 +381,7 @@ func PostMerge(c *gin.Context) {
 	}
 
 	task := model.NewMergeTask(paths, searchParam.Dest, listPath, searchParam.DeleteSource)
-	task.SetStatus("等待")
+	task.SetStatus(model.StatusPending)
 	consts.TransferTaskMutex.Lock()
 	consts.TransferTask[task.CreateTime] = task
 	consts.TransferTaskMutex.Unlock()
@@ -421,7 +421,7 @@ func GetTransferToMp4(c *gin.Context) {
 		return
 	} else {
 		task := model.NewTask(movieFile.Path, movieFile.Name, from, to)
-		task.SetStatus("等待")
+		task.SetStatus(model.StatusPending)
 		if xcode != "" {
 			task.VCode = xcode
 		}
@@ -461,7 +461,7 @@ func GetCutMovie(c *gin.Context) {
 	}
 	from := utils.GetSuffix(movieFile.Path)
 	task := model.NewCutTask(movieFile.Path, movieFile.Name, start, end, from)
-	task.SetStatus("等待")
+	task.SetStatus(model.StatusPending)
 	consts.TransferTaskMutex.Lock()
 	consts.TransferTask[task.CreateTime] = task
 	consts.TransferTaskMutex.Unlock()

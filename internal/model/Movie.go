@@ -198,7 +198,7 @@ func GetPageOfFiles(files []Movie, pageNo int, pageSize int) ([]Movie, int64) {
 func SearchByKeyWord(files map[string]Movie, keyWord string, movieType string) SearchResultWrapper {
 
 	resultWrapper := NewSearchWrapper()
-	if (keyWord == "" || keyWord == "undefined") && (movieType == "" || movieType == "undefined") {
+	if (keyWord == "" || keyWord == UndefinedStr) && (movieType == "" || movieType == UndefinedStr) {
 		for _, file := range files {
 			resultWrapper.AddWrapperItem(file)
 		}
