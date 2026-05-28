@@ -12,16 +12,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// PostSearch 文件搜索入口
-// 此函数是文件搜索的统一入口点，内部重定向到PostMovies函数
-// @Summary 搜索入口
-// @Description 统一的搜索入口，转发到电影搜索处理
-// @Router /api/search [post]
-func PostSearch(c *gin.Context) {
-	// 直接调用PostMovies函数进行实际的搜索处理
-	PostMovies(c)
-}
-
 // PostMovies 电影文件搜索处理函数
 // 接收搜索参数并调用搜索服务获取结果
 // @Summary 电影搜索

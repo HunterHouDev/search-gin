@@ -1,5 +1,7 @@
 <template>
   <canvas v-if="showParticles" ref="canvasRef" class="particle-canvas"></canvas>
+  <!-- 主题切换过渡遮罩 -->
+  <div v-if="showParticles" class="particle-bg-fade"></div>
 </template>
 
 <script setup>

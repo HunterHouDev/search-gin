@@ -32,6 +32,7 @@ type searchEnginCore struct {
 	KeywordHistoryCache *utils.LRUCache // 替换 sync.Map 为 LRU 缓存
 }
 
+// Reset 清空搜索引擎全部状态和缓存
 func (se *searchEnginCore) Reset() {
 	se.SearchIndexMap.Range(func(key, value interface{}) bool {
 		se.SearchIndexMap.Delete(key)
@@ -482,24 +483,67 @@ func (se *searchEnginCore) buildRepeatData() {
 
 func (se *searchEnginCore) buildOthersData() {
 	start := time.Now()
+	// 本地聚合，避免直接写全局 sync.Map 造成 Range 读取性能抖动
+	localTypeMenu := make(map[string]consts.MenuSize)
+	localTagMenu := make(map[string]consts.MenuSize)
+	localSeriesCount := make(map[string]consts.MenuSize)
+
 	se.SearchIndexMap.Range(func(key, value any) bool {
 		index := value.(*bucketFile)
 		if index.isNotEmpty() {
 			index.mu.RLock()
 			for _, movie := range index.FileLib {
-				consts.TypeSizePlus(movie.MovieType, movie.Size)
+				mt := movie.MovieType
+				if mt == "" {
+					mt = "无"
+				}
+				if v, ok := localTypeMenu[mt]; ok {
+					localTypeMenu[mt] = v.Plus(movie.Size)
+				} else {
+					localTypeMenu[mt] = consts.MenuSize{Name: mt, Cnt: 1, Size: movie.Size}
+				}
+				if v, ok := localTypeMenu["全部"]; ok {
+					localTypeMenu["全部"] = v.Plus(movie.Size)
+				} else {
+					localTypeMenu["全部"] = consts.MenuSize{Name: "全部", Cnt: 1, Size: movie.Size}
+				}
+
 				if len(movie.Tags) > 0 {
 					for i := range movie.Tags {
-						consts.TagSizePlus(movie.Tags[i], movie.Size)
+						if v, ok := localTagMenu[movie.Tags[i]]; ok {
+							localTagMenu[movie.Tags[i]] = v.Plus(movie.Size)
+						} else {
+							localTagMenu[movie.Tags[i]] = consts.MenuSize{Name: movie.Tags[i], Cnt: 1, Size: movie.Size, IsDir: true}
+						}
 					}
-
 				}
-				consts.SeriesPlus(movie.Studio, movie.Size)
+				if len(movie.Studio) > 0 {
+					if v, ok := localSeriesCount[movie.Studio]; ok {
+						localSeriesCount[movie.Studio] = v.Plus(movie.Size)
+					} else {
+						localSeriesCount[movie.Studio] = consts.MenuSize{Name: movie.Studio, Cnt: 1, Size: movie.Size, IsDir: true}
+					}
+				}
 			}
 			index.mu.RUnlock()
 		}
 		return true
 	})
+
+	// 批量写入全局 sync.Map
+	consts.TypeMenu.Clear()
+	for k, v := range localTypeMenu {
+		consts.TypeMenu.Store(k, v)
+	}
+	consts.TagMenu.Clear()
+	for k, v := range localTagMenu {
+		consts.TagMenu.Store(k, v)
+	}
+	consts.SeriesCount.Clear()
+	for k, v := range localSeriesCount {
+		consts.SeriesCount.Store(k, v)
+	}
+
 	ti := time.Since(start)
 	AddLogMemory("buildOthersData time:%d", ti.Milliseconds())
 }

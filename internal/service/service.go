@@ -13,6 +13,7 @@ import (
 type scanTask struct {
 	baseDir   string
 	cancel    chan struct{}
+	canceled  atomic.Bool
 	createdAt time.Time
 }
 
@@ -27,21 +28,29 @@ var scanQueue = &taskQueue{
 	taskChan: make(chan *scanTask, 100),
 }
 
-// 启动任务队列处理器
-func init() {
+// StartScanQueue 启动扫描任务队列处理器（由 main.go 在初始化完成后显式调用）
+func StartScanQueue() {
 	go scanQueue.processTasks()
 }
 
 // processTasks 处理任务队列
 func (q *taskQueue) processTasks() {
+	defer utils.RecoverPanic()
 	for task := range q.taskChan {
-		q.executeTask(task)
+		func() {
+			defer utils.RecoverPanic()
+			q.executeTask(task)
+		}()
 	}
 }
 
 // executeTask 执行单个扫描任务
 func (q *taskQueue) executeTask(task *scanTask) {
-	// 检查任务是否已被取消
+	// 检查任务是否已被取消（优先检查 canceled 标志，避免在已关闭 channel 上 select）
+	if task.canceled.Load() {
+		AddLogMemory("扫描任务已取消: %s", task.baseDir)
+		return
+	}
 	select {
 	case <-task.cancel:
 		AddLogMemory("扫描任务已取消: %s", task.baseDir)
@@ -69,7 +78,7 @@ func (q *taskQueue) executeTask(task *scanTask) {
 	queryTypes = utils.ExtendsItems(queryTypes, setting.ImageTypes)
 
 	// 执行扫描
-	files, _ := FileApp.WalkInnter(task.baseDir, queryTypes, 0, true, task.baseDir)
+	files, _ := FileApp.WalkInnter(task.baseDir, queryTypes, true, task.baseDir)
 	SearchEngin.setBucket(task.baseDir, newInstanceWithFiles(task.baseDir, files))
 	SearchEngin.buildIndexEngin()
 
@@ -91,8 +100,10 @@ func (q *taskQueue) AddTask(baseDir string) {
 
 	// 检查是否已有相同baseDir的任务
 	if existingTask, exists := q.tasks[baseDir]; exists {
-		// 取消现有任务
-		close(existingTask.cancel)
+		// 使用 CAS 防止重复 close cancel channel 导致 panic
+		if existingTask.canceled.CompareAndSwap(false, true) {
+			close(existingTask.cancel)
+		}
 		AddLogMemory("取消现有扫描任务，执行新任务: %s", baseDir)
 	}
 

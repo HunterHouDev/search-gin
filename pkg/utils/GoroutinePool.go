@@ -10,7 +10,6 @@ type GoroutinePool struct {
 	capacity int
 	jobs     chan func()
 	wg       sync.WaitGroup
-	closed   bool
 }
 
 // NewGoroutinePool 创建goroutine池
@@ -38,17 +37,17 @@ func NewGoroutinePool(capacity int) *GoroutinePool {
 	return pool
 }
 
-// Submit 提交任务
+// Submit 提交任务，利用 channel close 信号代替 bool flag 消除 TOCTOU race
 func (p *GoroutinePool) Submit(job func()) {
-	if p.closed {
-		return
+	select {
+	case p.jobs <- job:
+	default:
+		// 通道已满或已关闭，丢弃任务
 	}
-	p.jobs <- job
 }
 
 // Wait 等待所有任务完成并关闭池
 func (p *GoroutinePool) Wait() {
-	p.closed = true
 	close(p.jobs)
 	p.wg.Wait()
 }

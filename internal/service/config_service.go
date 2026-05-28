@@ -11,6 +11,7 @@ import (
 	"search-gin/pkg/utils"
 )
 
+// InitSetting 读取配置文件并初始化全局设置
 func InitSetting() {
 	curDir, _ := filepath.Abs(".")
 	osSetting := consts.OSSetting
@@ -31,6 +32,7 @@ func InitSetting() {
 	consts.OSSetting = dict
 }
 
+// FlushDictionary 将当前设置持久化到配置文件
 func FlushDictionary(path string) {
 	WriteDictionaryToJson(path, consts.OSSetting)
 }

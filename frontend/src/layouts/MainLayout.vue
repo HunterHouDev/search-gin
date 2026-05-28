@@ -138,6 +138,9 @@ const drawerWidth = computed(() => {
   return $q.screen.width > 1200 ? 240 : 200;
 });
 
+const timeLogout = ref('');
+const timeLogoutShow = ref('');
+
 let logoutTimer = null;
 
 // 仅在用户已认证时启动定时器
@@ -148,9 +151,9 @@ if (localStorage.getItem('isAuthenticated')) {
     );
     timeLogout.value = time;
     if (time > 3600) {
-      timeLogoutShow.value = `${Math.round(time / 3600, 1)}小时`;
+      timeLogoutShow.value = `${Math.round(time / 3600)}小时`;
     } else if (time > 60) {
-      timeLogoutShow.value = `${Math.round(time / 60, 1)}分钟`;
+      timeLogoutShow.value = `${Math.round(time / 60)}分钟`;
     } else {
       timeLogoutShow.value = `${time}秒`;
     }
@@ -170,9 +173,6 @@ onUnmounted(() => {
     logoutTimer = null;
   }
 });
-
-const timeLogout = ref('');
-const timeLogoutShow = ref('');
 
 const isWideScreen = computed(() => {
   return $q.screen.width > 750;
@@ -232,38 +232,37 @@ const confirmShutDown = () => {
 const essentialLinks = [
   {
     title: '首页',
-    caption: 'github.com/quasarframework',
+    caption: '数据统计与概览',
     icon: 'ti-stats-up',
     link: '/data',
   },
   {
     title: '搜索',
-    caption: 'quasar.dev',
+    caption: '多媒体文件搜索',
     icon: 'search',
     link: '/',
   },
   {
     title: '图鉴',
-    caption: 'chat.quasar.dev',
+    caption: '图片浏览与管理',
     icon: 'image',
     link: '/picture',
   },
-
   {
     title: '配置',
-    caption: 'chat.quasar.dev',
+    caption: '系统参数设置',
     icon: 'settings',
     link: '/setting',
   },
   {
     title: '系统',
-    caption: 'forum.quasar.dev',
+    caption: '系统信息与状态',
     icon: 'info',
     link: '/system',
   },
   {
     title: '沉浸',
-    caption: 'immersive player',
+    caption: '沉浸式播放体验',
     icon: 'movie',
     link: '/immersive',
   },

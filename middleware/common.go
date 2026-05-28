@@ -42,21 +42,30 @@ func SlowRequestMiddleware() gin.HandlerFunc {
 // AuthMiddleware token验证中间件
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 不需要认证的路径
+		path := c.Request.URL.Path
+
+		// 基础安全检测：拒绝路径遍历攻击
+		if strings.Contains(path, "..") {
+			c.JSON(http.StatusForbidden, utils.NewFailByMsg("非法的请求路径"))
+			c.Abort()
+			return
+		}
+
+		// 不需要认证的路径（精确前缀匹配）
 		skipPaths := []string{
 			"/api/login",
 			"/login",
 			"/",
 			"/index.html",
-			"/api/file/",   // 文件流不需要token（由视频播放器使用）
-			"/api/png/",    // 图片资源
-			"/api/jpg/",    // 图片资源
-			"/api/tempimage/", // 临时图片
+			"/api/file/",      // 文件流不需要token（由视频播放器使用）
+			"/api/png/",        // 图片资源
+			"/api/jpg/",        // 图片资源
+			"/api/tempimage/",  // 临时图片
 		}
-		
+
 		// 检查是否在跳过列表中
 		for _, skipPath := range skipPaths {
-			if strings.HasPrefix(c.Request.URL.Path, skipPath) {
+			if strings.HasPrefix(path, skipPath) {
 				c.Next()
 				return
 			}

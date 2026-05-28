@@ -428,7 +428,7 @@ func (fs *fileService) goWalkWithResult(baseDir string, types []string, resultCh
 	defer atomic.AddInt32(&consts.IndexDone, -1)
 
 	start := time.Now()
-	files, size := fs.WalkInnter(baseDir, types, 0, true, baseDir)
+	files, size := fs.WalkInnter(baseDir, types, true, baseDir)
 
 	SearchEngin.setBucket(baseDir, newInstanceWithFiles(baseDir, files))
 
@@ -450,47 +450,13 @@ func (fs *fileService) goWalkWithResult(baseDir string, types []string, resultCh
 	}
 }
 
-	for len(dirStack) > 0 {
-		currentDir := dirStack[len(dirStack)-1]
-		dirStack = dirStack[:len(dirStack)-1]
-
-		files, err := os.ReadDir(currentDir)
-		if err != nil {
-			utils.InfoFormat("读取目录失败: %s, 错误: %v", currentDir, err)
-			continue
-		}
-
-		if len(files) > 0 {
-			for i := len(files) - 1; i >= 0; i-- {
-				f := files[i]
-				p := filepath.Join(currentDir, f.Name())
-				if f.IsDir() && deep {
-					dirStack = append(dirStack, p)
-				} else {
-					info, err := f.Info()
-					if err != nil {
-						utils.InfoFormat("获取文件信息失败: %s, 错误: %v", p, err)
-						continue
-					}
-
-					suffix := utils.GetSuffix(f.Name())
-					if utils.HasItemSet(typeSet, suffix) {
-						file := model.EasyFile(currentDir, p, f.Name(), suffix, info.Size(), info.ModTime(), "")
-						result = append(result, file)
-					}
-				}
-			}
-		} else {
-			if err := os.RemoveAll(currentDir); err != nil {
-				utils.InfoFormat("删除空目录失败: %s, 错误: %v", currentDir, err)
-			}
-		}
-	}
-
-	return result
+// Walk 遍历目录，获取指定类型文件列表（轻量版，不建索引）
+func (fs *fileService) Walk(dirPath string, types []string, deep bool) []model.Movie {
+	files, _ := fs.WalkInnter(dirPath, types, deep, dirPath)
+	return files
 }
 
-func (fs *fileService) WalkInnter(currentDir string, types []string, totalSize int64, queryChild bool, basePath string) ([]model.Movie, int64) {
+func (fs *fileService) WalkInnter(currentDir string, types []string, queryChild bool, basePath string) ([]model.Movie, int64) {
 	var result []model.Movie
 	typeSet := utils.ToSet(types)
 
@@ -573,6 +539,7 @@ func (fs *fileService) WalkInnter(currentDir string, types []string, totalSize i
 		}
 	}
 
+	totalSize := int64(0)
 	totalSize += sizeMap[currentDir]
 	return result, sizeMap[currentDir]
 }

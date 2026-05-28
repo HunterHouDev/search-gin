@@ -127,6 +127,17 @@
     </div>
   </div>
 
+  <!-- 视频加载中遮罩 -->
+  <div v-if="view.videoLoading && !view.videoError" class="video-loading-overlay">
+    <q-spinner-dots color="red" size="60px" />
+    <p class="text-white q-mt-md">视频加载中...</p>
+  </div>
+  <!-- 视频错误遮罩 -->
+  <div v-if="view.videoError" class="video-error-overlay">
+    <q-icon name="error_outline" color="red" size="48px" />
+    <p class="text-white q-mt-sm">{{ view.videoErrorMsg }}</p>
+    <q-btn color="red" flat label="重试" @click="retryVideo" class="q-mt-md" />
+  </div>
   <video
     id="videoPlayerID"
     ref="vue3VideoPlayRef"
@@ -135,11 +146,13 @@
     playsinline
     :src="view.videoUrl"
     :poster="view.videoPoster"
-    @playing="systemProperty.playerRunning = true"
+    @playing="onVideoPlaying"
     @pause="systemProperty.playerRunning = false"
     @loadedmetadata="checkSubtitles"
     @error="onVideoError"
     @wheel.prevent="onWheel"
+    @waiting="view.videoLoading = true"
+    @canplay="view.videoLoading = false"
     style="width: -webkit-fill-available; background-color: rgba(0, 0, 0, 0.9)"
     :style="{
       position: isMobile ? '' : 'fixed',
@@ -240,6 +253,9 @@ const view = reactive({
   videoPoster: '',
   showVolumnBtn: false,
   webFullScreen: false,
+  videoLoading: false,
+  videoError: false,
+  videoErrorMsg: '视频播放失败',
 });
 
 const showDrawerFn = () => {
@@ -379,7 +395,25 @@ const handleSubtitleError = (e) => {
 
 const onVideoError = (e) => {
   console.error('视频播放失败:', e);
+  view.videoLoading = false;
+  view.videoError = true;
+  view.videoErrorMsg = '视频加载失败，请检查网络连接';
   $q.notify({ type: 'negative', message: '视频播放失败', position: 'top' });
+};
+
+const onVideoPlaying = () => {
+  systemProperty.playerRunning = true;
+  view.videoLoading = false;
+  view.videoError = false;
+};
+
+const retryVideo = () => {
+  view.videoError = false;
+  view.videoLoading = true;
+  const currentSrc = vue3VideoPlayRef.value?.src;
+  if (currentSrc) {
+    vue3VideoPlayRef.value.load();
+  }
 };
 
 let wheelTimer = null;
@@ -445,6 +479,17 @@ video {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+.video-loading-overlay,
+.video-error-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 100;
 }
 </style>
 

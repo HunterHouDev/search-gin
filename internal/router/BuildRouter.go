@@ -66,7 +66,7 @@ func BuildRouter(tempDir string) *gin.Engine {
 	router.NoRoute(handler.Index)
 	router.GET("/", handler.Index)
 	router.POST("/api/login", handler.Login)
-	router.POST("/api/movieList", handler.PostSearch)
+	router.POST("/api/movieList", handler.PostMovies)
 
 	router.GET("/api/transferTasks", handler.GetTransferTask)
 	router.GET("/api/delTransferTasks/:create", handler.GetDelTransferTask)

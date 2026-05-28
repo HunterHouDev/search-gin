@@ -1835,4 +1835,16 @@ onUnmounted(() => {
   line-height: 1.5;
   letter-spacing: 0.5px;
 }
+
+// 搜索结果卡片增强样式
+.search-result-card {
+  border-radius: 12px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  }
+}
 </style>
