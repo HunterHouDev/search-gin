@@ -5,6 +5,12 @@ node_modules/
 **/dist/
 **/.DS_Store
 **/.quasar/
+.claude/
+.atomcode/
+.codebuddy/
+.lingma/
+.trae/
+.vscode/
 
 # 编译产物 & 二进制（运行必需的 ffmpeg/ffplay/ffprobe 除外）
 __debug_bin.exe
@@ -19,11 +25,7 @@ setting.json
 
 # 旧项目目录（已从历史清除）
 electron_quasar/
-quasarhome/
 qapp/
-viteApp/
-vitehome/
-vuehome/
 election/
 gosrc/
 gosrc-journal/
