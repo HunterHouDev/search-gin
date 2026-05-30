@@ -6,10 +6,7 @@ type SearchResultWrapper struct {
 }
 
 func NewSearchWrapper() SearchResultWrapper {
-	return SearchResultWrapper{
-		FileList: []Movie{},
-		Size:     0,
-	}
+ return SearchResultWrapper{}
 }
 
 func (fsw *SearchResultWrapper) IsNotEmpty() bool {

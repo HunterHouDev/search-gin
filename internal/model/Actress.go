@@ -65,21 +65,21 @@ func GetActressPageOfFiles(files []Actress, pageNo int, pageSize int) ([]Actress
 		end = start + pageSize
 	}
 
-	var data []Actress
 	var volume int64
+	data := make([]Actress, end-start)
 	for i := start; i < end; i++ {
-		curFile := files[i]
-		volume += curFile.Size
-		data = append(data, curFile)
+		data[i-start] = files[i]
+		volume += files[i].Size
 	}
 	return data, volume
 }
 
 func SearchActressByKeyWord(files map[string]Actress, keyWord string) []Actress {
-	resultWrapper := []Actress{}
+	keywordUpper := strings.ToUpper(keyWord)
+	resultWrapper := make([]Actress, 0, len(files))
 	for _, file := range files {
 		if len(keyWord) > 0 {
-			if strings.Contains(strings.ToUpper(file.Name), strings.ToUpper(keyWord)) {
+			if strings.Contains(strings.ToUpper(file.Name), keywordUpper) {
 				resultWrapper = append(resultWrapper, file)
 			}
 		} else {

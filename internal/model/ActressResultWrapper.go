@@ -12,16 +12,7 @@ type PageActressResultWrapper struct {
 }
 
 func NewActressPageWrapper() PageActressResultWrapper {
-	return PageActressResultWrapper{
-		FileList:    []Actress{},
-		Size:        0,
-		SearchCount: 0,
-		SearchSize:  0,
-		ResultCount: 0,
-		ResultSize:  0,
-		LibCount:    0,
-		LibSize:     0,
-	}
+ return PageActressResultWrapper{}
 }
 
 func (fsw *PageActressResultWrapper) IsNotEmpty() bool {

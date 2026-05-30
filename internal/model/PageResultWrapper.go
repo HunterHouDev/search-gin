@@ -12,16 +12,7 @@ type PageResultWrapper struct {
 }
 
 func NewPageWrapper() PageResultWrapper {
-	return PageResultWrapper{
-		FileList:    []Movie{},
-		Size:        0,
-		SearchCount: 0,
-		SearchSize:  0,
-		ResultCount: 0,
-		ResultSize:  0,
-		LibCount:    0,
-		LibSize:     0,
-	}
+ return PageResultWrapper{}
 }
 
 func (fsw PageResultWrapper) IsNotEmpty() bool {

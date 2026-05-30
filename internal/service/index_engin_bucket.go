@@ -139,9 +139,6 @@ func (fs *bucketFile) searchBucket(searchParam model.SearchParam) model.SearchRe
 // matchKeywords 检查文件路径是否匹配所有关键词
 func matchKeywords(file model.Movie, keywords []string) bool {
 	filePath := file.PathUpper
-	if filePath == "" {
-		filePath = strings.ToUpper(file.Path)
-	}
 	for _, keyword := range keywords {
 		if !strings.Contains(filePath, keyword) {
 			return false
