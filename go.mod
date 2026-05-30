@@ -3,7 +3,6 @@ module search-gin
 go 1.25.0
 
 require (
-	github.com/PuerkitoBio/goquery v1.10.2
 	github.com/anacrolix/torrent v1.61.0
 	github.com/gin-contrib/cors v1.7.7
 	github.com/gin-gonic/gin v1.12.0
@@ -99,7 +98,6 @@ require (
 )
 
 require (
-	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/bytedance/sonic v1.15.1 // indirect
 	github.com/bytedance/sonic/loader v0.5.1 // indirect
 	github.com/cloudwego/base64x v0.1.7 // indirect
