@@ -1,9 +1,5 @@
 package utils
 
-import (
-	"strings"
-)
-
 // HasItem 判断集合是否包含
 func HasItem(lib []string, item string) bool {
 	if lib == nil {
@@ -13,7 +9,7 @@ func HasItem(lib []string, item string) bool {
 		return false
 	}
 	for i := 0; i < len(lib); i++ {
-		if strings.Compare(item, lib[i]) == 0 {
+		if item == lib[i] {
 			return true
 		}
 	}
@@ -47,7 +43,7 @@ func IndexOf(lib []string, item string) int {
 	}
 	for i := 0; i < len(lib); i++ {
 
-		if strings.Compare(item, lib[i]) == 0 {
+		if item == lib[i] {
 			return i
 		}
 	}

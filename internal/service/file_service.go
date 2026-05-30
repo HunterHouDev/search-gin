@@ -65,11 +65,6 @@ func (fs *fileService) GetPng(c *gin.Context) {
 	file := SearchApp.FindOne(id)
 	if !file.IsNull() {
 		if utils.ExistsFiles(file.Png) {
-			data, err := utils.CompressPngIfNeed(file.Png)
-			if err == nil {
-				c.Data(http.StatusOK, "image/png", data)
-				return
-			}
 			c.File(file.Png)
 			return
 		} else if utils.ExistsFiles(file.Jpg) {
@@ -457,16 +452,13 @@ func (fs *fileService) Walk(dirPath string, types []string, deep bool) []model.M
 }
 
 func (fs *fileService) WalkInnter(currentDir string, types []string, queryChild bool, basePath string) ([]model.Movie, int64) {
-	var result []model.Movie
 	typeSet := utils.ToSet(types)
 
 	dirStack := []stackItem{{path: currentDir, queryChild: queryChild, visited: false}}
 
+	var allFiles []model.Movie
 	sizeMap := make(map[string]int64)
-	fileMap := make(map[string][]model.Movie)
-
 	sizeMap[currentDir] = 0
-	fileMap[currentDir] = []model.Movie{}
 
 	for len(dirStack) > 0 {
 		current := dirStack[len(dirStack)-1]
@@ -492,7 +484,6 @@ func (fs *fileService) WalkInnter(currentDir string, types []string, queryChild 
 					if f.IsDir() && currentQueryChild {
 						dirStack = append(dirStack, stackItem{path: p, queryChild: currentQueryChild, visited: false})
 						sizeMap[p] = 0
-						fileMap[p] = []model.Movie{}
 					} else {
 						info, err := f.Info()
 						if err != nil {
@@ -507,7 +498,7 @@ func (fs *fileService) WalkInnter(currentDir string, types []string, queryChild 
 
 						if utils.HasItemSet(typeSet, suffix) {
 							file := model.EasyFile(currentPath, p, name, suffix, info.Size(), info.ModTime(), basePath)
-							fileMap[currentPath] = append(fileMap[currentPath], file)
+							allFiles = append(allFiles, file)
 						}
 					}
 				}
@@ -532,16 +523,11 @@ func (fs *fileService) WalkInnter(currentDir string, types []string, queryChild 
 			if currentPath != currentDir {
 				parentPath := filepath.Dir(currentPath)
 				sizeMap[parentPath] += currentSize
-				fileMap[parentPath] = append(fileMap[parentPath], fileMap[currentPath]...)
-			} else {
-				result = append(result, fileMap[currentPath]...)
 			}
 		}
 	}
 
-	totalSize := int64(0)
-	totalSize += sizeMap[currentDir]
-	return result, sizeMap[currentDir]
+	return allFiles, sizeMap[currentDir]
 }
 
 // TaskExecuting 任务执行调度器

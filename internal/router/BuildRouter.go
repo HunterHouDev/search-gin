@@ -18,7 +18,7 @@ func BuildRouter(tempDir string) *gin.Engine {
 	config := cors.DefaultConfig()
 	// 限制CORS允许的起源，防止CSRF攻击
 	// 生产环境应该明确指定允许的域名
-	if os.Getenv("GIN_MODE") == "release" {
+	if env.IsProd {
 		// 生产环境：从环境变量读取允许的起源
 		allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
 		if allowedOrigins != "" {
@@ -43,7 +43,7 @@ func BuildRouter(tempDir string) *gin.Engine {
 		gin.SetMode(gin.DebugMode)
 	}
 
-	router := gin.Default()
+	router := gin.New()
 	router.Use(cors.New(config))
 	router.Use(ginlogrus.Logger(utils.NewLogger()))
 	router.Use(middleware.CustomRecovery())

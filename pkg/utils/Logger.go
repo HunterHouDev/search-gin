@@ -2,6 +2,7 @@ package utils
 
 import (
 	"io"
+	"search-gin/internal/env"
 	"os"
 	"runtime/debug"
 
@@ -27,7 +28,11 @@ func init() {
 			logrus.FieldKeyMsg:   "message",
 		},
 	})
-	logger.SetLevel(logrus.DebugLevel)
+	if env.IsProd {
+		logger.SetLevel(logrus.WarnLevel)
+	} else {
+		logger.SetLevel(logrus.DebugLevel)
+	}
 }
 
 func NewLogger() *logrus.Logger {

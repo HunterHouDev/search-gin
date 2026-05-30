@@ -155,7 +155,7 @@ func gracefulShutdown(sigChan chan os.Signal, servers []*http.Server) {
 		defer cancel()
 
 		for _, srv := range servers {
-			srv.Close()
+			srv.Shutdown(ctx)
 			log.Printf("端口 %s 已关闭", srv.Addr)
 		}
 		service.TaskCancel()

@@ -141,7 +141,7 @@ var SearchEngin = searchEnginCore{
 	SearchIndexMap:      sync.Map{}, // map[string]bucketFile{},
 	RepeatSearch:        []model.Movie{},
 	ActressMap:          map[string]model.Actress{}, // map[string]model.Actress{},
-	KeywordHistoryCache: utils.NewLRUCache(100),          // 100个缓存项
+	KeywordHistoryCache: utils.NewLRUCache(500),          // 500个缓存项
 }
 
 func AddLogMemory(format string, msg ...any) {

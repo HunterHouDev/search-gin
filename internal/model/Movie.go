@@ -141,26 +141,27 @@ func (f Movie) IsNull() bool {
 }
 
 func SortMoviesUtils(sortModels []Movie, sF string, sT string, lastSortField string, lastSortType string) {
-	//if sF == lastSortField && sT == lastSortType {
-	//	return
-	//}
-	sort.Slice(sortModels, func(i, j int) bool {
-		if sF == "Code" && sT == "desc" {
-			return sortModels[i].Code > sortModels[j].Code
-		} else if sF == "Code" && sT == "asc" {
-			return sortModels[i].Code < sortModels[j].Code
-		} else if sF == "Size" && sT == "desc" {
-			return sortModels[i].Size > sortModels[j].Size
-		} else if sF == "Size" && sT == "asc" {
-			return sortModels[i].Size < sortModels[j].Size
-		} else if sF == "MTime" && sT == "desc" {
-			return sortModels[i].MTime > sortModels[j].MTime
-		} else if sF == "MTime" && sT == "asc" {
-			return sortModels[i].MTime < sortModels[j].MTime
-		} else {
-			return sortModels[i].MTime > sortModels[j].MTime
-		}
-	})
+ sort.Slice(sortModels, func(i, j int) bool {
+  switch sF {
+  case "Code":
+   if sT == "desc" {
+    return sortModels[i].Code > sortModels[j].Code
+   }
+   return sortModels[i].Code < sortModels[j].Code
+  case "Size":
+   if sT == "desc" {
+    return sortModels[i].Size > sortModels[j].Size
+   }
+   return sortModels[i].Size < sortModels[j].Size
+  case "MTime":
+   if sT == "desc" {
+    return sortModels[i].MTime > sortModels[j].MTime
+   }
+   return sortModels[i].MTime < sortModels[j].MTime
+  default:
+   return sortModels[i].MTime > sortModels[j].MTime
+  }
+ })
 }
 
 func GetPageOfFiles(files []Movie, pageNo int, pageSize int) ([]Movie, int64) {
