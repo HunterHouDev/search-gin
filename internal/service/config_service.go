@@ -1,7 +1,6 @@
 package service
 
 import (
-	"bufio"
 	"encoding/json"
 
 	"os"
@@ -38,36 +37,27 @@ func FlushDictionary(path string) {
 }
 
 func ReadDictionaryFromJson(path string) model.Setting {
-	reader, _ := os.ReadFile(path)
+	reader, err := os.ReadFile(path)
+	if err != nil {
+		utils.InfoFormat("读取配置文件失败: %v", err)
+		return model.Setting{}
+	}
 	dict := model.Setting{}
-	err := json.Unmarshal(reader, &dict)
+	err = json.Unmarshal(reader, &dict)
 	if err != nil {
 		return model.Setting{}
 	}
 	return dict
 }
 func WriteDictionaryToJson(path string, dict model.Setting) {
-	data, _ := json.Marshal(dict)
-	outStream, openErr := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_RDWR, os.ModePerm)
-	if openErr != nil {
-		utils.InfoFormat("openErr: %v", openErr)
+	data, err := json.Marshal(dict)
+	if err != nil {
+		utils.InfoFormat("序列化配置文件失败: %v", err)
 		return
 	}
-	defer func(outStream *os.File) {
-		err := outStream.Close()
-		if err != nil {
-
-		}
-	}(outStream)
-	writer := bufio.NewWriter(outStream)
-	_, err := writer.Write(data)
+	err = os.WriteFile(path, data, os.ModePerm)
 	if err != nil {
 		utils.InfoFormat("写入配置文件失败: %v", err)
-		return
-	}
-	err = writer.Flush()
-	if err != nil {
-		utils.InfoFormat("刷新配置文件缓冲失败: %v", err)
 		return
 	}
 }

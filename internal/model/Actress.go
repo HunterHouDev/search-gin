@@ -64,9 +64,6 @@ func GetActressPageOfFiles(files []Actress, pageNo int, pageSize int) ([]Actress
 	if length-start >= pageSize {
 		end = start + pageSize
 	}
-	if len(files) <= pageSize {
-		return files, 0
-	}
 
 	var data []Actress
 	var volume int64

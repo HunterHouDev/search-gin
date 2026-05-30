@@ -122,27 +122,8 @@ func startBackgroundTasks(app *gin.Engine, sigChan chan os.Signal) {
 		defer utils.RecoverPanic()
 		service.FileApp.TaskExecuting()
 	}()
-	// 定时清理过期 token
-	go func() {
-		defer utils.RecoverPanic()
-		tokenCleanupLoop()
-	}()
 }
 
-// tokenCleanupLoop 定期清理过期 token
-func tokenCleanupLoop() {
-	ticker := time.NewTicker(30 * time.Minute)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			consts.CleanExpiredTokens()
-		case <-service.TaskCtx.Done():
-			utils.InfoFormat("token清理协程已停止")
-			return
-		}
-	}
-}
 
 // gracefulShutdown 监听信号并执行优雅关闭
 func gracefulShutdown(sigChan chan os.Signal, servers []*http.Server) {

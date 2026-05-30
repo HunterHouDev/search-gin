@@ -181,7 +181,7 @@ func GetPageOfFiles(files []Movie, pageNo int, pageSize int) ([]Movie, int64) {
 	if length-start >= pageSize {
 		end = start + pageSize
 	}
-	var data []Movie
+	data := make([]Movie, 0, end-start)
 	var volume int64
 	for i := start; i < end; i++ {
 		curFile := files[i]

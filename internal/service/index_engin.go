@@ -20,9 +20,7 @@ type repeatModel struct {
 }
 
 type searchEnginCore struct {
- LastSortField                  string
- LastSortType                   string
- SearchIndexMap                 sync.Map // map[string]*bucketFile
+	SearchIndexMap                 sync.Map // map[string]*bucketFile
  RepeatSearch                   []model.Movie
  ActressSizeWrapperNullKeyword  []model.Actress
  ActressCountWrapperNullKeyword []model.Actress
@@ -43,8 +41,6 @@ func (se *searchEnginCore) Reset() {
 		return true
 	})
 	// 清空所有状态
-	se.LastSortField = ""
-	se.LastSortType = ""
 	se.RepeatSearch = nil
 	se.ActressMap = nil
 	se.KeywordHistoryCache.Clear()
@@ -143,11 +139,7 @@ func (se *searchEnginCore) PageAsync(searchParam model.SearchParam) model.PageRe
 
 	// 异步搜索优化
 	// 动态计算并发数量
-	bucketCount := 0
-	se.SearchIndexMap.Range(func(key, value interface{}) bool {
-		bucketCount++
-		return true
-	})
+	bucketCount := int(atomic.LoadInt32(&se.BucketCount))
 
 	// 根据 bucket 数量动态调整 goroutine 池大小（不超过全局池容量）
 	poolSize := se.searchPool.Cap()
@@ -317,6 +309,7 @@ func (se *searchEnginCore) buildIndexEngin() {
 func (se *searchEnginCore) buildIndexEnginTotalInfo() {
 	se.TotalCount = 0
 	se.TotalSize = 0
+	bucketCount := 0
 	se.SearchIndexMap.Range(func(key, value any) bool {
 		index := value.(*bucketFile)
 		if index.isNotEmpty() {
@@ -325,8 +318,10 @@ func (se *searchEnginCore) buildIndexEnginTotalInfo() {
 			se.TotalCount += index.TotalCount
 			index.mu.RUnlock()
 		}
+		bucketCount++
 		return true
 	})
+	atomic.StoreInt32(&se.BucketCount, int32(bucketCount))
 }
 
 func (se *searchEnginCore) buildActressData() {

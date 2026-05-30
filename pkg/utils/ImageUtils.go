@@ -45,15 +45,13 @@ func ImageToPng(src string) error {
 
 		}
 	}(fout)
-	fin.Seek(0, 0)
-	config, _, _ := image.DecodeConfig(fin)
 	srcImage, fm, err := image.Decode(fin)
 	if err != nil {
 		InfoFormat("err:%v", err)
 		return err
 	}
-	height := config.Height
-	width := config.Width
+	height := srcImage.Bounds().Max.Y
+	width := srcImage.Bounds().Max.X
 	left := int(0.53 * float64(width))
 	switch fm {
 	case "jpeg":
