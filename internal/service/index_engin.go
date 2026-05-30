@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -32,6 +33,7 @@ type searchEnginCore struct {
  TotalCount       int
  KeywordHistoryCache *utils.LRUCache // 替换 sync.Map 为 LRU 缓存
  searchPool       *utils.GoroutinePool // 全局 goroutine 池，避免每次搜索重复创建
+ BucketCount      int32
 }
 
 // Reset 清空搜索引擎全部状态和缓存
@@ -48,6 +50,7 @@ func (se *searchEnginCore) Reset() {
 	se.KeywordHistoryCache.Clear()
 	se.TotalSize = 0
 	se.TotalCount = 0
+	atomic.StoreInt32(&se.BucketCount, 0)
 }
 
 func init() {
@@ -119,54 +122,7 @@ func (se *searchEnginCore) returnRepeatSearch() model.PageResultWrapper {
 	return resultWrapper
 }
 
-func (se *searchEnginCore) Page(searchParam model.SearchParam) model.PageResultWrapper {
-	if searchParam.OnlyRepeat {
-		return se.returnRepeatSearch()
-	}
-	resultWrapper := model.NewPageWrapper()
 
-	// 使用缓存键包含排序信息，避免排序不一致问题
-	cacheKey := searchParam.UniWords()
-	matchValue, ok := se.KeywordHistoryCache.Get(cacheKey)
-	if ok {
-		resultWrapper = matchValue.(model.PageResultWrapper)
-		// 对缓存结果重新分页，确保页面大小正确
-		resultWrapper.FileList, resultWrapper.ResultSize = model.GetPageOfFiles(
-			resultWrapper.FileList, searchParam.Page, searchParam.PageSize)
-		return resultWrapper
-	}
-
-	resultWrapper.ResultCount = searchParam.PageSize
-	// 优化遍历性能，避免不必要的搜索
-	se.SearchIndexMap.Range(func(key, value interface{}) bool {
-		index := value.(*bucketFile)
-		if index.isEmpty() {
-		 return true
-		}
-		indexWrapper := index.searchBucket(searchParam)
-		if !indexWrapper.IsNotEmpty() {
-			return true
-		}
-		// 直接追加到结果列表，减少内存分配
-		resultWrapper.FileList = append(resultWrapper.FileList, indexWrapper.FileList...)
-		resultWrapper.SearchCount += len(indexWrapper.FileList)
-		resultWrapper.SearchSize += indexWrapper.Size
-		return true
-	})
-
-	// 对结果进行排序
-	model.SortMoviesUtils(resultWrapper.FileList, searchParam.SortField, searchParam.SortType, se.LastSortField, se.LastSortType)
-	se.LastSortField = searchParam.SortField
-	se.LastSortType = searchParam.SortType
-
-	// 直接缓存完整结果集
-	se.addHistory(cacheKey, resultWrapper)
-
-	// 进行分页
-	resultWrapper.FileList, resultWrapper.ResultSize = model.GetPageOfFiles(
-		resultWrapper.FileList, searchParam.Page, searchParam.PageSize)
-	return resultWrapper
-}
 
 func (se *searchEnginCore) PageAsync(searchParam model.SearchParam) model.PageResultWrapper {
 	if searchParam.OnlyRepeat {
@@ -265,9 +221,7 @@ loop:
 	}
 
 	// 对结果进行排序
-	model.SortMoviesUtils(resultWrapper.FileList, searchParam.SortField, searchParam.SortType, se.LastSortField, se.LastSortType)
-	se.LastSortField = searchParam.SortField
-	se.LastSortType = searchParam.SortType
+	model.SortMoviesUtils(resultWrapper.FileList, searchParam.SortField, searchParam.SortType)
 
 	// 直接缓存完整结果集
 	se.addHistory(cacheKey, resultWrapper)
@@ -306,6 +260,7 @@ func (se *searchEnginCore) FindActressByName(id string) model.Actress {
 
 func (se *searchEnginCore) setBucket(baseDir string, bucket *bucketFile) {
 	se.SearchIndexMap.Store(baseDir, bucket)
+	atomic.AddInt32(&se.BucketCount, 1)
 }
 
 // buildIndexEngin 构建索引

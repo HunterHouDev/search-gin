@@ -25,10 +25,8 @@ func AddLogMemory(format string, v ...any) {
 	logMemoryMutex.Lock()
 	LogMemory = append(LogMemory, log)
 	// 硬上限 500 条，超过则保留最新的 400 条
-	if len(LogMemory) > 500 {
-		newLog := make([]Log, 0, 400)
-		newLog = append(newLog, LogMemory[len(LogMemory)-400:]...)
-		LogMemory = newLog
+	if n := len(LogMemory); n > 500 {
+	 LogMemory = LogMemory[n-400:]
 	}
 	logMemoryMutex.Unlock()
 }

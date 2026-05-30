@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"search-gin/pkg/utils"
 	"sort"
-	"strings"
 	"time"
 )
 
@@ -140,7 +139,7 @@ func (f Movie) IsNull() bool {
 	return false
 }
 
-func SortMoviesUtils(sortModels []Movie, sF string, sT string, lastSortField string, lastSortType string) {
+func SortMoviesUtils(sortModels []Movie, sF string, sT string) {
  sort.Slice(sortModels, func(i, j int) bool {
   switch sF {
   case "Code":
@@ -182,10 +181,6 @@ func GetPageOfFiles(files []Movie, pageNo int, pageSize int) ([]Movie, int64) {
 	if length-start >= pageSize {
 		end = start + pageSize
 	}
-	if len(files) <= pageSize {
-		return files, 0
-	}
-
 	var data []Movie
 	var volume int64
 	for i := start; i < end; i++ {
@@ -196,56 +191,4 @@ func GetPageOfFiles(files []Movie, pageNo int, pageSize int) ([]Movie, int64) {
 	return data, volume
 }
 
-func SearchByKeyWord(files map[string]Movie, keyWord string, movieType string) SearchResultWrapper {
 
-	resultWrapper := NewSearchWrapper()
-	if (keyWord == "" || keyWord == UndefinedStr) && (movieType == "" || movieType == UndefinedStr) {
-		for _, file := range files {
-			resultWrapper.AddWrapperItem(file)
-		}
-		return resultWrapper
-	}
-
-	// 预处理关键词，提高搜索效率
-	keyWord = strings.TrimSpace(keyWord)
-	keywords := []string{}
-	if len(keyWord) > 0 {
-		for _, word := range strings.Split(keyWord, " ") {
-			word = strings.TrimSpace(word)
-			if len(word) > 0 {
-				keywords = append(keywords, strings.ToUpper(word))
-			}
-		}
-	}
-
-	for _, file := range files {
-		// 先检查电影类型
-		if movieType != "" && file.MovieType != movieType {
-			continue
-		}
-
-		// 如果没有关键词，直接添加
-		if len(keywords) == 0 {
-			resultWrapper.AddWrapperItem(file)
-			continue
-		}
-		// 对每个关键词进行匹配
-		filepath := strings.ToUpper(file.Path)
-		matchAllKeywords := true
-		for _, keyword := range keywords {
-			// 只要关键词匹配任何一个字段即可
-			keywordMatched := strings.Contains(filepath, keyword)
-			// 如果有任何一个关键词不匹配，跳过当前文件
-			if !keywordMatched {
-				matchAllKeywords = false
-				break
-			}
-		}
-		// 只有当所有关键词都匹配时才添加文件
-		if matchAllKeywords {
-			resultWrapper.AddWrapperItem(file)
-		}
-	}
-
-	return resultWrapper
-}

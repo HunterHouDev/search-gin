@@ -28,23 +28,12 @@ func ImageToPng(src string) error {
 	if err != nil {
 		return err
 	}
-	fin2, err2 := os.Open(src)
-	if err2 != nil {
-		fin.Close()
-		return err2
-	}
 	defer func(fin *os.File) {
-		err := fin.Close()
-		if err != nil {
+	 err := fin.Close()
+	 if err != nil {
 
-		}
+	 }
 	}(fin)
-	defer func(fin2 *os.File) {
-		err := fin2.Close()
-		if err != nil {
-
-		}
-	}(fin2)
 	fout, createErr := os.Create(des)
 	if createErr != nil {
 		InfoFormat("err:%v", createErr)
@@ -56,7 +45,8 @@ func ImageToPng(src string) error {
 
 		}
 	}(fout)
-	config, _, _ := image.DecodeConfig(fin2)
+	fin.Seek(0, 0)
+	config, _, _ := image.DecodeConfig(fin)
 	srcImage, fm, err := image.Decode(fin)
 	if err != nil {
 		InfoFormat("err:%v", err)

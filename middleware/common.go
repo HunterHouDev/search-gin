@@ -1,43 +1,13 @@
 package middleware
 
 import (
-	"net/http"
-	"search-gin/pkg/consts"
-	"search-gin/pkg/utils"
-	"strings"
-	"time"
+ "net/http"
+ "search-gin/pkg/consts"
+ "search-gin/pkg/utils"
+ "strings"
 
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
-	ginlogrus "github.com/toorop/gin-logrus"
+ "github.com/gin-gonic/gin"
 )
-
-func CORSConfig() cors.Config {
-	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{"*"}
-	config.AllowCredentials = true
-	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Range", "Accept-Ranges", "Content-Range"}
-	config.ExposeHeaders = []string{"Content-Length", "Content-Range", "Accept-Ranges", "Content-Type"}
-	return config
-}
-
-func LoggerMiddleware() gin.HandlerFunc {
-	return ginlogrus.Logger(utils.NewLogger())
-}
-
-func SlowRequestMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		start := time.Now()
-		path := c.Request.URL.Path
-		c.Next()
-		duration := time.Since(start)
-
-		if duration > 5*time.Second {
-			utils.InfoFormat("慢请求 [%s] %s %d %v",
-					c.Request.Method, path, c.Writer.Status(), duration)
-		}
-	}
-}
 
 // AuthMiddleware token验证中间件
 func AuthMiddleware() gin.HandlerFunc {

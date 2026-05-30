@@ -141,7 +141,7 @@ func GetDirInfo(c *gin.Context) {
 	sort := c.Param("sort")
 	file := service.SearchApp.FindOne(id)
 	files := service.FileApp.Walk(file.DirPath, consts.Images, false)
-	model.SortMoviesUtils(files, "MTime", sort, "", "")
+	model.SortMoviesUtils(files, "MTime", sort)
 	for i := 0; i < len(files); i++ {
 		consts.TempImage[files[i].Id] = files[i]
 	}

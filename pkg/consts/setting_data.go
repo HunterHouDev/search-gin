@@ -42,13 +42,11 @@ func ValidateToken(token string) bool {
 	
 	// 检查token是否过期
 	if time.Now().After(tokenInfo.ExpireTime) {
-		// 过期了，删除token
-		go func() {
-			tokenMutex.Lock()
-			defer tokenMutex.Unlock()
-			delete(TokenStore, token)
-		}()
-		return false
+	 // 过期了，删除token
+	 tokenMutex.Lock()
+	 delete(TokenStore, token)
+	 tokenMutex.Unlock()
+	 return false
 	}
 	
 	// 检查用户是否过期
@@ -59,11 +57,9 @@ func ValidateToken(token string) bool {
 					expireTime, err := time.Parse("2006-01-02", user.ExpireDate)
 					if err == nil && time.Now().After(expireTime) {
 						// 用户已过期，删除token（强制退出）
-						go func() {
-							tokenMutex.Lock()
-							defer tokenMutex.Unlock()
-							delete(TokenStore, token)
-						}()
+						tokenMutex.Lock()
+						delete(TokenStore, token)
+						tokenMutex.Unlock()
 						return false
 					}
 				}
