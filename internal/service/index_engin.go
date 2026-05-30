@@ -267,109 +267,54 @@ func (se *searchEnginCore) buildIndexEngin() {
 		}
 	}()
 
+	start := time.Now()
 	se.KeywordHistoryCache.Clear()
 
-	se.buildIndexEnginTotalInfo()
-	var wg sync.WaitGroup
-	wg.Add(3)
-	go func() {
-		defer wg.Done()
-		defer func() {
-			if r := recover(); r != nil {
-				AddLogMemory("构建演员数据发生异常: %v", r)
-				AddLogMemory("堆栈信息: %s", string(debug.Stack()))
-			}
-		}()
-		se.buildActressData()
-	}()
-	go func() {
-		defer wg.Done()
-		defer func() {
-			if r := recover(); r != nil {
-				AddLogMemory("构建重复数据发生异常: %v", r)
-				AddLogMemory("堆栈信息: %s", string(debug.Stack()))
-			}
-		}()
-		se.buildRepeatData()
-	}()
-	go func() {
-		defer wg.Done()
-		defer func() {
-			if r := recover(); r != nil {
-				AddLogMemory("构建其他数据发生异常: %v", r)
-				AddLogMemory("堆栈信息: %s", string(debug.Stack()))
-			}
-		}()
-		se.buildOthersData()
-	}()
-	wg.Wait()
-
-}
-
-func (se *searchEnginCore) buildIndexEnginTotalInfo() {
+	// 重置总计信息
 	se.TotalCount = 0
 	se.TotalSize = 0
-	bucketCount := 0
-	se.SearchIndexMap.Range(func(key, value any) bool {
-		index := value.(*bucketFile)
-		if index.isNotEmpty() {
-			index.mu.RLock()
-			se.TotalSize += index.TotalSize
-			se.TotalCount += index.TotalCount
-			index.mu.RUnlock()
-		}
-		bucketCount++
-		return true
-	})
-	atomic.StoreInt32(&se.BucketCount, int32(bucketCount))
-}
 
-func (se *searchEnginCore) buildActressData() {
-	start := time.Now()
+	// 使用局部变量聚合，避免在 Range 中频繁写入全局 sync.Map
 	se.ActressMap = make(map[string]model.Actress)
+	localTypeMenu := make(map[string]consts.MenuSize)
+	localTagMenu := make(map[string]consts.MenuSize)
+	localSeriesCount := make(map[string]consts.MenuSize)
+	sizeRepeats := make(map[int64]repeatModel, 1000)
+	codeRepeats := make(map[string]repeatModel, 1000)
+	fileRepeats := make(map[string]model.Movie, 2000)
+
+	var bucketCount int32
+
 	se.SearchIndexMap.Range(func(key, value any) bool {
 		index := value.(*bucketFile)
-		if index.isNotEmpty() {
-			index.mu.RLock()
-			for _, movie := range index.FileLib {
-				if len(movie.Actress) > 0 {
-					curActress, ok := se.ActressMap[movie.Actress]
-					if ok {
-						curActress.PlusCnt()
-						curActress.PlusSize(movie.Size)
-						curActress.AddImage(movie.Png)
-						curActress.AddImage(movie.Jpg)
-						se.ActressMap[movie.Actress] = curActress
-					} else {
-						se.ActressMap[movie.Actress] = model.NewActress(movie.Actress, movie.Jpg, movie.Size)
-					}
+		if index.isEmpty() {
+			return true
+		}
+		index.mu.RLock()
+
+		// 1. 总计信息
+		se.TotalSize += index.TotalSize
+		se.TotalCount += index.TotalCount
+		bucketCount++
+
+		// 2. 遍历文件中逐条处理
+		for _, movie := range index.FileLib {
+			// ---- 演员数据 ----
+			if len(movie.Actress) > 0 {
+				curActress, ok := se.ActressMap[movie.Actress]
+				if ok {
+					curActress.PlusCnt()
+					curActress.PlusSize(movie.Size)
+					curActress.AddImage(movie.Png)
+					curActress.AddImage(movie.Jpg)
+					se.ActressMap[movie.Actress] = curActress
+				} else {
+					se.ActressMap[movie.Actress] = model.NewActress(movie.Actress, movie.Jpg, movie.Size)
 				}
 			}
-			index.mu.RUnlock()
-		}
-		return true
-	})
-	ti := time.Since(start)
-	AddLogMemory("buildIndexEnginTotalInfo time:%d", ti.Milliseconds())
-}
 
-func (se *searchEnginCore) buildRepeatData() {
-	start := time.Now()
-	se.RepeatSearch = []model.Movie{}
-
-	// 预分配 map 容量，提高性能
-	sizeRepeats := make(map[int64]repeatModel, se.TotalCount/10)
-	codeRepeats := make(map[string]repeatModel, se.TotalCount/10)
-	fileRepeats := make(map[string]model.Movie, se.TotalCount/5)
-
-	se.SearchIndexMap.Range(func(key, value any) bool {
-		index := value.(*bucketFile)
-		if index.isNotEmpty() {
-			index.mu.RLock()
-			for _, movie := range index.FileLib {
-				if movie.IsNull() {
-					continue
-				}
+			// ---- 重复检测 ----
+			if !movie.IsNull() {
 				pkSize := movie.Size
 				repeatSize, ok := sizeRepeats[pkSize]
 				if ok {
@@ -384,6 +329,7 @@ func (se *searchEnginCore) buildRepeatData() {
 						Count: 1,
 					}
 				}
+
 				pkCode := movie.Code
 				pkCode = strings.ReplaceAll(pkCode, "-", "")
 				pkCode = strings.ReplaceAll(pkCode, "_", "")
@@ -400,76 +346,47 @@ func (se *searchEnginCore) buildRepeatData() {
 						Count: 1,
 					}
 				}
-
 			}
-			index.mu.RUnlock()
-		}
-		return true
-	})
-	sizeRepeats = nil
-	codeRepeats = nil
-	// 预分配切片容量
-	se.RepeatSearch = make([]model.Movie, 0, len(fileRepeats))
-	for _, model := range fileRepeats {
-		se.RepeatSearch = append(se.RepeatSearch, model)
-	}
-	sort.Slice(se.RepeatSearch, func(i, j int) bool {
-		return se.RepeatSearch[i].Size > se.RepeatSearch[j].Size
-	})
-	fileRepeats = nil
-	ti := time.Since(start)
-	AddLogMemory("buildRepeatData time:%d", ti.Milliseconds())
 
-}
+			// ---- 类型/标签/系列菜单 ----
+			mt := movie.MovieType
+			if mt == "" {
+				mt = "无"
+			}
+			if v, ok := localTypeMenu[mt]; ok {
+				localTypeMenu[mt] = v.Plus(movie.Size)
+			} else {
+				localTypeMenu[mt] = consts.MenuSize{Name: mt, Cnt: 1, Size: movie.Size}
+			}
+			if v, ok := localTypeMenu["全部"]; ok {
+				localTypeMenu["全部"] = v.Plus(movie.Size)
+			} else {
+				localTypeMenu["全部"] = consts.MenuSize{Name: "全部", Cnt: 1, Size: movie.Size}
+			}
 
-func (se *searchEnginCore) buildOthersData() {
-	start := time.Now()
-	// 本地聚合，避免直接写全局 sync.Map 造成 Range 读取性能抖动
-	localTypeMenu := make(map[string]consts.MenuSize)
-	localTagMenu := make(map[string]consts.MenuSize)
-	localSeriesCount := make(map[string]consts.MenuSize)
-
-	se.SearchIndexMap.Range(func(key, value any) bool {
-		index := value.(*bucketFile)
-		if index.isNotEmpty() {
-			index.mu.RLock()
-			for _, movie := range index.FileLib {
-				mt := movie.MovieType
-				if mt == "" {
-					mt = "无"
-				}
-				if v, ok := localTypeMenu[mt]; ok {
-					localTypeMenu[mt] = v.Plus(movie.Size)
-				} else {
-					localTypeMenu[mt] = consts.MenuSize{Name: mt, Cnt: 1, Size: movie.Size}
-				}
-				if v, ok := localTypeMenu["全部"]; ok {
-					localTypeMenu["全部"] = v.Plus(movie.Size)
-				} else {
-					localTypeMenu["全部"] = consts.MenuSize{Name: "全部", Cnt: 1, Size: movie.Size}
-				}
-
-				if len(movie.Tags) > 0 {
-					for i := range movie.Tags {
-						if v, ok := localTagMenu[movie.Tags[i]]; ok {
-							localTagMenu[movie.Tags[i]] = v.Plus(movie.Size)
-						} else {
-							localTagMenu[movie.Tags[i]] = consts.MenuSize{Name: movie.Tags[i], Cnt: 1, Size: movie.Size, IsDir: true}
-						}
-					}
-				}
-				if len(movie.Studio) > 0 {
-					if v, ok := localSeriesCount[movie.Studio]; ok {
-						localSeriesCount[movie.Studio] = v.Plus(movie.Size)
+			if len(movie.Tags) > 0 {
+				for i := range movie.Tags {
+					if v, ok := localTagMenu[movie.Tags[i]]; ok {
+						localTagMenu[movie.Tags[i]] = v.Plus(movie.Size)
 					} else {
-						localSeriesCount[movie.Studio] = consts.MenuSize{Name: movie.Studio, Cnt: 1, Size: movie.Size, IsDir: true}
+						localTagMenu[movie.Tags[i]] = consts.MenuSize{Name: movie.Tags[i], Cnt: 1, Size: movie.Size, IsDir: true}
 					}
 				}
 			}
-			index.mu.RUnlock()
+			if len(movie.Studio) > 0 {
+				if v, ok := localSeriesCount[movie.Studio]; ok {
+					localSeriesCount[movie.Studio] = v.Plus(movie.Size)
+				} else {
+					localSeriesCount[movie.Studio] = consts.MenuSize{Name: movie.Studio, Cnt: 1, Size: movie.Size, IsDir: true}
+				}
+			}
 		}
+
+		index.mu.RUnlock()
 		return true
 	})
+
+	atomic.StoreInt32(&se.BucketCount, bucketCount)
 
 	// 批量写入全局 sync.Map
 	consts.TypeMenu.Clear()
@@ -485,6 +402,20 @@ func (se *searchEnginCore) buildOthersData() {
 		consts.SeriesCount.Store(k, v)
 	}
 
+	// 构建重复结果
+	sizeRepeats = nil
+	codeRepeats = nil
+	se.RepeatSearch = make([]model.Movie, 0, len(fileRepeats))
+	for _, m := range fileRepeats {
+		se.RepeatSearch = append(se.RepeatSearch, m)
+	}
+	sort.Slice(se.RepeatSearch, func(i, j int) bool {
+		return se.RepeatSearch[i].Size > se.RepeatSearch[j].Size
+	})
+	fileRepeats = nil
+
 	ti := time.Since(start)
-	AddLogMemory("buildOthersData time:%d", ti.Milliseconds())
+	AddLogMemory("buildIndexEngin (single-pass) time:%d", ti.Milliseconds())
 }
+
+

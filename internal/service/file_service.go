@@ -37,6 +37,14 @@ type stackItem struct {
 	visited    bool
 }
 
+// fileResult 是 WalkInnter worker 池的处理结果
+type fileResult struct {
+	movie    model.Movie
+	fileSize int64
+	dirPath  string
+	err      error
+}
+
 var hwAccel = struct {
 	h264  string
 	h265  string
@@ -460,6 +468,46 @@ func (fs *fileService) WalkInnter(currentDir string, types []string, queryChild 
 	sizeMap := make(map[string]int64)
 	sizeMap[currentDir] = 0
 
+	// 文件处理工作池：将匹配文件的 f.Info() + EasyFile 卸给 worker 并行处理
+	numWorkers := runtime.GOMAXPROCS(0)
+	if numWorkers < 2 {
+		numWorkers = 2
+	}
+
+	type fileJob struct {
+		dirEntry os.DirEntry
+		name     string
+		suffix   string
+		fullPath string // filepath.Join(currentPath, name)
+		dirPath  string // 所属目录路径，用于通知 sizeMap
+		basePath string
+	}
+
+	jobChan := make(chan fileJob, 4096)
+	resultChan := make(chan fileResult, 4096)
+
+	var workerWg sync.WaitGroup
+	workerWg.Add(numWorkers)
+	for i := 0; i < numWorkers; i++ {
+		go func() {
+			defer workerWg.Done()
+			for job := range jobChan {
+				info, err := job.dirEntry.Info()
+				if err != nil {
+					utils.InfoFormat("获取文件信息失败: %s, 错误: %v", job.fullPath, err)
+					resultChan <- fileResult{err: err, dirPath: job.dirPath}
+					continue
+				}
+				movie := model.EasyFile(job.dirPath, job.fullPath, job.name, job.suffix,
+					info.Size(), info.ModTime(), job.basePath)
+				resultChan <- fileResult{movie: movie, fileSize: info.Size(), dirPath: job.dirPath}
+			}
+		}()
+	}
+
+	// pendingJobs track how many jobs were sent for each directory
+	pendingJobs := make(map[string]int)
+
 	for len(dirStack) > 0 {
 		current := dirStack[len(dirStack)-1]
 		dirStack = dirStack[:len(dirStack)-1]
@@ -484,24 +532,35 @@ func (fs *fileService) WalkInnter(currentDir string, types []string, queryChild 
 					if f.IsDir() && currentQueryChild {
 						dirStack = append(dirStack, stackItem{path: p, queryChild: currentQueryChild, visited: false})
 						sizeMap[p] = 0
-					} else {
-						info, err := f.Info()
-						if err != nil {
-							utils.InfoFormat("获取文件信息失败: %s, 错误: %v", p, err)
-							continue
-						}
-
-						sizeMap[currentPath] += info.Size()
-
+					} else if !f.IsDir() {
 						name := f.Name()
 						suffix := utils.GetSuffix(name)
 
 						if utils.HasItemSet(typeSet, suffix) {
-							file := model.EasyFile(currentPath, p, name, suffix, info.Size(), info.ModTime(), basePath)
-							allFiles = append(allFiles, file)
+							// 匹配类型文件 → worker 池并行处理
+							pendingJobs[currentPath]++
+							jobChan <- fileJob{
+								dirEntry: f,
+								name:     name,
+								suffix:   suffix,
+								fullPath: p,
+								dirPath:  currentPath,
+								basePath: basePath,
+							}
+						} else {
+							// 非目标类型文件，直接获取大小用于目录统计
+							info, err := f.Info()
+							if err != nil {
+								utils.InfoFormat("获取文件信息失败: %s, 错误: %v", p, err)
+								continue
+							}
+							sizeMap[currentPath] += info.Size()
 						}
 					}
 				}
+
+				// 非阻塞收集已完成的 worker 结果，防止通道积压
+				drainAvailableResults(&allFiles, sizeMap, resultChan, pendingJobs)
 			} else {
 				if emptyFile, err := os.Stat(currentPath); err == nil {
 					yesterday := time.Now().AddDate(0, 0, -1)
@@ -515,6 +574,18 @@ func (fs *fileService) WalkInnter(currentDir string, types []string, queryChild 
 				}
 			}
 		} else {
+			// 等待 worker 处理完本目录下的所有匹配文件
+			n := pendingJobs[currentPath]
+			for i := 0; i < n; i++ {
+				r := <-resultChan
+				if r.err != nil {
+					continue
+				}
+				allFiles = append(allFiles, r.movie)
+				sizeMap[r.dirPath] += r.fileSize
+			}
+			delete(pendingJobs, currentPath)
+
 			currentSize := sizeMap[currentPath]
 			if currentSize <= 20000000 && utils.IndexOf(consts.GetOSSetting().Dirs, currentPath) < 0 {
 				consts.SmallDir = append(consts.SmallDir, consts.NewMenuSizeFold(currentPath, currentSize, true))
@@ -527,7 +598,29 @@ func (fs *fileService) WalkInnter(currentDir string, types []string, queryChild 
 		}
 	}
 
+	// 关闭 worker，等待完成，清理残留结果
+	close(jobChan)
+	workerWg.Wait()
+	close(resultChan)
+
 	return allFiles, sizeMap[currentDir]
+}
+
+// drainAvailableResults 非阻塞收集 worker 已完成的结果，防止 resultChan 积压
+func drainAvailableResults(allFiles *[]model.Movie, sizeMap map[string]int64,
+	resultChan chan fileResult, pendingJobs map[string]int) {
+	for {
+		select {
+		case r := <-resultChan:
+			if r.err == nil {
+				*allFiles = append(*allFiles, r.movie)
+				sizeMap[r.dirPath] += r.fileSize
+			}
+			pendingJobs[r.dirPath]--
+		default:
+			return
+		}
+	}
 }
 
 // TaskExecuting 任务执行调度器

@@ -28,9 +28,7 @@ func newInstance(name string) *bucketFile {
 
 func newInstanceWithFiles(baseDir string, files []model.Movie) *bucketFile {
 	bucket := newInstance(baseDir)
-	for _, file := range files {
-		bucket.put(file)
-	}
+	bucket.putBatch(files)
 	return bucket
 }
 
@@ -54,6 +52,21 @@ func (fs *bucketFile) put(m model.Movie) {
 
 	// 构建类型倒排索引
 	fs.buildTypeIndex(m)
+}
+
+// putBatch 批量写入文件，一次加锁
+func (fs *bucketFile) putBatch(files []model.Movie) {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	for _, file := range files {
+		if file.PathUpper == "" {
+			file.PathUpper = strings.ToUpper(file.Path)
+		}
+		fs.FileLib[file.Id] = file
+		fs.TotalSize += file.Size
+		fs.TotalCount++
+		fs.buildTypeIndex(file)
+	}
 }
 
 // buildTypeIndex 为文件构建类型倒排索引（O(1) 去重）
