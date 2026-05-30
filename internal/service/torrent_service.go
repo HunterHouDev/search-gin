@@ -266,7 +266,8 @@ func (ts *TorrentService) StreamVideo(infoHash string, w http.ResponseWriter, r 
 
 		reader := videoFile.NewReader()
 		defer reader.Close()
-		_, err = io.Copy(w, reader)
+		buf := make([]byte, 256*1024)
+		_, err = io.CopyBuffer(w, reader, buf)
 		return err
 	}
 
@@ -291,7 +292,8 @@ func (ts *TorrentService) StreamVideo(infoHash string, w http.ResponseWriter, r 
 		return fmt.Errorf("seek 失败: %v", err)
 	}
 
-	_, err = io.CopyN(w, reader, contentLength)
+	buf := make([]byte, 256*1024)
+	_, err = io.CopyBuffer(w, io.LimitReader(reader, contentLength), buf)
 	return err
 }
 

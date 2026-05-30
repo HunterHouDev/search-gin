@@ -32,17 +32,28 @@ func NewLRUCache(capacity int) *LRUCache {
 	}
 }
 
-// Get 获取缓存值（全程写锁，避免 RUnlock→Lock 竞态窗口）
+// Get 获取缓存值（读锁查找 + 写锁移动双检，降低锁竞争）
 func (c *LRUCache) Get(key string) (interface{}, bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+ c.mu.RLock()
+ element, ok := c.cache[key]
+ if !ok {
+  c.mu.RUnlock()
+  return nil, false
+ }
+ c.mu.RUnlock()
 
-	element, ok := c.cache[key]
-	if !ok {
-		return nil, false
-	}
-	c.list.MoveToFront(element)
-	return element.Value.(*CacheItem).Value, true
+ // 写锁下再次确认 + 移到链表头部
+ c.mu.Lock()
+ // double-check：在获取写锁后重新确认元素仍有效
+ element, ok = c.cache[key]
+ if !ok {
+  c.mu.Unlock()
+  return nil, false
+ }
+ c.list.MoveToFront(element)
+ c.mu.Unlock()
+
+ return element.Value.(*CacheItem).Value, true
 }
 
 // Set 设置缓存值

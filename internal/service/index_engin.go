@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"search-gin/pkg/consts"
 	"search-gin/internal/model"
 	"search-gin/pkg/utils"
@@ -18,18 +19,19 @@ type repeatModel struct {
 }
 
 type searchEnginCore struct {
-	LastSortField                  string
-	LastSortType                   string
-	SearchIndexMap                 sync.Map // map[string]*bucketFile
-	RepeatSearch                   []model.Movie
-	ActressSizeWrapperNullKeyword  []model.Actress
-	ActressCountWrapperNullKeyword []model.Actress
-	ActressMap                     map[string]model.Actress
-	// TotalSizeMutex 保护 TotalSize/TotalCount 的并发读写（buildOthersData 在 goroutine 中修改）
-	TotalSizeMutex   sync.RWMutex
-	TotalSize        int64
-	TotalCount       int
-	KeywordHistoryCache *utils.LRUCache // 替换 sync.Map 为 LRU 缓存
+ LastSortField                  string
+ LastSortType                   string
+ SearchIndexMap                 sync.Map // map[string]*bucketFile
+ RepeatSearch                   []model.Movie
+ ActressSizeWrapperNullKeyword  []model.Actress
+ ActressCountWrapperNullKeyword []model.Actress
+ ActressMap                     map[string]model.Actress
+ // TotalSizeMutex 保护 TotalSize/TotalCount 的并发读写（buildOthersData 在 goroutine 中修改）
+ TotalSizeMutex   sync.RWMutex
+ TotalSize        int64
+ TotalCount       int
+ KeywordHistoryCache *utils.LRUCache // 替换 sync.Map 为 LRU 缓存
+ searchPool       *utils.GoroutinePool // 全局 goroutine 池，避免每次搜索重复创建
 }
 
 // Reset 清空搜索引擎全部状态和缓存
@@ -46,6 +48,10 @@ func (se *searchEnginCore) Reset() {
 	se.KeywordHistoryCache.Clear()
 	se.TotalSize = 0
 	se.TotalCount = 0
+}
+
+func init() {
+	SearchEngin.searchPool = utils.NewGoroutinePool(20) // 全局 goroutine 池，最大 20 并发
 }
 
 func (se *searchEnginCore) Init(baseDirs []string) {
@@ -187,22 +193,18 @@ func (se *searchEnginCore) PageAsync(searchParam model.SearchParam) model.PageRe
 		return true
 	})
 
-	// 根据 bucket 数量动态调整 goroutine 池大小
-	poolSize := 10
-	if bucketCount > 0 {
-		if bucketCount < 5 {
-			poolSize = bucketCount
-		} else if bucketCount > 20 {
-			poolSize = 20 // 最大 20 个并发
-		} else {
-			poolSize = bucketCount
-		}
+	// 根据 bucket 数量动态调整 goroutine 池大小（不超过全局池容量）
+	poolSize := se.searchPool.Cap()
+	if bucketCount > 0 && bucketCount < poolSize {
+		poolSize = bucketCount
 	}
 
 	resultWrapper.ResultCount = searchParam.PageSize
 
-	// 使用 goroutine 池控制并发数量
-	pool := utils.NewGoroutinePool(poolSize)
+	// 使用 context 控制超时和取消
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	// 预估结果大小，减少通道内存分配
 	resultChan := make(chan model.SearchResultWrapper, bucketCount*2)
 
@@ -212,7 +214,7 @@ func (se *searchEnginCore) PageAsync(searchParam model.SearchParam) model.PageRe
 		if index.isEmpty() {
 			return true
 		}
-		pool.Submit(func() {
+		se.searchPool.Submit(func() {
 			defer func() {
 				if r := recover(); r != nil {
 					AddLogMemory("搜索 bucket 发生异常：%v", r)
@@ -222,8 +224,8 @@ func (se *searchEnginCore) PageAsync(searchParam model.SearchParam) model.PageRe
 			if indexWrapper.IsNotEmpty() {
 				select {
 				case resultChan <- indexWrapper:
-				case <-time.After(30 * time.Second):
-					AddLogMemory("发送搜索结果超时，丢弃结果")
+				case <-ctx.Done():
+					// context 已取消（超时或主 goroutine 已退出），不再发送
 				}
 			}
 		})
@@ -231,48 +233,37 @@ func (se *searchEnginCore) PageAsync(searchParam model.SearchParam) model.PageRe
 	})
 
 	// 等待所有搜索完成并关闭通道
-	done := make(chan struct{})
 	go func() {
-		pool.Wait()
+		se.searchPool.Wait()
 		close(resultChan)
-		close(done)
 	}()
 
-	// 收集搜索结果，添加超时控制
-	timeout := time.After(30 * time.Second) // 30秒超时
+	// 收集搜索结果
+loop:
 	for {
 		select {
 		case data, ok := <-resultChan:
 			if !ok {
 				// 通道已关闭，搜索完成
-				goto searchDone
+				break loop
 			}
 			// 直接追加到结果列表，减少内存分配
 			resultWrapper.FileList = append(resultWrapper.FileList, data.FileList...)
 			resultWrapper.SearchCount += len(data.FileList)
 			resultWrapper.SearchSize += data.Size
-		case <-done:
-			// 所有 goroutine 已完成，通道将关闭
-			for data := range resultChan {
-				resultWrapper.FileList = append(resultWrapper.FileList, data.FileList...)
-				resultWrapper.SearchCount += len(data.FileList)
-				resultWrapper.SearchSize += data.Size
-			}
-			goto searchDone
-		case <-timeout:
-			// 搜索超时，等待 goroutine 完成
+		case <-ctx.Done():
+			// 搜索超时，取消所有进行中的发送，等待剩余结果
 			AddLogMemory("搜索超时，部分结果可能未返回")
-			<-done // 等待所有 goroutine 完成
+			se.searchPool.Wait()
 			for data := range resultChan {
 				resultWrapper.FileList = append(resultWrapper.FileList, data.FileList...)
 				resultWrapper.SearchCount += len(data.FileList)
 				resultWrapper.SearchSize += data.Size
 			}
-			goto searchDone
+			break loop
 		}
 	}
 
-searchDone:
 	// 对结果进行排序
 	model.SortMoviesUtils(resultWrapper.FileList, searchParam.SortField, searchParam.SortType, se.LastSortField, se.LastSortType)
 	se.LastSortField = searchParam.SortField

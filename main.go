@@ -46,24 +46,29 @@ func createServer(addr string, handler http.Handler) *http.Server {
 }
 
 // extractAssets 解压嵌入式资源（setting.json、前端静态文件、ffmpeg/ffplay）
-func extractAssets(tempDir string) {
-	// 解压 setting.json
-	if _, err := os.Stat(filepath.Join(tempDir, "setting.json")); os.IsNotExist(err) {
-		utils.InfoFormat("开始解压 setting.json...")
-		if err := ExtractSetting(tempDir); err != nil {
-			utils.InfoFormat("解压 setting.json 失败: %v", err)
-			os.Exit(1)
-		}
-		utils.InfoFormat("setting.json 解压完成")
-	} else {
-		utils.InfoFormat("setting.json 已存在，跳过解压")
-	}
+func extractAssets(tempDir string) chan struct{} {
+ assetsExtracted := make(chan struct{})
 
-	// 异步解压前端资源和二进制工具
-	go func() {
-		defer utils.RecoverPanic()
-		extractEmbeddedAssets(tempDir)
-	}()
+ // 解压 setting.json
+ if _, err := os.Stat(filepath.Join(tempDir, "setting.json")); os.IsNotExist(err) {
+  utils.InfoFormat("开始解压 setting.json...")
+  if err := ExtractSetting(tempDir); err != nil {
+   utils.InfoFormat("解压 setting.json 失败: %v", err)
+   os.Exit(1)
+  }
+  utils.InfoFormat("setting.json 解压完成")
+ } else {
+  utils.InfoFormat("setting.json 已存在，跳过解压")
+ }
+
+ // 异步解压前端资源和二进制工具
+ go func() {
+  defer utils.RecoverPanic()
+  defer close(assetsExtracted)
+  extractEmbeddedAssets(tempDir)
+ }()
+
+ return assetsExtracted
 }
 
 // extractEmbeddedAssets 解压 dist、ffmpeg、ffplay
@@ -170,7 +175,7 @@ func main() {
 	service.TempDir = tempDir
 
 	// 2. 解压嵌入式资源
-	extractAssets(tempDir)
+	assetsExtracted := extractAssets(tempDir)
 
 	// 3. 启动 pprof（开发环境）
 	startPprof()
@@ -198,8 +203,8 @@ func main() {
 	// 7. 构建路由
 	app := router.BuildRouter(tempDir)
 
-	// 8. 加载前端静态文件（延迟3秒等待解压完成）
-	go loadStaticFiles(app, tempDir)
+	// 8. 加载前端静态文件（等待解压完成）
+	go loadStaticFiles(app, tempDir, assetsExtracted)
 
 	// 9. 启动多端口 HTTP 服务
 	portNos := []string{consts.PortNo, consts.PortNo2, consts.PortNo3}
@@ -235,8 +240,8 @@ func main() {
 }
 
 // loadStaticFiles 加载前端静态文件（延迟执行以等待解压）
-func loadStaticFiles(app *gin.Engine, tempDir string) {
-	time.Sleep(3 * time.Second)
+func loadStaticFiles(app *gin.Engine, tempDir string, extracted <-chan struct{}) {
+	<-extracted
 	indexHtml := filepath.Join(tempDir, "dist", "index.html")
 	if !utils.ExistsFiles(indexHtml) {
 		utils.InfoFormat("static not exists:%s", indexHtml)

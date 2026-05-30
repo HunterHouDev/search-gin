@@ -276,11 +276,7 @@
                 <span ripple flat>搜索记录
                   <q-btn ripple flat color="red" @click="systemProperty.SearchRecords = []">清空</q-btn></span>
                 <q-list bordered separator style="height: 50vh; overflow: auto">
-                  <div v-for="(his, idx) in systemProperty.SearchRecords.sort(
-                    (a, b) => {
-                      return b.createdAt - a.createdAt;
-                    }
-                  )" :key="idx">
+                  <div v-for="(his, idx) in sortedSearchRecords" :key="idx">
                     <div class="row justify-between cursor-pointer" style="margin: 4px; padding: 4px; color: blue"
                       ripple v-close-popup align="left" @click="redirectUrl(his)">
                       <div style="float: left">
@@ -385,7 +381,7 @@
                 'large-result-image': isLarge,
                 'medium-result-image': isMedium,
                 'small-result-image': isSmall,
-              }" :src="getImage(item.Id)" @contextmenu="(e) => pictureRightClick(item, e)" @click="openFileInfoRef(item)"
+              }" :src="cachedGetImage(item.Id)" @contextmenu="(e) => pictureRightClick(item, e)" @click="openFileInfoRef(item)"
                 style="
                 border-radius: 6px 6px 0 0;
                 background: linear-gradient(135deg, rgba(30, 30, 50, 0.8), rgba(15, 15, 26, 0.9));
@@ -614,7 +610,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { date, format, useQuasar } from 'quasar';
 const { humanStorageSize } = format;
 
@@ -685,6 +681,17 @@ const fileCutImageRef = ref(null);
 const isMoreLoading = ref(false);
 const isFetching = ref(false);
 const pageOptions = ref([10, 12, 20, 30, 50, 200]);
+// AbortController 用于取消前一个搜索请求
+const searchAbortController = ref<AbortController | null>(null);
+// getImage 缓存，避免模板中重复计算
+const imageUrlCache = new Map<string, string>();
+const cachedGetImage = (id: string) => {
+  const cached = imageUrlCache.get(id);
+  if (cached) return cached;
+  const url = getImage(id);
+  imageUrlCache.set(id, url);
+  return url;
+};
 
 const moveView = reactive({
   targetPath: '',
@@ -802,6 +809,13 @@ const scrollTop = () => {
     target[2].scrollTo(0, 0, 500);
   }
 };
+
+// 排序后的搜索记录（不可变副本，避免模板中 sort() 修改原数组）
+const sortedSearchRecords = computed(() => {
+  const records = systemProperty.SearchRecords;
+  if (!records || records.length === 0) return [];
+  return [...records].sort((a, b) => b.createdAt - a.createdAt);
+});
 
 const themeStyle = computed(() => {
   return {
@@ -1309,9 +1323,18 @@ const pullNextPage = async (n) => {
     }
     isMoreLoading.value = true;
     view.queryParam.Page = view.queryParam.Page + n;
-    const data = await SearchAPI(view.queryParam);
-    view.resultData.Data.push(...data.Data);
-    isMoreLoading.value = false;
+    // 取消分页时也使用 abort controller, 复用当前 controller
+    const signal = searchAbortController.value?.signal;
+    try {
+      const data = await SearchAPI(view.queryParam, signal);
+      if (signal?.aborted) return;
+      view.resultData.Data.push(...data.Data);
+    } catch (e) {
+      if (e?.name === 'CanceledError' || e?.name === 'AbortError') return;
+      console.error('分页请求异常:', e);
+    } finally {
+      isMoreLoading.value = false;
+    }
   }
 };
 
@@ -1331,19 +1354,29 @@ const fetchSearch = async (replace = false) => {
   if (isFetching.value) return;
   isFetching.value = true;
 
+  // 取消前一个搜索请求
+  if (searchAbortController.value) {
+    searchAbortController.value.abort();
+  }
+  const currentController = new AbortController();
+  searchAbortController.value = currentController;
+
   try {
     saveParam(replace);
     const { Keyword } = view.queryParam;
     if (!Keyword || Keyword == '') {
       view.allPageNo = view.queryParam.Page;
     }
-    const data = await SearchAPI(view.queryParam);
+    const data = await SearchAPI(view.queryParam, currentController.signal);
+    // 如果已被取消（新的请求已发出），丢弃旧结果
+    if (currentController.signal.aborted) return;
     console.log('搜索结果:', data);
     view.resultData = { ...data };
     const { ResultSize, ResultCnt } = data;
     document.title = `${Keyword || ''}  ${ResultSize} {${ResultCnt}}`;
     view.resultShow = `${ResultSize}(${ResultCnt})`;
   } catch (e) {
+    if (e?.name === 'CanceledError' || e?.name === 'AbortError') return;
     console.error('搜索请求异常:', e);
     $q.notify({ type: 'negative', message: '请求失败' });
   } finally {

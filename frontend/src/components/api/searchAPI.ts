@@ -1,8 +1,11 @@
 import { commonAxios } from '../../boot/axios';
 import { RouteParamValue } from 'vue-router';
+import type { AxiosRequestConfig } from 'axios';
 
-export const SearchAPI = async (params: object) => {
-  const { data } = await commonAxios().post('/api/movieList', params);
+export const SearchAPI = async (params: object, signal?: AbortSignal) => {
+  const config: AxiosRequestConfig = {};
+  if (signal) config.signal = signal;
+  const { data } = await commonAxios().post('/api/movieList', params, config);
   return data;
 };
 
