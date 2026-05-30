@@ -30,7 +30,7 @@ build_go_app() {
         log "ERROR" "dist 目录不存在，请先执行前端打包"
         exit 1
     fi
-    if ! go build -o qapp/appQuaser.exe -ldflags "-H=windowsgui" -tags=prod; then
+    if ! go build -o qapp/appQuaser.exe -ldflags "-H=windowsgui -s -w" -tags=prod; then
         log "ERROR" "Go 应用打包失败"
         exit 1
     fi

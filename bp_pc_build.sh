@@ -26,7 +26,7 @@ build_frontend() {
 
 build_go_app() {
     log "INFO" "开始打包 Go 应用..."
-    if ! go build -o qapp/appQuaser.exe -ldflags "-H=windowsgui" -tags=prod; then
+    if ! go build -o qapp/appQuaser.exe -ldflags "-H=windowsgui -s -w" -tags=prod; then
         log "ERROR" "Go 应用打包失败"
         exit 1
     fi

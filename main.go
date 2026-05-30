@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"search-gin/internal/env"
 	"search-gin/internal/router"
 	"search-gin/internal/service"
 	"search-gin/pkg/consts"
@@ -29,9 +30,9 @@ import (
 // 打包命令
 // 1 命令行UI 常规打包 go build
 // 2 命令行UI 常规打包 go build windows
-// 2 无窗口  go build -o viteApp/appVite.exe -ldflags  "-H=windowsgui" -tags=prod
+// 2 无窗口  go build -o viteApp/appVite.exe -ldflags  "-H=windowsgui -s -w" -tags=prod
 // 3 命令行UI 常规打包 go build linux
-// 3 无窗口  go build -o viteApp/appVite.exe -ldflags  "-H=windowsgui" -tags=prod
+// 3 无窗口  go build -o viteApp/appVite.exe -ldflags  "-H=windowsgui -s -w" -tags=prod
 
 var g errgroup.Group
 
@@ -47,28 +48,28 @@ func createServer(addr string, handler http.Handler) *http.Server {
 
 // extractAssets 解压嵌入式资源（setting.json、前端静态文件、ffmpeg/ffplay）
 func extractAssets(tempDir string) chan struct{} {
- assetsExtracted := make(chan struct{})
+	assetsExtracted := make(chan struct{})
 
- // 解压 setting.json
- if _, err := os.Stat(filepath.Join(tempDir, "setting.json")); os.IsNotExist(err) {
-  utils.InfoFormat("开始解压 setting.json...")
-  if err := ExtractSetting(tempDir); err != nil {
-   utils.InfoFormat("解压 setting.json 失败: %v", err)
-   os.Exit(1)
-  }
-  utils.InfoFormat("setting.json 解压完成")
- } else {
-  utils.InfoFormat("setting.json 已存在，跳过解压")
- }
+	// 解压 setting.json
+	if _, err := os.Stat(filepath.Join(tempDir, "setting.json")); os.IsNotExist(err) {
+		utils.InfoFormat("开始解压 setting.json...")
+		if err := ExtractSetting(tempDir); err != nil {
+			utils.InfoFormat("解压 setting.json 失败: %v", err)
+			os.Exit(1)
+		}
+		utils.InfoFormat("setting.json 解压完成")
+	} else {
+		utils.InfoFormat("setting.json 已存在，跳过解压")
+	}
 
- // 异步解压前端资源和二进制工具
- go func() {
-  defer utils.RecoverPanic()
-  defer close(assetsExtracted)
-  extractEmbeddedAssets(tempDir)
- }()
+	// 异步解压前端资源和二进制工具
+	go func() {
+		defer utils.RecoverPanic()
+		defer close(assetsExtracted)
+		extractEmbeddedAssets(tempDir)
+	}()
 
- return assetsExtracted
+	return assetsExtracted
 }
 
 // extractEmbeddedAssets 解压 dist、ffmpeg、ffplay
@@ -98,7 +99,7 @@ func extractEmbeddedAssets(tempDir string) {
 
 // startPprof 开发环境下启动 pprof 调试接口
 func startPprof() {
-	if os.Getenv("GIN_MODE") != "release" {
+	if !env.IsProd {
 		go func() {
 			defer utils.RecoverPanic()
 			log.Println("pprof调试接口启动在 localhost:6060")
