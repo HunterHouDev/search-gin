@@ -1,8 +1,8 @@
 package service
 
 import (
-	"search-gin/pkg/consts"
 	"search-gin/internal/model"
+	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 	"sync"
 	"sync/atomic"
@@ -59,8 +59,8 @@ func (q *taskQueue) executeTask(task *scanTask) {
 	}
 
 	// 设置索引构建状态
-	atomic.AddInt32(&consts.IndexDone, 1)
-	defer atomic.AddInt32(&consts.IndexDone, -1)
+	atomic.AddInt32(&consts.IndexNumber, 1)
+	defer atomic.AddInt32(&consts.IndexNumber, -1)
 
 	AddLogMemory("开始扫描文件夹: %s", task.baseDir)
 
@@ -141,10 +141,11 @@ var SearchEngin = searchEnginCore{
 	SearchIndexMap:      sync.Map{}, // map[string]bucketFile{},
 	RepeatSearch:        []model.Movie{},
 	ActressMap:          map[string]model.Actress{}, // map[string]model.Actress{},
-	KeywordHistoryCache: utils.NewLRUCache(500),          // 500个缓存项
+	KeywordHistoryCache: utils.NewLRUCache(500),     // 500个缓存项
 }
 
 func AddLogMemory(format string, msg ...any) {
 	consts.AddLogMemory(format, msg...)
 	utils.InfoFormat(format, msg...)
+
 }

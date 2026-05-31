@@ -11,7 +11,7 @@
   >
     <template v-slot:loading>
       <q-spinner-facebook size="xs"></q-spinner-facebook>
-      {{ `S:${view.indexDone}` }}
+      {{ `S:${view.indexNumber}` }}
     </template>
   </q-btn>
 </template>
@@ -33,7 +33,7 @@ const props = defineProps({
   size: { type: String, default: 'md' },
 });
 const view = reactive({
-  indexDone: 0,
+  indexNumber: 0,
   loading: false,
   heartBeatRetryCount: 0,
   currentHeartBeatInterval: 200,
@@ -47,7 +47,7 @@ const scheduleNextHeartBeat = () => {
   view.heartBeatTimer = setTimeout(async () => {
     try {
       const res = await HeartBeatQuery();
-      view.indexDone = res;
+      view.indexNumber = res;
       console.log('res', res);
 
       if (res <= 0) {

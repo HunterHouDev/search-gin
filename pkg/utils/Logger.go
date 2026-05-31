@@ -2,9 +2,9 @@ package utils
 
 import (
 	"io"
-	"search-gin/internal/env"
 	"os"
 	"runtime/debug"
+	"search-gin/internal/env"
 
 	"github.com/sirupsen/logrus"
 )
@@ -13,25 +13,24 @@ var logger *logrus.Logger
 
 func init() {
 	logger = logrus.New()
-	
+
 	f, err := os.OpenFile("gin.log", os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
 	if err != nil {
 		logger.Error(err)
 	}
-	
+
 	logger.SetOutput(io.MultiWriter(f, os.Stdout))
 	logger.SetFormatter(&logrus.JSONFormatter{
 		TimestampFormat: "2006-01-02 15:04:05",
 		FieldMap: logrus.FieldMap{
-			logrus.FieldKeyTime:  "time",
-			logrus.FieldKeyLevel: "level",
-			logrus.FieldKeyMsg:   "message",
+			logrus.FieldKeyTime: "time",
+			logrus.FieldKeyMsg:  "message",
 		},
 	})
 	if env.IsProd {
-		logger.SetLevel(logrus.WarnLevel)
+		logger.SetLevel(logrus.ErrorLevel)
 	} else {
-		logger.SetLevel(logrus.DebugLevel)
+		logger.SetLevel(logrus.WarnLevel)
 	}
 }
 
@@ -40,11 +39,11 @@ func NewLogger() *logrus.Logger {
 }
 
 func InfoFormat(format string, v ...any) {
-	logger.Infof(format, v...)
+	logger.Warnf(format, v...)
 }
 
 func InfoNormal(v ...any) {
-	logger.Infof("%v", v...)
+	logger.Warnf("%v", v...)
 }
 
 func ErrorFormat(format string, v ...any) {
@@ -63,14 +62,6 @@ func PanicFormat(format string, v ...any) {
 func PanicNormal(v ...any) {
 	logger.Errorf("%v", v...)
 	logger.Errorf("Stack trace:\n%s", debug.Stack())
-}
-
-func DebugFormat(format string, v ...any) {
-	logger.Debugf(format, v...)
-}
-
-func DebugNormal(v ...any) {
-	logger.Debugf("%v", v...)
 }
 
 func RecoverPanic() {

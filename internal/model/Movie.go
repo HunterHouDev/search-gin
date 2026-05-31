@@ -15,7 +15,6 @@ type Movie struct {
 	Path      string `xorm:"Text"`
 	BaseDir   string `xorm:"Text"`
 	Png       string `xorm:"Text"`
-	Nfo       string `xorm:"Text"  json:"Nfo,omitempty"`
 	Srt       string `xorm:"Text" json:"Srt,omitempty"`
 	Jpg       string `xorm:"Text"`
 	Gif       string `xorm:"Text"`
@@ -66,7 +65,6 @@ func EasyFile(dir string, path string, name string, fileType string, size int64,
 		Name:      name,
 		Path:      path,
 		Png:       utils.ConcatSuffix(path, "png"),
-		Nfo:       utils.ConcatSuffix(path, "nfo"),
 		Jpg:       utils.ConcatSuffix(path, "jpg"),
 		Srt:       utils.ConcatSuffix(path, "srt"),
 		Gif:       utils.ConcatSuffix(path, "gif"),
@@ -98,7 +96,6 @@ func NewFile(dir string, path string, name string, fileType string, size int64, 
 		Name:      name,
 		Path:      path,
 		Png:       utils.ConcatSuffix(path, "png"),
-		Nfo:       utils.ConcatSuffix(path, "nfo"),
 		Jpg:       utils.ConcatSuffix(path, "jpg"),
 		Srt:       utils.ConcatSuffix(path, "srt"),
 		Gif:       utils.ConcatSuffix(path, "gif"),
@@ -140,27 +137,27 @@ func (f Movie) IsNull() bool {
 }
 
 func SortMoviesUtils(sortModels []Movie, sF string, sT string) {
- sort.Slice(sortModels, func(i, j int) bool {
-  switch sF {
-  case "Code":
-   if sT == "desc" {
-    return sortModels[i].Code > sortModels[j].Code
-   }
-   return sortModels[i].Code < sortModels[j].Code
-  case "Size":
-   if sT == "desc" {
-    return sortModels[i].Size > sortModels[j].Size
-   }
-   return sortModels[i].Size < sortModels[j].Size
-  case "MTime":
-   if sT == "desc" {
-    return sortModels[i].MTime > sortModels[j].MTime
-   }
-   return sortModels[i].MTime < sortModels[j].MTime
-  default:
-   return sortModels[i].MTime > sortModels[j].MTime
-  }
- })
+	sort.Slice(sortModels, func(i, j int) bool {
+		switch sF {
+		case "Code":
+			if sT == "desc" {
+				return sortModels[i].Code > sortModels[j].Code
+			}
+			return sortModels[i].Code < sortModels[j].Code
+		case "Size":
+			if sT == "desc" {
+				return sortModels[i].Size > sortModels[j].Size
+			}
+			return sortModels[i].Size < sortModels[j].Size
+		case "MTime":
+			if sT == "desc" {
+				return sortModels[i].MTime > sortModels[j].MTime
+			}
+			return sortModels[i].MTime < sortModels[j].MTime
+		default:
+			return sortModels[i].MTime > sortModels[j].MTime
+		}
+	})
 }
 
 func GetPageOfFiles(files []Movie, pageNo int, pageSize int) ([]Movie, int64) {
@@ -190,5 +187,3 @@ func GetPageOfFiles(files []Movie, pageNo int, pageSize int) ([]Movie, int64) {
 	}
 	return data, volume
 }
-
-

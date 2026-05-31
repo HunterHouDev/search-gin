@@ -2,15 +2,15 @@ package handler
 
 import (
 	"fmt"
-	"search-gin/pkg/consts"
-	"search-gin/internal/model"
-	"search-gin/internal/service"
-	"search-gin/pkg/utils"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"search-gin/internal/model"
+	"search-gin/internal/service"
+	"search-gin/pkg/consts"
+	"search-gin/pkg/utils"
 	"strings"
 	"time"
 
@@ -25,16 +25,16 @@ func GetPlay(c *gin.Context) {
 		c.JSON(http.StatusNotFound, utils.NewFailByMsg("文件不存在"))
 		return
 	}
-	
+
 	sanitizePath, err := utils.ValidatePath(file.Path, consts.OSSetting.Dirs)
 	if err != nil {
 		utils.InfoFormat("命令注入攻击尝试: %s, 错误: %v", file.Path, err)
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("文件路径不在允许范围内"))
 		return
 	}
-	
+
 	utils.InfoFormat("GetPlay [%v]", sanitizePath)
-	
+
 	if consts.OSSetting.SystemPlayer == "ffplay" {
 		go func() {
 			params := []string{"-window_title", file.Title,
@@ -174,8 +174,8 @@ func GetRefreshTargetIndex(c *gin.Context) {
 }
 
 func GetRefreshIndex(c *gin.Context) {
-	service.FileApp.ScanAll()
-	res := utils.NewSuccessByMsg("扫描结束！")
+	cnt := service.FileApp.ScanAll()
+	res := utils.NewSuccessByMsg("计划扫描：" + fmt.Sprint(cnt))
 	c.JSON(http.StatusOK, res)
 }
 
@@ -200,7 +200,7 @@ func GetFileByPathUseEncode(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("无效的文件路径"))
 		return
 	}
-	
+
 	// 验证路径是否在允许的目录内
 	validatedPath, err := utils.ValidatePath(decodedPath, consts.OSSetting.Dirs)
 	if err != nil {
@@ -208,7 +208,7 @@ func GetFileByPathUseEncode(c *gin.Context) {
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("访问被拒绝：路径不在允许范围内"))
 		return
 	}
-	
+
 	if utils.ExistsFiles(validatedPath) {
 		c.File(validatedPath)
 	} else {
@@ -223,7 +223,7 @@ func GetDeleteFileByPathUseEncode(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("无效的文件路径"))
 		return
 	}
-	
+
 	// 验证路径是否在允许的目录内
 	validatedPath, err := utils.ValidatePath(decodedPath, consts.OSSetting.Dirs)
 	if err != nil {
@@ -231,19 +231,19 @@ func GetDeleteFileByPathUseEncode(c *gin.Context) {
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("删除被拒绝：路径不在允许范围内"))
 		return
 	}
-	
+
 	if !utils.ExistsFiles(validatedPath) {
 		c.JSON(http.StatusNotFound, utils.NewFailByMsg("文件不存在"))
 		return
 	}
-	
+
 	err = os.Remove(validatedPath)
 	if err != nil {
 		utils.InfoFormat("删除文件失败: %s, 错误: %v", validatedPath, err)
 		c.JSON(http.StatusInternalServerError, utils.NewFailByMsg("删除失败"))
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, utils.NewSuccessByMsg("删除成功"))
 }
 
@@ -295,12 +295,12 @@ func PostMerge(c *gin.Context) {
 		dir = curFile.DirPath
 		paths = append(paths, curFile.Path)
 	}
-	
+
 	if len(paths) == 0 {
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("没有找到要合并的文件"))
 		return
 	}
-	
+
 	listPath := dir + "\\list.txt"
 	file, err := os.Create(listPath)
 	if err != nil {
@@ -322,7 +322,7 @@ func PostMerge(c *gin.Context) {
 			return
 		}
 	}
-	
+
 	if searchParam.Dest == "" {
 		suffix := utils.GetSuffix(paths[0])
 		searchParam.Dest = dir + fmt.Sprintf("\\%d.%s", time.Now().UnixMilli(), suffix)
@@ -363,7 +363,7 @@ func GetTransferToMp4(c *gin.Context) {
 		}
 	}
 	consts.TransferTaskMutex.RUnlock()
-	
+
 	if exists {
 		c.JSON(http.StatusOK, utils.NewFailByMsg("任务不可重复"))
 		return

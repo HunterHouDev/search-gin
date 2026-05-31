@@ -42,7 +42,7 @@ func (fs *searchService) SetMovieType(movie model.Movie, movieType string) utils
 			return utils.NewSuccessByMsg("执行成功")
 		}
 
-		originalPaths := []string{movie.Path, movie.Jpg, movie.Png, movie.Nfo, movie.Gif}
+		originalPaths := []string{movie.Path, movie.Jpg, movie.Png, movie.Gif}
 		newPaths := make([]string, len(originalPaths))
 		for i, p := range originalPaths {
 			if p != "" {
@@ -83,7 +83,6 @@ func (fs *searchService) SetMovieType(movie model.Movie, movieType string) utils
 	files := []struct{ src, target string }{
 		{movie.Png, newName + ".png"},
 		{movie.Jpg, newName + ".jpg"},
-		{movie.Nfo, newName + ".nfo"},
 		{movie.Gif, newName + ".gif"},
 	}
 
@@ -116,7 +115,7 @@ func (fs *searchService) AddTag(id string, tag string) utils.Result {
 		newTagStr = "《" + newTagStr + "》"
 		originTagStr = "《" + originTagStr + "》"
 
-		files := []string{movie.Path, movie.Jpg, movie.Png, movie.Nfo, movie.Gif}
+		files := []string{movie.Path, movie.Jpg, movie.Png, movie.Gif}
 		for _, file := range files {
 			newPath := strings.ReplaceAll(file, originTagStr, newTagStr)
 			if err := os.Rename(file, newPath); err != nil {
@@ -135,7 +134,7 @@ func (fs *searchService) AddTag(id string, tag string) utils.Result {
 		return utils.NewFailByMsg("重命名失败: " + err.Error())
 	}
 
-	for _, file := range []string{movie.Png, movie.Jpg, movie.Nfo, movie.Gif} {
+	for _, file := range []string{movie.Png, movie.Jpg, movie.Gif} {
 		if file != "" && utils.ExistsFiles(file) {
 			ext := "." + utils.GetSuffix(file)
 			os.Rename(file, newName+ext)
@@ -164,7 +163,7 @@ func (fs *searchService) ClearTag(id string, tag string) utils.Result {
 	}
 
 	newName := strings.TrimSuffix(path, "."+movie.FileType)
-	files := []string{movie.Jpg, movie.Png, movie.Nfo, movie.Gif}
+	files := []string{movie.Jpg, movie.Png, movie.Gif}
 	for _, f := range files {
 		os.Rename(f, newName+"."+utils.GetSuffix(f))
 	}
@@ -197,7 +196,6 @@ func (fs *searchService) MoveCut(srcFile model.Movie, toFile model.Movie) utils.
 	finalPath := dirpath + utils.PathSeparator + filename
 	jpgPath := utils.ConcatSuffix(finalPath, "jpg")
 	pngPath := utils.ConcatSuffix(finalPath, "png")
-	nfoPath := utils.ConcatSuffix(finalPath, "nfo")
 
 	// 创建 JPG 文件
 	var jpgOut *os.File
@@ -258,7 +256,6 @@ func (fs *searchService) MoveCut(srcFile model.Movie, toFile model.Movie) utils.
 
 	// 更新文件路径
 	toFile.Jpg = jpgPath
-	toFile.Nfo = nfoPath
 	toFile.Png = pngPath
 
 	result.Success()
@@ -335,24 +332,25 @@ func (fs *searchService) DownJpgAsPng(finalPath string, url string) utils.Result
 	result.Success()
 	return result
 }
+
 var httpClient = resty.New().
 	SetTimeout(10 * time.Second).
 	SetRetryCount(3).
 	SetRetryWaitTime(1 * time.Second).
 	SetRetryMaxWaitTime(5 * time.Second).
 	SetHeaders(map[string]string{
-		"Accept":           "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-		"Accept-Language":  "zh-CN,zh;q=0.9,en;q=0.8",
-		"Accept-Encoding":  "gzip, deflate, br",
-		"Cache-Control":    "no-cache",
-		"Pragma":           "no-cache",
-		"sec-ch-ua":        `"Chromium";v="111", "Not_A Brand";v="8"`,
-		"sec-ch-ua-mobile": "?0",
-		"sec-ch-ua-platform": `"Windows"`,
-		"Sec-Fetch-Dest":   "document",
-		"Sec-Fetch-Mode":   "navigate",
-		"Sec-Fetch-Site":   "none",
-		"Sec-Fetch-User":   "?1",
+		"Accept":                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+		"Accept-Language":           "zh-CN,zh;q=0.9,en;q=0.8",
+		"Accept-Encoding":           "gzip, deflate, br",
+		"Cache-Control":             "no-cache",
+		"Pragma":                    "no-cache",
+		"sec-ch-ua":                 `"Chromium";v="111", "Not_A Brand";v="8"`,
+		"sec-ch-ua-mobile":          "?0",
+		"sec-ch-ua-platform":        `"Windows"`,
+		"Sec-Fetch-Dest":            "document",
+		"Sec-Fetch-Mode":            "navigate",
+		"Sec-Fetch-Site":            "none",
+		"Sec-Fetch-User":            "?1",
 		"Upgrade-Insecure-Requests": "1",
 	}).
 	// 每次请求随机UA，防止被统一特征拦截
@@ -446,7 +444,7 @@ func (fs *searchService) Rename(movie model.MovieEdit) utils.Result {
 
 	// 重命名附属文件
 	suffix := "." + utils.GetSuffix(movieLib.Path)
-	for _, ext := range []string{".png", ".gif", ".jpg", ".nfo"} {
+	for _, ext := range []string{".png", ".gif", ".jpg"} {
 		renamed := renameFile(suffix, ext, newPath, movieLib)
 		_ = renamed
 	}
@@ -474,7 +472,7 @@ func (fs *searchService) Rename(movie model.MovieEdit) utils.Result {
 	return res
 }
 
-// renameFile 重命名附属文件（如 jpg/png/gif/nfo），将旧后缀替换为新后缀
+// renameFile 重命名附属文件（如 jpg/png/gif
 func renameFile(oldSuffix, newSuffix, newPath string, movieLib model.Movie) bool {
 	oldPath := strings.ReplaceAll(movieLib.Path, oldSuffix, newSuffix)
 	if !utils.ExistsFiles(oldPath) {

@@ -2,10 +2,10 @@ package service
 
 import (
 	"context"
-	"search-gin/pkg/consts"
-	"search-gin/internal/model"
-	"search-gin/pkg/utils"
 	"runtime/debug"
+	"search-gin/internal/model"
+	"search-gin/pkg/consts"
+	"search-gin/pkg/utils"
 	"sort"
 	"strings"
 	"sync"
@@ -21,17 +21,17 @@ type repeatModel struct {
 
 type searchEnginCore struct {
 	SearchIndexMap                 sync.Map // map[string]*bucketFile
- RepeatSearch                   []model.Movie
- ActressSizeWrapperNullKeyword  []model.Actress
- ActressCountWrapperNullKeyword []model.Actress
- ActressMap                     map[string]model.Actress
- // TotalSizeMutex 保护 TotalSize/TotalCount 的并发读写（buildOthersData 在 goroutine 中修改）
- TotalSizeMutex   sync.RWMutex
- TotalSize        int64
- TotalCount       int
- KeywordHistoryCache *utils.LRUCache // 替换 sync.Map 为 LRU 缓存
- searchPool       *utils.GoroutinePool // 全局 goroutine 池，避免每次搜索重复创建
- BucketCount      int32
+	RepeatSearch                   []model.Movie
+	ActressSizeWrapperNullKeyword  []model.Actress
+	ActressCountWrapperNullKeyword []model.Actress
+	ActressMap                     map[string]model.Actress
+	// TotalSizeMutex 保护 TotalSize/TotalCount 的并发读写（buildOthersData 在 goroutine 中修改）
+	TotalSizeMutex      sync.RWMutex
+	TotalSize           int64
+	TotalCount          int
+	KeywordHistoryCache *utils.LRUCache      // 替换 sync.Map 为 LRU 缓存
+	searchPool          *utils.GoroutinePool // 全局 goroutine 池，避免每次搜索重复创建
+	BucketCount         int32
 }
 
 // Reset 清空搜索引擎全部状态和缓存
@@ -79,7 +79,8 @@ func (se *searchEnginCore) PageActress(searchParam model.SearchParam) model.Page
 	}
 	if len(result) == 0 {
 		result = model.SearchActressByKeyWord(se.ActressMap, searchParam.Keyword)
-		if searchParam.SortField == "Size" {
+		switch searchParam.SortField {
+		case "Size":
 			sort.Slice(result, func(i, j int) bool {
 				return result[i].Size > result[j].Size
 			})
@@ -87,7 +88,7 @@ func (se *searchEnginCore) PageActress(searchParam model.SearchParam) model.Page
 				se.ActressSizeWrapperNullKeyword = result
 			}
 
-		} else if searchParam.SortField == "Cnt" {
+		case "Cnt":
 			sort.Slice(result, func(i, j int) bool {
 				return result[i].Cnt > result[j].Cnt
 			})
@@ -117,8 +118,6 @@ func (se *searchEnginCore) returnRepeatSearch() model.PageResultWrapper {
 	resultWrapper.SearchCount = len(se.RepeatSearch)
 	return resultWrapper
 }
-
-
 
 func (se *searchEnginCore) PageAsync(searchParam model.SearchParam) model.PageResultWrapper {
 	if searchParam.OnlyRepeat {
@@ -417,5 +416,3 @@ func (se *searchEnginCore) buildIndexEngin() {
 	ti := time.Since(start)
 	AddLogMemory("buildIndexEngin (single-pass) time:%d", ti.Milliseconds())
 }
-
-

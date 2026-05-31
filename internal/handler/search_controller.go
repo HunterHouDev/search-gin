@@ -33,14 +33,11 @@ func PostMovies(c *gin.Context) {
 		return
 	}
 
-	// 记录搜索请求日志
-	utils.InfoFormat("PostMovies： [%v]", searchParam)
-
 	// 调用搜索服务执行实际搜索操作
 	result := service.SearchApp.SearchDataSource(searchParam)
 
 	// 设置搜索完成进度状态
-	result.SetProgress(consts.IndexDone)
+	result.SetProgress(consts.IndexNumber)
 
 	// 返回HTTP 200状态码和搜索结果
 	c.JSON(http.StatusOK, result)

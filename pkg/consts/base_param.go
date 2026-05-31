@@ -23,8 +23,8 @@ var StaticFs = map[string]string{
 	"/assets": "./dist/assets",
 }
 
-// IndexDone 索引构建中标记
-var IndexDone = int32(0)
+// IndexNumber 索引构建中得目录数量
+var IndexNumber = int32(0)
 
 var TempImage = make(map[string]model.Movie)
 var TempImageMutex sync.RWMutex // 保护TempImage的并发访问

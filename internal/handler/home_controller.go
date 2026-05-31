@@ -1,10 +1,10 @@
 ﻿package handler
 
 import (
-	"search-gin/pkg/consts"
-	"search-gin/internal/service"
-	"search-gin/pkg/utils"
 	"net/http"
+	"search-gin/internal/service"
+	"search-gin/pkg/consts"
+	"search-gin/pkg/utils"
 	"sort"
 	"sync"
 
@@ -61,7 +61,7 @@ func GetScanTime(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 func GetHeartBeat(c *gin.Context) {
-	c.JSON(http.StatusOK, consts.IndexDone)
+	c.JSON(http.StatusOK, consts.IndexNumber)
 }
 
 func mapToSlice(m *sync.Map) []consts.MenuSize {
