@@ -19,17 +19,17 @@ func BuildRouter(tempDir string) *gin.Engine {
 	// 限制CORS允许的起源，防止CSRF攻击
 	// 生产环境应该明确指定允许的域名
 	if env.IsProd {
-		// 生产环境：从环境变量读取允许的起源
+		// 生产环境：通过环境变量配置允许的域名，默认允许本机访问
 		allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
 		if allowedOrigins != "" {
 			config.AllowOrigins = strings.Split(allowedOrigins, ",")
+		} else {
+			config.AllowOrigins = []string{"http://localhost:10081", "http://127.0.0.1:10081"}
 		}
 		config.AllowCredentials = true
 	} else {
-		// 开发环境：允许所有 HTTP 来源（IP 地址访问需要）
-		config.AllowOrigins = []string{"*"}
-		// 注意：AllowOrigins 为 "*" 时 AllowCredentials 自动设为 false
-		// 如需携带 cookie/Authorization，前端需要配置 withCredentials
+		// 开发环境：允许所有来源
+		config.AllowAllOrigins = true
 	}
 	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Range", "Accept-Ranges", "Content-Range"}
 	config.ExposeHeaders = []string{"Content-Length", "Content-Range", "Accept-Ranges", "Content-Type"}
