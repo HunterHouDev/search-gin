@@ -497,7 +497,20 @@ import { useSystemProperty } from '../../stores/System';
 const $q = useQuasar();
 const tab = ref('search');
 const view = reactive({
-  settingInfo: {},
+  settingInfo: {
+    Dirs: [],
+    DirsLib: [],
+    Types: [],
+    VideoTypes: [],
+    Tags: [],
+    TagsLib: [],
+    Buttons: [],
+    MovieTypes: [],
+    Pages: [],
+    SystemHtml: '',
+    HardwareAcceleration: false,
+    HardwareAccelMode: '',
+  },
   ipAddr: '',
 });
 const loading = ref(false);
@@ -536,21 +549,24 @@ const submitForm = async () => {
   view.settingInfo.Types = view.settingInfo.Types.sort();
   view.settingInfo.VideoTypes = view.settingInfo.VideoTypes.sort();
   
-  view.settingInfo.Tags = view.settingInfo.Tags.filter((item) => {
-    return view.settingInfo.TagsLib.includes(item);
+  const tagsLib = view.settingInfo.TagsLib || [];
+  const dirsLib = view.settingInfo.DirsLib || [];
+  const types = view.settingInfo.Types || [];
+  view.settingInfo.Tags = (view.settingInfo.Tags || []).filter((item) => {
+    return tagsLib.includes(item);
   });
   const sortedTags = [];
-  view.settingInfo.TagsLib.forEach((item) => {
+  tagsLib.forEach((item) => {
     if (view.settingInfo.Tags.includes(item)) {
       sortedTags.push(item);
     }
   });
   view.settingInfo.Tags = sortedTags;
-  view.settingInfo.Dirs = view.settingInfo.Dirs.filter((item) => {
-    return view.settingInfo.DirsLib.includes(item);
+  view.settingInfo.Dirs = (view.settingInfo.Dirs || []).filter((item) => {
+    return dirsLib.includes(item);
   });
-  view.settingInfo.VideoTypes = view.settingInfo.VideoTypes.filter((item) => {
-    return view.settingInfo.Types.includes(item);
+  view.settingInfo.VideoTypes = (view.settingInfo.VideoTypes || []).filter((item) => {
+    return types.includes(item);
   });
   const { Code, Message } = await PostSettingInfo(view.settingInfo);
   console.log(Code, Message);
@@ -565,7 +581,21 @@ const submitForm = async () => {
 const fetchSearch = async () => {
   const { data } = await GetSettingInfo();
   console.log(data);
-  view.settingInfo = data;
+  view.settingInfo = {
+    Dirs: [],
+    DirsLib: [],
+    Types: [],
+    VideoTypes: [],
+    Tags: [],
+    TagsLib: [],
+    Buttons: [],
+    MovieTypes: [],
+    Pages: [],
+    SystemHtml: '',
+    HardwareAcceleration: false,
+    HardwareAccelMode: '',
+    ...data,
+  };
 };
 
 const queryIpAddr = async () => {

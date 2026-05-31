@@ -23,9 +23,6 @@ func BuildRouter(tempDir string) *gin.Engine {
 		allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
 		if allowedOrigins != "" {
 			config.AllowOrigins = strings.Split(allowedOrigins, ",")
-		} else {
-			// 默认只允许本地访问
-			config.AllowOrigins = []string{"http://localhost:8080", "http://127.0.0.1:8080"}
 		}
 		config.AllowCredentials = true
 	} else {

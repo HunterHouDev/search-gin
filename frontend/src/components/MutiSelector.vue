@@ -107,8 +107,9 @@ watch(
 
 onMounted(() => {
   const arr = [];
+  if (!props.options) return;
   props.options.forEach((item) => {
-    if (props.modelValue.includes(item)) {
+    if (props.modelValue && props.modelValue.includes(item)) {
       arr.push(item);
     }
   });
