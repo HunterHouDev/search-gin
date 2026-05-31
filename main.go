@@ -40,7 +40,7 @@ func main() {
 	assetsExtracted := extractAssets(tempDir)
 
 	// ── 3. 启动 pprof（仅开发环境） ──
-	startPprof()
+	service.StartPprof()
 
 	// ── 4. 信号通道 ──
 	sigChan := make(chan os.Signal, 1)
@@ -51,7 +51,7 @@ func main() {
 	service.StartScanQueue()
 
 	// ── 6. 启动 Torrent 清理 ──
-	closeTorrent := startTorrentCleanup(tempDir)
+	closeTorrent := service.StartTorrentCleanup(tempDir)
 	defer closeTorrent()
 
 	// ── 7. 构建路由 ──
@@ -61,7 +61,7 @@ func main() {
 	go loadStaticFiles(app, tempDir, assetsExtracted)
 
 	// ── 9. 启动后台任务 ──
-	startBackgroundTasks()
+	service.StartBackgroundTasks()
 
 	// ── 10. 启动多端口 HTTP 服务 ──
 	var g errgroup.Group
