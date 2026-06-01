@@ -1,9 +1,9 @@
 <template>
   <q-btn
-    color="red"
+    :color="statusColor"
     title="索引"
     :size="props.size"
-    label="索~"
+    :label="statusLabel"
     :dense="props.dense"
     :style="props.style"
     @click="refreshIndex"
@@ -13,13 +13,19 @@
       <q-spinner-facebook size="xs"></q-spinner-facebook>
       {{ `S:${view.indexNumber}` }}
     </template>
+    <q-tooltip v-if="view.healthStatus">
+      索引状态: {{ view.healthStatus }}
+      <br>文件数: {{ view.totalCount }}
+      <br v-if="view.recommendations && view.recommendations.length > 0">
+      <span v-for="(rec, idx) in view.recommendations" :key="idx">{{ rec }}<br/></span>
+    </q-tooltip>
   </q-btn>
 </template>
 
 <script setup>
-import { HeartBeatQuery, RefreshAPI } from 'components/api/searchAPI';
+import { HeartBeatQuery, RefreshAPI, IndexHealthQuery } from 'components/api/searchAPI';
 import { useQuasar } from 'quasar';
-import { onMounted, reactive } from 'vue';
+import { onMounted, reactive, computed } from 'vue';
 const $q = useQuasar();
 const emit = defineEmits(['refreshDone']);
 const props = defineProps({
@@ -38,7 +44,41 @@ const view = reactive({
   heartBeatRetryCount: 0,
   currentHeartBeatInterval: 200,
   heartBeatTimer: null,
+  healthStatus: '',
+  totalCount: 0,
+  recommendations: [],
+  bucketCount: 0,
+  expectedDirs: 0,
 });
+
+const statusColor = computed(() => {
+  if (view.loading) return 'orange';
+  if (view.healthStatus === 'error') return 'negative';
+  if (view.healthStatus === 'warning') return 'warning';
+  if (view.healthStatus === 'healthy') return 'positive';
+  return 'grey';
+});
+
+const statusLabel = computed(() => {
+  if (view.loading) return '扫描中';
+  if (view.indexNumber > 0) return `S:${view.indexNumber}`;
+  return '索~';
+});
+
+const queryHealth = async () => {
+  try {
+    const health = await IndexHealthQuery();
+    if (health) {
+      view.healthStatus = health.status;
+      view.totalCount = health.totalCount;
+      view.recommendations = health.recommendations || [];
+      view.bucketCount = health.bucketCount;
+      view.expectedDirs = health.expectedDirs;
+    }
+  } catch (error) {
+    console.error('IndexHealthQuery error:', error);
+  }
+};
 
 const BASE_INTERVAL = 200;
 const MAX_INTERVAL = 20000;
@@ -54,6 +94,7 @@ const scheduleNextHeartBeat = () => {
         emit('refreshDone');
         view.heartBeatRetryCount = 0;
         view.currentHeartBeatInterval = BASE_INTERVAL;
+        await queryHealth();
         return;
       }
 
@@ -98,10 +139,12 @@ const refreshIndex = async (item) => {
 
 onMounted(() => {
   refreshProgress();
+  queryHealth();
 });
 
 defineExpose({
   refreshIndex,
   refreshProgress,
+  queryHealth,
 });
 </script>

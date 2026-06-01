@@ -140,6 +140,14 @@ func (se *searchEnginCore) PageAsync(searchParam model.SearchParam) model.PageRe
 	// 动态计算并发数量
 	bucketCount := int(atomic.LoadInt32(&se.BucketCount))
 
+	// 断言检查：防止零值导致死锁
+	if bucketCount <= 0 {
+		AddLogMemory("警告: BucketCount=%d <= 0，可能存在竞态条件，跳过搜索", bucketCount)
+		resultWrapper.FileList = []model.Movie{}
+		return resultWrapper
+	}
+	AddLogMemory("PageAsync: 开始搜索, bucketCount=%d", bucketCount)
+
 	// 根据 bucket 数量动态调整 goroutine 池大小（不超过全局池容量）
 	poolSize := se.searchPool.Cap()
 	if bucketCount > 0 && bucketCount < poolSize {
@@ -250,14 +258,12 @@ func (se *searchEnginCore) FindActressByName(id string) model.Actress {
 }
 
 func (se *searchEnginCore) setBucket(baseDir string, bucket *bucketFile) {
+	before := atomic.LoadInt32(&se.BucketCount)
 	se.SearchIndexMap.Store(baseDir, bucket)
-	atomic.AddInt32(&se.BucketCount, 1)
+	after := atomic.AddInt32(&se.BucketCount, 1)
+	AddLogMemory("setBucket: %s, before=%d, after=%d", baseDir, before, after)
 }
 
-// buildIndexEngin 构建索引
-// 1. 遍历所有的索引文件，将文件信息存储到SearchIndex中
-// 2. 遍历所有的索引文件，将重复的文件信息存储到CodeRepeat中
-// 3. 遍历所有的索引文件，将演员信息存储到ActressLib中
 func (se *searchEnginCore) buildIndexEngin() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -267,6 +273,7 @@ func (se *searchEnginCore) buildIndexEngin() {
 	}()
 
 	start := time.Now()
+	AddLogMemory("buildIndexEngin: 开始构建索引")
 	se.KeywordHistoryCache.Clear()
 
 	// 重置总计信息
@@ -284,9 +291,11 @@ func (se *searchEnginCore) buildIndexEngin() {
 
 	var bucketCount int32
 
+	AddLogMemory("buildIndexEngin: 开始遍历 SearchIndexMap")
 	se.SearchIndexMap.Range(func(key, value any) bool {
 		index := value.(*bucketFile)
 		if index.isEmpty() {
+			AddLogMemory("buildIndexEngin: bucket 为空，跳过")
 			return true
 		}
 		index.mu.RLock()
@@ -295,6 +304,7 @@ func (se *searchEnginCore) buildIndexEngin() {
 		se.TotalSize += index.TotalSize
 		se.TotalCount += index.TotalCount
 		bucketCount++
+		AddLogMemory("buildIndexEngin: 处理 bucket %s, TotalCount=%d, TotalSize=%d", key.(string), index.TotalCount, index.TotalSize)
 
 		// 2. 遍历文件中逐条处理
 		for _, movie := range index.FileLib {
@@ -386,8 +396,10 @@ func (se *searchEnginCore) buildIndexEngin() {
 	})
 
 	atomic.StoreInt32(&se.BucketCount, bucketCount)
+	AddLogMemory("buildIndexEngin: 遍历完成, bucketCount=%d, TotalCount=%d", bucketCount, se.TotalCount)
 
 	// 批量写入全局 sync.Map
+	AddLogMemory("buildIndexEngin: 开始写入全局菜单数据")
 	consts.TypeMenu.Clear()
 	for k, v := range localTypeMenu {
 		consts.TypeMenu.Store(k, v)
@@ -414,5 +426,5 @@ func (se *searchEnginCore) buildIndexEngin() {
 	fileRepeats = nil
 
 	ti := time.Since(start)
-	AddLogMemory("buildIndexEngin (single-pass) time:%d", ti.Milliseconds())
+	AddLogMemory("buildIndexEngin (single-pass) completed, time:%dms, files:%d, repeats:%d", ti.Milliseconds(), se.TotalCount, len(se.RepeatSearch))
 }

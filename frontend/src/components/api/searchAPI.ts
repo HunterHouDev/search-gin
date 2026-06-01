@@ -98,6 +98,11 @@ export const HeartBeatQuery = async () => {
   return res && res.data;
 };
 
+export const IndexHealthQuery = async () => {
+  const res = await commonAxios().get('/api/indexHealth');
+  return res && res.data;
+};
+
 export const AddTag = async (clickId: string, title: string) => {
   const res = await commonAxios().get(`/api/file/addTag/${clickId}/${title}`);
   return res && res.data;

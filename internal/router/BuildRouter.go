@@ -115,6 +115,7 @@ func BuildRouter(tempDir string) *gin.Engine {
 	router.GET("/api/scanTime", handler.GetScanTime)
 	router.GET("/api/heartBeat", handler.GetHeartBeat)
 	router.GET("/api/logMemery", handler.GetLogMemery)
+	router.GET("/api/indexHealth", handler.GetIndexHealthCheck)
 
 	router.GET("/api/cutImage/:id/:typeImage/:downFlag/:start", handler.GetCutImage)
 

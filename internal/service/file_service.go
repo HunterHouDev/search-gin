@@ -7,7 +7,6 @@ import (
 	"image/color"
 	"image/png"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -353,7 +352,7 @@ func (fs *fileService) ScanAll() int {
 	dirCount := len(setting.Dirs)
 	dirList := make([]string, dirCount)
 	copy(dirList, setting.Dirs)
-	log.Printf("Plan to ScanAll dirTotal: %d, dirList: %v", int32(dirCount), dirList)
+	AddLogMemory("Plan to ScanAll dirTotal: %d, dirList: %v", dirCount, dirList)
 	if !atomic.CompareAndSwapInt32(&consts.IndexNumber, 0, int32(dirCount)) {
 		AddLogMemory("索引构建任务正在执行中，剩余数量：%d", atomic.LoadInt32(&consts.IndexNumber))
 		return dirCount
@@ -370,6 +369,15 @@ func (fs *fileService) ScanAll() int {
 	queryTypes = utils.ExtendsItems(queryTypes, setting.ImageTypes)
 	consts.InitFolderTime()
 	fs.Walks(dirList, queryTypes)
+
+	// 一致性检查：验证 BucketCount 和 IndexNumber
+	bucketCount := atomic.LoadInt32(&SearchEngin.BucketCount)
+	indexNumber := atomic.LoadInt32(&consts.IndexNumber)
+	AddLogMemory("ScanAll 一致性检查: BucketCount=%d, IndexNumber=%d, Expected=%d", bucketCount, indexNumber, dirCount)
+	if bucketCount != int32(dirCount) {
+		AddLogMemory("警告: BucketCount(%d) != Expected(%d)，可能存在并发问题", bucketCount, dirCount)
+	}
+
 	SearchEngin.buildIndexEngin()
 	consts.LastScanTime = time.Now()
 	return dirCount
@@ -414,9 +422,11 @@ func (fs *fileService) Walks(baseDir []string, types []string) []model.Movie {
 func (fs *fileService) goWalkWithResult(baseDir string, types []string, resultChan chan<- []model.Movie) {
 	defer atomic.AddInt32(&consts.IndexNumber, -1)
 
+	AddLogMemory("goWalkWithResult: 开始扫描目录 %s", baseDir)
 	start := time.Now()
 	files, size := fs.WalkInnter(baseDir, types, true, baseDir)
 
+	AddLogMemory("goWalkWithResult: 扫描完成 %s, 发现 %d 个文件，准备添加到索引", baseDir, len(files))
 	SearchEngin.setBucket(baseDir, newInstanceWithFiles(baseDir, files))
 
 	ti := time.Since(start)
