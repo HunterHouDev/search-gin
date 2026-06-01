@@ -7,6 +7,8 @@
     :dense="props.dense"
     :style="props.style"
     @click="refreshIndex"
+    @mouseover="startHealthPolling"
+    @mouseleave="stopHealthPolling"
     :loading="view.loading"
   >
     <template v-slot:loading>
@@ -25,7 +27,7 @@
 <script setup>
 import { HeartBeatQuery, RefreshAPI, IndexHealthQuery } from 'components/api/searchAPI';
 import { useQuasar } from 'quasar';
-import { onMounted, reactive, computed } from 'vue';
+import { onMounted, onBeforeUnmount, reactive, computed } from 'vue';
 const $q = useQuasar();
 const emit = defineEmits(['refreshDone']);
 const props = defineProps({
@@ -49,6 +51,7 @@ const view = reactive({
   recommendations: [],
   bucketCount: 0,
   expectedDirs: 0,
+  healthPollTimer: null,
 });
 
 const statusColor = computed(() => {
@@ -77,6 +80,18 @@ const queryHealth = async () => {
     }
   } catch (error) {
     console.error('IndexHealthQuery error:', error);
+  }
+};
+
+const startHealthPolling = () => {
+  queryHealth();
+  view.healthPollTimer = setInterval(queryHealth, 1000);
+};
+
+const stopHealthPolling = () => {
+  if (view.healthPollTimer) {
+    clearInterval(view.healthPollTimer);
+    view.healthPollTimer = null;
   }
 };
 
@@ -140,6 +155,10 @@ const refreshIndex = async (item) => {
 onMounted(() => {
   refreshProgress();
   queryHealth();
+});
+
+onBeforeUnmount(() => {
+  stopHealthPolling();
 });
 
 defineExpose({
