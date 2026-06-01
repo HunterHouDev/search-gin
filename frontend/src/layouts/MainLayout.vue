@@ -64,6 +64,11 @@
         <q-btn dense flat color="red" v-if="timeLogout < 60 * 30"
           >时长:{{ timeLogoutShow }}
         </q-btn>
+        <q-btn dense flat icon="chat" @click="openChatRoom" class="q-ml-xs">
+          <q-badge v-if="wsOnlineCount > 0" floating color="positive" transparent>
+            {{ wsOnlineCount }}
+          </q-badge>
+        </q-btn>
       </q-toolbar>
     </q-header>
 
@@ -92,12 +97,13 @@
       <ShutdownComponent ref="shutdown" />
       <ListEdit ref="listEditRef" />
       <ChatDeepseek ref="chatRef" />
+      <ChatRoom ref="chatRoomRef" />
   </q-layout>
 
 </template>
 
 <script setup>
-import { computed, onUnmounted, reactive, ref } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useSystemProperty } from 'stores/System';
 import { useQuasar } from 'quasar';
@@ -105,9 +111,12 @@ import EssentialLink from 'components/EssentialLink.vue';
 import ListEdit from 'pages/file/components/ListEditDialog.vue';
 import ShutdownComponent from 'components/ShutdownComponent.vue';
 import ChatDeepseek from 'pages/file/components/ChatDeepseek.vue';
+import ChatRoom from 'components/ChatRoom.vue';
+import { useChatWs } from 'src/composables/useChatWs';
 
 const listEditRef = ref(null);
 const chatRef = ref(null);
+const chatRoomRef = ref(null);
 
 const systemProperty = useSystemProperty();
 const $q = useQuasar();
@@ -172,6 +181,7 @@ onUnmounted(() => {
     clearInterval(logoutTimer);
     logoutTimer = null;
   }
+  wsDisconnect();
 });
 
 const isWideScreen = computed(() => {
@@ -195,6 +205,19 @@ const minusScreen = () => {
 const openChatDialogRef = () => {
   chatRef.value.open();
 };
+
+// 聊天室
+const { connected: wsConnected, onlineUsers: wsOnlineUsers, connect: wsConnect, disconnect: wsDisconnect } = useChatWs();
+const wsOnlineCount = computed(() => wsOnlineUsers.value.length);
+
+const openChatRoom = () => {
+  chatRoomRef.value.open();
+};
+
+// 登录后自动连接 WebSocket
+if (localStorage.getItem('isAuthenticated')) {
+  wsConnect();
+}
 
 const clickFullscreen = () => {
   if (isDesktop.value) {

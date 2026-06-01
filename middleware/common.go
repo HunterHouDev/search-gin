@@ -43,28 +43,35 @@ func AuthMiddleware() gin.HandlerFunc {
 		
 		// 从请求头获取token
 		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
+		token := ""
+
+		if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
+			token = strings.TrimPrefix(authHeader, "Bearer ")
+		}
+
+		// WebSocket 无法自定义 Header，支持从 query 参数获取 token
+		if token == "" {
+			token = c.Query("token")
+		}
+
+		if token == "" {
 			c.JSON(http.StatusUnauthorized, utils.NewFailByMsg("未授权访问"))
 			c.Abort()
 			return
 		}
 		
-		// 提取token（格式：Bearer <token>）
-		if !strings.HasPrefix(authHeader, "Bearer ") {
-			c.JSON(http.StatusUnauthorized, utils.NewFailByMsg("无效的认证格式"))
-			c.Abort()
-			return
-		}
-		
-		token := strings.TrimPrefix(authHeader, "Bearer ")
-		
-		// 验证token
-		if !consts.ValidateToken(token) {
-			c.JSON(http.StatusUnauthorized, utils.NewFailByMsg("token无效或已过期"))
-			c.Abort()
-			return
-		}
-		
-		c.Next()
+	// 验证token
+	tokenInfo, valid := consts.ValidateTokenWithInfo(token)
+	if !valid {
+		c.JSON(http.StatusUnauthorized, utils.NewFailByMsg("token无效或已过期"))
+		c.Abort()
+		return
+	}
+
+	// 将用户名和角色注入 context，供后续 handler 使用
+	c.Set("username", tokenInfo.Username)
+	c.Set("role", tokenInfo.Role)
+
+	c.Next()
 	}
 }

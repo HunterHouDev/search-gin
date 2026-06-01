@@ -64,7 +64,7 @@ func Login(c *gin.Context) {
 	token := hex.EncodeToString(tokenBytes)
 	
 	// 存储token到内存（简单实现，生产环境应使用Redis等）
-	consts.SetToken(token, time.Now().Add(2*time.Hour), req.Username)
+	consts.SetToken(token, time.Now().Add(2*time.Hour), req.Username, userRole)
 	
 	// 返回成功响应，包含token和角色
 	res := utils.NewSuccess()

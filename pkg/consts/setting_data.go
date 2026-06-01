@@ -9,6 +9,7 @@ import (
 type TokenInfo struct {
 	ExpireTime time.Time
 	Username   string
+	Role       string
 }
 
 var (
@@ -21,34 +22,40 @@ var (
 )
 
 // SetToken 设置token
-func SetToken(token string, expireTime time.Time, username string) {
+func SetToken(token string, expireTime time.Time, username string, role string) {
 	tokenMutex.Lock()
 	defer tokenMutex.Unlock()
 	TokenStore[token] = TokenInfo{
 		ExpireTime: expireTime,
 		Username:   username,
+		Role:       role,
 	}
 }
 
 // ValidateToken 验证token是否有效，同时检查用户是否过期
 func ValidateToken(token string) bool {
+	_, valid := ValidateTokenWithInfo(token)
+	return valid
+}
+
+// ValidateTokenWithInfo 验证token并返回TokenInfo
+func ValidateTokenWithInfo(token string) (TokenInfo, bool) {
 	tokenMutex.RLock()
 	tokenInfo, exists := TokenStore[token]
 	tokenMutex.RUnlock()
-	
+
 	if !exists {
-		return false
+		return TokenInfo{}, false
 	}
-	
+
 	// 检查token是否过期
 	if time.Now().After(tokenInfo.ExpireTime) {
-	 // 过期了，删除token
-	 tokenMutex.Lock()
-	 delete(TokenStore, token)
-	 tokenMutex.Unlock()
-	 return false
+		tokenMutex.Lock()
+		delete(TokenStore, token)
+		tokenMutex.Unlock()
+		return TokenInfo{}, false
 	}
-	
+
 	// 检查用户是否过期
 	if tokenInfo.Username != "" {
 		for _, user := range OSSetting.Users {
@@ -56,19 +63,18 @@ func ValidateToken(token string) bool {
 				if user.ExpireDate != "" {
 					expireTime, err := time.Parse("2006-01-02", user.ExpireDate)
 					if err == nil && time.Now().After(expireTime) {
-						// 用户已过期，删除token（强制退出）
 						tokenMutex.Lock()
 						delete(TokenStore, token)
 						tokenMutex.Unlock()
-						return false
+						return TokenInfo{}, false
 					}
 				}
 				break
 			}
 		}
 	}
-	
-	return true
+
+	return tokenInfo, true
 }
 
 // CleanExpiredTokens 清理过期的token
