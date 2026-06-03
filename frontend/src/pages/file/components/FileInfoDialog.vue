@@ -26,7 +26,7 @@
             {{ view.item.Name }}
           </q-toolbar-title>
           <q-space />
-          <q-tabs v-model="showDetail" shrink>
+          <q-tabs v-model="showDetail" shrink :mobile-arrows>
             <q-tab
               v-for="item in ClickButtons"
               :key="item.value"
@@ -60,7 +60,7 @@
             :frameborder="0"
             :allowfullscreen="true"
             width="100%"
-            height="720px"
+            :style="{ height: isMobile ? 'calc(100vh - 150px)' : '720px' }"
             :src="`${view.settingInfo.BaseUrl}${view.item.Code}`"
           ></iframe>
         </q-tab-panel>
@@ -74,7 +74,7 @@
             style="max-height: 560px"
           >
           </q-img>
-          <div class="row justify-left q-gutter-md">
+          <div class="row justify-left q-gutter-md" :class="{ column: isMobile }">
             
             <q-field label="Time" stack-label>
               <template v-slot:control>
@@ -105,7 +105,7 @@
             </q-field>
             
           </div>
-          <div class="row q-pt-sm">
+          <div class="row q-pt-sm" :class="{ column: isMobile }">
             <span style="color: orange"> Name: </span>
             {{ formatTitle(view.item.Name) }}
           </div>
@@ -123,7 +123,7 @@
             </span>
           </div> -->
 
-          <div class="row q-pt-sm">
+          <div class="row q-pt-sm" :class="{ column: isMobile }">
             <span align="left" ripple class="full-width outline">
               <a style="color: grey"  class="cursor-pointer" @click="OpenFileFolder(view.item.Id)">  {{ view.item.Path }} </a>
             </span>
@@ -363,5 +363,15 @@ defineExpose({
   font-weight: 500;
   width: fit-content;
   background-color: rgba(0, 0, 0, 0.2);
+}
+
+/* 移动端适配 */
+@media (max-width: 600px) {
+  .q-tab-panel {
+    padding: 8px 4px;
+  }
+  .q-field--with-bottom {
+    padding-bottom: 4px;
+  }
 }
 </style>

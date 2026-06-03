@@ -23,6 +23,7 @@
           v-model="tab"
           align="justify"
           narrow-indicator
+          :mobile-arrows
           style="width: 90%"
         >
           <q-tab name="filelist" :label="isMobile ? '操作' : '批量操作'" />
@@ -39,7 +40,7 @@
           v-if="tab == 'filelist'"
           style="z-index: 9"
           position="top-right"
-          :offset="[10, 100]"
+          :offset="isMobile ? [2, 50] : [10, 100]"
         >
           <div class="row column justify-end q-gutter-sm items-end">
             <q-btn glossy color="black" @click="selectAll"
@@ -156,7 +157,7 @@
         <q-page class="shadow-2 rounded-borders">
           <q-tab-panels v-model="tab" animated>
             <q-tab-panel name="filelist" style="padding: 6px; height: 100%">
-              <div class="q-gutter-sm row justify-left">
+              <div class="q-gutter-sm row justify-left search-toolbar">
                 <q-input
                   v-model="view.queryParam.Keyword"
                   :dense="true"
@@ -1260,5 +1261,59 @@ defineExpose({
 
 .w100 {
   width: 100%;
+}
+
+/* 按钮压缩 */
+.q-dialog .q-btn--glossy {
+  min-height: 28px;
+  padding: 2px 10px;
+  font-size: 0.85rem;
+}
+
+.q-dialog .q-btn--dense {
+  min-height: 24px;
+  padding: 0 6px;
+}
+
+.q-dialog .q-btn-dropdown--dense {
+  min-height: 24px;
+}
+
+/* 搜索栏移动端 column */
+@media (max-width: 599px) {
+  .search-toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .search-toolbar .q-input {
+    width: 100% !important;
+  }
+
+  /* sticky 按钮组移动端压缩 */
+  .q-page-sticky .column.items-end .q-btn {
+    min-height: 26px;
+    font-size: 0.8rem;
+    padding: 0 8px;
+  }
+  .q-page-sticky .column.items-end .q-btn-dropdown {
+    min-height: 26px;
+    font-size: 0.8rem;
+  }
+
+  /* 列表项按钮压缩 */
+  .q-expansion-item .q-btn--dense {
+    min-height: 22px;
+    font-size: 0.75rem;
+    padding: 0 4px;
+  }
+  .q-expansion-item .q-btn-dropdown--dense {
+    min-height: 22px;
+    font-size: 0.75rem;
+  }
+
+  /* 底部信息区 */
+  .q-page-sticky[position="bottom-left"] .row {
+    font-size: 0.75rem;
+  }
 }
 </style>

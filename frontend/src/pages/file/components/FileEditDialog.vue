@@ -1,17 +1,12 @@
 <template>
   <q-dialog ref="dialogRef" @hide="onDialogHide">
-    <q-card
-      style="
-        width: 800px;
-        max-width: 90vw;
-        background-color: rgba(250, 250, 250, 1);
-      "
-    >
+    <q-card class="file-edit-card">
       <q-toolbar
         class="rounded-borders justify-between"
         style="background-color: rgba(0, 0, 0, 0.9)"
+        wrap
       >
-        <q-btn color="red" flat icon="ti-shift-left" @click="prevOne">
+        <q-btn color="red" flat icon="ti-shift-left" :size="isMobile ? 'sm' : 'md'" @click="prevOne">
           <q-tooltip class="bg-white text-primary">上一个</q-tooltip>
         </q-btn>
 
@@ -58,6 +53,7 @@
           align="evenly"
           label="改名移动"
           glossy
+          :size="isMobile ? 'sm' : 'md'"
           @click="editMoveout"
         />
         <q-btn
@@ -66,6 +62,7 @@
           glossy
           align="evenly"
           label="仅改名"
+          :size="isMobile ? 'sm' : 'md'"
           @click="editItemSubmit(false)"
         />
         <q-btn
@@ -74,11 +71,12 @@
           icon="close"
           glossy
           dense
+          :size="isMobile ? 'sm' : 'md'"
           @click="onDialogCancel"
         >
           <q-tooltip class="bg-white text-primary">关闭</q-tooltip>
         </q-btn>
-        <q-btn color="red" flat icon="ti-shift-right" @click="nextOne">
+        <q-btn color="red" flat icon="ti-shift-right" :size="isMobile ? 'sm' : 'md'" @click="nextOne">
           <q-tooltip class="bg-white text-primary">下一个</q-tooltip>
         </q-btn>
       </q-toolbar>
@@ -465,5 +463,39 @@ defineExpose({
   margin-right: 4px;
   padding: 8px;
   border-radius: 8%;
+}
+
+.file-edit-card {
+  width: 800px;
+  max-width: 90vw;
+  background-color: rgba(250, 250, 250, 1);
+}
+
+@media (max-width: 600px) {
+  .file-edit-card {
+    max-width: 100vw;
+    width: 96vw;
+  }
+
+  .file-edit-card .q-toolbar {
+    gap: 4px;
+    padding: 4px;
+  }
+
+  .file-edit-card .q-toolbar .q-btn {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 768px) {
+  .file-edit-card {
+    max-width: 96vw;
+  }
+}
+
+@media (min-width: 1200px) {
+  .file-edit-card {
+    max-width: 800px;
+  }
 }
 </style>
