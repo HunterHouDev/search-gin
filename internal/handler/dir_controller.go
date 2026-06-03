@@ -39,7 +39,7 @@ func PostOpenFolderByPath(c *gin.Context) {
 	}
 	dirpath := forms["dirpath"]
 	dirpath = strings.ReplaceAll(dirpath, utils.PathSeparator+utils.PathSeparator, utils.PathSeparator)
-	validatedPath, err := utils.ValidatePath(dirpath, consts.OSSetting.Dirs)
+	validatedPath, err := utils.ValidatePath(dirpath, consts.GetOSSetting().Dirs)
 	if err != nil {
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("路径不在允许范围内"))
 		return
@@ -60,7 +60,7 @@ func PostDeleteFolerByPath(c *gin.Context) {
 	}
 	dirpath := forms["dirpath"]
 	dirpath = strings.ReplaceAll(dirpath, utils.PathSeparator+utils.PathSeparator, utils.PathSeparator)
-	validatedPath, err := utils.ValidatePath(dirpath, consts.OSSetting.Dirs)
+	validatedPath, err := utils.ValidatePath(dirpath, consts.GetOSSetting().Dirs)
 	if err != nil {
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("路径不在允许范围内"))
 		return

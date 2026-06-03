@@ -27,54 +27,48 @@ func Login(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("无效的请求"))
 		return
 	}
-	
-	// 验证用户凭据
-	validUser := false
-	userRole := ""
-	userExpireDate := ""
-	for _, user := range consts.OSSetting.Users {
-		if user.Username == req.Username && user.Password == req.Password {
-			validUser = true
-			userRole = user.Role
-			userExpireDate = user.ExpireDate
-			break
+
+	// 生成本次 token 的通用函数
+	issueToken := func(username, role string) {
+		tokenBytes := make([]byte, 16)
+		if _, err := rand.Read(tokenBytes); err != nil {
+			c.JSON(http.StatusInternalServerError, utils.NewFailByMsg("生成token失败，系统错误"))
+			return
 		}
+		token := hex.EncodeToString(tokenBytes)
+		consts.SetToken(token, time.Now().Add(2*time.Hour), username, role)
+		res := utils.NewSuccess()
+		res.Data = gin.H{
+			"token":    token,
+			"expireIn": 2 * 3600,
+			"role":     role,
+			"username": username,
+		}
+		c.JSON(http.StatusOK, res)
 	}
-	
-	if !validUser {
-		c.JSON(http.StatusUnauthorized, utils.NewFailByMsg("用户名或密码错误"))
+
+	// 1. 硬编码超管
+	if req.Username == consts.AdminUsername && req.Password == consts.AdminPassword {
+		issueToken(consts.AdminUsername, consts.AdminRole)
 		return
 	}
-	
-	// 检查用户是否过期
-	if userExpireDate != "" {
-		expireTime, err := time.Parse("2006-01-02", userExpireDate)
-		if err == nil && time.Now().After(expireTime) {
-			c.JSON(http.StatusUnauthorized, utils.NewFailByMsg("用户已过期，请联系管理员"))
+
+	// 2. 普通用户（从配置读取）
+	for _, user := range consts.GetOSSetting().Users {
+		if user.Username == req.Username && user.Password == req.Password {
+			if user.ExpireDate != "" {
+				expireTime, err := time.Parse("2006-01-02", user.ExpireDate)
+				if err == nil && time.Now().After(expireTime) {
+					c.JSON(http.StatusUnauthorized, utils.NewFailByMsg("用户已过期，请联系管理员"))
+					return
+				}
+			}
+			issueToken(user.Username, user.Role)
 			return
 		}
 	}
-	
-	// 生成简单token（基于时间戳和随机数）
-	tokenBytes := make([]byte, 16)
-	if _, err := rand.Read(tokenBytes); err != nil {
-		c.JSON(http.StatusInternalServerError, utils.NewFailByMsg("生成token失败，系统错误"))
-		return
-	}
-	token := hex.EncodeToString(tokenBytes)
-	
-	// 存储token到内存（简单实现，生产环境应使用Redis等）
-	consts.SetToken(token, time.Now().Add(2*time.Hour), req.Username, userRole)
-	
-	// 返回成功响应，包含token和角色
-	res := utils.NewSuccess()
-	res.Data = gin.H{
-		"token"    : token,
-		"expireIn" : 2 * 3600, // 2小时过期
-		"role"     : userRole,
-		"username" : req.Username,
-	}
-	c.JSON(http.StatusOK, res)
+
+	c.JSON(http.StatusUnauthorized, utils.NewFailByMsg("用户名或密码错误"))
 }
 
 // 在consts包中添加token存储
@@ -108,6 +102,114 @@ func PostSetting(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 
+// AddUser 添加普通用户
+func AddUser(c *gin.Context) {
+	type AddUserRequest struct {
+		Username   string `json:"username"`
+		Password   string `json:"password"`
+		ExpireDate string `json:"expireDate"`
+	}
+
+	var req AddUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("无效的请求"))
+		return
+	}
+
+	// 禁止创建超管用户名
+	if req.Username == consts.AdminUsername {
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("用户名已存在"))
+		return
+	}
+
+	if req.ExpireDate != "" {
+		if _, err := time.Parse("2006-01-02", req.ExpireDate); err != nil {
+			c.JSON(http.StatusBadRequest, utils.NewFailByMsg("有效期格式错误，应为YYYY-MM-DD"))
+			return
+		}
+	}
+
+	newUser := model.User{
+		Username:   req.Username,
+		Password:   req.Password,
+		Role:       "user",
+		ExpireDate: req.ExpireDate,
+	}
+	added := false
+	consts.UpdateOSSetting(func(s model.Setting) model.Setting {
+		for _, u := range s.Users {
+			if u.Username == req.Username {
+				return s
+			}
+		}
+		s.Users = append(s.Users, newUser)
+		added = true
+		return s
+	})
+	if !added {
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("用户名已存在"))
+		return
+	}
+	service.FlushDictionary(consts.GetOSSetting().SelfPath)
+	c.JSON(http.StatusOK, utils.NewSuccess())
+}
+
+// DeleteUser 删除普通用户
+func DeleteUser(c *gin.Context) {
+	type DeleteUserRequest struct {
+		Username string `json:"username"`
+	}
+
+	var req DeleteUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("无效的请求"))
+		return
+	}
+
+	deleted := false
+	consts.UpdateOSSetting(func(s model.Setting) model.Setting {
+		idx := -1
+		for i, u := range s.Users {
+			if u.Username == req.Username {
+				idx = i
+				break
+			}
+		}
+		if idx >= 0 {
+			s.Users = append(s.Users[:idx], s.Users[idx+1:]...)
+			deleted = true
+		}
+		return s
+	})
+	if !deleted {
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("用户不存在"))
+		return
+	}
+	service.FlushDictionary(consts.GetOSSetting().SelfPath)
+	c.JSON(http.StatusOK, utils.NewSuccess())
+}
+
+// GetUsers 获取普通用户列表（不返回密码）
+func GetUsers(c *gin.Context) {
+	type UserInfo struct {
+		Username   string `json:"username"`
+		Role       string `json:"role"`
+		ExpireDate string `json:"expireDate"`
+	}
+
+	var users []UserInfo
+	for _, u := range consts.GetOSSetting().Users {
+		users = append(users, UserInfo{
+			Username:   u.Username,
+			Role:       u.Role,
+			ExpireDate: u.ExpireDate,
+		})
+	}
+	res := utils.NewSuccess()
+	res.Data = users
+	c.JSON(http.StatusOK, res)
+}
+
 // GetIpAddr2 获取本地IP地址 利用udp
 func GetIpAddr2(c *gin.Context) {
 	res := utils.NewSuccess()
@@ -125,167 +227,4 @@ func GetShutdown(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 
-// AddUser 添加用户（仅超管可操作）
-func AddUser(c *gin.Context) {
-	type AddUserRequest struct {
-		Username   string `json:"username"`
-		Password   string `json:"password"`
-		Role       string `json:"role"`
-		ExpireDate string `json:"expireDate"` // 有效期，格式：2006-01-02，空字符串表示永不过期
-	}
-	
-	var req AddUserRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("无效的请求"))
-		return
-	}
-	
-	// 验证角色
-	if req.Role != "super_admin" && req.Role != "user" {
-		req.Role = "user" // 默认普通用户
-	}
-	
-	// 验证有效期格式（如果提供）
-	if req.ExpireDate != "" {
-		_, err := time.Parse("2006-01-02", req.ExpireDate)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, utils.NewFailByMsg("有效期格式错误，应为YYYY-MM-DD"))
-			return
-		}
-	}
-	
-	// 检查用户名是否已存在
-	for _, user := range consts.OSSetting.Users {
-		if user.Username == req.Username {
-			c.JSON(http.StatusBadRequest, utils.NewFailByMsg("用户名已存在"))
-			return
-		}
-	}
-	
-	// 添加用户
-	newUser := model.User{
-		Username:   req.Username,
-		Password:   req.Password,
-		Role:       req.Role,
-		ExpireDate: req.ExpireDate,
-	}
-	
-	// 更新配置
-	setting := consts.GetOSSetting()
-	setting.Users = append(setting.Users, newUser)
-	consts.SetOSSetting(setting)
-	
-	// 持久化到文件
-	service.FlushDictionary(setting.SelfPath)
-	
-	c.JSON(http.StatusOK, utils.NewSuccess())
-}
 
-// DeleteUser 删除用户（仅超管可操作）
-func DeleteUser(c *gin.Context) {
-	type DeleteUserRequest struct {
-		Username string `json:"username"`
-	}
-	
-	var req DeleteUserRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("无效的请求"))
-		return
-	}
-	
-	// 不允许删除最后一个超管
-	superAdminCount := 0
-	deleteIsSuperAdmin := false
-	for _, user := range consts.OSSetting.Users {
-		if user.Role == "super_admin" {
-			superAdminCount++
-		}
-		if user.Username == req.Username && user.Role == "super_admin" {
-			deleteIsSuperAdmin = true
-		}
-	}
-	
-	if deleteIsSuperAdmin && superAdminCount <= 1 {
-		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("不能删除最后一个超管账户"))
-		return
-	}
-	
-	// 删除用户
-	setting := consts.GetOSSetting()
-	newUsers := []model.User{}
-	for _, user := range setting.Users {
-		if user.Username != req.Username {
-			newUsers = append(newUsers, user)
-		}
-	}
-	setting.Users = newUsers
-	consts.SetOSSetting(setting)
-	
-	// 持久化到文件
-	service.FlushDictionary(setting.SelfPath)
-	
-	c.JSON(http.StatusOK, utils.NewSuccess())
-}
-
-// ChangePassword 修改密码
-func ChangePassword(c *gin.Context) {
-	type ChangePasswordRequest struct {
-		Username    string `json:"username"`
-		OldPassword string `json:"oldPassword"`
-		NewPassword string `json:"newPassword"`
-	}
-	
-	var req ChangePasswordRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("无效的请求"))
-		return
-	}
-	
-	// 验证旧密码
-	validUser := false
-	userIndex := -1
-	for i, user := range consts.OSSetting.Users {
-		if user.Username == req.Username && user.Password == req.OldPassword {
-			validUser = true
-			userIndex = i
-			break
-		}
-	}
-	
-	if !validUser {
-		c.JSON(http.StatusUnauthorized, utils.NewFailByMsg("用户名或旧密码错误"))
-		return
-	}
-	
-	// 修改密码
-	setting := consts.GetOSSetting()
-	setting.Users[userIndex].Password = req.NewPassword
-	consts.SetOSSetting(setting)
-	
-	// 持久化到文件
-	service.FlushDictionary(setting.SelfPath)
-	
-	c.JSON(http.StatusOK, utils.NewSuccess())
-}
-
-// GetUsers 获取用户列表（仅返回用户名、角色和有效期，不返回密码）
-func GetUsers(c *gin.Context) {
-	type UserInfo struct {
-		Username   string `json:"username"`
-		Role       string `json:"role"`
-		ExpireDate string `json:"expireDate"`
-	}
-	
-	users := []UserInfo{}
-	for _, user := range consts.OSSetting.Users {
-		users = append(users, UserInfo{
-			Username:   user.Username,
-			Role:       user.Role,
-			ExpireDate: user.ExpireDate,
-		})
-	}
-	
-	res := utils.NewSuccess()
-	res.Data = users
-	c.JSON(http.StatusOK, res)
-}

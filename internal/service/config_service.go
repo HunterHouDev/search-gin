@@ -13,8 +13,8 @@ import (
 // InitSetting 读取配置文件并初始化全局设置
 func InitSetting() {
 	curDir, _ := filepath.Abs(".")
-	osSetting := consts.OSSetting
-	settingPath := curDir + utils.PathSeparator + consts.OSSetting.SelfPath
+	osSetting := consts.GetOSSetting()
+	settingPath := curDir + utils.PathSeparator + osSetting.SelfPath
 	dict := ReadDictionaryFromJson(settingPath)
 	dict.SelfPath = osSetting.SelfPath
 	// ip := GetIpAddr()
@@ -28,12 +28,12 @@ func InitSetting() {
 		dict.HardwareAccelMode = GetHwAccelModeName()
 	}
 
-	consts.OSSetting = dict
+	consts.SetOSSetting(dict)
 }
 
 // FlushDictionary 将当前设置持久化到配置文件
 func FlushDictionary(path string) {
-	WriteDictionaryToJson(path, consts.OSSetting)
+	WriteDictionaryToJson(path, consts.GetOSSetting())
 }
 
 func ReadDictionaryFromJson(path string) model.Setting {

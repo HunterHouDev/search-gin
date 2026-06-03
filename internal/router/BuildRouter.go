@@ -103,11 +103,10 @@ func BuildRouter(tempDir string) *gin.Engine {
 	router.GET("/api/GetIpAddr", handler.GetIpAddr2)
 	router.GET("/api/shutDown", handler.GetShutdown)
 
-	// 用户管理路由（需要认证）
+	// 普通用户管理
 	router.GET("/api/users", handler.GetUsers)
 	router.POST("/api/user/add", handler.AddUser)
 	router.POST("/api/user/delete", handler.DeleteUser)
-	router.POST("/api/user/changePassword", handler.ChangePassword)
 
 	router.GET("/api/typeSizeMap", handler.GetTypeSize)
 	router.GET("/api/tagSizeMap", handler.GetTagSize)

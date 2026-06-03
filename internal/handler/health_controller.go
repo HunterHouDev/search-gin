@@ -26,8 +26,8 @@ func GetIndexHealthCheck(c *gin.Context) {
 	health.BucketCount = service.SearchEngin.BucketCount
 	health.IndexNumber = consts.IndexNumber
 	health.ExpectedDirs = len(consts.GetOSSetting().Dirs)
-	health.TotalCount = service.SearchEngin.TotalCount
-	health.TotalSize = service.SearchEngin.TotalSize
+	health.TotalCount = service.SearchEngin.GetTotalCount()
+	health.TotalSize = service.SearchEngin.GetTotalSize()
 
 	recommendations := []string{}
 

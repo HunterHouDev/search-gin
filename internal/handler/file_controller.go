@@ -26,7 +26,7 @@ func GetPlay(c *gin.Context) {
 		return
 	}
 
-	sanitizePath, err := utils.ValidatePath(file.Path, consts.OSSetting.Dirs)
+	sanitizePath, err := utils.ValidatePath(file.Path, consts.GetOSSetting().Dirs)
 	if err != nil {
 		utils.InfoFormat("命令注入攻击尝试: %s, 错误: %v", file.Path, err)
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("文件路径不在允许范围内"))
@@ -35,23 +35,24 @@ func GetPlay(c *gin.Context) {
 
 	utils.InfoFormat("GetPlay [%v]", sanitizePath)
 
-	if consts.OSSetting.SystemPlayer == "ffplay" {
+	setting := consts.GetOSSetting()
+	if setting.SystemPlayer == "ffplay" {
 		go func() {
 			params := []string{"-window_title", file.Title,
 				"-alwaysontop",
 				"-seek_interval", "30",
 				"-stats",
 			}
-			if len(consts.OSSetting.SystemPlayerWidth) > 0 {
-				arr := strings.Split(consts.OSSetting.SystemPlayerWidth, ",")
+			if len(setting.SystemPlayerWidth) > 0 {
+				arr := strings.Split(setting.SystemPlayerWidth, ",")
 				params = append(params, "-x", arr[0])
 				if len(arr) > 1 {
 					params = append(params, "-y", arr[1])
 				}
 
 			}
-			if len(consts.OSSetting.SystemPlayerVolumn) > 0 {
-				params = append(params, "-volume", consts.OSSetting.SystemPlayerVolumn)
+			if len(setting.SystemPlayerVolumn) > 0 {
+				params = append(params, "-volume", setting.SystemPlayerVolumn)
 			}
 
 			ffplayPath := "./ffplay.exe"
@@ -202,7 +203,7 @@ func GetFileByPathUseEncode(c *gin.Context) {
 	}
 
 	// 验证路径是否在允许的目录内
-	validatedPath, err := utils.ValidatePath(decodedPath, consts.OSSetting.Dirs)
+	validatedPath, err := utils.ValidatePath(decodedPath, consts.GetOSSetting().Dirs)
 	if err != nil {
 		utils.InfoFormat("路径遍历攻击尝试: %s, 错误: %v", decodedPath, err)
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("访问被拒绝：路径不在允许范围内"))
@@ -225,7 +226,7 @@ func GetDeleteFileByPathUseEncode(c *gin.Context) {
 	}
 
 	// 验证路径是否在允许的目录内
-	validatedPath, err := utils.ValidatePath(decodedPath, consts.OSSetting.Dirs)
+	validatedPath, err := utils.ValidatePath(decodedPath, consts.GetOSSetting().Dirs)
 	if err != nil {
 		utils.InfoFormat("路径遍历攻击尝试: %s, 错误: %v", decodedPath, err)
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("删除被拒绝：路径不在允许范围内"))

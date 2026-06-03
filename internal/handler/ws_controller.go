@@ -49,13 +49,10 @@ func HandleWebSocket(c *gin.Context) {
 
 	ws.DefaultHub.Register(client)
 
-	// 发送聊天历史给新连接的客户端
+	// 发送聊天历史给新连接的客户端（必须先注册，已用 client.mu 保护并发写入）
 	history := ws.DefaultHub.GetChatHistory()
 	if len(history) > 0 {
-		for _, msg := range history {
-			data, _ := json.Marshal(msg)
-			conn.WriteMessage(websocket.TextMessage, data)
-		}
+		client.SendBatchHistory(history)
 	}
 
 	// 读取消息循环

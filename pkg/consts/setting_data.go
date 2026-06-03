@@ -13,6 +13,10 @@ type TokenInfo struct {
 }
 
 var (
+	AdminUsername = "admin"
+	AdminPassword = "qwer"
+	AdminRole     = "super_admin"
+
 	OSSetting    = model.Setting{}
 	settingMutex sync.RWMutex
 	
@@ -56,9 +60,10 @@ func ValidateTokenWithInfo(token string) (TokenInfo, bool) {
 		return TokenInfo{}, false
 	}
 
-	// 检查用户是否过期
-	if tokenInfo.Username != "" {
-		for _, user := range OSSetting.Users {
+	// 普通用户检查有效期（超管不在此列）
+	if tokenInfo.Username != AdminUsername && tokenInfo.Username != "" {
+		setting := GetOSSetting()
+		for _, user := range setting.Users {
 			if user.Username == tokenInfo.Username {
 				if user.ExpireDate != "" {
 					expireTime, err := time.Parse("2006-01-02", user.ExpireDate)
@@ -91,6 +96,15 @@ func CleanExpiredTokens() {
 }
 
 func init() {
+	// 定期清理过期 token
+	go func() {
+		ticker := time.NewTicker(30 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			CleanExpiredTokens()
+		}
+	}()
+
 	OSSetting = model.Setting{
 		IsDb:               true,
 		IsJavBus:           false,
@@ -122,13 +136,6 @@ func init() {
 		Buttons:    []string{"刮图", "删除", "移动"},
 		MovieTypes: []string{"骑兵", "步兵", "国产", "漫动"},
 		Pages:      []string{"10", "12", "15", "27", "50", "100"},
-		Users: []model.User{
-			{
-				Username: "admin",
-				Password: "qwer",
-				Role:     "super_admin",
-			},
-		},
 	}
 }
 
@@ -144,4 +151,11 @@ func SetOSSetting(setting model.Setting) {
 	settingMutex.Lock()
 	defer settingMutex.Unlock()
 	OSSetting = setting
+}
+
+// UpdateOSSetting 原子地读取-修改-写入系统配置
+func UpdateOSSetting(fn func(s model.Setting) model.Setting) {
+	settingMutex.Lock()
+	defer settingMutex.Unlock()
+	OSSetting = fn(OSSetting)
 }

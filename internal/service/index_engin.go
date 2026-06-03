@@ -21,6 +21,7 @@ type repeatModel struct {
 
 type searchEnginCore struct {
 	SearchIndexMap                 sync.Map // map[string]*bucketFile
+	dataMu                         sync.RWMutex
 	RepeatSearch                   []model.Movie
 	ActressSizeWrapperNullKeyword  []model.Actress
 	ActressCountWrapperNullKeyword []model.Actress
@@ -40,12 +41,17 @@ func (se *searchEnginCore) Reset() {
 		se.SearchIndexMap.Delete(key)
 		return true
 	})
-	// 清空所有状态
+	se.KeywordHistoryCache.Clear()
+	se.dataMu.Lock()
 	se.RepeatSearch = nil
 	se.ActressMap = nil
-	se.KeywordHistoryCache.Clear()
+	se.ActressSizeWrapperNullKeyword = nil
+	se.ActressCountWrapperNullKeyword = nil
+	se.dataMu.Unlock()
+	se.TotalSizeMutex.Lock()
 	se.TotalSize = 0
 	se.TotalCount = 0
+	se.TotalSizeMutex.Unlock()
 	atomic.StoreInt32(&se.BucketCount, 0)
 }
 
@@ -63,29 +69,47 @@ func (se *searchEnginCore) Init(baseDirs []string) {
 }
 
 func (se *searchEnginCore) IsEmpty() bool {
+	se.TotalSizeMutex.RLock()
+	defer se.TotalSizeMutex.RUnlock()
 	return se.TotalCount == 0
+}
+
+func (se *searchEnginCore) GetTotalCount() int {
+	se.TotalSizeMutex.RLock()
+	defer se.TotalSizeMutex.RUnlock()
+	return se.TotalCount
+}
+
+func (se *searchEnginCore) GetTotalSize() int64 {
+	se.TotalSizeMutex.RLock()
+	defer se.TotalSizeMutex.RUnlock()
+	return se.TotalSize
 }
 
 func (se *searchEnginCore) PageActress(searchParam model.SearchParam) model.PageActressResultWrapper {
 	var result = []model.Actress{}
 	if len((searchParam.Keyword)) == 0 {
-		// 如果没有关键字，考虑缓存读取
+		se.dataMu.RLock()
 		if searchParam.SortField == "Size" && len(se.ActressSizeWrapperNullKeyword) > 0 {
 			result = se.ActressSizeWrapperNullKeyword
 		} else if searchParam.SortField == "Cnt" && len(se.ActressCountWrapperNullKeyword) > 0 {
 			result = se.ActressCountWrapperNullKeyword
 		}
-
+		se.dataMu.RUnlock()
 	}
 	if len(result) == 0 {
+		se.dataMu.RLock()
 		result = model.SearchActressByKeyWord(se.ActressMap, searchParam.Keyword)
+		se.dataMu.RUnlock()
 		switch searchParam.SortField {
 		case "Size":
 			sort.Slice(result, func(i, j int) bool {
 				return result[i].Size > result[j].Size
 			})
 			if len((searchParam.Keyword)) == 0 {
+				se.dataMu.Lock()
 				se.ActressSizeWrapperNullKeyword = result
+				se.dataMu.Unlock()
 			}
 
 		case "Cnt":
@@ -93,7 +117,9 @@ func (se *searchEnginCore) PageActress(searchParam model.SearchParam) model.Page
 				return result[i].Cnt > result[j].Cnt
 			})
 			if len((searchParam.Keyword)) == 0 {
+				se.dataMu.Lock()
 				se.ActressCountWrapperNullKeyword = result
+				se.dataMu.Unlock()
 			}
 		}
 	}
@@ -108,7 +134,7 @@ func (se *searchEnginCore) PageActress(searchParam model.SearchParam) model.Page
 
 func (se *searchEnginCore) returnRepeatSearch() model.PageResultWrapper {
 	resultWrapper := model.NewPageWrapper()
-	// 拷贝切片，避免与缓存共享底层数组
+	se.dataMu.RLock()
 	if len(se.RepeatSearch) > 0 {
 		resultWrapper.FileList = make([]model.Movie, len(se.RepeatSearch))
 		copy(resultWrapper.FileList, se.RepeatSearch)
@@ -116,6 +142,7 @@ func (se *searchEnginCore) returnRepeatSearch() model.PageResultWrapper {
 	resultWrapper.ResultCount = len(se.RepeatSearch)
 	resultWrapper.LibCount = len(se.RepeatSearch)
 	resultWrapper.SearchCount = len(se.RepeatSearch)
+	se.dataMu.RUnlock()
 	return resultWrapper
 }
 
@@ -250,7 +277,9 @@ func (se *searchEnginCore) FindById(id string) model.Movie {
 }
 
 func (se *searchEnginCore) FindActressByName(id string) model.Actress {
+	se.dataMu.RLock()
 	act, ok := se.ActressMap[id]
+	se.dataMu.RUnlock()
 	if ok {
 		return act
 	}
@@ -276,12 +305,29 @@ func (se *searchEnginCore) buildIndexEngin() {
 	AddLogMemory("buildIndexEngin: 开始构建索引")
 	se.KeywordHistoryCache.Clear()
 
+	// 清理不在当前配置中的 bucket
+	dirs := consts.GetOSSetting().Dirs
+	if len(dirs) > 0 {
+		dirSet := make(map[string]struct{}, len(dirs))
+		for _, d := range dirs {
+			dirSet[d] = struct{}{}
+		}
+		se.SearchIndexMap.Range(func(key, value any) bool {
+			if _, ok := dirSet[key.(string)]; !ok {
+				se.SearchIndexMap.Delete(key)
+			}
+			return true
+		})
+	}
+
 	// 重置总计信息
+	se.TotalSizeMutex.Lock()
 	se.TotalCount = 0
 	se.TotalSize = 0
+	se.TotalSizeMutex.Unlock()
 
 	// 使用局部变量聚合，避免在 Range 中频繁写入全局 sync.Map
-	se.ActressMap = make(map[string]model.Actress)
+	actressMap := make(map[string]model.Actress)
 	localTypeMenu := make(map[string]consts.MenuSize)
 	localTagMenu := make(map[string]consts.MenuSize)
 	localSeriesCount := make(map[string]consts.MenuSize)
@@ -290,6 +336,8 @@ func (se *searchEnginCore) buildIndexEngin() {
 	fileRepeats := make(map[string]model.Movie, 2000)
 
 	var bucketCount int32
+	var localTotalCount int
+	var localTotalSize int64
 
 	AddLogMemory("buildIndexEngin: 开始遍历 SearchIndexMap")
 	se.SearchIndexMap.Range(func(key, value any) bool {
@@ -300,9 +348,9 @@ func (se *searchEnginCore) buildIndexEngin() {
 		}
 		index.mu.RLock()
 
-		// 1. 总计信息
-		se.TotalSize += index.TotalSize
-		se.TotalCount += index.TotalCount
+		// 1. 总计信息（聚合到局部变量，避免并发写入）
+		localTotalSize += index.TotalSize
+		localTotalCount += index.TotalCount
 		bucketCount++
 		AddLogMemory("buildIndexEngin: 处理 bucket %s, TotalCount=%d, TotalSize=%d", key.(string), index.TotalCount, index.TotalSize)
 
@@ -310,15 +358,15 @@ func (se *searchEnginCore) buildIndexEngin() {
 		for _, movie := range index.FileLib {
 			// ---- 演员数据 ----
 			if len(movie.Actress) > 0 {
-				curActress, ok := se.ActressMap[movie.Actress]
+				curActress, ok := actressMap[movie.Actress]
 				if ok {
 					curActress.PlusCnt()
 					curActress.PlusSize(movie.Size)
 					curActress.AddImage(movie.Png)
 					curActress.AddImage(movie.Jpg)
-					se.ActressMap[movie.Actress] = curActress
+					actressMap[movie.Actress] = curActress
 				} else {
-					se.ActressMap[movie.Actress] = model.NewActress(movie.Actress, movie.Jpg, movie.Size)
+					actressMap[movie.Actress] = model.NewActress(movie.Actress, movie.Jpg, movie.Size)
 				}
 			}
 
@@ -396,7 +444,11 @@ func (se *searchEnginCore) buildIndexEngin() {
 	})
 
 	atomic.StoreInt32(&se.BucketCount, bucketCount)
-	AddLogMemory("buildIndexEngin: 遍历完成, bucketCount=%d, TotalCount=%d", bucketCount, se.TotalCount)
+	se.TotalSizeMutex.Lock()
+	se.TotalSize = localTotalSize
+	se.TotalCount = localTotalCount
+	se.TotalSizeMutex.Unlock()
+	AddLogMemory("buildIndexEngin: 遍历完成, bucketCount=%d, TotalCount=%d", bucketCount, localTotalCount)
 
 	// 批量写入全局 sync.Map
 	AddLogMemory("buildIndexEngin: 开始写入全局菜单数据")
@@ -413,18 +465,26 @@ func (se *searchEnginCore) buildIndexEngin() {
 		consts.SeriesCount.Store(k, v)
 	}
 
-	// 构建重复结果
+	// 构建重复结果（局部变量）
+	repeatSearch := make([]model.Movie, 0, len(fileRepeats))
+	for _, m := range fileRepeats {
+		repeatSearch = append(repeatSearch, m)
+	}
+	sort.Slice(repeatSearch, func(i, j int) bool {
+		return repeatSearch[i].Size > repeatSearch[j].Size
+	})
+
+	// 原子性：一次锁定 swap ActressMap、RepeatSearch、缓存
+	se.dataMu.Lock()
+	se.ActressMap = actressMap
+	se.RepeatSearch = repeatSearch
+	se.ActressSizeWrapperNullKeyword = nil
+	se.ActressCountWrapperNullKeyword = nil
+	se.dataMu.Unlock()
 	sizeRepeats = nil
 	codeRepeats = nil
-	se.RepeatSearch = make([]model.Movie, 0, len(fileRepeats))
-	for _, m := range fileRepeats {
-		se.RepeatSearch = append(se.RepeatSearch, m)
-	}
-	sort.Slice(se.RepeatSearch, func(i, j int) bool {
-		return se.RepeatSearch[i].Size > se.RepeatSearch[j].Size
-	})
 	fileRepeats = nil
 
 	ti := time.Since(start)
-	AddLogMemory("buildIndexEngin (single-pass) completed, time:%dms, files:%d, repeats:%d", ti.Milliseconds(), se.TotalCount, len(se.RepeatSearch))
+	AddLogMemory("buildIndexEngin (single-pass) completed, time:%dms, files:%d, repeats:%d", ti.Milliseconds(), localTotalCount, len(se.RepeatSearch))
 }

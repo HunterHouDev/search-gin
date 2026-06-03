@@ -118,12 +118,5 @@
     ],
     "ControllerHost": ":10081",
     "ImageHost": ":10082",
-    "StreamHost": ":10083",
-    "Users": [
-        {
-            "username": "admin",
-            "password": "qwer",
-            "role": "super_admin"
-        }
-    ]
+    "StreamHost": ":10083"
 }

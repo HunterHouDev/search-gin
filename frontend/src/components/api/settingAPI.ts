@@ -31,17 +31,16 @@ export const AppShutDown = async () => {
   return res && res.data;
 };
 
-// 用户管理API
+// 普通用户管理
 export const GetUsers = async () => {
   const res = await commonAxios().get('/api/users');
   return res && res.data;
 };
 
-export const AddUser = async (username: string, password: string, role: string = 'user', expireDate: string = '') => {
+export const AddUser = async (username: string, password: string, expireDate: string = '') => {
   const res = await commonAxios().post('/api/user/add', {
     username,
     password,
-    role,
     expireDate
   });
   return res && res.data;
@@ -54,11 +53,4 @@ export const DeleteUser = async (username: string) => {
   return res && res.data;
 };
 
-export const ChangePassword = async (username: string, oldPassword: string, newPassword: string) => {
-  const res = await commonAxios().post('/api/user/changePassword', {
-    username,
-    oldPassword,
-    newPassword
-  });
-  return res && res.data;
-};
+

@@ -539,6 +539,21 @@ func (fs *fileService) WalkInnter(currentDir string, types []string, queryChild 
 
 // TaskExecuting 任务执行调度器
 func (fs *fileService) TaskExecuting() {
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+	for {
+		fs.pollTasks()
+		select {
+		case <-TaskCtx.Done():
+			utils.InfoFormat("任务调度器已停止")
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+// pollTasks 轮询并执行待处理任务
+func (fs *fileService) pollTasks() {
 	taskGroups := struct {
 		todos           []model.TransferTaskModel
 		todosCuts       []model.TransferTaskModel
@@ -581,18 +596,6 @@ func (fs *fileService) TaskExecuting() {
 	}
 	if len(taskGroups.executingMerges) == 0 && len(taskGroups.todosMerges) > 0 {
 		go fs.MergeFiles(taskGroups.todosMerges[0])
-	}
-
-	if TaskCtx.Err() == nil {
-		time.AfterFunc(2*time.Second, func() {
-			select {
-			case <-TaskCtx.Done():
-				utils.InfoFormat("任务调度器已停止")
-				return
-			default:
-				fs.TaskExecuting()
-			}
-		})
 	}
 }
 

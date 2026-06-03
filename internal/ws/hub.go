@@ -43,6 +43,19 @@ func (c *ClientConn) SendJSON(v interface{}) error {
 	return c.Conn.WriteJSON(v)
 }
 
+// SendBatchHistory 线程安全批量发送聊天历史
+func (c *ClientConn) SendBatchHistory(history []ChatMessage) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, msg := range history {
+		data, err := json.Marshal(msg)
+		if err != nil {
+			continue
+		}
+		_ = c.Conn.WriteMessage(websocket.TextMessage, data)
+	}
+}
+
 // Hub WebSocket 连接管理中心
 type Hub struct {
 	clients   map[*ClientConn]bool
