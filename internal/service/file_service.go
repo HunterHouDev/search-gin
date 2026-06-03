@@ -348,39 +348,67 @@ func GetIpAddr() string {
 
 // ScanAll 全局扫描
 func (fs *fileService) ScanAll() int {
-	setting := consts.GetOSSetting()
-	dirCount := len(setting.Dirs)
-	dirList := make([]string, dirCount)
-	copy(dirList, setting.Dirs)
-	AddLogMemory("Plan to ScanAll dirTotal: %d, dirList: %v", dirCount, dirList)
-	if !atomic.CompareAndSwapInt32(&consts.IndexNumber, 0, int32(dirCount)) {
-		AddLogMemory("索引构建任务正在执行中，剩余数量：%d", atomic.LoadInt32(&consts.IndexNumber))
-		return dirCount
-	}
+ setting := consts.GetOSSetting()
+ dirCount := len(setting.Dirs)
+ dirList := make([]string, dirCount)
+ copy(dirList, setting.Dirs)
+ AddLogMemory("Plan to ScanAll dirTotal: %d, dirList: %v", dirCount, dirList)
+ if !atomic.CompareAndSwapInt32(&consts.IndexNumber, 0, int32(dirCount)) {
+  AddLogMemory("索引构建任务正在执行中，剩余数量：%d", atomic.LoadInt32(&consts.IndexNumber))
+  return dirCount
+ }
 
-	consts.TypeMenu.Clear()
-	consts.SeriesCount.Clear()
-	consts.TagMenu.Clear()
-	consts.ClearSmallDir()
+ // 初始化扫描进度
+ consts.SpMu.Lock()
+ consts.Sp = consts.ScanProgress{
+  Phase:            "scanning",
+  TotalDirs:        dirCount,
+  CompletedDirs:    0,
+  CurrentDir:       "",
+  ScannedFiles:     0,
+  TotalBuckets:     dirCount,
+  ProcessedBuckets: 0,
+  CurrentPhase:     "正在扫描目录...",
+ }
+ consts.SpMu.Unlock()
 
-	queryTypes := make([]string, 0)
-	queryTypes = utils.ExtendsItems(queryTypes, setting.VideoTypes)
-	queryTypes = utils.ExtendsItems(queryTypes, setting.DocsTypes)
-	queryTypes = utils.ExtendsItems(queryTypes, setting.ImageTypes)
-	consts.InitFolderTime()
-	fs.Walks(dirList, queryTypes)
+ consts.TypeMenu.Clear()
+ consts.SeriesCount.Clear()
+ consts.TagMenu.Clear()
+ consts.ClearSmallDir()
 
-	// 一致性检查：验证 BucketCount 和 IndexNumber
-	bucketCount := atomic.LoadInt32(&SearchEngin.BucketCount)
-	indexNumber := atomic.LoadInt32(&consts.IndexNumber)
-	AddLogMemory("ScanAll 一致性检查: BucketCount=%d, IndexNumber=%d, Expected=%d", bucketCount, indexNumber, dirCount)
-	if bucketCount != int32(dirCount) {
-		AddLogMemory("警告: BucketCount(%d) != Expected(%d)，可能存在并发问题", bucketCount, dirCount)
-	}
+ queryTypes := make([]string, 0)
+ queryTypes = utils.ExtendsItems(queryTypes, setting.VideoTypes)
+ queryTypes = utils.ExtendsItems(queryTypes, setting.DocsTypes)
+ queryTypes = utils.ExtendsItems(queryTypes, setting.ImageTypes)
+ consts.InitFolderTime()
+ fs.Walks(dirList, queryTypes)
 
-	SearchEngin.buildIndexEngin()
-	consts.LastScanTime = time.Now()
-	return dirCount
+ // 一致性检查：验证 BucketCount 和 IndexNumber
+ bucketCount := atomic.LoadInt32(&SearchEngin.BucketCount)
+ indexNumber := atomic.LoadInt32(&consts.IndexNumber)
+ AddLogMemory("ScanAll 一致性检查: BucketCount=%d, IndexNumber=%d, Expected=%d", bucketCount, indexNumber, dirCount)
+ if bucketCount != int32(dirCount) {
+  AddLogMemory("警告: BucketCount(%d) != Expected(%d)，可能存在并发问题", bucketCount, dirCount)
+ }
+
+ // 切换到索引构建阶段
+ consts.SpMu.Lock()
+ consts.Sp.Phase = "building"
+ consts.Sp.CurrentPhase = "正在构建索引..."
+ consts.SpMu.Unlock()
+
+ SearchEngin.buildIndexEngin()
+ consts.LastScanTime = time.Now()
+
+ // 扫描完成
+ consts.SpMu.Lock()
+ consts.Sp.Phase = "done"
+ consts.Sp.CompletedDirs = consts.Sp.TotalDirs
+ consts.Sp.CurrentPhase = "扫描完成"
+ consts.SpMu.Unlock()
+
+ return dirCount
 }
 
 // ScanTarget 扫描指定文件夹
@@ -421,12 +449,26 @@ func (fs *fileService) Walks(baseDir []string, types []string) []model.Movie {
 // goWalkWithResult 协程方法扫描单个文件夹并返回结果
 func (fs *fileService) goWalkWithResult(baseDir string, types []string, resultChan chan<- []model.Movie) {
 	defer atomic.AddInt32(&consts.IndexNumber, -1)
+	defer func() {
+		consts.SpMu.Lock()
+		consts.Sp.CompletedDirs++
+		consts.SpMu.Unlock()
+	}()
+
+	// 更新当前正在扫描的目录
+	consts.SpMu.Lock()
+	consts.Sp.CurrentDir = baseDir
+	consts.SpMu.Unlock()
 
 	AddLogMemory("goWalkWithResult: 开始扫描目录 %s", baseDir)
 	start := time.Now()
 	files, size := fs.WalkInnter(baseDir, types, true, baseDir)
 
 	AddLogMemory("goWalkWithResult: 扫描完成 %s, 发现 %d 个文件，准备添加到索引", baseDir, len(files))
+	// 更新已扫描文件计数
+	consts.SpMu.Lock()
+	consts.Sp.ScannedFiles += int64(len(files))
+	consts.SpMu.Unlock()
 	SearchEngin.setBucket(baseDir, newInstanceWithFiles(baseDir, files))
 
 	ti := time.Since(start)

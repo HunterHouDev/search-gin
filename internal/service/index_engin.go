@@ -286,6 +286,12 @@ func (se *searchEnginCore) FindActressByName(id string) model.Actress {
 	return model.Actress{}
 }
 
+func (se *searchEnginCore) GetActorCount() int {
+	se.dataMu.RLock()
+	defer se.dataMu.RUnlock()
+	return len(se.ActressMap)
+}
+
 func (se *searchEnginCore) setBucket(baseDir string, bucket *bucketFile) {
 	before := atomic.LoadInt32(&se.BucketCount)
 	se.SearchIndexMap.Store(baseDir, bucket)
@@ -340,6 +346,20 @@ func (se *searchEnginCore) buildIndexEngin() {
 	var localTotalSize int64
 
 	AddLogMemory("buildIndexEngin: 开始遍历 SearchIndexMap")
+
+	// 预统计 bucket 总数用于进度追踪
+	var totalBuckets int32
+	se.SearchIndexMap.Range(func(key, value any) bool {
+		if !value.(*bucketFile).isEmpty() {
+			totalBuckets++
+		}
+		return true
+	})
+	consts.SpMu.Lock()
+	consts.Sp.TotalBuckets = int(totalBuckets)
+	consts.Sp.ProcessedBuckets = 0
+	consts.SpMu.Unlock()
+
 	se.SearchIndexMap.Range(func(key, value any) bool {
 		index := value.(*bucketFile)
 		if index.isEmpty() {
@@ -440,6 +460,10 @@ func (se *searchEnginCore) buildIndexEngin() {
 		}
 
 		index.mu.RUnlock()
+		// 更新索引构建进度
+		consts.SpMu.Lock()
+		consts.Sp.ProcessedBuckets++
+		consts.SpMu.Unlock()
 		return true
 	})
 

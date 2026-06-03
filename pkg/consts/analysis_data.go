@@ -104,6 +104,16 @@ func ClearSmallDir() {
 	smallDirMutex.Unlock()
 }
 
+// GetSyncMapCount 获取 sync.Map 的元素数量（原子安全）
+func GetSyncMapCount(m *sync.Map) int {
+	count := 0
+	m.Range(func(key, value any) bool {
+		count++
+		return true
+	})
+	return count
+}
+
 func TypeSizePlus(targetType string, targetSize int64) {
 	if targetType == "" {
 		targetType = "无"

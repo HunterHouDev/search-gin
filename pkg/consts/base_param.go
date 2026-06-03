@@ -26,6 +26,21 @@ var StaticFs = map[string]string{
 // IndexNumber 索引构建中得目录数量
 var IndexNumber = int32(0)
 
+// ScanProgress 索引扫描/构建进度
+type ScanProgress struct {
+	Phase            string `json:"phase"`            // "idle" | "scanning" | "building" | "done"
+	TotalDirs        int    `json:"totalDirs"`        // 待扫描目录总数
+	CompletedDirs    int    `json:"completedDirs"`    // 已完成扫描的目录数
+	CurrentDir       string `json:"currentDir"`       // 当前正在扫描的目录
+	ScannedFiles     int64  `json:"scannedFiles"`     // 已扫描的文件数
+	TotalBuckets     int    `json:"totalBuckets"`     // 待构建索引的 bucket 数
+	ProcessedBuckets int    `json:"processedBuckets"` // 已构建完成的 bucket 数（索引构建阶段）
+	CurrentPhase     string `json:"currentPhase"`     // 当前阶段描述，如"正在扫描目录..."、"正在构建索引..."等
+}
+
+var Sp ScanProgress
+var SpMu sync.RWMutex
+
 var TempImage = make(map[string]model.Movie)
 var TempImageMutex sync.RWMutex // 保护TempImage的并发访问
 
