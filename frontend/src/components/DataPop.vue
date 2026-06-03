@@ -131,17 +131,19 @@
         </q-tab-panel>
         <q-tab-panel name="folder" style="padding: 8px; max-height: 60vh">
           <q-table
-            class="w100"
+            class="w100 compact-table"
             id="scanTime"
             :rows="view.scanTime"
             :columns="scanTimeColumns"
             row-key="name"
             hide-bottom
+            dense
+            :rows-per-page-options="[0]"
             :pagination="{
               sortBy: 'desc',
               descending: false,
               page: 1,
-              rowsPerPage: 99,
+              rowsPerPage: 0,
             }"
           >
             <template v-slot:body-cell-Name="props">
@@ -269,18 +271,17 @@ const scanTimeColumns = [
     label: '文件夹',
     field: 'Name',
     style: { 
-      width: isMobile.value ? '160px' : '350px', 
-      height: 'auto', 
-      'text-wrap': isMobile.value ? 'nowrap' : 'balance' 
+      width: isMobile.value ? '100px' : '180px'
     },
     sortable: true,
+    headerStyle: 'white-space: nowrap;',
   },
   {
     name: 'Cnt',
-    label: '时间(ms)',
+    label: '耗时(ms)',
     field: 'Cnt',
     align: 'right',
-    style: { maxWidth: isMobile.value ? '40px' : '50px' },
+    style: { width: isMobile.value ? '50px' : '70px' },
     sortable: true,
   },
   {
@@ -288,7 +289,7 @@ const scanTimeColumns = [
     label: '文件数',
     field: 'Size',
     align: 'right',
-    style: { maxWidth: isMobile.value ? '40px' : '50px' },
+    style: { width: isMobile.value ? '50px' : '70px' },
     sortable: true,
   },
   {
@@ -296,6 +297,7 @@ const scanTimeColumns = [
     label: '大小',
     field: 'SizeStr',
     align: 'right',
+    style: { width: '90px' },
     sortable: true,
   },
 ];
@@ -310,6 +312,26 @@ const scanTimeColumns = [
   background: rgba(250, 250, 250, 0.8);
   width: 100%;
   height: 60vh;
+}
+
+/* 磁盘表格：紧凑模式 */
+.compact-table .q-table__container {
+  box-shadow: none !important;
+}
+.compact-table .q-table__top,
+.compact-table thead tr th {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 4px;
+  white-space: nowrap;
+}
+.compact-table tbody tr td {
+  padding: 0 4px;
+  line-height: 1.3;
+  font-size: 12px;
+}
+.compact-table tbody tr {
+  height: 26px;
 }
 
 /* PC：固定宽度按钮 */
