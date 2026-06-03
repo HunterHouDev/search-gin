@@ -68,7 +68,7 @@ func (q *taskQueue) executeTask(task *scanTask) {
 	consts.TypeMenu.Clear()
 	consts.SeriesCount.Clear()
 	consts.TagMenu.Clear()
-	consts.SmallDir = []consts.MenuSize{}
+	consts.ClearSmallDir()
 
 	// 线程安全：使用 GetOSSetting() 读取配置
 	setting := consts.GetOSSetting()

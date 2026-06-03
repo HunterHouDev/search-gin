@@ -62,8 +62,7 @@ func ValidateTokenWithInfo(token string) (TokenInfo, bool) {
 
 	// 普通用户检查有效期（超管不在此列）
 	if tokenInfo.Username != AdminUsername && tokenInfo.Username != "" {
-		setting := GetOSSetting()
-		for _, user := range setting.Users {
+		for _, user := range GetOSSettingUsers() {
 			if user.Username == tokenInfo.Username {
 				if user.ExpireDate != "" {
 					expireTime, err := time.Parse("2006-01-02", user.ExpireDate)
@@ -158,4 +157,13 @@ func UpdateOSSetting(fn func(s model.Setting) model.Setting) {
 	settingMutex.Lock()
 	defer settingMutex.Unlock()
 	OSSetting = fn(OSSetting)
+}
+
+// GetOSSettingUsers 获取用户列表（线程安全），避免拷贝整个 Setting 结构体
+func GetOSSettingUsers() []model.User {
+	settingMutex.RLock()
+	defer settingMutex.RUnlock()
+	users := make([]model.User, len(OSSetting.Users))
+	copy(users, OSSetting.Users)
+	return users
 }

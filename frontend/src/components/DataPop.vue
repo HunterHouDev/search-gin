@@ -1,8 +1,8 @@
 <template>
   <q-popup-proxy @show="refreshView">
     <div
-      style="padding: 0; border-radius: 10px; max-height: 72vh"
-      :style="{ width: isMobile ? '90vw' : '700px' }"
+      style="padding: 0; border-radius: 10px; max-height: 72vh; overflow: hidden"
+      :style="{ width: isMobile ? '95vw' : '700px' }"
     >
       <div class="row justify-between w100">
         <IndexButton
@@ -52,22 +52,13 @@
         <q-tab-panel
           name="tag"
           class="w100"
-          style="
-            padding: 12px;
-            margin: 0;
-            max-height: 60vh;
-            width: 100%;
-            display: flex;
-            flex-direction: row;
-            flex-wrap: wrap;
-            justify-content: flex-start;
-          "
+          :style="tagPanelStyle"
         >
           <div v-for="tag in view.tagData" :key="tag" style="width: auto">
             <q-btn
               color="primary"
-              class="btn-fixed-width"
-              size="md"
+              :class="isMobile ? 'btn-touch-mobile' : 'btn-fixed-width'"
+              :size="isMobile ? 'sm' : 'md'"
               flat
               @click="searchKeyword(tag.Name)"
             >
@@ -98,6 +89,7 @@
                 { label: '容', value: 'Size' },
                 { label: '数', value: 'Cnt' },
               ]"
+              :size="isMobile ? 'sm' : 'md'"
             />
             <div
               v-for="item in view.resultData.Data"
@@ -106,8 +98,8 @@
             >
               <q-btn
                 color="primary"
-                class="btn-fixed-width"
-                size="md"
+                :class="isMobile ? 'btn-touch-mobile' : 'btn-fixed-width'"
+                :size="isMobile ? 'sm' : 'md'"
                 flat
                 @click="searchKeyword(item.Name)"
               >
@@ -119,22 +111,13 @@
         ><q-tab-panel
           name="series"
           class="w100"
-          style="
-            padding: 12px;
-            margin: 0;
-            max-height: 60vh;
-            width: 100%;
-            display: flex;
-            flex-direction: row;
-            flex-wrap: wrap;
-            justify-content: flex-start;
-          "
+          :style="tagPanelStyle"
         >
           <div v-for="tag in view.seriesData" :key="tag" style="width: auto">
             <q-btn
               color="primary"
-              class="btn-fixed-width"
-              size="md"
+              :class="isMobile ? 'btn-touch-mobile' : 'btn-fixed-width'"
+              :size="isMobile ? 'sm' : 'md'"
               flat
               v-if="tag.Cnt > 1"
               @click="searchKeyword(tag.Name)"
@@ -144,59 +127,6 @@
                 humanStorageSize(tag.Size)
               }}</q-badge>
             </q-btn>
-          </div>
-        </q-tab-panel>
-        <q-tab-panel name="actress" class="w100" style="max-height: 60vh">
-          <div class="row w100">
-            <div class="col row justify-evenly w100">
-              <q-radio
-                v-model="view.sortField"
-                checked-icon="task_alt"
-                unchecked-icon="panorama_fish_eye"
-                :val="'Size'"
-                label="空间排序"
-                style="color: red"
-                @click="fetchActress"
-                @update:model-value="fetchActress"
-              />
-              <q-radio
-                v-model="view.sortField"
-                checked-icon="task_alt"
-                unchecked-icon="panorama_fish_eye"
-                :val="'Cnt'"
-                style="color: red"
-                label="数量排序"
-                @click="fetchActress"
-                @update:model-value="fetchActress"
-              />
-            </div>
-          </div>
-          <div
-            class="q-gutter-sm w100"
-            style="
-              display: flex;
-              flex-direction: row;
-              flex-wrap: wrap;
-              justify-content: flex-start;
-            "
-          >
-            <div
-              v-for="item in view.resultData.Data"
-              :key="item.Id"
-              style="width: auto"
-            >
-              <q-btn
-                color="primary"
-                class="btn-fixed-width"
-                size="md"
-                flat
-                v-if="item.Cnt > 1"
-                @click="searchKeyword(item.Name)"
-              >
-                {{ `${item.Name} (${item.Cnt})` }}
-                <q-badge color="red" floating>{{ item.SizeStr }}</q-badge>
-              </q-btn>
-            </div>
           </div>
         </q-tab-panel>
         <q-tab-panel name="folder" style="padding: 8px; max-height: 60vh">
@@ -246,6 +176,18 @@ const $q = useQuasar();
 const isMobile = computed(() => {
   return $q?.platform.is.mobile;
 });
+
+const tagPanelStyle = computed(() => ({
+  padding: isMobile.value ? '6px 4px' : '12px',
+  margin: 0,
+  maxHeight: '60vh',
+  width: '100%',
+  display: 'flex',
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  justifyContent: 'flex-start',
+  gap: isMobile.value ? '4px' : '8px',
+}));
 
 const { humanStorageSize } = format;
 const systemProperty = useSystemProperty();
@@ -326,7 +268,11 @@ const scanTimeColumns = [
     align: 'left',
     label: '文件夹',
     field: 'Name',
-    style: { width: '350px', height: 'auto', 'text-wrap': 'balance' },
+    style: { 
+      width: isMobile.value ? '160px' : '350px', 
+      height: 'auto', 
+      'text-wrap': isMobile.value ? 'nowrap' : 'balance' 
+    },
     sortable: true,
   },
   {
@@ -334,25 +280,23 @@ const scanTimeColumns = [
     label: '时间(ms)',
     field: 'Cnt',
     align: 'right',
-    style: { maxWidth: '50px' },
+    style: { maxWidth: isMobile.value ? '40px' : '50px' },
     sortable: true,
   },
   {
-    name: 'Size',
+    name: 'FileCount',
     label: '文件数',
     field: 'Size',
     align: 'right',
+    style: { maxWidth: isMobile.value ? '40px' : '50px' },
     sortable: true,
   },
   {
-    name: 'Size',
+    name: 'SizeStr',
     label: '大小',
-    field: 'Size',
+    field: 'SizeStr',
     align: 'right',
     sortable: true,
-    format: (val, row) => {
-      return row.SizeStr;
-    },
   },
 ];
 </script>
@@ -366,5 +310,34 @@ const scanTimeColumns = [
   background: rgba(250, 250, 250, 0.8);
   width: 100%;
   height: 60vh;
+}
+
+/* PC：固定宽度按钮 */
+.btn-fixed-width {
+  min-width: 120px;
+  max-width: 200px;
+  margin: 2px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 移动端：大触摸区域 + 自适应宽度 */
+.btn-touch-mobile {
+  min-width: 80px;
+  min-height: 36px;
+  padding: 4px 8px;
+  margin: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 移动端 tab 栏紧凑 */
+@media (max-width: 600px) {
+  .tab-ground {
+    height: 55vh;
+  }
 }
 </style>

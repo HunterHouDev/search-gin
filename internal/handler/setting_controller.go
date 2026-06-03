@@ -54,7 +54,7 @@ func Login(c *gin.Context) {
 	}
 
 	// 2. 普通用户（从配置读取）
-	for _, user := range consts.GetOSSetting().Users {
+	for _, user := range consts.GetOSSettingUsers() {
 		if user.Username == req.Username && user.Password == req.Password {
 			if user.ExpireDate != "" {
 				expireTime, err := time.Parse("2006-01-02", user.ExpireDate)
@@ -198,7 +198,7 @@ func GetUsers(c *gin.Context) {
 	}
 
 	var users []UserInfo
-	for _, u := range consts.GetOSSetting().Users {
+	for _, u := range consts.GetOSSettingUsers() {
 		users = append(users, UserInfo{
 			Username:   u.Username,
 			Role:       u.Role,

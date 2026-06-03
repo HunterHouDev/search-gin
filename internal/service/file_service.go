@@ -515,8 +515,10 @@ func (fs *fileService) WalkInnter(currentDir string, types []string, queryChild 
 					if emptyFile.ModTime().Day() == yesterday.Day() &&
 						emptyFile.ModTime().Month() == yesterday.Month() &&
 						emptyFile.ModTime().Year() == yesterday.Year() {
-						if err := os.RemoveAll(currentPath); err != nil {
-							utils.InfoFormat("删除空目录失败: %s, 错误: %v", currentPath, err)
+						if utils.IndexOf(consts.GetOSSetting().Dirs, currentPath) < 0 {
+							if err := os.RemoveAll(currentPath); err != nil {
+								utils.InfoFormat("删除空目录失败: %s, 错误: %v", currentPath, err)
+							}
 						}
 					}
 				}
@@ -524,7 +526,7 @@ func (fs *fileService) WalkInnter(currentDir string, types []string, queryChild 
 		} else {
 			currentSize := sizeMap[currentPath]
 			if currentSize <= 20000000 && utils.IndexOf(consts.GetOSSetting().Dirs, currentPath) < 0 {
-				consts.SmallDir = append(consts.SmallDir, consts.NewMenuSizeFold(currentPath, currentSize, true))
+				consts.AppendSmallDir(consts.NewMenuSizeFold(currentPath, currentSize, true))
 			}
 
 			if currentPath != currentDir {
