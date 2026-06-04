@@ -1,1 +1,83 @@
-{"IsDb":false,"IsJavBus":false,"EnableTimeScan":false,"CutThenDelete":false,"SelfPath":"setting.json","BaseUrl":"","OMUrl":"","ImageUrl":"","Remark":"","SystemHtml":"","SystemPlayerVolumn":"","SystemPlayerWidth":"","SystemPlayer":"","HardwareAcceleration":false,"HardwareAccelMode":"","Tags":null,"TagsLib":null,"Dirs":["d:\\emby"],"DirsLib":null,"ImageTypes":null,"DocsTypes":null,"VideoTypes":null,"Types":null,"Buttons":null,"MovieTypes":null,"Pages":null,"ControllerHost":":10081","users":null}
+{
+    "IsDb": false,
+    "IsJavBus": false,
+    "EnableTimeScan": true,
+    "CutThenDelete": true,
+    "SelfPath": "setting.json",
+    "BaseUrl": "",
+    "OMUrl": "",
+    "ImageUrl": "",
+    "Remark": "",
+    "SystemHtml": "# ",
+    "SystemPlayerVolumn": "30",
+    "SystemPlayerWidth": "1280",
+    "SystemPlayer": "ffplay",
+    "HardwareAcceleration": false,
+    "HardwareAccelMode": "",
+    "Tags": [
+        "惊悚",
+        "喜剧",
+        "青春"
+    ],
+    "TagsLib": [],
+    "Dirs": [
+        "d:\\emby"
+    ],
+    "DirsLib": [],
+    "ImageTypes": ["gif", "png", "jpg"],
+    "DocsTypes": ["txt", "xlsx"],
+    "VideoTypes": [
+        "avi",
+        "exe",
+        "iso",
+        "m2ts",
+        "m4v",
+        "mkv",
+        "mov",
+        "mp4",
+        "mpg",
+        "rm",
+        "rmvb",
+        "ts",
+        "vob",
+        "wmv"
+    ],
+    "Types": [
+        "avi",
+        "exe",
+        "gif",
+        "iso",
+        "java",
+        "jpg",
+        "m2ts",
+        "m4v",
+        "mkv",
+        "mov",
+        "mp4",
+        "mpg",
+        "png",
+        "rm",
+        "rmvb",
+        "torrent",
+        "ts",
+        "txt",
+        "vob",
+        "wmv",
+        "xlsx",
+        "xml"
+    ],
+    "Buttons": [
+        "播放",
+        "删除",
+        "移动",
+        "编辑",
+        "文件夹"
+    ],
+    "MovieTypes": [
+        "国剧",
+        "动漫",
+        "美剧"
+    ],
+    "Pages": [],
+    "ControllerHost": ":10081"
+}
