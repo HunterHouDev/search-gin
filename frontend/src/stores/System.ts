@@ -90,8 +90,6 @@ export const useSystemProperty = defineStore({
     } as FileQuery,
     SettingInfo: {
       ControllerHost: ':10081',
-      ImageHost: ':10081',
-      StreamHost: ':10081',
     } as SettingInfo,
     SearchSuggestions: [] as Array<string>,
     videoPlayTimes: {} as Record<string, number>,
@@ -99,12 +97,6 @@ export const useSystemProperty = defineStore({
   getters: {
     getSettingInfo(this) {
       return this.SettingInfo;
-    },
-    getStreamHost(this) {
-      return this.SettingInfo.StreamHost;
-    },
-    getImageHost(this) {
-      return this.SettingInfo.ImageHost;
     },
     getControllerHost(this) {
       return this.SettingInfo?.ControllerHost;
@@ -190,12 +182,6 @@ export const useSystemProperty = defineStore({
       this.SettingInfo = settingInfo;
     },
 
-    setImageHost(url: string) {
-      this.SettingInfo.ImageHost = url;
-    },
-    setStreamHost(url: string) {
-      this.SettingInfo.StreamHost = url;
-    },
     setControllerHost(url: string) {
       this.SettingInfo.ControllerHost = url;
     },

@@ -61,5 +61,3 @@ const JAVA = "java"
 const XML = "xml"
 
 var PortNo = ":10081"
-var PortNo2 = ":10082"
-var PortNo3 = ":10083"

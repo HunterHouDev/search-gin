@@ -9,14 +9,12 @@
 
 默认 `go run main.go` = 开发模式。添加 `-tags=prod` 编译生产环境二进制。
 
-## 多端口服务
+## 单端口服务
 
-应用启动时通过 `errgroup` 同时绑定三个端口：
-- `:10081` — 主 API + 前端（ControllerHost）
-- `:10082` — 图片服务（ImageHost）
-- `:10083` — 视频流服务（StreamHost）
+应用启动时绑定一个端口：
+- `:10081` — API + 前端 + 图片 + 视频流
 
-端口在 `pkg/consts/base_param.go:63-65` 硬编码。默认 `setting.json` 中的配置与此一致。修改端口时两个文件必须同步。
+端口在 `pkg/consts/base_param.go:63` 硬编码。
 
 ## 前端构建 / 嵌入流程
 

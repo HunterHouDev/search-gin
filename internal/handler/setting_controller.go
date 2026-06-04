@@ -9,6 +9,7 @@ import (
 	"search-gin/internal/model"
 	"search-gin/internal/service"
 	"search-gin/pkg/utils"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -215,6 +216,27 @@ func GetIpAddr2(c *gin.Context) {
 	res := utils.NewSuccess()
 	res.Data = service.GetIpAddr()
 	c.JSON(http.StatusOK, res)
+}
+
+// GetServerPort 返回运行端口和配置端口的对比信息
+func GetServerPort(c *gin.Context) {
+	setting := consts.GetOSSetting()
+	configured := setting.ControllerHost
+	if configured == "" {
+		configured = consts.PortNo
+	}
+	cfgPort := configured
+	idx := strings.LastIndex(cfgPort, ":")
+	if idx >= 0 {
+		cfgPort = cfgPort[idx:]
+	}
+	runningPort := consts.PortNo
+	changed := cfgPort != runningPort
+	c.JSON(http.StatusOK, gin.H{
+		"runningPort":    runningPort,
+		"configuredPort": cfgPort,
+		"changed":        changed,
+	})
 }
 
 // GetShutdown 系统关机

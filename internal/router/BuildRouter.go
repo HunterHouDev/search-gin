@@ -100,6 +100,7 @@ func BuildRouter(tempDir string) *gin.Engine {
 	router.GET("/api/refreshIndex", handler.GetRefreshIndex)
 	router.GET("/api/settingInfo", handler.GetSettingInfo)
 	router.POST("/api/setting", handler.PostSetting)
+	router.GET("/api/serverPort", handler.GetServerPort)
 	router.GET("/api/GetIpAddr", handler.GetIpAddr2)
 	router.GET("/api/shutDown", handler.GetShutdown)
 

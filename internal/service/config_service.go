@@ -17,10 +17,9 @@ func InitSetting() {
 	settingPath := curDir + utils.PathSeparator + osSetting.SelfPath
 	dict := ReadDictionaryFromJson(settingPath)
 	dict.SelfPath = osSetting.SelfPath
-	// ip := GetIpAddr()
-	dict.ControllerHost =   consts.PortNo
-	dict.ImageHost =  consts.PortNo2
-	dict.StreamHost =  consts.PortNo3
+	if dict.ControllerHost == "" {
+		dict.ControllerHost = consts.PortNo
+	}
 
 	// 如果启用硬件加速，主动检测并同步模式名称
 	if dict.HardwareAcceleration {

@@ -3,8 +3,10 @@ package main
 import (
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"search-gin/internal/router"
 	"search-gin/internal/service"
@@ -63,29 +65,36 @@ func main() {
 	// ── 9. 启动后台任务 ──
 	service.StartBackgroundTasks()
 
-	// ── 10. 启动多端口 HTTP 服务 ──
+	// ── 10. 获取配置端口，启动 HTTP 服务 ──
+	port := resolvePort(consts.GetOSSetting().ControllerHost)
+	srv := createServer(port, app)
 	var g errgroup.Group
-	portNos := []string{consts.PortNo, consts.PortNo2, consts.PortNo3}
-	servers := make([]*http.Server, len(portNos))
+	g.Go(func() error {
+		defer utils.RecoverPanic()
+		utils.InfoFormat("启动端口 %s", srv.Addr)
+		return srv.ListenAndServe()
+	})
 
-	for i, port := range portNos {
-		srv := createServer(port, app)
-		servers[i] = srv
-		g.Go(func() error {
-			defer utils.RecoverPanic()
-			utils.InfoFormat("启动端口 %s", srv.Addr)
-			return srv.ListenAndServe()
-		})
-	}
-
-	// ── 11. 注册 /api/close 关闭接口 ──
+	// ── 11. 注册 /api/close 和 /api/restart 接口 ──
 	app.GET("api/close", func(c *gin.Context) {
-		c.String(200, "即将关闭所有服务器")
+		c.String(200, "即将关闭服务器")
 		sigChan <- syscall.SIGTERM
+	})
+	app.GET("api/restart", func(c *gin.Context) {
+		c.String(200, "正在重启服务器")
+		go func() {
+			time.Sleep(200 * time.Millisecond)
+			exe, _ := os.Executable()
+			cmd := exec.Command(exe, os.Args[1:]...)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			cmd.Start()
+			sigChan <- syscall.SIGTERM
+		}()
 	})
 
 	// ── 12. 优雅关闭监听 ──
-	gracefulShutdown(sigChan, servers)
+	gracefulShutdown(sigChan, []*http.Server{srv})
 
 	// ── 13. 等待所有 HTTP 服务退出 ──
 	if err := g.Wait(); err != nil && err != http.ErrServerClosed {

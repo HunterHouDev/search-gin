@@ -5,11 +5,26 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"search-gin/internal/service"
+	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 )
+
+// resolvePort 从 ControllerHost 中提取端口号
+// 支持 ":10081" 和 "127.0.0.1:10081" 两种格式
+func resolvePort(controllerHost string) string {
+	if controllerHost == "" {
+		return consts.PortNo
+	}
+	idx := strings.LastIndex(controllerHost, ":")
+	if idx < 0 {
+		return consts.PortNo
+	}
+	return controllerHost[idx:]
+}
 
 // createServer 创建具有标准超时配置的 HTTP 服务器
 func createServer(addr string, handler http.Handler) *http.Server {

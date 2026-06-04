@@ -63,7 +63,7 @@ bash bpc_build.sh
 
 ```
 search-gin/
-├── main.go              # 入口，多端口 HTTP 服务
+├── main.go              # 入口，HTTP 服务
 ├── assets_dev.go        # 开发环境（不嵌入资源）
 ├── assets_prod.go       # 生产环境 //go:embed
 ├── internal/
@@ -86,7 +86,7 @@ search-gin/
 
 - **Windows 平台**：主要目标平台，使用 `ffmpeg.exe`、`-H=windowsgui` 等 Windows 特性
 - **embed 机制**：`-tags=prod` 将 `dist/`、`ffmpeg.exe`、`ffplay.exe`、`setting.json` 嵌入二进制，启动时自动解压到工作目录
-- **多端口**：应用同时监听 `:10081`（主 API）、`:10082`（图片）、`:10083`（视频流）
+- **单端口**：应用监听 `:10081`，同时提供 API、前端、图片和视频流
 - **认证**：默认管理员 `admin` / `qwer`，Token 存储在内存中
 - **无数据库**：所有数据为内存存储，通过文件系统扫描填充，重启后需重新索引
 

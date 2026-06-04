@@ -17,8 +17,6 @@ export class SettingInfo {
   OMUrl: string | undefined;
   ImageUrl: string | undefined;
   ControllerHost: string | undefined;
-  ImageHost: string | undefined;
-  StreamHost: string | undefined;
   IsDb = false;
   HardwareAcceleration = false;
   HardwareAccelMode = '';

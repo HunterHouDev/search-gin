@@ -31,6 +31,16 @@ export const AppShutDown = async () => {
   return res && res.data;
 };
 
+export const AppRestart = async () => {
+  const res = await commonAxios().get('/api/restart');
+  return res && res.data;
+};
+
+export const GetServerPort = async () => {
+  const res = await commonAxios().get('/api/serverPort');
+  return res && res.data;
+};
+
 // 普通用户管理
 export const GetUsers = async () => {
   const res = await commonAxios().get('/api/users');

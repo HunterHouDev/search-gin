@@ -191,8 +191,6 @@
             v-model="view.settingInfo.ControllerHost"
             label="ControllerHost"
           />
-          <q-input v-model="view.settingInfo.ImageHost" label="ImageHost" />
-          <q-input v-model="view.settingInfo.StreamHost" label="StreamHost" />
           <q-field color="primary" label="DirsLib" stack-label>
             <template v-slot:control>
               <MutiInput
@@ -404,6 +402,7 @@ import {
   GetUsers,
   AddUser,
   DeleteUser,
+  AppRestart,
 } from '../../components/api/settingAPI';
 import MutiSelector from '../../components/MutiSelector.vue';
 import MutiInput from '../../components/MutiInput.vue';
@@ -495,6 +494,7 @@ const themeStyle = computed(() => {
 });
 
 const submitForm = async () => {
+  const oldControllerHost = view.settingInfo.ControllerHost;
   view.settingInfo.Dirs = view.settingInfo.Dirs.sort();
   view.settingInfo.DirsLib = view.settingInfo.DirsLib.sort();
   view.settingInfo.Types = view.settingInfo.Types.sort();
@@ -523,9 +523,20 @@ const submitForm = async () => {
   console.log(Code, Message);
   if (Code != 200) {
     $q.notify({ message: `${Message}` });
-    // window.location.reload()
   } else {
     $q.notify({ message: `${Message}` });
+    const newControllerHost = view.settingInfo.ControllerHost;
+    if (oldControllerHost !== newControllerHost) {
+      systemProperty.setControllerHost(newControllerHost);
+      $q.dialog({
+        title: '端口已变更',
+        message: `端口从 ${oldControllerHost} 变更为 ${newControllerHost}，需要重启应用才能生效。是否立即重启？`,
+        cancel: true,
+        persistent: true,
+      }).onOk(async () => {
+        await AppRestart();
+      });
+    }
   }
 };
 
