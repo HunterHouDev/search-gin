@@ -23,7 +23,7 @@
           v-model="tab"
           align="justify"
           narrow-indicator
-          :mobile-arrows
+          mobile-arrows
           style="width: 90%"
         >
           <q-tab name="filelist" :label="isMobile ? '操作' : '批量操作'" />

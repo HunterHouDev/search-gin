@@ -86,14 +86,14 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue';
-import { useChatWs, type ChatMessage } from 'src/composables/useChatWs';
+import { useChatWs } from 'src/composables/useChatWs';
 
 const visible = ref(false);
 const inputText = ref('');
 const messageContainer = ref<HTMLElement | null>(null);
 const currentUser = localStorage.getItem('username') || '';
 
-const { connected, onlineUsers, messages, connect, disconnect, sendChat } = useChatWs();
+const { connected, onlineUsers, messages, connect, sendChat } = useChatWs();
 
 // 自动滚动到底部
 const scrollToBottom = () => {

@@ -26,7 +26,7 @@
             {{ view.item.Name }}
           </q-toolbar-title>
           <q-space />
-          <q-tabs v-model="showDetail" shrink :mobile-arrows>
+          <q-tabs v-model="showDetail" shrink mobile-arrows>
             <q-tab
               v-for="item in ClickButtons"
               :key="item.value"
