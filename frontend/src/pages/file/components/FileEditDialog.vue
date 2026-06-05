@@ -1,11 +1,7 @@
 <template>
   <q-dialog ref="dialogRef" @hide="onDialogHide">
     <q-card class="file-edit-card">
-      <q-toolbar
-        class="rounded-borders justify-between"
-        style="background-color: rgba(0, 0, 0, 0.9)"
-        wrap
-      >
+      <q-toolbar class="rounded-borders justify-between" style="background-color: rgba(0, 0, 0, 0.9)" wrap>
         <q-btn color="red" flat icon="ti-shift-left" :size="isMobile ? 'sm' : 'md'" @click="prevOne">
           <q-tooltip class="bg-white text-primary">上一个</q-tooltip>
         </q-btn>
@@ -14,66 +10,30 @@
           <span style="color: orchid; cursor: pointer">
             历史图鉴 ：
             <q-popup-proxy>
-              <div
-                style="
+              <div style="
                   padding: 10px;
                   display: flex;
                   flex-wrap: wrap;
                   flex-direction: row;
                   background-color: rgba(250, 250, 250, 1);
                   border-radius: 40px;
-                "
-                class="q-gutter-md"
-                v-if="systemProperty.lastActresses && systemProperty.lastActresses.length>0"
-              >
-                <q-btn
-                  color="orange"
-                  v-close-popup
-                  class="glossy"
-                  v-for="item in systemProperty.lastActresses"
-                  :key="item"
-                  :label="item"
-                  @click="systemProperty.lastActress = item"
-                ></q-btn>
+                " class="q-gutter-md" v-if="systemProperty.lastActresses && systemProperty.lastActresses.length > 0">
+                <q-btn color="orange" v-close-popup class="glossy" v-for="item in systemProperty.lastActresses"
+                  :key="item" :label="item" @click="systemProperty.lastActress = item"></q-btn>
               </div>
             </q-popup-proxy>
           </span>
-          <a
-            style="color: green; border-bottom: 1px solid green; cursor: pointer"
-            v-if="systemProperty.lastActress"
-            @click="view.item.Actress = systemProperty.lastActress"
-          >
-            {{ systemProperty.lastActress }}</a
-          >
+          <a style="color: green; border-bottom: 1px solid green; cursor: pointer" v-if="systemProperty.lastActress"
+            @click="view.item.Actress = systemProperty.lastActress">
+            {{ systemProperty.lastActress }}</a>
         </span>
         <q-space />
-        <q-btn
-          style="margin-right: 10px"
-          color="orange"
-          align="evenly"
-          label="改名移动"
-          glossy
-          :size="isMobile ? 'sm' : 'md'"
-          @click="editMoveout"
-        />
-        <q-btn
-          style="margin-right: 10px"
-          color="green"
-          glossy
-          align="evenly"
-          label="仅改名"
-          :size="isMobile ? 'sm' : 'md'"
-          @click="editItemSubmit(false)"
-        />
-        <q-btn
-          style="margin-right: 10px"
-          color="primary"
-          icon="close"
-          glossy
-          dense
-          :size="isMobile ? 'sm' : 'md'"
-          @click="onDialogCancel"
-        >
+        <q-btn style="margin-right: 10px" color="orange" align="evenly" label="改名移动" glossy
+          :size="isMobile ? 'sm' : 'md'" @click="editMoveout" />
+        <q-btn style="margin-right: 10px" color="green" glossy align="evenly" label="仅改名" :size="isMobile ? 'sm' : 'md'"
+          @click="editItemSubmit(false)" />
+        <q-btn style="margin-right: 10px" color="primary" icon="close" glossy dense :size="isMobile ? 'sm' : 'md'"
+          @click="onDialogCancel">
           <q-tooltip class="bg-white text-primary">关闭</q-tooltip>
         </q-btn>
         <q-btn color="red" flat icon="ti-shift-right" :size="isMobile ? 'sm' : 'md'" @click="nextOne">
@@ -81,150 +41,60 @@
         </q-btn>
       </q-toolbar>
       <q-form class="q-gutter-md row justify-between">
-        <div
-          class="q-gutter-sm q-pa-sm"
-          :style="{
-            width: isMobile
-              ? '100%'
-              : view.item.Jpg || view.item.Png
-              ? '60%'
-              : '100%',
-          }"
-        >
+        <div class="q-gutter-sm q-pa-sm" :style="{ width: isMobile ? '100%' : '60%' }">
           <div>
             <p style="color: grey">
               {{ view.item.Path }}
               <span style="color: red">{{ view.item.SizeStr }}</span>
-              <span
-                style="color: green; margin-left: 10px"
-                v-for="tag in view.item.Tags"
-                :key="tag"
-                >{{ tag }}</span
-              >
+              <span style="color: green; margin-left: 10px" v-for="tag in view.item.Tags" :key="tag">{{ tag }}</span>
             </p>
           </div>
-          <q-input
-            color="red-12"
-            style="border-radius: 15px; background: rgba(0, 0, 0, 0.1)"
-            autogrow
-            standout
-            outlined
-            label="名称"
-            v-model="view.item.Title"
-            :dense="false"
-            clearable
-            @focus="titleChange"
-            @change="titleChange"
-          >
+          <q-input color="red-12" style="border-radius: 15px; background: rgba(0, 0, 0, 0.1)" autogrow standout outlined
+            label="名称" v-model="view.item.Title" :dense="false" clearable @focus="titleChange" @change="titleChange">
             <template v-slot:append>
-              <q-icon
-                name="style"
-                size="lg"
-                color="red"
-                class="cursor-pointer"
-                @click="fromclipboardTitle"
-              />
+              <q-icon name="style" size="lg" color="red" class="cursor-pointer" @click="pasteFromClipboard('Title')" />
             </template>
           </q-input>
 
-          <q-input
-            outlined
-            label="图鉴"
-            autogrow
-            v-model="view.item.Actress"
-            clearable
-            :dense="false"
-          >
+          <q-input outlined label="图鉴" autogrow v-model="view.item.Actress" clearable :dense="false">
           </q-input>
-          <q-input
-            outlined
-            autogrow
-            label="番号"
-            v-model="view.item.Code"
-            :dense="false"
-            @change="makePreview"
-            clearable
-          />
-          <q-input
-            class="col-8"
-            label="JPG地址"
-            autogrow
-            outlined
-            clearable
-            v-model="view.item.Jpg"
-            :dense="false"
-            @clear="systemProperty.fileEditAutoJpg = false"
-          >
-            <template v-slot:append>
-              <q-icon
-                name="style"
-                size="md"
-                class="cursor-pointer"
-                @click="fromclipboardJpg"
-              />
-            </template>
-          </q-input>
-          <q-input
-            label="PNG地址"
-            autogrow
-            outlined
-            v-model="view.item.Png"
-            clearable
-            :dense="false"
-          >
-            <template v-slot:append>
-              <q-icon
-                name="style"
-                size="md"
-                class="cursor-pointer"
-                @click="fromclipboardPng"
-              />
-            </template>
-          </q-input>
-          <div class="row w100">
-            <q-toggle
-              v-model="systemProperty.fileEditAutoCode"
-              color="green"
-              label="番号自动"
-              left-label
-              dense
-              class="taggle"
-            />
-            <q-toggle
-              v-model="systemProperty.fileEditAutoJpg"
-              color="green"
-              label="JPG自动"
-              left-label
-              dense
-              class="taggle"
-            />
-            <q-toggle
-              v-model="systemProperty.fileEditAutoRefresh"
-              color="green"
-              label="刷新自动"
-              left-label
-              dense
-              class="taggle"
-            />
+          <q-input outlined autogrow label="番号" v-model="view.item.Code" :dense="false" @change="makePreview"
+            clearable />
+          <div :class="isMobile ? '' : 'row q-col-gutter-sm'">
+            <q-input :class="isMobile ? '' : 'col-6'" label="JPG地址" autogrow outlined clearable
+              v-model="view.item.Jpg" :dense="false" @clear="systemProperty.fileEditAutoJpg = false">
+              <template v-slot:append>
+                <q-icon name="style" size="md" class="cursor-pointer" @click="pasteFromClipboard('Jpg')" />
+              </template>
+            </q-input>
+            <q-input :class="isMobile ? '' : 'col-6'" label="PNG地址" autogrow outlined v-model="view.item.Png"
+              clearable :dense="false">
+              <template v-slot:append>
+                <q-icon name="style" size="md" class="cursor-pointer" @click="pasteFromClipboard('Png')" />
+              </template>
+            </q-input>
+          </div>
+          <div class="row wrap q-gutter-x-sm">
+            <q-toggle v-model="systemProperty.fileEditAutoCode" color="green" label="番号自动" left-label dense
+              class="taggle" />
+            <q-toggle v-model="systemProperty.fileEditAutoJpg" color="green" label="JPG自动" left-label dense
+              class="taggle" />
+            <q-toggle v-model="systemProperty.fileEditAutoRefresh" color="green" label="刷新自动" left-label dense
+              class="taggle" />
 
-            <q-toggle
-              color="red"
-              dense
-              flat
-              label="下一个"
-              left-label
-              v-model="systemProperty.fileEditAutoNext"
-              class="taggle"
-            />
+            <q-toggle color="red" dense flat label="下一个" left-label v-model="systemProperty.fileEditAutoNext"
+              class="taggle" />
           </div>
         </div>
-        <div
-          class="q-pa-sm"
-          style="border-radius: 5px; width: 36%"
-          v-if="view.item.Jpg || view.item.Png"
-        >
-          <q-img fit="fill" height="180px" :src="view.item.Jpg"></q-img>
-          <q-img fit="fill" height="180px" :src="view.item.Png"></q-img>
+        <div class="q-pa-sm preview-panel" :style="{ width: isMobile ? '100%' : '36%' }">
+          <template v-if="view.item.Jpg || view.item.Png">
+            <q-img v-if="view.item.Jpg" fit="fill" height="180px" :src="view.item.Jpg"></q-img>
+            <q-img v-if="view.item.Png" fit="fill" height="180px" :src="view.item.Png"></q-img>
+          </template>
+          <div v-else class="preview-placeholder">
+            <q-icon name="image" size="48px" color="grey-5" />
+            <p class="text-grey-6">暂无预览图</p>
+          </div>
         </div>
       </q-form>
     </q-card>
@@ -267,6 +137,7 @@ const emits = defineEmits([
 ]);
 
 const makePreview = () => {
+  if (!view.item?.Code) return;
   if (
     (view.item.MovieType === '骑兵' || view.item.MovieType === '无') &&
     systemProperty.fileEditAutoJpg
@@ -281,59 +152,47 @@ const reg = /\w+[-_]\d+/;
 const reg_1 = /\w+\d+/;
 
 const titleChange = (v) => {
-  if (v && v.length > 0 && systemProperty.fileEditAutoCode) {
-    v = v.replace(/[\r\n\t]+/g, '');
-    v = v.replace(/&nbsp;/g, '');
-    v = v.trimEnd();
-    let originalCode = v.match(reg);
-    console.log('originalCode', originalCode);
-    if (!originalCode) {
-      originalCode = v.match(reg_1);
-    }
-    if (originalCode && originalCode[0] && originalCode[0].length > 0) {
-      let ncode = originalCode[0].toUpperCase();
-      if (ncode && ncode.indexOf('-') < 0 && ncode.indexOf('_') < 0) {
-        // 字母和数字之间插入 -
-        ncode = ncode.replace(/([a-zA-Z])(\d)/g, '$1-$2');
-        if (ncode && ncode.indexOf('-') < 0 && ncode.indexOf('_') < 0) {
-          ncode = '-' + ncode;
-        }
-      }
-      console.log('ncode', ncode);
-      view.item.Code = ncode;
-      if (view.item.MovieType === '骑兵' || view.item.MovieType === '无') {
-        makePreview();
-      }
-    }
-    const arr = v.split(' ');
-    if (arr && arr.length > 2) {
-      view.item.Actress = arr[arr.length - 1];
-      view.item.Actress = view.item.Actress.trim();
-    }
-    view.item.Title = view.item.Title.replace(originalCode, '');
-    view.item.Title = view.item.Title.replace('：', ' ');
-    view.item.Title = view.item.Title.replace(':', ' ');
-    view.item.Title = view.item.Title.replace('{{', ' ');
-    view.item.Title = view.item.Title.replace('}}', ' ');
-    view.item.Title = view.item.Title.replace('《', ' ');
-    view.item.Title = view.item.Title.replace('》', ' ');
+  if (!v || v.length === 0 || !systemProperty.fileEditAutoCode) return;
+
+  v = v.replace(/[\r\n\t]+/g, '');
+  v = v.replace(/&nbsp;/g, '');
+  v = v.trimEnd();
+  let originalCode = v.match(reg);
+  console.log('originalCode', originalCode);
+  if (!originalCode) {
+    originalCode = v.match(reg_1);
   }
+  if (originalCode && originalCode[0] && originalCode[0].length > 0) {
+    let ncode = originalCode[0].toUpperCase();
+    if (ncode.indexOf('-') < 0 && ncode.indexOf('_') < 0) {
+      // 字母和数字之间插入 -
+      ncode = ncode.replace(/([a-zA-Z])(\d)/g, '$1-$2');
+    }
+    console.log('ncode', ncode);
+    view.item.Code = ncode;
+    if (view.item.MovieType === '骑兵' || view.item.MovieType === '无') {
+      makePreview();
+    }
+  }
+  const arr = v.split(' ');
+  if (arr && arr.length > 2) {
+    view.item.Actress = arr[arr.length - 1];
+    view.item.Actress = view.item.Actress.trim();
+  }
+  // 从 Title 中移除 originalCode（忽略大小写）
+  if (originalCode && originalCode[0]) {
+    const codePattern = originalCode[0].replace(/[-_\s]/g, '[-_\\s]?');
+    view.item.Title = view.item.Title.replace(new RegExp(codePattern, 'i'), '');
+  }
+  view.item.Title = view.item.Title.replace(/[：:{{}}《》]/g, ' ');
 };
 
-const fromclipboardTitle = async () => {
+const pasteFromClipboard = async (field) => {
   const text = await navigator.clipboard.readText();
-  view.item.Title = text;
-  await titleChange(text);
-};
-
-const fromclipboardJpg = async () => {
-  const text = await navigator.clipboard.readText();
-  view.item.Jpg = text;
-};
-
-const fromclipboardPng = async () => {
-  const text = await navigator.clipboard.readText();
-  view.item.Png = text;
+  view.item[field] = text;
+  if (field === 'Title') {
+    titleChange(text);
+  }
 };
 
 const open = (item) => {
@@ -343,7 +202,6 @@ const open = (item) => {
   view.item.MovieType = item.MovieType;
   view.item.Code = item.Code?.toUpperCase();
   view.item.Title = formatTitle(item.Title);
-  view.previewUrl = null;
   dialogRef.value.show();
 };
 
@@ -370,8 +228,8 @@ const editItemSubmit = async (MoveOut) => {
   const arrLength = arr.length;
   for (let idx = 0; idx < arrLength; idx++) {
     const str = arr[idx];
-    const strNew = str.replace(str.charAt(0), str.charAt(0).toUpperCase());
-    name += strNew;
+    if (!str) continue;
+    name += str.charAt(0).toUpperCase() + str.slice(1) +' ';
   }
   if (Tags && Tags.length > 0) {
     name += `《${Tags.join(',')}》`;
@@ -471,9 +329,27 @@ defineExpose({
   background-color: rgba(250, 250, 250, 1);
 }
 
-@media (max-width: 600px) {
+.preview-panel {
+  border-radius: 5px;
+}
+
+.preview-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 360px;
+  border: 2px dashed rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+}
+
+.preview-placeholder p {
+  margin-top: 8px;
+}
+
+@media (max-width: 768px) {
   .file-edit-card {
-    max-width: 100vw;
+    max-width: 96vw;
     width: 96vw;
   }
 
@@ -485,11 +361,9 @@ defineExpose({
   .file-edit-card .q-toolbar .q-btn {
     font-size: 12px;
   }
-}
 
-@media (max-width: 768px) {
-  .file-edit-card {
-    max-width: 96vw;
+  .preview-placeholder {
+    height: 120px;
   }
 }
 
