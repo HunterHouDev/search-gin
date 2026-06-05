@@ -120,7 +120,7 @@
               <q-img
                 fit="fill"
                 class="max-image-height"
-                v-if="!view.uPng && !view.uPng"
+                v-if="!view.uImage"
                 :src="getJpg(view.item.Id)"
               />
 
@@ -136,7 +136,7 @@
                 fit="fill"
                 v-show="!view.showCanvas"
                 class="max-image-height"
-                v-if="!view.uPng && !view.uPng"
+                v-if="!view.uPng"
                 :src="getJpg(view.item.Id)"
               />
 
@@ -211,14 +211,6 @@
               </q-img>
             </q-tab-panel>
           </q-tab-panels>
-          <div
-            class="row"
-            style="
-              display: flex;
-              flex-direction: row;
-              justify-content: space-between;
-            "
-          ></div>
           <!-- 页面滚动器 -->
           <q-page-scroller
             position="bottom-right"
@@ -236,7 +228,7 @@
 <script setup>
 import { reactive, ref } from 'vue';
 
-import { useDialogPluginComponent } from 'quasar';
+import { useDialogPluginComponent, useQuasar } from 'quasar';
 import {
   CutImage,
   DeleteFileByPathUseEncode,
@@ -246,6 +238,7 @@ import {
 import { getJpg, getPng, getTempImage } from 'components/utils/images';
 import { isMobile } from 'src/boot/platform';
 
+const $q = useQuasar();
 const tab = ref('png');
 
 const btns = [0, -2, 5, 25, 60];
@@ -276,11 +269,9 @@ const open = (item) => {
 
   img.onload = function () {
     canvasData.image = img;
+    drawCanvas();
   };
   loadImage(item);
-  setTimeout(() => {
-    drawCanvas();
-  }, 500);
 };
 
 const loadImage = (item) => {
@@ -434,8 +425,13 @@ const mouseMove = (e) => {
 };
 
 const drawCanvas = () => {
-  const mycanvas = document.getElementById('mycanvas'); // 获取canvas元素的引用
-  const ctx = mycanvas.getContext('2d'); // 获取canvas的2D上下文
+  const mycanvas = document.getElementById('mycanvas');
+  if (!mycanvas) return;
+  // 先移除旧监听器，避免重复绑定
+  mycanvas.removeEventListener('mousedown', startPosition);
+  mycanvas.removeEventListener('mouseup', finishedPosition);
+  mycanvas.removeEventListener('mousemove', mouseMove);
+  const ctx = mycanvas.getContext('2d');
   canvasData.canvas = mycanvas;
   canvasData.context = ctx;
   canvasData.width = mycanvas.offsetWidth;
@@ -537,24 +533,24 @@ const plusN = (base, n) => {
   return hh + mm + ss;
 };
 
-const emmits = defineEmits(['next-one', 'prev-one', 'hide']);
+const emits = defineEmits(['next-one', 'prev-one', 'hide']);
 
 const nextOne = async () => {
-  emmits('next-one');
+  emits('next-one');
 };
 
 const prevOne = async () => {
-  emmits('prev-one');
+  emits('prev-one');
 };
 
 const closeWin = () => {
-  emmits('hide');
+  emits('hide');
   onDialogCancel();
   window.location.reload();
 };
 
 const hide = () => {
-  emmits('hide');
+  emits('hide');
   onDialogCancel();
 };
 
