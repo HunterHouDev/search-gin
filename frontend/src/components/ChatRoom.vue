@@ -1,5 +1,5 @@
 <template>
-  <q-dialog v-model="visible" persistent :maximized="$q.screen.lt.md">
+  <q-dialog v-model="visible" persistent :maximized="isMaximized">
     <q-card class="chat-card">
       <q-card-section class="row items-center q-pb-none">
         <div class="text-h6">聊天室</div>
@@ -85,16 +85,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue';
+import { ref, watch, nextTick, computed } from 'vue';
 import { useChatWs } from 'src/composables/useChatWs';
+import { useQuasar } from 'quasar';
 
+const $q = useQuasar();
 const visible = ref(false);
 const inputText = ref('');
 const messageContainer = ref<HTMLElement | null>(null);
 const currentUser = localStorage.getItem('username') || '';
 
 const { connected, onlineUsers, messages, connect, sendChat } = useChatWs();
-
+const isMaximized = computed(() => $q.screen.lt.md);
 // 自动滚动到底部
 const scrollToBottom = () => {
   nextTick(() => {
