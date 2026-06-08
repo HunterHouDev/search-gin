@@ -80,7 +80,8 @@ function connectSingleton() {
     scheduleReconnect();
   };
 
-  ws.value.onerror = () => {
+  ws.value.onerror = (event) => {
+    console.error('WebSocket 连接错误:', event);
     // onclose 会接着触发，统一在 onclose 中重连
   };
 }

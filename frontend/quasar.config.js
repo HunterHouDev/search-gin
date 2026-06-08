@@ -97,6 +97,7 @@ module.exports = configure(function (/* ctx */) {
         '/api': {
           target: 'http://localhost:10081/',
           changeOrigin: true,
+          ws: true,  // 启用 WebSocket 代理
         },
       },
     },
