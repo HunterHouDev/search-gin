@@ -18,6 +18,7 @@ export interface ChatMessage {
 
 const WS_RECONNECT_BASE = 2000;
 const WS_RECONNECT_MAX = 30000;
+const WS_CONNECT_TIMEOUT = 10000; // 连接超时：10 秒
 
 // 单例状态，所有 useChatWs() 调用共享同一个 WebSocket 连接
 const ws = ref<WebSocket | null>(null);
@@ -26,6 +27,7 @@ const onlineUsers = ref<OnlineUser[]>([]);
 const messages = ref<ChatMessage[]>([]);
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempt = 0;
+let connectTimer: ReturnType<typeof setTimeout> | null = null;
 
 function getWsUrl(): string {
   const token = localStorage.getItem('authToken');
@@ -56,7 +58,17 @@ function connectSingleton() {
   const url = getWsUrl();
   ws.value = new WebSocket(url);
 
+  // 连接超时：10 秒内未响应则主动关闭并重连
+  if (connectTimer) clearTimeout(connectTimer);
+  connectTimer = setTimeout(() => {
+    if (ws.value && ws.value.readyState === WebSocket.CONNECTING) {
+      console.warn('WebSocket 连接超时，主动关闭并重连');
+      ws.value.close();
+    }
+  }, WS_CONNECT_TIMEOUT);
+
   ws.value.onopen = () => {
+    if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
     connected.value = true;
     reconnectAttempt = 0;
   };
@@ -75,6 +87,7 @@ function connectSingleton() {
   };
 
   ws.value.onclose = () => {
+    if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
     connected.value = false;
     ws.value = null;
     scheduleReconnect();
@@ -87,6 +100,7 @@ function connectSingleton() {
 }
 
 function disconnectSingleton() {
+  if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;

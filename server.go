@@ -26,13 +26,15 @@ func resolvePort(controllerHost string) string {
 	return controllerHost[idx:]
 }
 
-// createServer 创建具有标准超时配置的 HTTP 服务器
+// createServer 创建 HTTP 服务器
+// 注意: 不设置 ReadTimeout，因为 WebSocket hijack 后超时仍会残留导致连接断开
+//       使用 ReadHeaderTimeout 防范慢连接攻击即可
 func createServer(addr string, handler http.Handler) *http.Server {
 	return &http.Server{
-		Addr:         addr,
-		Handler:      handler,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second,
+		WriteTimeout:      30 * time.Second,
 	}
 }
 

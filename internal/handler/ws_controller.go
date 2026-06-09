@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"search-gin/internal/ws"
+	"search-gin/pkg/consts"
+	"search-gin/pkg/utils"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -21,35 +23,52 @@ var upgrader = websocket.Upgrader{
 
 // HandleWebSocket WebSocket 连接入口
 func HandleWebSocket(c *gin.Context) {
-	// 从 context 获取认证信息（中间件已注入）
-	username, _ := c.Get("username")
-	role, _ := c.Get("role")
+	// 直接从请求参数获取 token（skipPaths 已跳过全局认证）
+	token := c.Query("token")
+	if token == "" {
+		// WebSocket 用不了 Authorization 头，但保留尝试
+		authHeader := c.GetHeader("Authorization")
+		if authHeader != "" && len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+			token = authHeader[7:]
+		}
+	}
 
-	usernameStr, ok := username.(string)
-	if !ok || usernameStr == "" {
+	if token == "" {
+		utils.InfoFormat("[WS] no token provided")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "未认证"})
 		return
 	}
-	roleStr, _ := role.(string)
+
+	tokenInfo, valid := consts.ValidateTokenWithInfo(token)
+	if !valid {
+		utils.InfoFormat("[WS] invalid token")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未认证"})
+		return
+	}
+
+	username := tokenInfo.Username
+	role := tokenInfo.Role
 
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
+		utils.ErrorFormat("WebSocket 升级失败 [%s]: %v", username, err)
 		return
 	}
 
 	clientIP := c.ClientIP()
+	utils.InfoFormat("WebSocket 连接成功: %s (%s)", username, clientIP)
 
 	client := &ws.ClientConn{
 		Conn:     conn,
-		Username: usernameStr,
-		Role:     roleStr,
+		Username: username,
+		Role:     role,
 		IP:       clientIP,
 		LoginAt:  time.Now(),
 	}
 
 	ws.DefaultHub.Register(client)
 
-	// 发送聊天历史给新连接的客户端（必须先注册，已用 client.mu 保护并发写入）
+	// 发送聊天历史给新连接的客户端
 	history := ws.DefaultHub.GetChatHistory()
 	if len(history) > 0 {
 		client.SendBatchHistory(history)
@@ -74,8 +93,8 @@ func HandleWebSocket(c *gin.Context) {
 
 		if chatMsg.Type == "chat" && chatMsg.Content != "" {
 			// 服务端补充用户信息
-			chatMsg.Username = usernameStr
-			chatMsg.Role = roleStr
+			chatMsg.Username = username
+			chatMsg.Role = role
 			chatMsg.Time = time.Now()
 
 			data, _ := json.Marshal(chatMsg)
