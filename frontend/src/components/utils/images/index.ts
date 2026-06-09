@@ -1,42 +1,30 @@
-import { useSystemProperty } from '../../../stores/System';
-
-const systemProperty = useSystemProperty();
-
-// 文件/图片流服务端口（与 API 端口分离）
+// 文件/图片流服务端口（与 API 端口 10081 分离）
 const FILE_PORT = '10082';
 
+// 动态获取文件流基础 URL：使用当前页面的 hostname，替换端口为 10082
+// 这样无论是 localhost、127.0.0.1、局域网 IP 还是域名都能正确访问
+const getFileBaseUrl = (): string => {
+  return `${window.location.protocol}//${window.location.hostname}:${FILE_PORT}`;
+};
+
 export const getPng = (Id: string) => {
-  if (systemProperty.isElectron) {
-    return `http://localhost:${FILE_PORT}/api/png/` + Id;
-  }
-  return `/api/png/` + Id;
+  return `${getFileBaseUrl()}/api/png/` + Id;
 };
 
 export const getJpg = (Id: string) => {
-  if (systemProperty.isElectron) {
-    return `http://localhost:${FILE_PORT}/api/jpg/` + Id;
-  }
-  return `/api/jpg/` + Id;
+  return `${getFileBaseUrl()}/api/jpg/` + Id;
 };
 
 export const getFileStream = (id: string) => {
-  if (systemProperty.isElectron) {
-    return `http://localhost:${FILE_PORT}/api/file/` + id;
-  }
-  return `/api/file/` + id;
+  return `${getFileBaseUrl()}/api/file/` + id;
 };
 
 export const getTempImage = (id: string) => {
-  if (systemProperty.isElectron) {
-    return `http://localhost:${FILE_PORT}/api/tempimage/` + id;
-  }
-  return `/api/tempimage/` + id;
+  return `${getFileBaseUrl()}/api/tempimage/` + id;
 };
 
 export const getActressImage = (actressUrl: string) => {
-  if (systemProperty.isElectron) {
-    return `http://localhost:10081/api/actressImgae/` + actressUrl;
-  }
+  // actressImgae 是 API 路由，在 10081 上
   return `/api/actressImgae/` + actressUrl;
 };
 
@@ -45,8 +33,5 @@ export const getVideoSrt = (path: string) => {
 };
 
 export const GetFileByPathUseEncode = (path: string) => {
-  if (systemProperty.isElectron) {
-    return `http://localhost:${FILE_PORT}/api/GetFileByPathUseEncode/` + encodeURI(path);
-  }
-  return `/api/GetFileByPathUseEncode/` + encodeURI(path);
+  return `${getFileBaseUrl()}/api/GetFileByPathUseEncode/` + encodeURI(path);
 };

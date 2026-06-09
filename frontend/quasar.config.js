@@ -94,10 +94,11 @@ module.exports = configure(function (/* ctx */) {
       // https: true
       open: false, // 关闭自动打开浏览器，避免干扰开发过程
       proxy: {
+        // API 业务路由 → 10081
         '/api': {
           target: 'http://localhost:10081/',
           changeOrigin: true,
-          ws: true,  // 启用 WebSocket 代理
+          ws: true,
         },
       },
     },
