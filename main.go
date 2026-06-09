@@ -56,31 +56,41 @@ func main() {
 	closeTorrent := service.StartTorrentCleanup(tempDir)
 	defer closeTorrent()
 
-	// ── 7. 构建路由 ──
-	app := router.BuildRouter(tempDir)
+	// ── 7. 构建路由（API 路由 + 文件流路由） ──
+	apiRouter := router.BuildAPIRouter()
+	fileRouter := router.BuildFileRouter()
 
 	// ── 8. 加载前端静态文件（等待解压完成） ──
-	go loadStaticFiles(app, tempDir, assetsExtracted)
+	go loadStaticFiles(apiRouter, tempDir, assetsExtracted)
 
 	// ── 9. 启动后台任务 ──
 	service.StartBackgroundTasks()
 
-	// ── 10. 获取配置端口，启动 HTTP 服务 ──
-	port := resolvePort(consts.GetOSSetting().ControllerHost)
-	srv := createServer(port, app)
+	// ── 10. 获取配置端口，启动两个 HTTP 服务 ──
+	apiPort := resolvePort(consts.GetOSSetting().ControllerHost)
+	apiSrv := createServer(apiPort, apiRouter)
+
+	filePort := consts.FilePortNo
+	fileSrv := createServer(filePort, fileRouter)
+
 	var g errgroup.Group
 	g.Go(func() error {
 		defer utils.RecoverPanic()
-		utils.InfoFormat("启动端口 %s", srv.Addr)
-		return srv.ListenAndServe()
+		utils.InfoFormat("API 服务启动端口 %s", apiSrv.Addr)
+		return apiSrv.ListenAndServe()
+	})
+	g.Go(func() error {
+		defer utils.RecoverPanic()
+		utils.InfoFormat("文件/图片流服务启动端口 %s", fileSrv.Addr)
+		return fileSrv.ListenAndServe()
 	})
 
 	// ── 11. 注册 /api/close 和 /api/restart 接口 ──
-	app.GET("api/close", func(c *gin.Context) {
+	apiRouter.GET("api/close", func(c *gin.Context) {
 		c.String(200, "即将关闭服务器")
 		sigChan <- syscall.SIGTERM
 	})
-	app.GET("api/restart", func(c *gin.Context) {
+	apiRouter.GET("api/restart", func(c *gin.Context) {
 		c.String(200, "正在重启服务器")
 		go func() {
 			time.Sleep(200 * time.Millisecond)
@@ -94,7 +104,7 @@ func main() {
 	})
 
 	// ── 12. 优雅关闭监听 ──
-	gracefulShutdown(sigChan, []*http.Server{srv})
+	gracefulShutdown(sigChan, []*http.Server{apiSrv, fileSrv})
 
 	// ── 13. 等待所有 HTTP 服务退出 ──
 	if err := g.Wait(); err != nil && err != http.ErrServerClosed {
