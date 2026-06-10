@@ -81,16 +81,16 @@ func BuildAPIRouter() *gin.Engine {
 	router.GET("/api/cutMovie/:id/:start/:end", handler.GetCutMovie)
 	router.GET("/api/setMovieType/:id/:movieType", handler.SetMovieType)
 	router.GET("/api/info/:id", handler.GetInfo)
-	router.POST("/api/file/rename", handler.PostRename)
-	router.GET("/api/file/addTag/:id/:tag", handler.GetAddTag)
-	router.GET("/api/file/clearTag/:id/:tag", handler.GetClearTag)
+	router.POST("/api/renameFile", handler.PostRename)
+	router.GET("/api/addFileTag/:id/:tag", handler.GetAddTag)
+	router.GET("/api/clearFileTag/:id/:tag", handler.GetClearTag)
 	router.GET("/api/dir/:id/:sort", handler.GetDirInfo)
 	router.GET("/api/delete/:id", handler.GetDelete)
 
 	router.GET("/api/openFolder/:id", handler.GetOpenFolder)
 	router.POST("/api/OpenFolerByPath", handler.PostOpenFolderByPath)
 	router.POST("/api/DeleteFolerByPath", handler.PostDeleteFolerByPath)
-	router.POST("/api/file/move", handler.PostMove)
+	router.POST("/api/moveFile", handler.PostMove)
 
 	router.GET("/api/DeleteFileByPathUseEncode/:path", handler.GetDeleteFileByPathUseEncode)
 
@@ -139,11 +139,11 @@ func BuildFileRouter() *gin.Engine {
 	buildCommonMiddleware(router)
 	// 文件流服务不需要认证中间件
 
-	router.GET("/api/file/:id", handler.GetFile)
-	router.GET("/api/png/:path", handler.GetPng)
-	router.GET("/api/jpg/:path", handler.GetJpg)
-	router.GET("/api/GetFileByPathUseEncode/:path", handler.GetFileByPathUseEncode)
-	router.GET("/api/tempimage/:path", handler.GetTempImage)
+	router.GET("/api/stream/file:id", handler.GetFile)
+	router.GET("/api/stream/png/:path", handler.GetPng)
+	router.GET("/api/stream/jpg/:path", handler.GetJpg)
+	router.GET("/api/stream/GetFileByPathUseEncode/:path", handler.GetFileByPathUseEncode)
+	router.GET("/api/stream/tempimage/:path", handler.GetTempImage)
 
 	return router
 }

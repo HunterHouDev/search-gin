@@ -104,22 +104,22 @@ export const IndexHealthQuery = async () => {
 };
 
 export const AddTag = async (clickId: string, title: string) => {
-  const res = await commonAxios().get(`/api/file/addTag/${clickId}/${title}`);
+  const res = await commonAxios().get(`/api/addFileTag/${clickId}/${title}`);
   return res && res.data;
 };
 
 export const CloseTag = async (id: string, title: string) => {
-  const res = await commonAxios().get(`/api/file/clearTag/${id}/${title}`);
+  const res = await commonAxios().get(`/api/clearFileTag/${id}/${title}`);
   return res && res.data;
 };
 
 export const FileRename = async (data: unknown) => {
-  const res = await commonAxios().post('/api/file/rename', data);
+  const res = await commonAxios().post('/api/renameFile', data);
   return res && res.data;
 };
 
 export const MoveFile = async (data: unknown) => {
-  const res = await commonAxios().post('/api/file/move', data);
+  const res = await commonAxios().post('/api/moveFile', data);
   return res && res.data;
 }
 

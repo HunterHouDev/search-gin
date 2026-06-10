@@ -39,7 +39,7 @@
 - 硬编码管理员账号：`admin` / `qwer`（`pkg/consts/setting_data.go:16-18`）
 - Token 存储在内存中（`TokenStore` map），通过 `Authorization: Bearer <token>` 发送
 - WebSocket 使用 `?token=` 查询参数传递（无法设置自定义 Header）
-- 中间件跳过认证的路径：`/api/login`、`/`、`/index.html`、`/api/file/`、`/api/png/`、`/api/jpg/`、`/api/tempimage/`
+- 中间件跳过认证的路径：`/api/login`、`/`、`/index.html`、`/api/stream/file`、`/api/stream/png/`、`/api/stream/jpg/`、`/api/stream/tempimage/`
 - 前端 API 基础地址为 `http://localhost:10081`（`frontend/src/boot/axios.ts:18`）
 
 ## 平台假设

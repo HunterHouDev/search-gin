@@ -8,7 +8,6 @@
     // 确保与 target 配置保持一致
     "target": "ES2020",
     "moduleResolution": "Node",
-    "ignoreDeprecations": "6.0",
     // "strict": true,
     "jsx": "preserve",
     "sourceMap": true,

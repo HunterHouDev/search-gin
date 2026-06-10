@@ -12,19 +12,19 @@ const getFileBaseUrl = (): string => {
 };
 
 export const getPng = (Id: string) => {
-  return `${getFileBaseUrl()}/api/png/` + Id;
+  return `${getFileBaseUrl()}/api/stream/png/` + Id;
 };
 
 export const getJpg = (Id: string) => {
-  return `${getFileBaseUrl()}/api/jpg/` + Id;
+  return `${getFileBaseUrl()}/api/stream/jpg/` + Id;
 };
 
 export const getFileStream = (id: string) => {
-  return `${getFileBaseUrl()}/api/file/` + id;
+  return `${getFileBaseUrl()}/api/stream/file` + id;
 };
 
 export const getTempImage = (id: string) => {
-  return `${getFileBaseUrl()}/api/tempimage/` + id;
+  return `${getFileBaseUrl()}/api/stream/tempimage/` + id;
 };
 
 export const getActressImage = (actressUrl: string) => {
@@ -33,9 +33,9 @@ export const getActressImage = (actressUrl: string) => {
 };
 
 export const getVideoSrt = (path: string) => {
-  return '/api/GetFileByPathUseEncode/' + encodeURI(path);
+  return '/api/stream/GetFileByPathUseEncode/' + encodeURI(path);
 };
 
 export const GetFileByPathUseEncode = (path: string) => {
-  return `${getFileBaseUrl()}/api/GetFileByPathUseEncode/` + encodeURI(path);
+  return `${getFileBaseUrl()}/api/stream/GetFileByPathUseEncode/` + encodeURI(path);
 };

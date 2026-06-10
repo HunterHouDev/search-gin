@@ -151,7 +151,7 @@ const reg_1 = /\w+\d+/;
 
 const titleChange = (v) => {
   if (!v || v.length === 0 || !systemProperty.fileEditAutoCode) return;
-
+  v = String(v);
   v = v.replace(/[\r\n\t]+/g, '');
   v = v.replace(/&nbsp;/g, '');
   v = v.trimEnd();
