@@ -384,8 +384,8 @@ func (fs *fileService) ScanAll() int {
  consts.InitFolderTime()
  fs.Walks(dirList, queryTypes)
 
- // 一致性检查：验证 BucketCount 和 IndexNumber
- bucketCount := atomic.LoadInt32(&SearchEngin.BucketCount)
+ // 一致性检查：验证 bucket 数量和目录数量
+ bucketCount := SearchEngin.BucketCount()
  indexNumber := atomic.LoadInt32(&consts.IndexNumber)
  AddLogMemory("ScanAll 一致性检查: BucketCount=%d, IndexNumber=%d, Expected=%d", bucketCount, indexNumber, dirCount)
  if bucketCount != int32(dirCount) {
@@ -398,7 +398,6 @@ func (fs *fileService) ScanAll() int {
  consts.Sp.CurrentPhase = "正在构建索引..."
  consts.SpMu.Unlock()
 
- SearchEngin.buildIndexEngin()
  consts.LastScanTime = time.Now()
 
  // 扫描完成
@@ -469,7 +468,7 @@ func (fs *fileService) goWalkWithResult(baseDir string, types []string, resultCh
 	consts.SpMu.Lock()
 	consts.Sp.ScannedFiles += int64(len(files))
 	consts.SpMu.Unlock()
-	SearchEngin.setBucket(baseDir, newInstanceWithFiles(baseDir, files))
+	SearchEngin.rebuildWithBucket(baseDir, newInstanceWithFiles(baseDir, files))
 
 	ti := time.Since(start)
 	thisTime := consts.MenuSize{

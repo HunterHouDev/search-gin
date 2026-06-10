@@ -282,7 +282,7 @@ const editItemSubmit = async (MoveOut) => {
     $q.notify({
       type: 'negative',
       message: res.Message,
-      position: 'top-right',
+      position: 'bottom-left',
     });
   }
 };

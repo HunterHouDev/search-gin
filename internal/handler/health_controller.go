@@ -31,7 +31,7 @@ type IndexHealth struct {
 func GetIndexHealthCheck(c *gin.Context) {
 	health := IndexHealth{}
 
-	health.BucketCount = service.SearchEngin.BucketCount
+	health.BucketCount = service.SearchEngin.BucketCount()
 	health.IndexNumber = consts.IndexNumber
 	health.ExpectedDirs = len(consts.GetOSSetting().Dirs)
 	health.TotalCount = service.SearchEngin.GetTotalCount()

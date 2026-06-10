@@ -498,8 +498,8 @@ const previewPicture = async () => {
       await CutImage(view.item.Id, 'shot', view.startTime, false);
       loadImage(view.item);
     }
-    $q.notify({ message: `已执行`, position: 'top-right' });
-    
+    $q.notify({ message: `已执行`, position: 'bottom-left' });
+
   }
 };
 
@@ -509,7 +509,7 @@ const timePlus = (n) => {
   } else {
     view.startTime = '00:00:00';
   }
-  
+
   previewPicture();
 };
 

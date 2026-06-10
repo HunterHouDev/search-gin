@@ -195,7 +195,7 @@
               class="chip-tag"
             >
               <span>{{ tag?.substring(0, 4) }}</span>
-              
+
             </q-chip>
           </div>
         </div>
@@ -412,7 +412,7 @@ const copyText = async (str) => {
   }
   console.log(str);
   await copy(str);
-  $q.notify({ message: `${str}`, position: 'top-right' });
+  $q.notify({ message: `${str}`, position: 'bottom-left' });
 };
 const videoOffset = computed(() => {
   if (isMobile()) {

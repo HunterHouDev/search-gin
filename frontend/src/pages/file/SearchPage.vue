@@ -223,15 +223,18 @@
         </span>
 
         <!-- 设置按钮 -->
+      <!-- Q-FAB 固定悬浮按钮 -->
+      <div class="fab-container">
         <q-fab icon="ti-pencil-alt" direction="left" :color="view.runningTaskCount > 0 ? 'red' : 'orange'" glossy
-          :style="fabStyle" @touchstart.prevent="onFabDragStart" @touchmove.prevent="onFabDragMove"
-          @mousedown.prevent="onFabDragStart" @mousemove="onFabDragMove" @mouseup="onFabDragEnd"
-          @mouseleave="onFabDragEnd">
+          :style="fabStyle" @touchstart="onFabTouchStart" @touchmove="onFabTouchMove"
+          @touchend="onFabTouchEnd" @mousedown.prevent="onFabDragStart" @mousemove="onFabDragMove"
+          @mouseup="onFabDragEnd" @mouseleave="onFabDragEnd">
           <q-fab-action @click="openListEditRef('filelist')" color="primary" label="编辑" />
           <q-fab-action @click="openListEditRef('tasking')" color="primary" label="任务" />
           <q-fab-action @click="openListEditRef('setting')" color="primary" label="主题" />
           <q-fab-action @click="openListEditRef('history')" color="primary" label="历史" />
         </q-fab>
+      </div>
       </q-header>
       <!-- 底部 -->
       <q-footer elevated :style="themeStyle" class="glossy">
@@ -610,7 +613,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup>
 import { date, format, useQuasar } from 'quasar';
 const { humanStorageSize } = format;
 
@@ -703,6 +706,9 @@ const moveView = reactive({
 const fabPos = reactive({ x: 10, y: 150 });
 const fabDragging = ref(false);
 const fabStart = reactive({ x: 0, y: 0, posX: 0, posY: 0 });
+// 触摸拖动检测：移动超过 10px 才算拖动，否则触发点击
+const FAB_DRAG_THRESHOLD = 10;
+const fabTouchMoved = ref(false);
 
 const fabStyle = computed(() => ({
   position: 'fixed',
@@ -712,6 +718,35 @@ const fabStyle = computed(() => ({
   touchAction: 'none',
   userSelect: 'none',
 }));
+
+const onFabTouchStart = (e) => {
+  fabDragging.value = true;
+  fabTouchMoved.value = false;
+  fabStart.posX = fabPos.x;
+  fabStart.posY = fabPos.y;
+  if ('touches' in e) {
+    fabStart.x = e.touches[0].clientX;
+    fabStart.y = e.touches[0].clientY;
+  }
+};
+
+const onFabTouchMove = (e) => {
+  if (!fabDragging.value) return;
+  const touch = e.touches[0];
+  const dx = fabStart.x - touch.clientX;
+  const dy = touch.clientY - fabStart.y;
+  if (Math.abs(fabStart.x - touch.clientX) > FAB_DRAG_THRESHOLD || 
+      Math.abs(touch.clientY - fabStart.y) > FAB_DRAG_THRESHOLD) {
+    fabTouchMoved.value = true;
+  }
+  fabPos.x = Math.max(0, Math.min(window.innerWidth - 60, fabStart.posX + dx));
+  fabPos.y = Math.max(0, Math.min(window.innerHeight - 60, fabStart.posY + dy));
+};
+
+const onFabTouchEnd = () => {
+  fabDragging.value = false;
+  // 如果没拖动（轻触），不阻止默认行为，让 click 正常触发
+};
 
 const onFabDragStart = (e) => {
   fabDragging.value = true;
@@ -1042,7 +1077,7 @@ const fetchGetSettingInfo = async () => {
 const commonExec = async (exec) => {
   const { Code, Message } = (await exec) || {};
   if (Code !== 200) {
-    $q.notify({ message: `${Message}`, position: 'top-right' });
+    $q.notify({ message: `${Message}`, position: 'bottom-left' });
   }
 };
 
@@ -1051,7 +1086,7 @@ const copyText = async (str) => {
     str = str.substring(1);
   }
   await copy(str);
-  $q.notify({ message: `${str}`, position: 'top-right' });
+  $q.notify({ message: `${str}`, position: 'bottom-left' });
 };
 
 const goActress = (Actress) => {
@@ -1250,34 +1285,8 @@ const searchKeyword = async (keyword) => {
   await fetchSearch();
 };
 
-const pageTimestamps = new Map();
-const CACHE_EXPIRE_TIME = 10 * 60 * 1000;
-
-const clearImageCache = (currentPage) => {
-  const now = Date.now();
-  pageTimestamps.set(currentPage, now);
-  if (window.caches) {
-    caches.keys().then((names) => {
-      names.forEach((name) => {
-        if (name.includes('image')) {
-          const match = name.match(/page-(\d+)/);
-          if (match) {
-            const page = parseInt(match[1]);
-            const timestamp = pageTimestamps.get(page);
-            if (timestamp && now - timestamp > CACHE_EXPIRE_TIME) {
-              caches.delete(name);
-              pageTimestamps.delete(page);
-            }
-          }
-        }
-      });
-    });
-  }
-};
-
 const gotoPageNo = async (no) => {
   console.log('gotoPageNo', no);
-  clearImageCache(view.queryParam.Page);
   if (no && no > 0) {
     view.queryParam.Page = Number(no);
   } else {
@@ -1396,13 +1405,13 @@ const moveThis = async () => {
     $q.notify({
       type: 'negative',
       message: res.Message,
-      position: 'top-right',
+      position: 'bottom-left',
     });
   } else {
     $q.notify({
       type: 'negative',
       message: res.Message,
-      position: 'top-right',
+      position: 'bottom-left',
     });
   }
 };
@@ -1410,9 +1419,9 @@ const moveThis = async () => {
 const setMovieType = async (Id, Type) => {
   const { Code, Message } = await ResetMovieType(Id, Type);
   if (Code === 200) {
-    $q.notify({ type: 'negative', message: Message, position: 'top-right' });
+    $q.notify({ type: 'negative', message: Message, position: 'bottom-left' });
   } else {
-    $q.notify({ type: 'warning', message: Message, position: 'top-right' });
+    $q.notify({ type: 'warning', message: Message, position: 'bottom-left' });
   }
 };
 

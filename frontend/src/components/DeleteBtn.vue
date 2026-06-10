@@ -111,7 +111,7 @@ const picDelete = async (n) => {
   setTimeout(async () => {
     const { Code, Message } = await DeleteFile(Id);
     if (Code !== 200) {
-      $q.notify({ message: `${Message}`, position: 'top-right' });
+      $q.notify({ message: `${Message}`, position: 'bottom-left' });
     }
     refreshDebounceFn(props.currentData);
   }, 3000);

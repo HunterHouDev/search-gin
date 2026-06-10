@@ -166,8 +166,8 @@ const toVcode = async (item, vcode) => {
 const commonExec = async (exec) => {
   const { Code, Message } = (await exec) || {};
   if (Code !== 200) {
-    $q.notify({ message: `${Message}`, position: 'top-right' });
-  } 
+    $q.notify({ message: `${Message}`, position: 'bottom-left' });
+  }
 };
 
 const loadTagData = async () => {

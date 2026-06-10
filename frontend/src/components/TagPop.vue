@@ -207,7 +207,7 @@ const commonExec = async (exec) => {
   setTimeout(async () => {
     const { Code, Message } = (await exec) || {};
     if (Code !== 200) {
-      $q.notify({ message: `${Message}`, position: 'top-right' });
+      $q.notify({ message: `${Message}`, position: 'bottom-left' });
     }
     refreshDebounceFn(file);
   }, props.delay);

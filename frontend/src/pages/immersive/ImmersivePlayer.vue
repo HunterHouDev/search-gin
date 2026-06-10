@@ -744,7 +744,7 @@ async function deleteVideo(item) {
   await executeWithNextItem(item, async () => {
     const res = await DeleteFile(item.Id);
     if (!res || res.Code !== 200) {
-      $q.notify({ message: res?.Message || '删除失败', position: 'top-right' });
+      $q.notify({ message: res?.Message || '删除失败', position: 'bottom-left' });
     }
   });
 }
@@ -753,9 +753,9 @@ async function deleteVideo(item) {
 async function curImage(type) {
   const res = await CutImage(currentData.value.Id, type || 'shot', currentTime.value, false);
   if (res?.Code !== 200) {
-    $q.notify({ message: res?.Message || '截图失败', position: 'top-right' });
+    $q.notify({ message: res?.Message || '截图失败', position: 'bottom-left' });
   } else {
-    $q.notify({ message: '截图成功', position: 'top-right' });
+    $q.notify({ message: '截图成功', position: 'bottom-left' });
   }
 }
 
@@ -764,9 +764,9 @@ async function setMovieType(item, Type) {
   await executeWithNextItem(item, async () => {
     const res = await ResetMovieType(item.Id, Type);
     if (res?.Code === 200) {
-      $q.notify({ type: 'negative', message: res.Message, position: 'top-right' });
+      $q.notify({ type: 'negative', message: res.Message, position: 'bottom-left' });
     } else {
-      $q.notify({ type: 'warning', message: res?.Message || '设置失败', position: 'top-right' });
+      $q.notify({ type: 'warning', message: res?.Message || '设置失败', position: 'bottom-left' });
     }
   });
 }
@@ -1239,11 +1239,11 @@ function onVideoError(e) {
     $q.notify({
       type: 'warning',
       message: '缓冲不足，请等待下载进度增加',
-      position: 'top-right',
+      position: 'bottom-left',
       timeout: 3000,
     });
   } else {
-    $q.notify({ type: 'negative', message: errorMsg, position: 'top-right' });
+    $q.notify({ type: 'negative', message: errorMsg, position: 'bottom-left' });
   }
 }
 

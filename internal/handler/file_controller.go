@@ -170,7 +170,7 @@ func GetRefreshTargetIndex(c *gin.Context) {
 	baseDir, _ := url.QueryUnescape(dir)
 
 	service.FileApp.ScanTarget(baseDir)
-	res := utils.NewSuccessByMsg("扫描任务已添加到队列，正在执行中")
+	res := utils.NewSuccessByMsg("扫描任务执行中")
 	c.JSON(http.StatusOK, res)
 }
 

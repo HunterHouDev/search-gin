@@ -312,7 +312,7 @@
                           icon="player"
                           @click="playNewWindow(item)"
                         />
-                        
+
                         <q-btn-dropdown
                           label="转码"
                           outline
@@ -1177,9 +1177,9 @@ const commonExec = async (exec) => {
   const { Code, Message } = await exec;
   console.log(Code, Message);
   if (Code != 200) {
-    $q.notify({ message: `${Message}`, position: 'top-right' });
+    $q.notify({ message: `${Message}`, position: 'bottom-left' });
   } else {
-    $q.notify({ message: `${Message}`, position: 'top-right' });
+    $q.notify({ message: `${Message}`, position: 'bottom-left' });
   }
 };
 

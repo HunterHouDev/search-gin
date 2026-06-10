@@ -225,7 +225,7 @@ const refreshIndex = async (item) => {
     $q.notify({
       type: 'negative',
       message: Message,
-      position: 'top-right',
+      position: 'bottom-left',
     });
   }
   view.loading = false;

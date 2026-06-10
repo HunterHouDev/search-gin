@@ -1,7 +1,6 @@
 package service
 
 import (
-	"search-gin/internal/model"
 	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 	"sync"
@@ -79,8 +78,9 @@ func (q *taskQueue) executeTask(task *scanTask) {
 
 	// 执行扫描
 	files, _ := FileApp.WalkInnter(task.baseDir, queryTypes, true, task.baseDir)
-	SearchEngin.setBucket(task.baseDir, newInstanceWithFiles(task.baseDir, files))
-	SearchEngin.buildIndexEngin()
+	newBucket := newInstanceWithFiles(task.baseDir, files)
+	// 影子索引：构造新快照并原子替换
+	SearchEngin.rebuildWithBucket(task.baseDir, newBucket)
 
 	// 清理
 	clear(queryTypes)
@@ -136,12 +136,9 @@ var TempDir string
 var FileApp = new(fileService)
 var SearchApp = new(searchService)
 
-// SearchEngin BucketSearchEngin 搜索引擎
+// SearchEngin 搜索引擎
 var SearchEngin = searchEnginCore{
-	SearchIndexMap:      sync.Map{}, // map[string]bucketFile{},
-	RepeatSearch:        []model.Movie{},
-	ActressMap:          map[string]model.Actress{}, // map[string]model.Actress{},
-	KeywordHistoryCache: utils.NewLRUCache(500),     // 500个缓存项
+ KeywordHistoryCache: utils.NewLRUCache(500),
 }
 
 func AddLogMemory(format string, msg ...any) {

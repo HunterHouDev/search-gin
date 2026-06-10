@@ -142,7 +142,7 @@
         label="剪辑"
         @click="CutFromTo"
       />
-      
+
     </div>
   </div>
 </template>
@@ -239,9 +239,9 @@ const CutFromTo = async () => {
   view.startTime = TIME_START;
   view.endTime = TIME_END;
   if (Code !== 200) {
-    $q.notify({ message: `${Message}`, position: 'top-right' });
+    $q.notify({ message: `${Message}`, position: 'bottom-left' });
   } else {
-    $q.notify({ message: `${Message}`, position: 'top-right' });
+    $q.notify({ message: `${Message}`, position: 'bottom-left' });
     emmits('nextOneVideo');
   }
 };
@@ -277,9 +277,9 @@ const toVcode = async (vcode) => {
   const Id = getCurrentId();
   const res = await TansferFileVcode(Id, vcode);
   if (res.Code !== 200) {
-    $q.notify({ message: `${res.Message}`, position: 'top-right' });
+    $q.notify({ message: `${res.Message}`, position: 'bottom-left' });
   } else {
-    $q.notify({ message: `${res.Message}`, position: 'top-right' });
+    $q.notify({ message: `${res.Message}`, position: 'bottom-left' });
     emmits('nextOneVideo');
   }
 };
