@@ -218,7 +218,7 @@ const view = reactive({
   playList: [],
   menuDrawer: false,
   playerStyle: {
-    height: isMobile ? '450px' : '800px',
+    height: isMobile.value ? '450px' : '800px',
   },
 });
 

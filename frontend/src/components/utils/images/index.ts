@@ -29,11 +29,11 @@ export const getTempImage = (id: string) => {
 
 export const getActressImage = (actressUrl: string) => {
   // actressImgae 是 API 路由，在 10081 上
-  return `/api/actressImgae/` + actressUrl;
+  return '/api/actressImgae/' + actressUrl;
 };
 
 export const getVideoSrt = (path: string) => {
-  return `/api/GetFileByPathUseEncode/` + encodeURI(path);
+  return '/api/GetFileByPathUseEncode/' + encodeURI(path);
 };
 
 export const GetFileByPathUseEncode = (path: string) => {

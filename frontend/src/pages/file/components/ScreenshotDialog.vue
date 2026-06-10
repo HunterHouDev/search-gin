@@ -498,7 +498,7 @@ const previewPicture = async () => {
       await CutImage(view.item.Id, 'shot', view.startTime, false);
       loadImage(view.item);
     }
-    $q.notify({ message: `已执行`, position: 'bottom-left' });
+    $q.notify({ message: '已执行', position: 'bottom-left' });
 
   }
 };

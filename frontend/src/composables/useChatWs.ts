@@ -1,4 +1,5 @@
 import { ref } from 'vue';
+import { commonAxios } from 'src/boot/axios';
 
 export interface OnlineUser {
   username: string;
@@ -18,16 +19,27 @@ export interface ChatMessage {
 
 const WS_RECONNECT_BASE = 2000;
 const WS_RECONNECT_MAX = 30000;
-const WS_CONNECT_TIMEOUT = 10000; // 连接超时：10 秒
+const WS_CONNECT_TIMEOUT = 10000;
+const WS_MAX_RETRY = 5; // 最大重试次数，之后停止并标记失败
 
 // 单例状态，所有 useChatWs() 调用共享同一个 WebSocket 连接
 const ws = ref<WebSocket | null>(null);
 const connected = ref(false);
+const connectionFailed = ref(false); // 重试耗尽后标记为 true
 const onlineUsers = ref<OnlineUser[]>([]);
 const messages = ref<ChatMessage[]>([]);
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempt = 0;
 let connectTimer: ReturnType<typeof setTimeout> | null = null;
+
+// 检查 token 是否仍有效，无效则清登录态跳转
+function redirectToLogin() {
+  localStorage.removeItem('authToken');
+  localStorage.removeItem('isAuthenticated');
+  localStorage.removeItem('userRole');
+  localStorage.removeItem('username');
+  window.location.href = '/#/login';
+}
 
 function getWsUrl(): string {
   const token = localStorage.getItem('authToken');
@@ -39,11 +51,25 @@ function getWsUrl(): string {
 
 function scheduleReconnect() {
   if (reconnectTimer) return;
+  reconnectAttempt++;
+  if (reconnectAttempt > WS_MAX_RETRY) {
+    // 重试耗尽，停止重连，标记失败
+    connectionFailed.value = true;
+    // 检查 token 是否已失效（仅当服务端返回 401 时跳转登录）
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      commonAxios().get('/api/heartBeat').catch((err) => {
+        if (err?.response?.status === 401) {
+          redirectToLogin();
+        }
+      });
+    }
+    return;
+  }
   const delay = Math.min(
-    WS_RECONNECT_BASE * Math.pow(2, reconnectAttempt),
+    WS_RECONNECT_BASE * Math.pow(2, reconnectAttempt - 1),
     WS_RECONNECT_MAX
   );
-  reconnectAttempt++;
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
     connectSingleton();
@@ -54,6 +80,9 @@ function connectSingleton() {
   if (ws.value && (ws.value.readyState === WebSocket.OPEN || ws.value.readyState === WebSocket.CONNECTING)) {
     return;
   }
+
+  // 有新的连接尝试时重置失败标记
+  connectionFailed.value = false;
 
   const url = getWsUrl();
   ws.value = new WebSocket(url);
@@ -70,6 +99,7 @@ function connectSingleton() {
   ws.value.onopen = () => {
     if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
     connected.value = true;
+    connectionFailed.value = false;
     reconnectAttempt = 0;
   };
 
@@ -90,7 +120,10 @@ function connectSingleton() {
     if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
     connected.value = false;
     ws.value = null;
-    scheduleReconnect();
+    // 仅在未标记失败时继续重连
+    if (!connectionFailed.value) {
+      scheduleReconnect();
+    }
   };
 
   ws.value.onerror = (event) => {
@@ -111,6 +144,8 @@ function disconnectSingleton() {
     ws.value = null;
   }
   connected.value = false;
+  connectionFailed.value = false;
+  reconnectAttempt = 0;
 }
 
 export function useChatWs() {
@@ -122,12 +157,20 @@ export function useChatWs() {
     }));
   };
 
+  const retryConnect = () => {
+    connectionFailed.value = false;
+    reconnectAttempt = 0;
+    connectSingleton();
+  };
+
   return {
     connected,
+    connectionFailed,
     onlineUsers,
     messages,
     connect: connectSingleton,
     disconnect: disconnectSingleton,
     sendChat,
+    retryConnect,
   };
 }

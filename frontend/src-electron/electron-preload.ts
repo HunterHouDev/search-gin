@@ -28,15 +28,21 @@
  * }
  */
 
+import type { BrowserWindowConstructorOptions } from 'electron';
+
+interface SonWindowParam extends BrowserWindowConstructorOptions {
+  router: string;
+}
+
 const { contextBridge, ipcRenderer } = require('electron')
 contextBridge.exposeInMainWorld(
   'electron',
   {
-    createWindow: (args: any) => ipcRenderer.send('new-window',args),
-    openBySystem: (args: any) => ipcRenderer.send('open-by-system',args),
-    maxMainWindow: (args: any) => ipcRenderer.send('main-maximize',args),
-    hideMainWindow: (args: any) => ipcRenderer.send('main-hide',args),
-    resizeMainWindow: (args: any) => ipcRenderer.send('main-resize',args),
-    showInFolder: (args: any) => ipcRenderer.send('show-in-folder',args),
+    createWindow: (args: SonWindowParam) => ipcRenderer.send('new-window',args),
+    openBySystem: (args: { Path: string }) => ipcRenderer.send('open-by-system',args),
+    maxMainWindow: () => ipcRenderer.send('main-maximize'),
+    hideMainWindow: () => ipcRenderer.send('main-hide'),
+    resizeMainWindow: () => ipcRenderer.send('main-resize'),
+    showInFolder: (args: string) => ipcRenderer.send('show-in-folder',args),
   }
 )

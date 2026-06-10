@@ -14,7 +14,7 @@ export const RefreshAPI = async (BaseDir: string) => {
     const params = encodeURI(BaseDir);
     return RefreshTargetAPI(params);
   }
-  const res = await commonAxios().get(`/api/refreshIndex`);
+  const res = await commonAxios().get('/api/refreshIndex');
   return res && res.data;
 };
 

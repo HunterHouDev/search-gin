@@ -207,7 +207,7 @@ const openChatDialogRef = () => {
 };
 
 // 聊天室
-const { connected: wsConnected, onlineUsers: wsOnlineUsers, connect: wsConnect, disconnect: wsDisconnect } = useChatWs();
+const { onlineUsers: wsOnlineUsers, connect: wsConnect, disconnect: wsDisconnect } = useChatWs();
 const wsOnlineCount = computed(() => wsOnlineUsers.value.length);
 
 const openChatRoom = () => {

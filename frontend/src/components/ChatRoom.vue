@@ -7,8 +7,12 @@
         <q-badge color="positive" v-if="connected" outline>
           {{ onlineUsers.length }} 人在线
         </q-badge>
-        <q-badge color="grey" v-else outline>
+        <q-badge color="grey" v-else-if="!connectionFailed" outline>
           连接中...
+        </q-badge>
+        <q-badge color="negative" v-else outline>
+          连接失败
+          <q-btn flat dense round icon="refresh" size="xs" @click="retryConnect" class="q-ml-xs" />
         </q-badge>
         <q-btn flat round dense icon="close" v-close-popup class="q-ml-sm" />
       </q-card-section>
@@ -95,7 +99,7 @@ const inputText = ref('');
 const messageContainer = ref<HTMLElement | null>(null);
 const currentUser = localStorage.getItem('username') || '';
 
-const { connected, onlineUsers, messages, connect, sendChat } = useChatWs();
+const { connected, connectionFailed, onlineUsers, messages, connect, sendChat, retryConnect } = useChatWs();
 const isMaximized = computed(() => $q.screen.lt.md);
 // 自动滚动到底部
 const scrollToBottom = () => {

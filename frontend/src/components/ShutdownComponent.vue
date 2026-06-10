@@ -64,7 +64,7 @@ const clearTime = () => {
 };
 
 const closePage = () => {
-  window.location.href = "about:blank"; window.close();
+  window.location.href = 'about:blank'; window.close();
 }
 
 const closeApp = async () => {
@@ -73,7 +73,7 @@ const closeApp = async () => {
   console.log(res);
   $q.notify({ message: `${res}`, position: 'center' });
   setTimeout(() => {
-    window.location.href = "about:blank"; window.close();
+    window.location.href = 'about:blank'; window.close();
   }, 200);
 };
 
