@@ -20,6 +20,9 @@ func InitSetting() {
 	if dict.ControllerHost == "" {
 		dict.ControllerHost = consts.PortNo
 	}
+	if dict.FileHost == "" {
+		dict.FileHost = osSetting.FileHost
+	}
 
 	// 如果启用硬件加速，主动检测并同步模式名称
 	if dict.HardwareAcceleration {

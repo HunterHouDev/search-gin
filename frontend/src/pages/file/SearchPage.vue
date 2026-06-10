@@ -1058,7 +1058,7 @@ const confirmDelete = (item) => {
 const fetchGetSettingInfo = async () => {
   const data = await GetSettingInfo();
   view.settingInfo = data.data;
-  systemProperty.SettingInfo = data.data;
+  systemProperty.setSettingInfo(data.data);
   if (view.settingInfo.Pages && view.settingInfo.Pages.length > 0) {
     pageOptions.value = view.settingInfo.Pages.map((item) => {
       return Number(item);
