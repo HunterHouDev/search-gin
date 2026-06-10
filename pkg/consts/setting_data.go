@@ -19,10 +19,10 @@ var (
 
 	OSSetting    = model.Setting{}
 	settingMutex sync.RWMutex
-	
+
 	// Token存储（简单内存实现）
-	TokenStore    = make(map[string]TokenInfo)
-	tokenMutex   sync.RWMutex
+	TokenStore = make(map[string]TokenInfo)
+	tokenMutex sync.RWMutex
 )
 
 // SetToken 设置token
@@ -85,7 +85,7 @@ func ValidateTokenWithInfo(token string) (TokenInfo, bool) {
 func CleanExpiredTokens() {
 	tokenMutex.Lock()
 	defer tokenMutex.Unlock()
-	
+
 	now := time.Now()
 	for token, tokenInfo := range TokenStore {
 		if now.After(tokenInfo.ExpireTime) {
@@ -105,26 +105,27 @@ func init() {
 	}()
 
 	OSSetting = model.Setting{
-		IsDb:               true,
-		IsJavBus:           false,
-		EnableTimeScan:     true,
-		SystemPlayerVolumn:    "30",
-		SystemPlayerWidth:     "1280",
-		HardwareAcceleration:  false,
-		HardwareAccelMode:     "",
-		SelfPath:              "setting.json",
-		ControllerHost:     ":10081",
-		BaseUrl:            "https://www.busjav.blog/",
-		ImageUrl:           "",
-		OMUrl:              "https://www.busjav.blog/",
-		Remark:             "",
-		SystemHtml:         "",
+		IsDb:                 true,
+		IsJavBus:             false,
+		EnableTimeScan:       true,
+		SystemPlayerVolumn:   "30",
+		SystemPlayerWidth:    "1280",
+		HardwareAcceleration: false,
+		HardwareAccelMode:    "",
+		SelfPath:             "setting.json",
+		ControllerHost:       ":10081",
+		FileHost:             ":10082",
+		BaseUrl:              "https://www.busjav.blog/",
+		ImageUrl:             "",
+		OMUrl:                "https://www.busjav.blog/",
+		Remark:               "",
+		SystemHtml:           "",
 		Dirs: []string{
 			"e://emby",
 			"e://code",
 		},
 		Tags: []string{
-			"東京熱",
+			"東京",
 		},
 		ImageTypes: []string{GIF, PNG, JPG},
 		DocsTypes:  []string{TXT, XLSX},

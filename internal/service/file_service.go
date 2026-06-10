@@ -423,7 +423,7 @@ func (fs *fileService) Walks(baseDir []string, types []string) []model.Movie {
 
 	SearchEngin.Reset()
 
-	resultChan := make(chan []model.Movie, dirSize)
+	resultChan := make(chan scanResult, dirSize)
 
 	wg.Add(dirSize)
 	for i := 0; i < dirSize; i++ {
@@ -436,17 +436,30 @@ func (fs *fileService) Walks(baseDir []string, types []string) []model.Movie {
 	wg.Wait()
 	close(resultChan)
 
-	for i := 0; i < dirSize; i++ {
-		if files := <-resultChan; len(files) > 0 {
-			result = append(result, files...)
+	if dirSize == 0 {
+		return result
+	}
+
+	// 收集所有扫描结果，批量重建索引
+	buckets := make(map[string]*bucketFile, dirSize)
+	for r := range resultChan {
+		if r.bucket != nil && !r.bucket.isEmpty() {
+			buckets[r.dir] = r.bucket
+			for _, m := range r.bucket.FileLib {
+				result = append(result, m)
+			}
 		}
 	}
+
+	AddLogMemory("Walks: 扫描完成, 共 %d 个目录, 准备重建索引", len(buckets))
+	SearchEngin.rebuildWithBuckets(buckets)
+	AddLogMemory("Walks: 索引重建完成")
 
 	return result
 }
 
 // goWalkWithResult 协程方法扫描单个文件夹并返回结果
-func (fs *fileService) goWalkWithResult(baseDir string, types []string, resultChan chan<- []model.Movie) {
+func (fs *fileService) goWalkWithResult(baseDir string, types []string, resultChan chan<- scanResult) {
 	defer atomic.AddInt32(&consts.IndexNumber, -1)
 	defer func() {
 		consts.SpMu.Lock()
@@ -463,12 +476,13 @@ func (fs *fileService) goWalkWithResult(baseDir string, types []string, resultCh
 	start := time.Now()
 	files, size := fs.WalkInnter(baseDir, types, true, baseDir)
 
-	AddLogMemory("goWalkWithResult: 扫描完成 %s, 发现 %d 个文件，准备添加到索引", baseDir, len(files))
+	AddLogMemory("goWalkWithResult: 扫描完成 %s, 发现 %d 个文件", baseDir, len(files))
 	// 更新已扫描文件计数
 	consts.SpMu.Lock()
 	consts.Sp.ScannedFiles += int64(len(files))
 	consts.SpMu.Unlock()
-	SearchEngin.rebuildWithBucket(baseDir, newInstanceWithFiles(baseDir, files))
+
+	bucket := newInstanceWithFiles(baseDir, files)
 
 	ti := time.Since(start)
 	thisTime := consts.MenuSize{
@@ -481,10 +495,15 @@ func (fs *fileService) goWalkWithResult(baseDir string, types []string, resultCh
 	consts.AddFolderTime(thisTime)
 
 	select {
-	case resultChan <- files:
+	case resultChan <- scanResult{dir: baseDir, bucket: bucket}:
 	default:
-		// 通道满，丢弃结果
 	}
+}
+
+// scanResult 目录扫描结果
+type scanResult struct {
+	dir    string
+	bucket *bucketFile
 }
 
 // Walk 遍历目录，获取指定类型文件列表（轻量版，不建索引）

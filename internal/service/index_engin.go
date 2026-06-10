@@ -116,6 +116,28 @@ func (se *searchEnginCore) BucketCount() int32 {
 	return se.loadSnapshot().bucketCount
 }
 
+// rebuildWithBuckets 批量重建：一次性替换所有 bucket，O(N) 聚合
+func (se *searchEnginCore) rebuildWithBuckets(entries map[string]*bucketFile) {
+	defer func() {
+		if r := recover(); r != nil {
+			AddLogMemory("rebuildWithBuckets 异常: %v", r)
+			AddLogMemory("堆栈: %s", string(debug.Stack()))
+		}
+	}()
+
+	se.rebuildMu.Lock()
+	defer se.rebuildMu.Unlock()
+
+	AddLogMemory("rebuildWithBuckets: 开始批量重建, %d 个目录", len(entries))
+	start := time.Now()
+
+	newSnap := buildSnapshotFromBuckets(entries)
+	se.installSnapshot(newSnap)
+
+	ti := time.Since(start)
+	AddLogMemory("rebuildWithBuckets: 完成, 耗时 %dms, 文件数 %d", ti.Milliseconds(), newSnap.totalCount)
+}
+
 // rebuildWithBucket 影子索引核心：用指定目录的新 bucket 构造一份新快照，原子替换
 // 这是 executeTask 的唯一入口，替代了旧的 setBucket + buildIndexEngin
 func (se *searchEnginCore) rebuildWithBucket(baseDir string, newBucket *bucketFile) {

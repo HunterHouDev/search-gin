@@ -39,6 +39,7 @@ type Setting struct {
 	MovieTypes     []string
 	Pages          []string
 	ControllerHost string
+	FileHost       string
 
 	// 普通用户列表（超管已代码写死，不在配置中）
 	Users          []User `json:"users"`

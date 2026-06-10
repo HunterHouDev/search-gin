@@ -209,6 +209,11 @@
             v-model="view.settingInfo.ControllerHost"
             label="ControllerHost"
           />
+          <q-input
+            v-model="view.settingInfo.FileHost"
+            label="FileHost"
+            placeholder=":10081"
+          />
           <q-field color="primary" label="DirsLib" stack-label>
             <template v-slot:control>
               <MutiInput
@@ -448,6 +453,7 @@ const view = reactive({
     SystemPlayerWidth: '1280',
     HardwareAcceleration: false,
     HardwareAccelMode: '',
+    FileHost: ':10081',
   },
   ipAddr: '',
 });
@@ -584,6 +590,7 @@ const fetchSearch = async () => {
     SystemPlayerWidth: '1280',
     HardwareAcceleration: false,
     HardwareAccelMode: '',
+    FileHost: ':10081',
     ...data,
   };
 };

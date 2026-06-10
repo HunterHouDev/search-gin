@@ -1,10 +1,14 @@
-// 文件/图片流服务端口（与 API 端口 10081 分离）
-const FILE_PORT = '10082';
+// 单端口服务：图片/文件流与 API 共用同一端口
+// 默认使用当前页面 origin，可通过 setFileBaseUrl 覆盖（从 ControllerHost 配置读取）
 
-// 动态获取文件流基础 URL：使用当前页面的 hostname，替换端口为 10082
-// 这样无论是 localhost、127.0.0.1、局域网 IP 还是域名都能正确访问
+let _fileBaseUrl: string | null = null;
+
+export const setFileBaseUrl = (url: string) => {
+  _fileBaseUrl = url;
+};
+
 const getFileBaseUrl = (): string => {
-  return `${window.location.protocol}//${window.location.hostname}:${FILE_PORT}`;
+  return _fileBaseUrl || window.location.origin;
 };
 
 export const getPng = (Id: string) => {

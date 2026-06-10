@@ -23,6 +23,7 @@ export class SettingInfo {
   IsJavBus = false;
 
   ControllerHost: string | undefined;
+  FileHost: string | undefined;
   BaseUrl: string | undefined;
   OMUrl: string | undefined;
   ImageUrl: string | undefined;
