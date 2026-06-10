@@ -32,6 +32,8 @@
           :size="isMobile ? 'sm' : 'md'" @click="editMoveout" />
         <q-btn style="margin-right: 10px" color="green" glossy align="evenly" label="仅改名" :size="isMobile ? 'sm' : 'md'"
           @click="editItemSubmit(false)" />
+        <q-btn style="margin-right: 10px" color="purple" glossy align="evenly" label="Bus" :size="isMobile ? 'sm' : 'md'"
+          @click="toggleJavBus" />
         <q-btn style="margin-right: 10px" color="primary" icon="close" glossy  :size="isMobile ? 'sm' : 'md'"
           @click="onDialogCancel">
           <q-tooltip class="bg-white text-primary">关闭</q-tooltip>
@@ -95,23 +97,31 @@
           </div>
         </div>
       </q-form>
+      <div v-if="showBus" style="width: 100%; height: 500px; margin-top: 8px">
+        <iframe
+          ref="busIframe"
+          :frameborder="0"
+          :allowfullscreen="true"
+          width="100%"
+          height="100%"
+          :src="busUrl"
+        ></iframe>
+      </div>
     </q-card>
   </q-dialog>
 </template>
 
 <script setup>
 import { useDialogPluginComponent, useQuasar } from 'quasar';
-import { computed, reactive } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 
 import { FileRename } from 'components/api/searchAPI';
 import { formatTitle } from 'components/utils';
 import { FileModel } from 'src/components/model/File';
 import { useSystemProperty } from 'stores/System';
-// import { useClipboard } from '@vueuse/core';
+import { GetSettingInfo } from 'components/api/settingAPI';
 const systemProperty = useSystemProperty();
 
-// const source = ref('Hello');
-// const { copy } = useClipboard({ source });
 
 const $q = useQuasar();
 const isMobile = computed(() => {
@@ -120,6 +130,69 @@ const isMobile = computed(() => {
 const view = reactive({
   item: null,
   preview: false,
+});
+
+const showBus = ref(false);
+const settingInfo = ref({ BaseUrl: '' });
+const busUrl = ref('');
+
+const fetchSetting = async () => {
+  const res = await GetSettingInfo();
+  settingInfo.value = res.data;
+};
+
+const toggleJavBus = () => {
+  if (!showBus.value) {
+    let vcode = view.item?.Code || '';
+    vcode = vcode.replace(/[\r\n\t]+/g, '');
+    vcode = vcode.replace(/&nbsp;/g, '');
+    vcode = vcode.trimEnd();
+    if (vcode.indexOf('-C') > 0) {
+      vcode = vcode.substring(0, vcode.indexOf('-C'));
+    }
+    if (vcode.indexOf('-') === 0) {
+      vcode = vcode.substring(1);
+    }
+    if (vcode.indexOf('@') >= 0) {
+      vcode = vcode.substring(0, vcode.indexOf('@'));
+    }
+    view.item.Code = vcode;
+    if (vcode && settingInfo.value.BaseUrl) {
+      busUrl.value = settingInfo.value.BaseUrl + vcode;
+      console.log(busUrl.value);
+    }
+    showBus.value = true;
+  } else {
+    showBus.value = false;
+  }
+};
+
+// 用户从 JavBus iframe 切回外层窗口时，读取剪贴板内容填入对应字段
+let lastClipboardText = '';
+const onWindowFocus = async () => {
+  if (!showBus.value) return;
+  try {
+    const text = (await navigator.clipboard.readText() || '').trim();
+    if (!text || text.length === 0 || text === lastClipboardText) return;
+    lastClipboardText = text;
+    if (text.startsWith('http')) {
+      view.item.Jpg = text;
+      $q.notify({ type: 'positive', message: `已填入JPG: ${text.slice(0, 50)}`, position: 'bottom' });
+    } else {
+      view.item.Title = text;
+      titleChange(view.item.Title);
+      $q.notify({ type: 'positive', message: `已填入名称: ${text.slice(0, 50)}`, position: 'bottom' });
+    }
+  } catch (_) { /* 剪贴板无权限 */ }
+};
+
+watch(showBus, (val) => {
+  if (val) {
+    lastClipboardText = '';
+    window.addEventListener('focus', onWindowFocus);
+  } else {
+    window.removeEventListener('focus', onWindowFocus);
+  }
 });
 
 const emits = defineEmits([
@@ -194,6 +267,7 @@ const pasteFromClipboard = async (field) => {
 };
 
 const open = (item) => {
+  showBus.value = false;
   view.item = new FileModel().fromObject(item);
   view.item.Jpg = null;
   view.item.Png = null;
@@ -309,6 +383,10 @@ const { dialogRef, onDialogHide, onDialogOK, onDialogCancel } =
 // 带参数的版本: onDialogOK({ ... })
 // ...会自动关闭对话框
 // }
+onMounted(() => {
+  fetchSetting();
+});
+
 defineExpose({
   open,
 });
