@@ -32,7 +32,7 @@
           :size="isMobile ? 'sm' : 'md'" @click="editMoveout" />
         <q-btn style="margin-right: 10px" color="green" glossy align="evenly" label="仅改名" :size="isMobile ? 'sm' : 'md'"
           @click="editItemSubmit(false)" />
-        <q-btn style="margin-right: 10px" color="primary" icon="close" glossy dense :size="isMobile ? 'sm' : 'md'"
+        <q-btn style="margin-right: 10px" color="primary" icon="close" glossy  :size="isMobile ? 'sm' : 'md'"
           @click="onDialogCancel">
           <q-tooltip class="bg-white text-primary">关闭</q-tooltip>
         </q-btn>
@@ -41,7 +41,7 @@
         </q-btn>
       </q-toolbar>
       <q-form class="q-gutter-md row justify-between">
-        <div class="q-gutter-sm q-pa-sm" :style="{ width: isMobile ? '100%' : '60%' }">
+        <div class="q-gutter-sm q-pa-sm">
           <div>
             <p style="color: grey">
               {{ view.item.Path }}
@@ -60,8 +60,7 @@
           </q-input>
           <q-input outlined autogrow label="番号" v-model="view.item.Code" :dense="false" @change="makePreview"
             clearable />
-          <div :class="isMobile ? '' : 'row q-col-gutter-sm'">
-            <q-input :class="isMobile ? '' : 'col-6'" label="JPG地址" autogrow outlined clearable
+          <q-input :class="isMobile ? '' : 'col-6'" label="JPG地址" autogrow outlined clearable
               v-model="view.item.Jpg" :dense="false" @clear="systemProperty.fileEditAutoJpg = false">
               <template v-slot:append>
                 <q-icon name="style" size="md" class="cursor-pointer" @click="pasteFromClipboard('Jpg')" />
@@ -73,7 +72,6 @@
                 <q-icon name="style" size="md" class="cursor-pointer" @click="pasteFromClipboard('Png')" />
               </template>
             </q-input>
-          </div>
           <div class="row wrap q-gutter-x-sm">
             <q-toggle v-model="systemProperty.fileEditAutoCode" color="green" label="番号自动" left-label dense
               class="taggle" />
@@ -86,7 +84,7 @@
               class="taggle" />
           </div>
         </div>
-        <div class="q-pa-sm preview-panel" :style="{ width: isMobile ? '100%' : '36%' }">
+        <div class="q-pa-sm preview-panel">
           <template v-if="view.item.Jpg || view.item.Png">
             <q-img v-if="view.item.Jpg" fit="fill" height="180px" :src="view.item.Jpg"></q-img>
             <q-img v-if="view.item.Png" fit="fill" height="180px" :src="view.item.Png"></q-img>
@@ -315,7 +313,7 @@ defineExpose({
   open,
 });
 </script>
-<style lang="css">
+<style lang="css" scoped>
 .taggle {
   border: 1px dotted rgb(197, 131, 50);
   margin-right: 4px;
@@ -338,7 +336,7 @@ defineExpose({
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 360px;
+  height: 60px;
   border: 2px dashed rgba(0, 0, 0, 0.1);
   border-radius: 8px;
 }
@@ -353,12 +351,12 @@ defineExpose({
     width: 96vw;
   }
 
-  .file-edit-card .q-toolbar {
+  .file-edit-card :deep(.q-toolbar) {
     gap: 4px;
     padding: 4px;
   }
 
-  .file-edit-card .q-toolbar .q-btn {
+  .file-edit-card :deep(.q-toolbar .q-btn) {
     font-size: 12px;
   }
 

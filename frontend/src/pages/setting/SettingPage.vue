@@ -164,6 +164,24 @@
               />
             </template>
           </q-field>
+          <q-field color="primary" label="ImageTypes" stack-label>
+            <template v-slot:control>
+              <MutiSelector
+                v-bind:model-value="view.settingInfo.ImageTypes"
+                :options="view.settingInfo.Types"
+                @onchange="(arr) => (view.settingInfo.ImageTypes = arr)"
+              />
+            </template>
+          </q-field>
+          <q-field color="primary" label="DocsTypes" stack-label>
+            <template v-slot:control>
+              <MutiSelector
+                v-bind:model-value="view.settingInfo.DocsTypes"
+                :options="view.settingInfo.Types"
+                @onchange="(arr) => (view.settingInfo.DocsTypes = arr)"
+              />
+            </template>
+          </q-field>
           <q-field color="primary" label="Tags" stack-label>
             <template v-slot:control>
               <MutiSelector
@@ -423,6 +441,11 @@ const view = reactive({
     MovieTypes: [],
     Pages: [],
     SystemHtml: '',
+    EnableTimeScan: true,
+    CutThenDelete: false,
+    SystemPlayer: 'ffplay',
+    SystemPlayerVolumn: '30',
+    SystemPlayerWidth: '1280',
     HardwareAcceleration: false,
     HardwareAccelMode: '',
   },
@@ -554,6 +577,11 @@ const fetchSearch = async () => {
     MovieTypes: [],
     Pages: [],
     SystemHtml: '',
+    EnableTimeScan: true,
+    CutThenDelete: false,
+    SystemPlayer: 'ffplay',
+    SystemPlayerVolumn: '30',
+    SystemPlayerWidth: '1280',
     HardwareAcceleration: false,
     HardwareAccelMode: '',
     ...data,

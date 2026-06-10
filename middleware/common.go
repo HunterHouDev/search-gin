@@ -16,10 +16,6 @@ func AuthMiddleware() gin.HandlerFunc {
 			"/login",
 			"/",
 			"/index.html",
-			"/api/file/",
-			"/api/png/",
-			"/api/jpg/",
-			"/api/tempimage/",
 			"/api/ws",
 		}
 		for _, sp := range skipPaths {
