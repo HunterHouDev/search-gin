@@ -384,7 +384,7 @@
                 'large-result-image': isLarge,
                 'medium-result-image': isMedium,
                 'small-result-image': isSmall,
-              }" :src="cachedGetImage(item.Id)" @contextmenu="(e) => pictureRightClick(item, e)" @click="openFileInfoRef(item)"
+              }" :src="getImage(item.Id)" @contextmenu="(e) => pictureRightClick(item, e)" @click="openFileInfoRef(item)"
                 style="
                 border-radius: 6px 6px 0 0;
                 background: linear-gradient(135deg, rgba(30, 30, 50, 0.8), rgba(15, 15, 26, 0.9));
@@ -685,16 +685,8 @@ const isMoreLoading = ref(false);
 const isFetching = ref(false);
 const pageOptions = ref([10, 12, 20, 30, 50, 200]);
 // AbortController 用于取消前一个搜索请求
-const searchAbortController = ref<AbortController | null>(null);
-// getImage 缓存，避免模板中重复计算
-const imageUrlCache = new Map<string, string>();
-const cachedGetImage = (id: string) => {
-  const cached = imageUrlCache.get(id);
-  if (cached) return cached;
-  const url = getImage(id);
-  imageUrlCache.set(id, url);
-  return url;
-};
+const searchAbortController = ref(null);
+
 
 const moveView = reactive({
   targetPath: '',

@@ -180,8 +180,9 @@ export const useSystemProperty = defineStore({
     },
     setSettingInfo(settingInfo: SettingInfo) {
       this.SettingInfo = settingInfo;
-      // 同步图片/文件流基础 URL，使用 FileHost 配置
-      const fileHost = settingInfo.FileHost || settingInfo.ControllerHost || ':10081';
+      // 同步图片/文件流基础 URL
+      // FileHost 独立配置，默认文件端口 10082（API 端口 10081 + 1）
+      const fileHost = settingInfo.FileHost || ':10082';
       const port = fileHost.split(':').pop();
       import('components/utils/images').then(({ setFileBaseUrl }) => {
         setFileBaseUrl(`${window.location.protocol}//${window.location.hostname}:${port}`);

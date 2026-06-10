@@ -94,6 +94,23 @@ module.exports = configure(function (/* ctx */) {
       // https: true
       open: false, // 关闭自动打开浏览器，避免干扰开发过程
       proxy: {
+        // 图片/文件流路由 → 10082（优先匹配，需放在 /api 前面）
+        '/api/png': {
+          target: 'http://localhost:10082/',
+          changeOrigin: true,
+        },
+        '/api/jpg': {
+          target: 'http://localhost:10082/',
+          changeOrigin: true,
+        },
+        '/api/file': {
+          target: 'http://localhost:10082/',
+          changeOrigin: true,
+        },
+        '/api/tempimage': {
+          target: 'http://localhost:10082/',
+          changeOrigin: true,
+        },
         // API 业务路由 → 10081
         '/api': {
           target: 'http://localhost:10081/',
