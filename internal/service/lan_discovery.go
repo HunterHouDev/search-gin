@@ -60,9 +60,8 @@ const (
 // StartLanDiscovery 启动局域网节点发现（由 main.go 调用）
 func StartLanDiscovery() {
 	initNodeInfo()
-	setting := consts.GetOSSetting()
-	if setting.EnableLanDiscovery == nil || !*setting.EnableLanDiscovery {
-		utils.InfoFormat("LAN 节点发现未启用")
+	if !IsClusterEnabled() {
+		utils.InfoFormat("集群模式未启用")
 		loadStaticPeers()
 		return
 	}
@@ -73,6 +72,13 @@ func StartLanDiscovery() {
 			utils.ErrorFormat("LAN 节点发现启动失败: %v", err)
 		}
 	}()
+}
+
+// IsClusterEnabled 集群模式是否启用
+// nil（未配置）→ 默认启用；*false → 禁用；*true → 启用
+func IsClusterEnabled() bool {
+	return consts.GetOSSetting().EnableLanDiscovery == nil ||
+		*consts.GetOSSetting().EnableLanDiscovery
 }
 
 // initNodeInfo 初始化本机节点信息
@@ -228,7 +234,7 @@ func (d *LanDiscovery) sendHeartbeat() {
 	msg := heartbeatMsg{
 		ID:       LocalNodeHost,
 		Hostname: getHostname(),
-		Port:     consts.PortNo,
+		Port:     strings.TrimPrefix(consts.PortNo, ":"),
 		Name:     LocalNodeName,
 	}
 	data, _ := json.Marshal(msg)

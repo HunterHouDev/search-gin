@@ -47,15 +47,20 @@ func PostMovies(c *gin.Context) {
   return
  }
 
- // 前端请求：查本地 + 并发查所有在线节点
+ // 前端请求：查本地（集群模式启用时并发查所有在线节点）
  localResult := service.SearchApp.SearchDataSource(searchParam)
  localMovies, ok := localResult.Data.([]model.Movie)
  if !ok {
   localMovies = []model.Movie{}
  }
 
- remoteMovies := service.SearchPeers(searchParam)
- merged := service.MergeResults(localMovies, remoteMovies)
+ var merged []model.Movie
+ if service.IsClusterEnabled() {
+  remoteMovies := service.SearchPeers(searchParam)
+  merged = service.MergeResults(localMovies, remoteMovies)
+ } else {
+  merged = localMovies
+ }
 
  // 对合并结果重新分页
  pageMovies, total := service.PaginateMovies(merged, searchParam.Page, searchParam.PageSize)
