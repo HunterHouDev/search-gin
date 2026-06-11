@@ -40,6 +40,15 @@
           <q-card-section>
             <div class="row items-center q-mb-sm">
               <h6 class="text-subtitle1 q-mb-none">本机信息</h6>
+              <q-space />
+              <q-toggle
+                v-model="cluster.clusterEnabled"
+                color="green"
+                label="启用集群"
+                left-label
+                dense
+                @update:model-value="toggleLanDiscovery"
+              />
             </div>
             <div class="row q-gutter-sm">
               <q-chip outline color="primary" size="md">
@@ -124,10 +133,12 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
-import { GetSettingInfo, GetIpAddr, GeMemeryLog, GetLanPeers } from '../../components/api/settingAPI';
+import { useQuasar } from 'quasar';
+import { GetSettingInfo, GetIpAddr, GeMemeryLog, GetLanPeers, PostSettingInfo } from '../../components/api/settingAPI';
 import { useSystemProperty } from '../../stores/System';
 
 const systemProperty = useSystemProperty();
+const $q = useQuasar();
 const tab = ref('info');
 const view = reactive({
   settingInfo: {},
@@ -139,6 +150,8 @@ const fetchSearch = async () => {
   const { data } = await GetSettingInfo();
   console.log(data);
   view.settingInfo = data;
+  // nil/未配置 → 默认 true
+  cluster.clusterEnabled = data.enableLanDiscovery !== false;
 };
 
 const userAgent = computed(() => {
@@ -165,6 +178,7 @@ const cluster = reactive({
   localNodeName: '',
   peers: [],
   loading: false,
+  clusterEnabled: true,
 });
 
 const peerColumns = [
@@ -204,6 +218,23 @@ const checkPeer = async (peer) => {
     peer._alive = false;
   } finally {
     peer._checking = false;
+  }
+};
+
+const toggleLanDiscovery = async (val) => {
+  try {
+    view.settingInfo.enableLanDiscovery = val;
+    await PostSettingInfo(view.settingInfo);
+    $q.notify({
+      message: val ? '集群模式已开启' : '集群模式已关闭',
+      caption: '将在下次启动时生效',
+      color: 'positive',
+      position: 'top',
+      timeout: 3000,
+    });
+  } catch (e) {
+    cluster.clusterEnabled = !val;
+    console.error('保存集群设置失败', e);
   }
 };
 

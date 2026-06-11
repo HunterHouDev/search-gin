@@ -62,7 +62,6 @@ func StartLanDiscovery() {
 	initNodeInfo()
 	if !IsClusterEnabled() {
 		utils.InfoFormat("集群模式未启用")
-		loadStaticPeers()
 		return
 	}
 
@@ -77,8 +76,9 @@ func StartLanDiscovery() {
 // IsClusterEnabled 集群模式是否启用
 // nil（未配置）→ 默认启用；*false → 禁用；*true → 启用
 func IsClusterEnabled() bool {
-	return consts.GetOSSetting().EnableLanDiscovery == nil ||
-		*consts.GetOSSetting().EnableLanDiscovery
+	s := consts.GetOSSetting()
+	return s.EnableLanDiscovery == nil ||
+		*s.EnableLanDiscovery
 }
 
 // initNodeInfo 初始化本机节点信息
