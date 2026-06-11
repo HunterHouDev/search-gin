@@ -41,7 +41,7 @@ func buildCommonMiddleware(router *gin.Engine) {
 }
 
 func buildStreamMiddleware(router *gin.Engine) {
-	router.GET("/api/stream/file:id", handler.GetFile)
+	router.GET("/api/stream/file/:id", handler.GetFile)
 	router.GET("/api/stream/png/:path", handler.GetPng)
 	router.GET("/api/stream/jpg/:path", handler.GetJpg)
 	router.GET("/api/stream/GetFileByPathUseEncode/:path", handler.GetFileByPathUseEncode)

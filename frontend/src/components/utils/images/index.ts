@@ -20,7 +20,7 @@ export const getJpg = (Id: string) => {
 };
 
 export const getFileStream = (id: string) => {
-  return `${getFileBaseUrl()}/api/stream/file` + id;
+  return `${getFileBaseUrl()}/api/stream/file/` + id;
 };
 
 export const getTempImage = (id: string) => {
