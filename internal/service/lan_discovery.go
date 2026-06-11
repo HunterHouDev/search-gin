@@ -46,10 +46,13 @@ type LanDiscovery struct {
 	stopChan chan struct{}
 }
 
-var lanDiscovery = &LanDiscovery{
-	peers:    make(map[string]*Peer),
-	stopChan: make(chan struct{}),
-}
+var (
+	lanDiscovery = &LanDiscovery{
+		peers:    make(map[string]*Peer),
+		stopChan: make(chan struct{}),
+	}
+	stopDiscoveryOnce sync.Once
+)
 
 const (
 	multicastAddr = "239.255.255.250:10083"
@@ -313,10 +316,12 @@ func getHostname() string {
 	return h
 }
 
-// StopLanDiscovery 停止节点发现
+// StopLanDiscovery 停止节点发现（可安全多次调用）
 func StopLanDiscovery() {
-	close(lanDiscovery.stopChan)
-	if lanDiscovery.conn != nil {
-		lanDiscovery.conn.Close()
-	}
+	stopDiscoveryOnce.Do(func() {
+		close(lanDiscovery.stopChan)
+		if lanDiscovery.conn != nil {
+			lanDiscovery.conn.Close()
+		}
+	})
 }

@@ -89,6 +89,12 @@ func SetMovieType(c *gin.Context) {
 // GetInfo 获取Info信息
 func GetInfo(c *gin.Context) {
 	id := c.Param("id")
+
+	// 远程转发
+	if service.HandleRemoteByID(c, id, "info") {
+		return
+	}
+
 	file := service.SearchApp.FindOne(id)
 	c.JSON(http.StatusOK, file)
 }
