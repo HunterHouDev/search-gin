@@ -12,11 +12,12 @@ func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
 		skipPaths := []string{
-			"/api/login",
-			"/login",
-			"/",
-			"/index.html",
-			"/api/ws",
+		 "/api/login",
+		 "/login",
+		 "/",
+		 "/index.html",
+		 "/api/ws",
+		 "/api/lanPeers",
 		}
 		for _, sp := range skipPaths {
 			if strings.HasSuffix(sp, "/") {

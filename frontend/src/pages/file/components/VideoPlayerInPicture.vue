@@ -28,7 +28,7 @@
         id="hoverVideoID"
         controls
         :src="view.videoUrl"
-        :poster="getJpg(view.currentData?.Id)"
+        :poster="view.currentData?.jpgUrl"
         @ended="nextOne"
         @playing="systemProperty.playerRunning = true"
         @pause="systemProperty.playerRunning = false"
@@ -353,7 +353,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useSystemProperty } from 'stores/System';
 import { isMobile } from 'src/boot/platform';
 
-import { getFileStream, getJpg } from 'components/utils/images';
+
 import { VideoClass } from 'components/utils/video';
 import { parseTime, formatTitle } from 'components/utils';
 import { DeleteFile } from 'components/api/searchAPI';
@@ -589,7 +589,7 @@ const openVideo = async (params) => {
   view.queryParam = queryParam;
   view.currentData = item;
   systemProperty.PlayingMovie = item;
-  view.videoUrl = getFileStream(item.Id);
+  view.videoUrl = item.streamUrl;
 
   const videoElement = document.getElementById('hoverVideoID');
   const videoLocation = systemProperty.getPlayerLocation(item.Id);
@@ -655,7 +655,7 @@ const videoWidthDebounce = useDebounceFn(setVideoWidth, 500);
 const restartVideo = () => {
   view.videoUrl = null;
   const time1 = setTimeout(() => {
-    view.videoUrl = getFileStream(view.currentData.Id);
+    view.videoUrl = view.currentData.streamUrl;
     const videoLocation = systemProperty.getPlayerLocation(view.currentData.Id);
     if (videoLocation) {
       hoverPlayer.value.timeUpdate(videoLocation);

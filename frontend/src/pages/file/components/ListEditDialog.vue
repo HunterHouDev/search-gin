@@ -232,7 +232,7 @@
                         <q-img
                           fit="fill"
                           height="auto"
-                          :src="getPng(item.Id)"
+                          :src="item.pngUrl"
                           style="width: 80px; height: auto; max-height: 80px"
                           @click="checkThis(item)"
                         >
@@ -880,7 +880,6 @@ import {
   DelTransferTasksInfo,
   AddTag,
 } from 'components/api/searchAPI';
-import { getPng } from 'components/utils/images';
 
 import Sortable from 'sortablejs';
 const $q = useQuasar();

@@ -24,6 +24,17 @@ func InitSetting() {
 		dict.FileHost = osSetting.FileHost
 	}
 
+	// 多节点配置默认值
+	if dict.EnableLanDiscovery == nil {
+		dict.EnableLanDiscovery = newBool(true) // 默认启用
+	}
+	if dict.LanDiscoveryInterval <= 0 {
+		dict.LanDiscoveryInterval = 30
+	}
+	if dict.LanDiscoveryTimeout <= 0 {
+		dict.LanDiscoveryTimeout = 90
+	}
+
 	// 如果启用硬件加速，主动检测并同步模式名称
 	if dict.HardwareAcceleration {
 		FileApp.detectHwAccel()
@@ -62,5 +73,10 @@ func WriteDictionaryToJson(path string, dict model.Setting) {
 		utils.InfoFormat("写入配置文件失败: %v", err)
 		return
 	}
+}
+
+// newBool 返回指向给定 bool 值的指针
+func newBool(v bool) *bool {
+	return &v
 }
 

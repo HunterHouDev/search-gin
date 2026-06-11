@@ -22,6 +22,9 @@ export class SettingInfo {
   IsDb = false;
   IsJavBus = false;
 
+  EnableLanDiscovery: boolean | null = null;
+  NodeName: string | undefined;
+
   ControllerHost: string | undefined;
   FileHost: string | undefined;
   BaseUrl: string | undefined;

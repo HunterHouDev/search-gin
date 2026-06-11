@@ -203,7 +203,7 @@
                 'search-card-playing': currentData.Id === item.Id
               }">
                 <div class="search-card-thumb">
-                  <q-img :src="getPng(item.Id)" fit="cover" class="search-card-img" :ratio="3 / 4"
+                  <q-img :src="item.pngUrl" fit="cover" class="search-card-img" :ratio="3 / 4"
                     @click="playFromSearch(item)">
                     <template v-slot:error>
                       <div class="search-card-placeholder">
@@ -472,7 +472,7 @@ import { format, useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 import { SearchAPI, DeleteFile, RefreshAPI, ResetMovieType, CutImage } from 'components/api/searchAPI';
-import { getPng, getJpg, getFileStream } from 'components/utils/images';
+
 import {
   MovieTypeSelects,
   MovieTypeOptions,
@@ -662,11 +662,11 @@ function switchToItem(index) {
   if (index < 0 || index >= playlist.value.length) return;
   currentIndex.value = index;
   const item = playlist.value[index];
-  const src = item.TorrentStream || getFileStream(item.Id);
+  const src = item.TorrentStream || item.streamUrl;
   loadVideo(
     src,
     item.Title || item.Name || item.Code || `#${index + 1}`,
-    getJpg(item.Id),
+    item.jpgUrl,
     item
   );
   searchDialog.value = false;

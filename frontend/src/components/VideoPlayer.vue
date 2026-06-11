@@ -195,11 +195,7 @@ import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useSystemProperty } from 'stores/System';
 import { CutImage, DeleteFile } from 'components/api/searchAPI';
 import { VideoClass } from 'components/utils/video';
-import {
-  getFileStream,
-  getJpg,
-  getVideoSrt,
-} from 'components/utils/images';
+import { getVideoSrt } from 'components/utils/images';
 import { parseTime } from 'components/utils';
 
 import VideoTimeBar from 'components/VideoTimeBar.vue';
@@ -284,8 +280,8 @@ const openVideo = async (item) => {
   currentItemId = item.Id;
   view.currentData = item;
   systemProperty.PlayingMovie = item;
-  view.videoUrl = getFileStream(item.Id);
-  view.videoPoster = getJpg(item.Id);
+  view.videoUrl = item.streamUrl;
+  view.videoPoster = item.jpgUrl;
   view.videoSubtitles = getVideoSrt(item.Srt);
 
   // 监听 loadedmetadata 事件，src 加载完成后才操作 DOM

@@ -384,7 +384,7 @@
                 'large-result-image': isLarge,
                 'medium-result-image': isMedium,
                 'small-result-image': isSmall,
-              }" :src="getImage(item.Id)" @contextmenu="(e) => pictureRightClick(item, e)" @click="openFileInfoRef(item)"
+              }" :src="getImage(item)" @contextmenu="(e) => pictureRightClick(item, e)" @click="openFileInfoRef(item)"
                 style="
                 border-radius: 6px 6px 0 0;
                 background: linear-gradient(135deg, rgba(30, 30, 50, 0.8), rgba(15, 15, 26, 0.9));
@@ -652,13 +652,13 @@ import {
   MovieTypeOptions,
   MovieTypeSelects,
 } from 'components/utils';
-import { getJpg, getPng } from 'components/utils/images';
 
-const getImage = (id) => {
+
+const getImage = (item) => {
   if (systemProperty.showImage === 'poster') {
-    return getPng(id);
+    return item.pngUrl;
   }
-  return getJpg(id);
+  return item.jpgUrl;
 };
 
 import DataPop from 'components/DataPop.vue';

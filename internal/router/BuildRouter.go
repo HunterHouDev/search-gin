@@ -40,6 +40,14 @@ func buildCommonMiddleware(router *gin.Engine) {
 	router.Use(middleware.CustomRecovery())
 }
 
+func buildStreamMiddleware(router *gin.Engine) {
+	router.GET("/api/stream/file/:id", handler.GetFile)
+	router.GET("/api/stream/png/:path", handler.GetPng)
+	router.GET("/api/stream/jpg/:path", handler.GetJpg)
+	router.GET("/api/stream/GetFileByPathUseEncode/:path", handler.GetFileByPathUseEncode)
+	router.GET("/api/stream/tempimage/:path", handler.GetTempImage)
+}
+
 // BuildAPIRouter 构建 API 业务路由（端口 10081）：需要认证
 func BuildAPIRouter() *gin.Engine {
 	if env.IsProd {
@@ -69,6 +77,9 @@ func BuildAPIRouter() *gin.Engine {
 	router.GET("/", handler.Index)
 	router.POST("/api/login", handler.Login)
 	router.POST("/api/movieList", handler.PostMovies)
+
+	// 多节点：在线节点列表（无认证，仅用于前端识别局域网内其他节点）
+	router.GET("/api/lanPeers", handler.GetLanPeers)
 
 	router.GET("/api/transferTasks", handler.GetTransferTask)
 	router.GET("/api/delTransferTasks/:create", handler.GetDelTransferTask)
@@ -124,6 +135,8 @@ func BuildAPIRouter() *gin.Engine {
 	router.GET("/api/torrent/status/:infoHash", handler.GetTorrentStatus)
 	router.DELETE("/api/torrent/:infoHash", handler.DeleteTorrent)
 
+	buildStreamMiddleware(router)
+
 	return router
 }
 
@@ -138,12 +151,7 @@ func BuildFileRouter() *gin.Engine {
 	router := gin.New()
 	buildCommonMiddleware(router)
 	// 文件流服务不需要认证中间件
-
-	router.GET("/api/stream/file:id", handler.GetFile)
-	router.GET("/api/stream/png/:path", handler.GetPng)
-	router.GET("/api/stream/jpg/:path", handler.GetJpg)
-	router.GET("/api/stream/GetFileByPathUseEncode/:path", handler.GetFileByPathUseEncode)
-	router.GET("/api/stream/tempimage/:path", handler.GetTempImage)
+	buildStreamMiddleware(router)
 
 	return router
 }

@@ -111,7 +111,7 @@
                 <q-img
                   fit="scale-dowmn"
                   easier
-                  :src="getPng(item.Id)"
+                  :src="item.pngUrl"
                   style="
                     width: 80px;
                     height: 80px;
@@ -253,9 +253,8 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
-import { getPng } from 'components/utils/images';
-import { formatCode, formatTitle } from 'components/utils';
 import { getTempImage } from 'components/utils/images';
+import { formatCode, formatTitle } from 'components/utils';
 import {
   SearchAPI,
   QueryDirImageBase64,

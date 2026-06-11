@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -87,28 +89,66 @@ func SetMovieType(c *gin.Context) {
 // GetInfo 获取Info信息
 func GetInfo(c *gin.Context) {
 	id := c.Param("id")
+
+	// 远程转发
+	if service.HandleRemoteByID(c, id, "info") {
+		return
+	}
+
 	file := service.SearchApp.FindOne(id)
 	c.JSON(http.StatusOK, file)
 }
 
 // PostRename 改名
 func PostRename(c *gin.Context) {
+	// 先读取 Body（仅读一次），用于转发和绑定
+	bodyBytes, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		utils.InfoNormal(err)
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("读取请求体失败"))
+		return
+	}
+	c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+
 	currentFile := model.MovieEdit{}
-	err := c.ShouldBindJSON(&currentFile)
+	err = c.ShouldBindJSON(&currentFile)
 	if err != nil {
 		utils.InfoNormal(err)
 	}
+
+	// 远程转发：恢复 Body 供 forwardRequest 读取
+	c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+	if service.HandleRemoteByMovieEdit(c, currentFile, "rename") {
+		return
+	}
+
 	utils.InfoFormat("PostRename :searchCnt[%v] \n\n", currentFile)
 	res := service.SearchApp.Rename(currentFile)
 	c.JSON(http.StatusOK, res)
 }
 
 func PostMove(c *gin.Context) {
+	// 先读取 Body（仅读一次），用于转发和绑定
+	bodyBytes, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		utils.InfoNormal(err)
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("读取请求体失败"))
+		return
+	}
+	c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+
 	currentFile := model.MovieEdit{}
-	err := c.ShouldBindJSON(&currentFile)
+	err = c.ShouldBindJSON(&currentFile)
 	if err != nil {
 		utils.InfoNormal(err)
 	}
+
+	// 远程转发：恢复 Body 供 forwardRequest 读取
+	c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+	if service.HandleRemoteByMovieEdit(c, currentFile, "move") {
+		return
+	}
+
 	utils.InfoFormat("PostMove :[%v] \n\n", currentFile)
 	res := service.SearchApp.Move(currentFile.Id, currentFile.Path, currentFile.Title)
 	c.JSON(http.StatusOK, res)
@@ -118,6 +158,12 @@ func PostMove(c *gin.Context) {
 func GetAddTag(c *gin.Context) {
 	idInt := c.Param("id")
 	tag := c.Param("tag")
+
+	// 远程转发
+	if service.HandleRemoteByID(c, idInt, "addTag") {
+		return
+	}
+
 	utils.InfoFormat("GetAddTag [%v] [%v]  \n", idInt, tag)
 	res := service.SearchApp.AddTag(idInt, tag)
 	c.JSON(http.StatusOK, res)
@@ -127,6 +173,12 @@ func GetAddTag(c *gin.Context) {
 func GetClearTag(c *gin.Context) {
 	idInt := c.Param("id")
 	tag := c.Param("tag")
+
+	// 远程转发
+	if service.HandleRemoteByID(c, idInt, "clearTag") {
+		return
+	}
+
 	res := service.SearchApp.ClearTag(idInt, tag)
 	c.JSON(http.StatusOK, res)
 }
@@ -159,6 +211,12 @@ func GetDirInfo(c *gin.Context) {
 // GetDelete 删除文件
 func GetDelete(c *gin.Context) {
 	id := c.Param("id")
+
+	// 远程转发
+	if service.HandleRemoteByID(c, id, "delete") {
+		return
+	}
+
 	service.SearchApp.Delete(id)
 	res := utils.NewSuccessByMsg("删除成功")
 	c.JSON(http.StatusOK, res)
@@ -338,9 +396,14 @@ func PostMerge(c *gin.Context) {
 
 }
 
-// GetTransferToMp4 格式转换
 func GetTransferToMp4(c *gin.Context) {
 	id := c.Param("id")
+
+	// 远程转发
+	if service.HandleRemoteByID(c, id, "transferToMp4") {
+		return
+	}
+
 	to := "mp4"
 	xcode := c.Param("xcode")
 	utils.InfoFormat("GetTransferToMp4 newFile [%v][%v] ", id, to)
@@ -379,13 +442,18 @@ func GetTransferToMp4(c *gin.Context) {
 		consts.TransferTaskMutex.Unlock()
 		c.JSON(http.StatusOK, utils.NewSuccessByMsg("任务创建成功"))
 	}
-
 }
 
 func GetCutImage(c *gin.Context) {
 	idInt := c.Param("id")
 	typeImage := c.Param("typeImage")
 	start := c.Param("start")
+
+	// 远程转发
+	if service.HandleRemoteByID(c, idInt, "cutImage") {
+		return
+	}
+
 	movieFile := service.SearchApp.FindOne(idInt)
 	if movieFile.IsNull() {
 		r := utils.Fail()
@@ -399,9 +467,15 @@ func GetCutImage(c *gin.Context) {
 
 func GetCutMovie(c *gin.Context) {
 	id := c.Param("id")
+
+	// 远程转发
+	if service.HandleRemoteByID(c, id, "cutMovie") {
+		return
+	}
+
 	start := c.Param("start")
 	end := c.Param("end")
-	utils.InfoFormat("GetTransferToMp4 newFile [%v][%v][%v] ", id, start, end)
+	utils.InfoFormat("GetCutMovie [%v][%v][%v] ", id, start, end)
 
 	movieFile := service.SearchApp.FindOne(id)
 	if !utils.ExistsFiles(movieFile.Path) {

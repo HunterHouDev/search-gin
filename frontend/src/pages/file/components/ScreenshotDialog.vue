@@ -121,7 +121,7 @@
                 fit="fill"
                 class="max-image-height"
                 v-if="!view.uImage"
-                :src="getJpg(view.item.Id)"
+                :src="view.item.jpgUrl"
               />
 
               <q-img
@@ -137,7 +137,7 @@
                 v-show="!view.showCanvas"
                 class="max-image-height"
                 v-if="!view.uPng"
-                :src="getJpg(view.item.Id)"
+                :src="view.item.jpgUrl"
               />
 
               <q-img
@@ -235,7 +235,7 @@ import {
   QueryDirImageBase64,
   OpenFolerByPath,
 } from 'components/api/searchAPI';
-import { getJpg, getPng, getTempImage } from 'components/utils/images';
+import { getTempImage } from 'components/utils/images';
 import { isMobile } from 'src/boot/platform';
 
 const $q = useQuasar();
@@ -264,7 +264,7 @@ const open = (item) => {
 
   const img = new Image(); // 创建一个新的图片对象
   img.crossOrigin = 'anonymous'; // 处理跨域问题
-  img.src = getPng(view.item.Id); // 设置图片的源地址为base64编码的图片数据
+  img.src = view.item.pngUrl; // 设置图片的源地址为base64编码的图片数据
   canvasData.image = img;
 
   img.onload = function () {

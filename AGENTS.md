@@ -9,12 +9,16 @@
 
 默认 `go run main.go` = 开发模式。添加 `-tags=prod` 编译生产环境二进制。
 
-## 单端口服务
+## 端口
 
-应用启动时绑定一个端口：
-- `:10081` — API + 前端 + 图片 + 视频流
+| 端口 | 用途 | 说明 |
+|------|------|------|
+| `:10081` | API + 前端 | 业务路由，注册在 `BuildAPIRouter()`，需要认证 |
+| `:10082` | 文件/图片/视频流 | 注册在 `BuildFileRouter()`，无需认证 |
+| `:10083` | UDP 组播（多节点发现） | `239.255.255.250:10083`，心跳/节点发现 |
+| `:6060` | pprof（仅开发环境） | 开发调试用 |
 
-端口在 `pkg/consts/base_param.go:63` 硬编码。
+端口在 `pkg/consts/base_param.go:63-64` 硬编码（`PortNo=:10081`，`FilePortNo=:10082`）。
 
 ## 前端构建 / 嵌入流程
 
@@ -39,8 +43,37 @@
 - 硬编码管理员账号：`admin` / `qwer`（`pkg/consts/setting_data.go:16-18`）
 - Token 存储在内存中（`TokenStore` map），通过 `Authorization: Bearer <token>` 发送
 - WebSocket 使用 `?token=` 查询参数传递（无法设置自定义 Header）
-- 中间件跳过认证的路径：`/api/login`、`/`、`/index.html`、`/api/stream/file`、`/api/stream/png/`、`/api/stream/jpg/`、`/api/stream/tempimage/`
+- 中间件跳过认证的路径：`/api/login`、`/`、`/index.html`、`/api/stream/file`、`/api/stream/png/`、`/api/stream/jpg/`、`/api/stream/tempimage/`、`/api/ws`、`/api/lanPeers`
 - 前端 API 基础地址为 `http://localhost:10081`（`frontend/src/boot/axios.ts:18`）
+
+## 多节点集群
+
+支持局域网内多节点自动发现与协作：
+
+| 功能 | 文件 | 说明 |
+|------|------|------|
+| **节点发现** | `internal/service/lan_discovery.go` | UDP 组播 `239.255.255.250:10083`，30s 心跳，90s 超时 |
+| **Peer 列表** | `internal/handler/lan_controller.go` | `GET /api/lanPeers` 返回在线节点 |
+| **跨节点搜索** | `internal/service/remote_search.go` | 并发请求所有在线节点（最多 5 个并发），合并结果并去重 |
+| **跨节点操作** | `internal/service/remote_operation.go` | 文件删除/重命名/移动/标签/转码等操作转发到源节点执行 |
+| **URL 填充** | `internal/service/remote_search.go:FillURLs()` | 本机文件用 `pickLocalIP()` 取客户端同网段 IP，远程文件用 `resolvePeerIP()` |
+| **前端集群页** | `frontend/src/pages/system/SystemPage.vue` | 系统 → 集群 标签页，显示节点列表 + 连通检测 |
+
+**关键配置**（`setting.json`）：
+
+```json
+{
+  "nodeName": "书房电脑",
+  "enableLanDiscovery": true,
+  "lanDiscoveryInterval": 30,
+  "lanDiscoveryTimeout": 90,
+  "discoveryPeers": ["192.168.1.102:10081"]
+}
+```
+
+**去重策略**：`Code+Size`（优先）或 `Name+Size`（兜底），不用 Id。本机文件优先。
+
+**文件流端口**：所有节点间文件流统一走 `:10082`，与 API 端口 `:10081` 分离，避免图片/视频流占用 API 带宽。
 
 ## 平台假设
 
