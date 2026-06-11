@@ -12,17 +12,22 @@ import (
 
 // GetOpenFolder 本地打开文件夹
 func GetOpenFolder(c *gin.Context) {
-	id := c.Param("id")
-	file := service.SearchApp.FindOne(id)
+ id := c.Param("id")
+ file := service.SearchApp.FindOne(id)
 
-	// 检查文件是否存在
-	if file.IsNull() {
-		res := utils.NewFailByMsg("文件不存在")
-		c.JSON(http.StatusNotFound, res)
-		return
-	}
+ // 检查文件是否存在
+ if file.IsNull() {
+  res := utils.NewFailByMsg("文件不存在")
+  c.JSON(http.StatusNotFound, res)
+  return
+ }
 
-	utils.InfoFormat("open folder:[%v]", file.DirPath)
+ // 远程转发
+ if service.HandleRemote(c, file, "openFolder") {
+  return
+ }
+
+ utils.InfoFormat("open folder:[%v]", file.DirPath)
 	utils.ExecCmdExplorer(file.DirPath)
 	res := utils.NewSuccessByMsg("打开成功")
 	c.JSON(http.StatusOK, res)

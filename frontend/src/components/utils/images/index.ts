@@ -1,5 +1,6 @@
-// 单端口服务：图片/文件流与 API 共用同一端口
-// 默认使用当前页面 origin，可通过 setFileBaseUrl 覆盖（从 ControllerHost 配置读取）
+// 保留函数：getTempImage / getActressImage / getVideoSrt / GetFileByPathUseEncode
+// getPng / getJpg / getFileStream 已废弃，改为从 movie 对象直接读取
+// streamUrl / pngUrl / jpgUrl 字段
 
 let _fileBaseUrl: string | null = null;
 
@@ -11,24 +12,11 @@ const getFileBaseUrl = (): string => {
   return _fileBaseUrl || window.location.origin;
 };
 
-export const getPng = (Id: string) => {
-  return `${getFileBaseUrl()}/api/stream/png/` + Id;
-};
-
-export const getJpg = (Id: string) => {
-  return `${getFileBaseUrl()}/api/stream/jpg/` + Id;
-};
-
-export const getFileStream = (id: string) => {
-  return `${getFileBaseUrl()}/api/stream/file/` + id;
-};
-
 export const getTempImage = (id: string) => {
   return `${getFileBaseUrl()}/api/stream/tempimage/` + id;
 };
 
 export const getActressImage = (actressUrl: string) => {
-  // actressImgae 是 API 路由，在 10081 上
   return '/api/actressImgae/' + actressUrl;
 };
 

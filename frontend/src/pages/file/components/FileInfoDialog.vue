@@ -70,7 +70,7 @@
             fit="fit"
             easier
             draggable
-            :src="getJpg(view.item.Id)"
+            :src="view.item.jpgUrl"
             style="max-height: 560px"
           >
           </q-img>
@@ -192,7 +192,7 @@ import {
   OpenFileFolder,
   DeleteFileByPathUseEncode,
 } from 'components/api/searchAPI';
-import { getJpg, getTempImage } from 'src/components/utils/images';
+import { getTempImage } from 'src/components/utils/images';
 const { dialogRef, onDialogHide } = useDialogPluginComponent();
 
 const $q = useQuasar();

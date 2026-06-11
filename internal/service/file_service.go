@@ -555,7 +555,8 @@ func (fs *fileService) WalkInnter(currentDir string, types []string, queryChild 
 							continue
 						}
 						movie := model.EasyFile(currentPath, p, name, suffix,
-							info.Size(), info.ModTime(), basePath)
+						 info.Size(), info.ModTime(), basePath)
+						SetMovieNode(&movie)
 						allFiles = append(allFiles, movie)
 						sizeMap[currentPath] += info.Size()
 					} else {

@@ -20,27 +20,60 @@ import (
 // @Produce json
 // @Router /api/search/movies [post]
 func PostMovies(c *gin.Context) {
-	if service.SearchEngin.IsEmpty() {
-		service.FileApp.ScanAll()
-	}
-	// 初始化搜索参数结构体
-	searchParam := model.SearchParam{}
+ // 检查是否为远程转发请求（X-Search-Gin-Remote: true）
+ isRemote := c.GetHeader("X-Search-Gin-Remote") == "true"
 
-	// 绑定HTTP请求体到结构体
-	err := c.Bind(&searchParam)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数绑定失败"))
-		return
-	}
+ if service.SearchEngin.IsEmpty() {
+  service.FileApp.ScanAll()
+ }
 
-	// 调用搜索服务执行实际搜索操作
-	result := service.SearchApp.SearchDataSource(searchParam)
+ searchParam := model.SearchParam{}
+ err := c.Bind(&searchParam)
+ if err != nil {
+  c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数绑定失败"))
+  return
+ }
 
-	// 设置搜索完成进度状态
-	result.SetProgress(consts.IndexNumber)
+ if isRemote {
+  // 远程转发：只返回本地结果，不递归搜索其他节点
+  result := service.SearchApp.SearchDataSource(searchParam)
+  movies, ok := result.Data.([]model.Movie)
+  if ok {
+   service.FillURLs(c, movies)
+   result.Data = movies
+  }
+  result.SetProgress(consts.IndexNumber)
+  c.JSON(http.StatusOK, result)
+  return
+ }
 
-	// 返回HTTP 200状态码和搜索结果
-	c.JSON(http.StatusOK, result)
+ // 前端请求：查本地 + 并发查所有在线节点
+ localResult := service.SearchApp.SearchDataSource(searchParam)
+ localMovies, ok := localResult.Data.([]model.Movie)
+ if !ok {
+  localMovies = []model.Movie{}
+ }
+
+ remoteMovies := service.SearchPeers(searchParam)
+ merged := service.MergeResults(localMovies, remoteMovies)
+
+ // 对合并结果重新分页
+ pageMovies, total := service.PaginateMovies(merged, searchParam.Page, searchParam.PageSize)
+
+ // 填充 URL
+ service.FillURLs(c, pageMovies)
+
+ // 构造返回结果
+ result := utils.NewPage()
+ result.PageNo = searchParam.Page
+ result.PageSize = searchParam.PageSize
+ result.TotalCnt = total
+ result.ResultCnt = total
+ result.CurCnt = len(pageMovies)
+ result.Data = pageMovies
+ result.SetProgress(consts.IndexNumber)
+
+ c.JSON(http.StatusOK, result)
 }
 
 // PostActress 演员搜索处理函数
@@ -51,6 +84,26 @@ func PostMovies(c *gin.Context) {
 // @Produce json
 // @Router /api/search/actresses [post]
 func PostActress(c *gin.Context) {
+	// 远程转发：只查本地，不递归
+	if c.GetHeader("X-Search-Gin-Remote") == "true" {
+		param := model.SearchParam{}
+		if err := c.Bind(&param); err != nil {
+			c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数绑定失败"))
+			return
+		}
+		if service.SearchEngin.IsEmpty() {
+			service.FileApp.ScanAll()
+		}
+		pageActressResultWrapper := service.SearchEngin.PageActress(param)
+		result := utils.NewPage()
+		result.CurCnt = pageActressResultWrapper.ResultCount
+		result.TotalCnt = pageActressResultWrapper.SearchCount
+		result.ResultCnt = pageActressResultWrapper.SearchCount
+		result.Data = pageActressResultWrapper.FileList
+		c.JSON(http.StatusOK, result)
+		return
+	}
+
 	// 初始化搜索参数结构体
 	param := model.SearchParam{}
 

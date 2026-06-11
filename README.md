@@ -13,6 +13,7 @@
 - **图片浏览**：缩略图网格、在线预览
 - **文件管理**：重命名、移动、删除、标签管理
 - **用户系统**：登录认证、多用户管理（管理员 + 普通用户）、运行时可配置
+- **多节点集群**：局域网内 UDP 组播自动发现、跨节点搜索、跨节点文件操作（删除/重命名/转码等）、文件流直连 `:10082`
 
 ## 技术栈
 
@@ -70,7 +71,10 @@ search-gin/
 │   ├── handler/         # HTTP 处理器
 │   ├── model/           # 数据模型
 │   ├── router/          # 路由注册
-│   ├── service/         # 业务逻辑（索引、搜索、文件扫描）
+│   ├── service/         # 业务逻辑（索引、搜索、文件扫描、多节点集群）
+│   │   ├── lan_discovery.go    # UDP 组播节点发现
+│   │   ├── remote_search.go    # 跨节点搜索 + 合并去重
+│   │   └── remote_operation.go # 跨节点文件操作转发
 │   └── env/             # 环境配置（prod/dev build tag）
 ├── pkg/
 │   ├── consts/          # 常量、配置、Token 管理
@@ -78,7 +82,7 @@ search-gin/
 ├── middleware/           # Gin 中间件（认证、recovery）
 ├── frontend/            # Vue 3 + Quasar 前端源码
 ├── dist/                # 前端构建产物（被 embed 嵌入）
-├── setting.json         # 运行时配置（扫描目录、文件类型等）
+├── setting.json         # 运行时配置（扫描目录、文件类型、多节点配置等）
 └── ffmpeg.exe ffplay.exe  # 媒体处理工具
 ```
 
@@ -86,9 +90,13 @@ search-gin/
 
 - **Windows 平台**：主要目标平台，使用 `ffmpeg.exe`、`-H=windowsgui` 等 Windows 特性
 - **embed 机制**：`-tags=prod` 将 `dist/`、`ffmpeg.exe`、`ffplay.exe`、`setting.json` 嵌入二进制，启动时自动解压到工作目录
-- **单端口**：应用监听 `:10081`，同时提供 API、前端、图片和视频流
+- **端口分配**：
+  - `:10081` — API + 前端（需认证）
+  - `:10082` — 文件/图片/视频流（无需认证，跨节点直连使用）
+  - `:10083` — UDP 组播（多节点自动发现）
 - **认证**：默认管理员 `admin` / `qwer`，Token 存储在内存中
 - **无数据库**：所有数据为内存存储，通过文件系统扫描填充，重启后需重新索引
+- **多节点**：`setting.json` 中配置 `enableLanDiscovery: true` 开启 UDP 组播发现，节点间通过 `:10082` 直连传输文件流
 
 ## 主要依赖
 

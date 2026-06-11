@@ -52,6 +52,9 @@ func main() {
 	service.InitSetting()
 	service.StartScanQueue()
 
+	// ── 5.5 启动局域网节点发现 ──
+	service.StartLanDiscovery()
+
 	// ── 6. 启动 Torrent 清理 ──
 	closeTorrent := service.StartTorrentCleanup(tempDir)
 	defer closeTorrent()

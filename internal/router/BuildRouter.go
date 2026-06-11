@@ -78,6 +78,9 @@ func BuildAPIRouter() *gin.Engine {
 	router.POST("/api/login", handler.Login)
 	router.POST("/api/movieList", handler.PostMovies)
 
+	// 多节点：在线节点列表（无认证，仅用于前端识别局域网内其他节点）
+	router.GET("/api/lanPeers", handler.GetLanPeers)
+
 	router.GET("/api/transferTasks", handler.GetTransferTask)
 	router.GET("/api/delTransferTasks/:create", handler.GetDelTransferTask)
 	router.POST("/api/actressList", handler.PostActress)

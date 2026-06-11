@@ -47,7 +47,7 @@
             'search-card-playing': currentId === item.Id
           }">
             <div class="search-card-thumb">
-              <q-img :src="getPng(item.Id)" fit="cover" class="search-card-img" :ratio="3 / 4"
+              <q-img :src="item.pngUrl" fit="cover" class="search-card-img" :ratio="3 / 4"
                 @click="$emit('play', item)">
                 <template v-slot:error>
                   <div class="search-card-placeholder">
@@ -168,7 +168,7 @@ import { format } from 'quasar';
 import { useQuasar } from 'quasar';
 import { SearchAPI, ResetMovieType } from 'components/api/searchAPI';
 import { QueryDirImageBase64, DeleteFileByPathUseEncode } from 'components/api/searchAPI';
-import { getPng, getTempImage } from 'components/utils/images';
+
 import {
   MovieTypeSelects,
   MovieTypeOptions,

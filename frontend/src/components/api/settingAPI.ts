@@ -63,4 +63,9 @@ export const DeleteUser = async (username: string) => {
   return res && res.data;
 };
 
+// 多节点集群
+export const GetLanPeers = async () => {
+  const res = await commonAxios().get('/api/lanPeers');
+  return res && res.data;
+};
 
