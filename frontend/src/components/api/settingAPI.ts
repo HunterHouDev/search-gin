@@ -26,6 +26,11 @@ export const GetLanPeers = async () => {
   return res && res.data;
 };
 
+export const GetLanPeersWithStats = async () => {
+  const res = await commonAxios().get('/api/lanPeersWithStats');
+  return res && res.data;
+};
+
 export const AddLanPeer = async (ip: string, port: string, filePort: string) => {
   const res = await commonAxios().post('/api/addPeer', { ip, port, filePort });
   return res && res.data;

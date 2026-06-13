@@ -127,6 +127,51 @@ func searchPeer(peer *Peer, searchParam model.SearchParam) (*PeerSearchResult, e
 	return &PeerSearchResult{Movies: out, TotalCnt: result.TotalCnt, TotalSize: ParseTotalSize(result.TotalSize)}, nil
 }
 
+// SearchRemotePeer 搜索指定远程节点，返回完整 Page 结果
+func SearchRemotePeer(peer *Peer, searchParam model.SearchParam) (utils.Page, error) {
+	reqBody, err := json.Marshal(searchParam)
+	if err != nil {
+		return utils.Page{}, fmt.Errorf("序列化请求参数失败: %w", err)
+	}
+
+	url := fmt.Sprintf("http://%s:%s/api/movieList", peer.IP, peer.Port)
+	req, err := http.NewRequest("POST", url, bytes.NewReader(reqBody))
+	if err != nil {
+		return utils.Page{}, fmt.Errorf("创建请求失败: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Search-Gin-Remote", "true")
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return utils.Page{}, fmt.Errorf("请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return utils.Page{}, fmt.Errorf("远程节点返回错误: %d", resp.StatusCode)
+	}
+
+	var result utils.Page
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return utils.Page{}, fmt.Errorf("解析响应失败: %w", err)
+	}
+
+	// 填充流媒体 URL
+	if movies, ok := result.Data.([]interface{}); ok {
+		var fileItems []model.FileItem
+		raw, _ := json.Marshal(movies)
+		json.Unmarshal(raw, &fileItems)
+		// URL 由前端用本地 IP 填充更准确，远程节点返回的数据已包含 URL
+		result.Data = fileItems
+	} else if movies, ok := result.Data.([]model.FileItem); ok {
+		result.Data = movies
+	}
+
+	return result, nil
+}
+
 // ParseTotalSize 将 "23.53 G" 格式的字符串解析为 int64 字节数
 func ParseTotalSize(s string) int64 {
 	s = strings.TrimSpace(s)

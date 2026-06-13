@@ -132,55 +132,6 @@
                 <q-icon name="check" color="primary" size="18px" />
               </q-item-section>
             </q-item>
-            <!-- 搜索范围 -->
-            <div class="q-px-md q-py-xs">
-              <q-item-label header class="text-grey-5 text-xs font-medium">搜索范围</q-item-label>
-            </div>
-            <q-item clickable v-close-popup @click="view.queryParam.SearchMode = 'mixed'; fetchSearch()"
-              :active="view.queryParam.SearchMode === 'mixed'" class="q-mx-sm rounded-lg">
-              <q-item-section avatar>
-                <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10">
-                  <q-icon name="cloud_sync" color="primary" size="16px" />
-                </div>
-              </q-item-section>
-              <q-item-section>
-                <q-item-label class="font-medium">混合查询</q-item-label>
-                <q-item-label caption class="text-xs">本地 + 集群节点</q-item-label>
-              </q-item-section>
-              <q-item-section side v-if="searchMode === 'mixed'">
-                <q-icon name="check" color="primary" size="18px" />
-              </q-item-section>
-            </q-item>
-            <q-item clickable v-close-popup @click="view.queryParam.SearchMode = 'local'; fetchSearch()"
-              :active="view.queryParam.SearchMode === 'local'" class="q-mx-sm rounded-lg">
-              <q-item-section avatar>
-                <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-green/10">
-                  <q-icon name="computer" color="green" size="16px" />
-                </div>
-              </q-item-section>
-              <q-item-section>
-                <q-item-label class="font-medium">本地查询</q-item-label>
-                <q-item-label caption class="text-xs">仅搜索本机文件</q-item-label>
-              </q-item-section>
-              <q-item-section side v-if="searchMode === 'local'">
-                <q-icon name="check" color="primary" size="18px" />
-              </q-item-section>
-            </q-item>
-            <q-item clickable v-close-popup @click="view.queryParam.SearchMode = 'remote'; fetchSearch()"
-              :active="view.queryParam.SearchMode === 'remote'" class="q-mx-sm rounded-lg">
-              <q-item-section avatar>
-                <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-purple/10">
-                  <q-icon name="dns" color="purple" size="16px" />
-                </div>
-              </q-item-section>
-              <q-item-section>
-                <q-item-label class="font-medium">节点查询</q-item-label>
-                <q-item-label caption class="text-xs">仅搜索集群节点</q-item-label>
-              </q-item-section>
-              <q-item-section side v-if="searchMode === 'remote'">
-                <q-icon name="check" color="primary" size="18px" />
-              </q-item-section>
-            </q-item>
           </q-list>
         </q-btn-dropdown>
         <!-- 重命名按钮 -->
@@ -267,9 +218,12 @@
         </q-checkbox>
 
 
-        <span v-if="isLarge || isMedium" style="align-items: center; align-content: center">
-          {{ view.resultShow }}
-        </span>
+        <q-btn v-if="isLarge || isMedium" flat dense no-caps style="align-items: center; align-content: center"
+          @click="view.showNodeDialog = true">
+          <q-icon :name="view.searchNodeDisplay === '本机' ? 'computer' : 'dns'" size="sm" class="q-mr-xs" />
+          {{ view.searchNodeDisplay }}
+          <q-icon name="arrow_drop_down" size="sm" />
+        </q-btn>
 
         <!-- 设置按钮 -->
       <!-- Q-FAB 固定悬浮按钮 -->
@@ -427,10 +381,6 @@
                   <span @click="searchKeyword(item.FileType)">
                     {{ item.FileType }}</span>
                 </q-chip>
-                <!-- 节点来源标记 -->
-                <q-chip square v-if="item.NodeName" :size="btnSize('top')" dense :color="item.NodeName === localNodeName ? 'green' : 'purple'">
-                  {{ item.NodeName === localNodeName ? '本机' : item.NodeName }}
-                </q-chip>
               </div>
               <!-- 图片 -->
               <q-img fit="fill" lazy="true" :class="{
@@ -510,21 +460,6 @@
                   color: 'grey',
                   backgroundColor: 'rgba(250, 250, 250,0.4)',
                 }">
-                  <span
-                    :style="{
-                      color: item.nodeName === localNodeName ? 'black' : 'purple',
-                      marginRight: '1px',
-                      backgroundColor: 'rgba(0, 0, 0, 0.1)',
-                    }"
-                    class="cursor-pointer"
-                  >
-                    {{ item.nodeName === localNodeName ? '本机' : '集群' }}
-                    <q-tooltip class="bg-white text-primary">
-                      <div v-if="item.nodeName === localNodeName">来源: 本机</div>
-                      <div v-else>来源: {{ item.nodeName }}</div>
-                      <div>节点: {{ item.nodeHost }}</div>
-                    </q-tooltip>
-                  </span>
                   <span style="
                     color: green;
                     margin-right: 1px;
@@ -624,6 +559,53 @@
       </q-page-container>
     </q-layout>
 
+    <!-- 节点选择弹窗 -->
+    <q-dialog v-model="view.showNodeDialog">
+      <q-card style="min-width: 400px" class="theme-card">
+        <q-card-section class="q-pa-sm">
+          <div class="text-subtitle2 q-mb-sm">选择搜索节点</div>
+          <q-list bordered separator dense>
+            <q-item clickable v-close-popup :active="!view.queryParam.SearchNode"
+              @click="selectNode('')" class="q-py-xs">
+              <q-item-section avatar>
+                <q-icon name="computer" color="primary" />
+              </q-item-section>
+              <q-item-section>
+                <q-item-label class="text-caption">本机</q-item-label>
+                <q-item-label caption class="text-caption">{{ view.localNodeName }}</q-item-label>
+              </q-item-section>
+              <q-item-section side v-if="!view.queryParam.SearchNode">
+                <q-icon name="check" color="positive" />
+              </q-item-section>
+            </q-item>
+            <q-item clickable v-close-popup v-for="peer in view.nodeList" :key="peer.id"
+              :active="view.queryParam.SearchNode === peer.id"
+              @click="selectNode(peer.id)" class="q-py-xs">
+              <q-item-section avatar>
+                <q-icon name="dns" color="purple" />
+              </q-item-section>
+              <q-item-section>
+                <q-item-label class="text-caption">{{ peer.name || peer.id }}</q-item-label>
+                <q-item-label caption class="text-caption">
+                  {{ peer.totalCnt }} 文件 · {{ peer.totalSize }}
+                </q-item-label>
+              </q-item-section>
+              <q-item-section side v-if="view.queryParam.SearchNode === peer.id">
+                <q-icon name="check" color="positive" />
+              </q-item-section>
+            </q-item>
+          </q-list>
+          <div v-if="view.nodeList.length === 0" class="text-center text-grey text-caption q-py-sm">
+            暂无在线节点
+          </div>
+        </q-card-section>
+        <q-card-actions align="right" class="q-pa-sm q-pt-none">
+          <q-btn flat dense label="关闭" color="grey" v-close-popup />
+          <q-btn flat dense icon="refresh" color="primary" @click="fetchNodeList">刷新</q-btn>
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <!-- 视频播放器 -->
 
     <InnerVideoPlayer ref="videoRef" @next-one="viewNextOne('play')" @prev-one="viewPrevOne('play')"
@@ -709,7 +691,7 @@ import {
 import { computed, onMounted, onUnmounted, provide, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
-import { GetSettingInfo, GetLanPeers } from 'components/api/settingAPI';
+import { GetSettingInfo, GetLanPeersWithStats } from 'components/api/settingAPI';
 import {
   DescEnum,
   FieldEnum,
@@ -755,8 +737,6 @@ const pageOptions = ref([10, 12, 20, 30, 50, 200]);
 // AbortController 用于取消前一个搜索请求
 const searchAbortController = ref(null);
 
-// 本机节点名，用于标记文件来源
-const localNodeName = ref('');
 
 
 const moveView = reactive({
@@ -860,9 +840,13 @@ const view = reactive({
     PageSize: 20,
     SortField: 'MTime',
     SortType: 'desc',
-    SearchMode: 'mixed',
+    SearchNode: '',
   },
   resultData: {},
+  searchNodeDisplay: '本机',
+  localNodeName: '',
+  showNodeDialog: false,
+  nodeList: [],
 });
 
 const sortOptions = computed(() => {
@@ -1349,6 +1333,25 @@ const searchKeyword = async (keyword) => {
   await fetchSearch();
 };
 
+const selectNode = (nodeId) => {
+  view.queryParam.SearchNode = nodeId;
+  view.queryParam.Page = 1;
+  view.searchNodeDisplay = nodeId ? (view.nodeList?.find(p => p.id === nodeId)?.name || nodeId) : '本机';
+  fetchSearch();
+};
+
+const fetchNodeList = async () => {
+  try {
+    const res = await GetLanPeersWithStats();
+    if (res) {
+      view.localNodeName = res.localNodeName || '';
+      view.nodeList = res.peers || [];
+    }
+  } catch (e) {
+    console.error('获取节点列表失败', e);
+  }
+};
+
 const gotoPageNo = async (no) => {
   console.log('gotoPageNo', no);
   if (no && no > 0) {
@@ -1514,7 +1517,7 @@ watch(
   () => thisRoute.query,
   () => {
     if (skipWatch || isInitializing) return;
-    const { Page, PageSize, MovieType, SortField, SortType, Keyword, SearchMode } = thisRoute.query;
+    const { Page, PageSize, MovieType, SortField, SortType, Keyword, SearchNode } = thisRoute.query;
     if (Object.keys(thisRoute.query).length === 0) return;
     view.queryParam.Page = Number(Page) || 1;
     view.queryParam.PageSize = Number(PageSize) || 10;
@@ -1522,7 +1525,7 @@ watch(
     view.queryParam.SortField = SortField || 'publish_time';
     view.queryParam.SortType = SortType || 'desc';
     view.queryParam.Keyword = Keyword || '';
-    view.queryParam.SearchMode = SearchMode || 'mixed';
+    view.queryParam.SearchNode = SearchNode || '';
     fetchSearch(true);
   }
 );
@@ -1534,7 +1537,7 @@ const saveParam = (skipPush = false) => {
   localStorage.setItem('isAuthenticated', 'true');
   // 避免频繁 push 导致组件重创建，仅在需要时更新 URL
   if (skipPush) return;
-  const { Page, PageSize, MovieType, SortField, SortType, Keyword, SearchMode } =
+  const { Page, PageSize, MovieType, SortField, SortType, Keyword, SearchNode } =
     view.queryParam;
   const currentQuery = thisRoute.query;
   if (
@@ -1544,7 +1547,7 @@ const saveParam = (skipPush = false) => {
     currentQuery.MovieType !== MovieType ||
     currentQuery.SortField !== SortField ||
     currentQuery.SortType !== SortType ||
-    currentQuery.SearchMode !== SearchMode
+    currentQuery.SearchNode !== SearchNode
   ) {
     skipWatch = true;
     push({
@@ -1556,7 +1559,7 @@ const saveParam = (skipPush = false) => {
         SortField,
         SortType,
         Keyword,
-        SearchMode,
+        SearchNode,
       },
     });
     setTimeout(() => { skipWatch = false; }, 100);
@@ -1602,18 +1605,23 @@ onMounted(async () => {
     SortField,
     SortType,
     Keyword,
-    SearchMode,
+    SearchNode,
     showStyle,
     from,
   } = thisRoute.query;
   await fetchGetSettingInfo();
-  // 获取本机节点名
-  try {
-    const peerRes = await GetLanPeers();
+  // 获取节点列表（异步，不阻塞初始化）
+  GetLanPeersWithStats().then(peerRes => {
     if (peerRes) {
-      localNodeName.value = peerRes.localNodeName || '';
+      view.localNodeName = peerRes.localNodeName || '';
+      view.nodeList = peerRes.peers || [];
     }
-  } catch {/* 忽略 */}
+  }).catch(() => { /* 忽略 */ });
+  // 恢复 URL 中的节点选择（先设值，节点列表稍后异步到达后会更新显示）
+  if (SearchNode) {
+    view.queryParam.SearchNode = SearchNode;
+    view.searchNodeDisplay = SearchNode;
+  }
   if (Keyword) {
     view.queryParam.Keyword = Keyword;
   }
@@ -1624,7 +1632,7 @@ onMounted(async () => {
     view.queryParam.SortField = SortField;
     view.queryParam.SortType = SortType;
     view.queryParam.Keyword = Keyword;
-    view.queryParam.SearchMode = SearchMode || 'mixed';
+    view.queryParam.SearchNode = SearchNode || '';
     view.queryParam.showStyle = showStyle;
   } else {
     if (from === 'index') {

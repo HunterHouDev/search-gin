@@ -358,6 +358,23 @@ func GetOnlinePeers() []*Peer {
 	return result
 }
 
+// GetPeerStats 获取指定节点的文件总数和总大小
+func GetPeerStats(nodeID string) (totalCnt int, totalSize string, nodeName string) {
+	lanDiscovery.mu.RLock()
+	p, ok := lanDiscovery.peers[nodeID]
+	lanDiscovery.mu.RUnlock()
+	if !ok {
+		return 0, "", ""
+	}
+	// 搜索空关键词用 pageSize=1，仅获取统计信息不返回全部数据
+	param := model.SearchParam{Keyword: "", Page: 1, PageSize: 1}
+	result, err := SearchRemotePeer(p, param)
+	if err != nil {
+		return 0, "", p.Name
+	}
+	return result.TotalCnt, result.TotalSize, p.Name
+}
+
 // AddPeer 动态添加节点（手动添加）
 func AddPeer(ip, port, filePort string) bool {
 	if port == "" {

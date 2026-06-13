@@ -5,6 +5,7 @@ import (
 	"search-gin/internal/service"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 )
@@ -102,6 +103,51 @@ func CleanLanPeers(c *gin.Context) {
 		"success": true,
 		"count":   count,
 		"msg":     "已清理 " + strconv.Itoa(count) + " 个超时节点",
+	})
+}
+
+// GetPeerStats 获取指定节点文件数与总大小
+func GetPeerStats(c *gin.Context) {
+	node := c.Query("node") // "host:port"
+	if node == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"fail": true, "msg": "缺少 node 参数"})
+		return
+	}
+	cnt, size, name := service.GetPeerStats(node)
+	c.JSON(http.StatusOK, gin.H{"success": true, "nodeName": name, "totalCnt": cnt, "totalSize": size})
+}
+
+// GetLanPeersWithStats 获取在线节点列表（含文件统计，并发请求各节点）
+func GetLanPeersWithStats(c *gin.Context) {
+	peers := service.GetOnlinePeers()
+	type peerInfo struct {
+		ID        string `json:"id"`
+		Name      string `json:"name"`
+		IP        string `json:"ip"`
+		Port      string `json:"port"`
+		FilePort  string `json:"filePort"`
+		TotalCnt  int    `json:"totalCnt"`
+		TotalSize string `json:"totalSize"`
+	}
+	result := make([]peerInfo, len(peers))
+	var wg sync.WaitGroup
+	for i, p := range peers {
+		wg.Add(1)
+		go func(idx int, peer *service.Peer) {
+			defer wg.Done()
+			cnt, size, _ := service.GetPeerStats(peer.ID)
+			result[idx] = peerInfo{
+				ID: peer.ID, Name: peer.Name, IP: peer.IP,
+				Port: peer.Port, FilePort: peer.FilePort,
+				TotalCnt: cnt, TotalSize: size,
+			}
+		}(i, p)
+	}
+	wg.Wait()
+	c.JSON(http.StatusOK, gin.H{
+		"localNodeHost": service.LocalNodeHost,
+		"localNodeName": service.LocalNodeName,
+		"peers":         result,
 	})
 }
 
