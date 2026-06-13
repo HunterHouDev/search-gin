@@ -58,7 +58,11 @@ func PostMovies(c *gin.Context) {
 	doRemote := service.IsClusterEnabled() && (searchMode == "" || searchMode == "mixed" || searchMode == "remote")
 
 	if doLocal {
-		localResult = service.SearchApp.SearchDataSource(searchParam)
+		// 本地搜索获取全量结果，再由最终 PaginateMovies 统一分页
+		fullParam := searchParam
+		fullParam.Page = 1
+		fullParam.PageSize = 99999
+		localResult = service.SearchApp.SearchDataSource(fullParam)
 		localMovies, ok := localResult.Data.([]model.FileItem)
 		if !ok {
 			localMovies = []model.FileItem{}
