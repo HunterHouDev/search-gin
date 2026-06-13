@@ -11,7 +11,7 @@ var LastScanTime time.Time
 
 var QueryTypes []string
 
-var MovieFields = utils.InterfaceFields(model.Movie{})
+var MovieFields = utils.InterfaceFields(model.FileItem{})
 
 var Types = []string{PNG, JPG, GIF, XLSX, TXT, MP4, WMV, MKV, AVI, JAVA, XML}
 var Images = []string{PNG, JPG, GIF}
@@ -41,7 +41,7 @@ type ScanProgress struct {
 var Sp ScanProgress
 var SpMu sync.RWMutex
 
-var TempImage = make(map[string]model.Movie)
+var TempImage = make(map[string]model.FileItem)
 var TempImageMutex sync.RWMutex // 保护TempImage的并发访问
 
 var TransferTask = map[time.Time]model.TransferTaskModel{}

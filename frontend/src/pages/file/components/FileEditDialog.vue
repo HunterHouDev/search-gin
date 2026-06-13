@@ -17,15 +17,15 @@
                   flex-direction: row;
                   background-color: rgba(250, 250, 250, 1);
                   border-radius: 40px;
-                " class="q-gutter-md" v-if="systemProperty.lastActresses && systemProperty.lastActresses.length > 0">
-                <q-btn color="orange" v-close-popup class="glossy" v-for="item in systemProperty.lastActresses"
-                  :key="item" :label="item" @click="systemProperty.lastActress = item"></q-btn>
+                " class="q-gutter-md" v-if="systemProperty.lastAuthores && systemProperty.lastAuthores.length > 0">
+                <q-btn color="orange" v-close-popup class="glossy" v-for="item in systemProperty.lastAuthores"
+                  :key="item" :label="item" @click="systemProperty.lastAuthor = item"></q-btn>
               </div>
             </q-popup-proxy>
           </span>
-          <a style="color: green; border-bottom: 1px solid green; cursor: pointer" v-if="systemProperty.lastActress"
-            @click="view.item.Actress = systemProperty.lastActress">
-            {{ systemProperty.lastActress }}</a>
+          <a style="color: green; border-bottom: 1px solid green; cursor: pointer" v-if="systemProperty.lastAuthor"
+            @click="view.item.Author = systemProperty.lastAuthor">
+            {{ systemProperty.lastAuthor }}</a>
         </span>
         <q-space />
         <q-btn style="margin-right: 10px" color="orange" align="evenly" label="改名移动" glossy
@@ -58,7 +58,7 @@
             </template>
           </q-input>
 
-          <q-input outlined label="图鉴" autogrow v-model="view.item.Actress" clearable :dense="false">
+          <q-input outlined label="图鉴" autogrow v-model="view.item.Author" clearable :dense="false">
           </q-input>
           <q-input outlined autogrow label="番号" v-model="view.item.Code" :dense="false" @change="makePreview"
             clearable />
@@ -247,8 +247,8 @@ const titleChange = (v) => {
   }
   const arr = v.split(' ');
   if (arr && arr.length > 2) {
-    view.item.Actress = arr[arr.length - 1];
-    view.item.Actress = view.item.Actress.trim();
+    view.item.Author = arr[arr.length - 1];
+    view.item.Author = view.item.Author.trim();
   }
   // 从 Title 中移除 originalCode（忽略大小写）
   if (originalCode && originalCode[0]) {
@@ -282,15 +282,15 @@ const editMoveout = async () => {
 };
 
 const editItemSubmit = async (MoveOut) => {
-  const { Id, Title, Code, Actress, FileType, MovieType, Jpg, Png, Tags } =
+  const { Id, Title, Code, Author, FileType, MovieType, Jpg, Png, Tags } =
     view.item;
   let code = Code.trim().toUpperCase();
   if (code && code.indexOf('-') < 0) {
     code = '-' + code;
   }
   let name = '';
-  if (Actress.length !== 0) {
-    name += '[' + Actress.trim() + ']';
+  if (Author.length !== 0) {
+    name += '[' + Author.trim() + ']';
   }
   if (code.length !== 0) {
     name += ' [' + code.trim() + ']';
@@ -319,7 +319,7 @@ const editItemSubmit = async (MoveOut) => {
     Name: name,
     Code: code,
     Title,
-    Actress,
+    Author,
     MoveOut,
     MovieType,
     Jpg,
@@ -332,17 +332,17 @@ const editItemSubmit = async (MoveOut) => {
   } else {
     onDialogOK();
   }
-  systemProperty.lastActress = Actress;
-  if (systemProperty.lastActresses.indexOf(Actress) >= 0) {
-    systemProperty.lastActresses.splice(
-      systemProperty.lastActresses.indexOf(Actress),
+  systemProperty.lastAuthor = Author;
+  if (systemProperty.lastAuthores.indexOf(Author) >= 0) {
+    systemProperty.lastAuthores.splice(
+      systemProperty.lastAuthores.indexOf(Author),
       1
     );
   }
-  if (systemProperty.lastActresses.length >= 5) {
-    systemProperty.lastActresses.pop();
+  if (systemProperty.lastAuthores.length >= 5) {
+    systemProperty.lastAuthores.pop();
   }
-  systemProperty.lastActresses = [Actress, ...systemProperty.lastActresses];
+  systemProperty.lastAuthores = [Author, ...systemProperty.lastAuthores];
   const res = await FileRename(param);
   if (res.Code === 200) {
     emits('sub-one');

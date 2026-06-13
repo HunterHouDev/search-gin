@@ -166,8 +166,8 @@
               class="chip-tag"
               v-touch-pan.prevent.mouse="moveFab"
             >
-              <span @click="copyText(view.currentData.Actress)">
-                {{ view.currentData.Actress?.substring(0, 12) }}
+              <span @click="copyText(view.currentData.Author)">
+                {{ view.currentData.Author?.substring(0, 12) }}
               </span>
             </q-chip>
             <q-chip

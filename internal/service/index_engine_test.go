@@ -12,21 +12,21 @@ import (
 
 // ── 辅助函数 ──
 
-func makeMovie(id, name, path, code, movieType, actress string, size int64) model.Movie {
-	return model.Movie{
+func makeMovie(id, name, path, code, movieType, author string, size int64) model.FileItem {
+	return model.FileItem{
 		Id:        id,
 		Name:      name,
 		Path:      path,
 		Code:      code,
 		MovieType: movieType,
-		Actress:   actress,
+		Author:   author,
 		Size:      size,
 		DirPath:   "/test",
 		BaseDir:   "/test",
 	}
 }
 
-func makeBucket(name string, movies ...model.Movie) *bucketFile {
+func makeBucket(name string, movies ...model.FileItem) *bucketFile {
 	b := newInstance(name)
 	for _, m := range movies {
 		b.put(m)
@@ -66,7 +66,7 @@ func TestBucketFile_PutAndGet(t *testing.T) {
 
 func TestBucketFile_PutBatch(t *testing.T) {
 	b := newInstance("dir-a")
-	movies := []model.Movie{
+	movies := []model.FileItem{
 		makeMovie("1", "a.mp4", "/test/a.mp4", "AAA", "骑兵", "", 100),
 		makeMovie("2", "b.mp4", "/test/b.mp4", "BBB", "步兵", "", 200),
 		makeMovie("3", "c.mp4", "/test/c.mp4", "CCC", "骑兵", "", 300),
@@ -93,7 +93,7 @@ func TestBucketFile_TypeIndex(t *testing.T) {
 	m2 := makeMovie("2", "b.mp4", "/b.mp4", "", "步兵", "", 200)
 	m3 := makeMovie("3", "c.mp4", "/c.mp4", "", "骑兵", "", 300)
 
-	b.putBatch([]model.Movie{m1, m2, m3})
+	b.putBatch([]model.FileItem{m1, m2, m3})
 
 	assert.Contains(t, b.TypeIndex["骑兵"], "1")
 	assert.Contains(t, b.TypeIndex["骑兵"], "3")
@@ -134,10 +134,10 @@ func TestBuildSnapshotFromBuckets_ActressAggregation(t *testing.T) {
 
 	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir": b})
 
-	assert.Equal(t, 2, len(snap.actressMap))
-	assert.Equal(t, 2, snap.actressMap["田中"].Cnt)
-	assert.Equal(t, int64(300), snap.actressMap["田中"].Size)
-	assert.Equal(t, 1, snap.actressMap["佐藤"].Cnt)
+	assert.Equal(t, 2, len(snap.actorMap))
+	assert.Equal(t, 2, snap.actorMap["田中"].Cnt)
+	assert.Equal(t, int64(300), snap.actorMap["田中"].Size)
+	assert.Equal(t, 1, snap.actorMap["佐藤"].Cnt)
 }
 
 func TestBuildSnapshotFromBuckets_TypeMenu(t *testing.T) {
@@ -247,7 +247,7 @@ func TestSearchEngineCore_FindById(t *testing.T) {
 	assert.True(t, notFound.IsNull())
 }
 
-func TestSearchEngineCore_GetActorCount(t *testing.T) {
+func TestSearchEngineCore_GetAuthorCount(t *testing.T) {
 	core := newTestEngine()
 	defer core.Reset()
 
@@ -258,10 +258,10 @@ func TestSearchEngineCore_GetActorCount(t *testing.T) {
 	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir": b})
 	core.installSnapshot(snap)
 
-	assert.Equal(t, 2, core.GetActorCount())
+	assert.Equal(t, 2, core.GetAuthorCount())
 }
 
-func TestSearchEngineCore_FindActressByName(t *testing.T) {
+func TestSearchEngineCore_FindAuthorByName(t *testing.T) {
 	core := newTestEngine()
 	defer core.Reset()
 
@@ -271,11 +271,11 @@ func TestSearchEngineCore_FindActressByName(t *testing.T) {
 	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir": b})
 	core.installSnapshot(snap)
 
-	act := core.FindActressByName("田中")
+	act := core.FindAuthorByName("田中")
 	assert.True(t, act.IsNotEmpty())
 	assert.Equal(t, "田中", act.Name)
 
-	notFound := core.FindActressByName("不存在")
+	notFound := core.FindAuthorByName("不存在")
 	assert.True(t, notFound.IsEmpty())
 }
 
@@ -437,7 +437,7 @@ func TestPageAsync_Pagination(t *testing.T) {
 	engine := newTestEngine()
 	defer engine.Reset()
 
-	movies := make([]model.Movie, 25)
+	movies := make([]model.FileItem, 25)
 	for i := range movies {
 		title := string(rune('A' + i))
 		movies[i] = makeMovie(

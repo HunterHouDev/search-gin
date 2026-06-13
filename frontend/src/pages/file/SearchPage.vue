@@ -473,7 +473,7 @@
                             color: rgb(161, 100, 19);
                             background-color: rgba(0, 0, 0, 0.1);
                             margin-right: 1px;
-                          " class="cursor-pointer" @click="copyText(item.Actress)">{{ item.Actress }}</span>
+                          " class="cursor-pointer" @click="copyText(item.Author)">{{ item.Author }}</span>
                         </div>
                         <div>
                           <span style="color: rgb(239, 30, 30)" class="cursor-pointer" @click="copyText(item.Code)">{{
@@ -502,7 +502,7 @@
                     color: rgb(161, 100, 19);
                     background-color: rgba(0, 0, 0, 0.1);
                     margin-right: 1px;
-                  " class="cursor-pointer" @click="goActress(item.Actress)">{{ item.Actress }}</span>
+                  " class="cursor-pointer" @click="goAuthor(item.Author)">{{ item.Author }}</span>
 
                   <span style="
                     color: rgb(239, 30, 30);
@@ -1081,9 +1081,9 @@ const copyText = async (str) => {
   $q.notify({ message: `${str}`, position: 'bottom-left' });
 };
 
-const goActress = (Actress) => {
-  if (!systemProperty.goActressNewWidow) {
-    view.queryParam.Keyword = Actress;
+const goAuthor = (Author) => {
+  if (!systemProperty.goAuthorNewWidow) {
+    view.queryParam.Keyword = Author;
     fetchSearch();
   } else {
     const { Page, PageSize, MovieType, SortField, SortType } = view.queryParam;
@@ -1095,7 +1095,7 @@ const goActress = (Actress) => {
         MovieType,
         SortField,
         SortType,
-        Keyword: Actress,
+        Keyword: Author,
       },
     });
     window.open(routeData.href, '_blank');

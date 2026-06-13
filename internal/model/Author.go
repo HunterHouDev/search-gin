@@ -5,7 +5,8 @@ import (
 	"strings"
 )
 
-type Actress struct {
+// Author 演员聚合信息
+type Author struct {
 	Name    string
 	Url     string
 	Cnt     int
@@ -14,8 +15,9 @@ type Actress struct {
 	Images  []string
 }
 
-func NewActress(name string, url string, size int64) Actress {
-	return Actress{
+// NewAuthor 创建演员聚合对象
+func NewAuthor(name string, url string, size int64) Author {
+	return Author{
 		Name:    name,
 		Url:     url,
 		Cnt:     1,
@@ -24,29 +26,32 @@ func NewActress(name string, url string, size int64) Actress {
 		Images:  []string{url},
 	}
 }
-func (act *Actress) PlusCnt() {
+
+func (act *Author) PlusCnt() {
 	act.Cnt = act.Cnt + 1
 }
 
-func (act *Actress) IsEmpty() bool {
+func (act *Author) IsEmpty() bool {
 	return act.Name == ""
 }
 
-func (act *Actress) IsNotEmpty() bool {
+func (act *Author) IsNotEmpty() bool {
 	return !act.IsEmpty()
 }
 
-func (act *Actress) PlusSize(size int64) {
+func (act *Author) PlusSize(size int64) {
 	act.Size = act.Size + size
 	act.SizeStr = utils.GetSizeStr(act.Size)
 }
-func (act *Actress) AddImage(image string) {
+
+func (act *Author) AddImage(image string) {
 	if !utils.HasItem(act.Images, image) {
 		act.Images = append(act.Images, image)
 	}
 }
 
-func GetActressPageOfFiles(files []Actress, pageNo int, pageSize int) ([]Actress, int64) {
+// GetAuthorPageOfFiles 演员分页
+func GetAuthorPageOfFiles(files []Author, pageNo int, pageSize int) ([]Author, int64) {
 	if len(files) == 0 {
 		return files, 0
 	}
@@ -57,7 +62,7 @@ func GetActressPageOfFiles(files []Actress, pageNo int, pageSize int) ([]Actress
 	start := (pageNo - 1) * pageSize
 
 	if start >= length {
-		return []Actress{}, 0
+		return []Author{}, 0
 	}
 
 	end := length
@@ -66,7 +71,7 @@ func GetActressPageOfFiles(files []Actress, pageNo int, pageSize int) ([]Actress
 	}
 
 	var volume int64
-	data := make([]Actress, end-start)
+	data := make([]Author, end-start)
 	for i := start; i < end; i++ {
 		data[i-start] = files[i]
 		volume += files[i].Size
@@ -74,9 +79,10 @@ func GetActressPageOfFiles(files []Actress, pageNo int, pageSize int) ([]Actress
 	return data, volume
 }
 
-func SearchActressByKeyWord(files map[string]Actress, keyWord string) []Actress {
+// SearchAuthorByKeyWord 按关键词搜索演员
+func SearchAuthorByKeyWord(files map[string]Author, keyWord string) []Author {
 	keywordUpper := strings.ToUpper(keyWord)
-	resultWrapper := make([]Actress, 0, len(files))
+	resultWrapper := make([]Author, 0, len(files))
 	for _, file := range files {
 		if len(keyWord) > 0 {
 			if strings.Contains(strings.ToUpper(file.Name), keywordUpper) {

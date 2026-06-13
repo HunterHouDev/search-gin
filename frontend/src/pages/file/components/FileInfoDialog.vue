@@ -83,10 +83,10 @@
                 </div>
               </template>
             </q-field>
-            <q-field label="Actress" stack-label>
+            <q-field label="Author" stack-label>
               <template v-slot:control>
                 <div class="self-center full-width no-outline" tabindex="0">
-                  {{ view.item.Actress }}
+                  {{ view.item.Author }}
                 </div>
               </template>
             </q-field>

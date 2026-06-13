@@ -66,7 +66,7 @@
     <!-- 顶部中央视频信息 -->
     <div class="fixed-top-center" v-if="videoLoaded">
       <span class="meta-item">
-        <q-btn color="indigo-6" flat dense grossy @click="fetchKeyword(currentData.Actress)">{{ currentData.Actress
+        <q-btn color="indigo-6" flat dense grossy @click="fetchKeyword(currentData.Author)">{{ currentData.Author
           }}</q-btn>
       </span>
       <span class="top-video-tag tag tag-level" v-for="(tag, index) in currentData.Tags" :key="tag"
@@ -225,8 +225,8 @@
                     {{ formatTitle(item.Title, 24) }}
                   </div>
                   <div class="search-card-tags">
-                    <span class="tag tag-actress" v-if="item.Actress" @click="fetchKeyword(item.Actress)">{{
-                      item.Actress?.substring(0, 10) }}</span>
+                    <span class="tag tag-author" v-if="item.Author" @click="fetchKeyword(item.Author)">{{
+                      item.Author?.substring(0, 10) }}</span>
                     <span class="tag tag-code" v-if="item.Code" @click="fetchKeyword(item.Code)">{{
                       item.Code.substring(0, 10) }}</span>
                     <template v-if="item.Tags">
@@ -2626,7 +2626,7 @@ onUnmounted(() => {
   line-height: 1.5;
 }
 
-.tag-actress {
+.tag-author {
   color: #a78bfa;
   background: rgba(139, 92, 246, 0.14);
   border: 1px solid rgba(139, 92, 246, 0.25);

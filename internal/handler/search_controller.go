@@ -37,7 +37,7 @@ func PostMovies(c *gin.Context) {
  if isRemote {
   // 远程转发：只返回本地结果，不递归搜索其他节点
   result := service.SearchApp.SearchDataSource(searchParam)
-  movies, ok := result.Data.([]model.Movie)
+  movies, ok := result.Data.([]model.FileItem)
   if ok {
    service.FillURLs(c, movies)
    result.Data = movies
@@ -49,12 +49,12 @@ func PostMovies(c *gin.Context) {
 
  // 前端请求：查本地（集群模式启用时并发查所有在线节点）
  localResult := service.SearchApp.SearchDataSource(searchParam)
- localMovies, ok := localResult.Data.([]model.Movie)
+ localMovies, ok := localResult.Data.([]model.FileItem)
  if !ok {
-  localMovies = []model.Movie{}
+  localMovies = []model.FileItem{}
  }
 
- var merged []model.Movie
+ var merged []model.FileItem
  if service.IsClusterEnabled() {
   remoteMovies := service.SearchPeers(searchParam)
   merged = service.MergeResults(localMovies, remoteMovies)
@@ -81,14 +81,14 @@ func PostMovies(c *gin.Context) {
  c.JSON(http.StatusOK, result)
 }
 
-// PostActress 演员搜索处理函数
+// PostAuthor 演员搜索处理函数
 // 负责处理演员信息的搜索请求
 // @Summary 演员搜索
 // @Description 根据搜索参数查询演员信息
 // @Accept json
 // @Produce json
 // @Router /api/search/actresses [post]
-func PostActress(c *gin.Context) {
+func PostAuthor(c *gin.Context) {
 	// 远程转发：只查本地，不递归
 	if c.GetHeader("X-Search-Gin-Remote") == "true" {
 		param := model.SearchParam{}
@@ -99,12 +99,12 @@ func PostActress(c *gin.Context) {
 		if service.SearchEngine.IsEmpty() {
 			service.FileApp.ScanAll()
 		}
-		pageActressResultWrapper := service.SearchEngine.PageActress(param)
+		pageAuthorResultWrapper := service.SearchEngine.PageAuthor(param)
 		result := utils.NewPage()
-		result.CurCnt = pageActressResultWrapper.ResultCount
-		result.TotalCnt = pageActressResultWrapper.SearchCount
-		result.ResultCnt = pageActressResultWrapper.SearchCount
-		result.Data = pageActressResultWrapper.FileList
+		result.CurCnt = pageAuthorResultWrapper.ResultCount
+		result.TotalCnt = pageAuthorResultWrapper.SearchCount
+		result.ResultCnt = pageAuthorResultWrapper.SearchCount
+		result.Data = pageAuthorResultWrapper.FileList
 		c.JSON(http.StatusOK, result)
 		return
 	}
@@ -125,16 +125,16 @@ func PostActress(c *gin.Context) {
 	}
 
 	// 调用搜索引擎获取演员分页搜索结果
-	pageActressResultWrapper := service.SearchEngine.PageActress(param)
+	pageAuthorResultWrapper := service.SearchEngine.PageAuthor(param)
 
 	// 初始化分页结果对象
 	result := utils.NewPage()
 
 	// 设置分页相关数据
-	result.CurCnt = pageActressResultWrapper.ResultCount    // 当前页结果数量
-	result.TotalCnt = pageActressResultWrapper.SearchCount  // 总匹配数量
-	result.ResultCnt = pageActressResultWrapper.SearchCount // 总结果数量
-	result.Data = pageActressResultWrapper.FileList         // 结果数据列表
+	result.CurCnt = pageAuthorResultWrapper.ResultCount    // 当前页结果数量
+	result.TotalCnt = pageAuthorResultWrapper.SearchCount  // 总匹配数量
+	result.ResultCnt = pageAuthorResultWrapper.SearchCount // 总结果数量
+	result.Data = pageAuthorResultWrapper.FileList         // 结果数据列表
 
 	// 返回HTTP 200状态码和搜索结果
 	c.JSON(http.StatusOK, result)

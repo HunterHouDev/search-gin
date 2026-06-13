@@ -303,7 +303,7 @@ func ResolvePeerIP(nodeHost string) string {
 }
 
 // SetMovieNode 为 Movie 设置节点信息
-func SetMovieNode(m *model.Movie) {
+func SetMovieNode(m *model.FileItem) {
 	m.NodeHost = LocalNodeHost
 	m.NodeName = LocalNodeName
 }

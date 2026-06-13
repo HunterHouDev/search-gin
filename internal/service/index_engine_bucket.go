@@ -10,7 +10,7 @@ type bucketFile struct {
 	InstanceName string
 	TotalSize    int64
 	TotalCount   int
-	FileLib      map[string]model.Movie
+	FileLib      map[string]model.FileItem
 	// 倒排索引，类型 -> 文件ID集合 (O(1) 去重)
 	TypeIndex map[string]map[string]struct{}
 	mu        sync.RWMutex
@@ -21,12 +21,12 @@ func newInstance(name string) *bucketFile {
 		InstanceName: name,
 		TotalSize:    0,
 		TotalCount:   0,
-		FileLib:      map[string]model.Movie{},
+		FileLib:      map[string]model.FileItem{},
 		TypeIndex:    map[string]map[string]struct{}{},
 	}
 }
 
-func newInstanceWithFiles(baseDir string, files []model.Movie) *bucketFile {
+func newInstanceWithFiles(baseDir string, files []model.FileItem) *bucketFile {
 	bucket := newInstance(baseDir)
 	bucket.putBatch(files)
 	return bucket
@@ -40,7 +40,7 @@ func (fs *bucketFile) isEmpty() bool {
 	return !fs.isNotEmpty()
 }
 
-func (fs *bucketFile) put(m model.Movie) {
+func (fs *bucketFile) put(m model.FileItem) {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 	if m.PathUpper == "" {
@@ -55,7 +55,7 @@ func (fs *bucketFile) put(m model.Movie) {
 }
 
 // putBatch 批量写入文件，一次加锁
-func (fs *bucketFile) putBatch(files []model.Movie) {
+func (fs *bucketFile) putBatch(files []model.FileItem) {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 	for _, file := range files {
@@ -70,7 +70,7 @@ func (fs *bucketFile) putBatch(files []model.Movie) {
 }
 
 // buildTypeIndex 为文件构建类型倒排索引（O(1) 去重）
-func (fs *bucketFile) buildTypeIndex(m model.Movie) {
+func (fs *bucketFile) buildTypeIndex(m model.FileItem) {
 	if m.MovieType == "" {
 		return
 	}
@@ -80,14 +80,14 @@ func (fs *bucketFile) buildTypeIndex(m model.Movie) {
 	fs.TypeIndex[m.MovieType][m.Id] = struct{}{}
 }
 
-func (fs *bucketFile) get(id string) model.Movie {
+func (fs *bucketFile) get(id string) model.FileItem {
 	fs.mu.RLock()
 	defer fs.mu.RUnlock()
 	movieFile, ok := fs.FileLib[id]
 	if ok {
 		return movieFile
 	}
-	return model.Movie{}
+	return model.FileItem{}
 }
 
 func (fs *bucketFile) searchBucket(searchParam model.SearchParam) model.SearchResultWrapper {
@@ -150,7 +150,7 @@ func (fs *bucketFile) searchBucket(searchParam model.SearchParam) model.SearchRe
 }
 
 // matchKeywords 检查文件路径是否匹配所有关键词
-func matchKeywords(file model.Movie, keywords []string) bool {
+func matchKeywords(file model.FileItem, keywords []string) bool {
 	filePath := file.PathUpper
 	for _, keyword := range keywords {
 		if !strings.Contains(filePath, keyword) {

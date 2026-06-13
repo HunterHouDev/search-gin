@@ -95,10 +95,10 @@ const reg = /\w+[-_]\d+/;
 const reg_1 = /\w+\d+/;
 
 const gotoSearch = (item) => {
-  const actress = item.match(reg2);
+  const author = item.match(reg2);
   let keyword = '';
-  if (actress && actress[0] && actress[0].length > 0) {
-    keyword += actress[0]
+  if (author && author[0] && author[0].length > 0) {
+    keyword += author[0]
       .replaceAll('[', ' ')
       .replaceAll(']', ' ')
       .replaceAll('  ', ' ')

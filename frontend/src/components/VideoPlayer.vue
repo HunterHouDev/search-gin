@@ -6,7 +6,7 @@
     >
       <q-toolbar-title>
         <q-btn square dense text-color="red" class="chip-tag">
-          <span>{{ view.currentData.Actress?.substring(0, 6) }}</span>
+          <span>{{ view.currentData.Author?.substring(0, 6) }}</span>
         </q-btn>
         <q-btn square dense text-color="red" class="chip-tag">
           <span>{{ view.currentData.Code?.substring(0, 12) }}</span>

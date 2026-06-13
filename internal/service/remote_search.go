@@ -23,7 +23,7 @@ const (
 )
 
 // SearchPeers 并发搜索所有在线远程节点
-func SearchPeers(searchParam model.SearchParam) []model.Movie {
+func SearchPeers(searchParam model.SearchParam) []model.FileItem {
 	peers := GetOnlinePeers()
 	if len(peers) == 0 {
 		return nil
@@ -32,7 +32,7 @@ func SearchPeers(searchParam model.SearchParam) []model.Movie {
 	// 信号量限制并发
 	semaphore := make(chan struct{}, maxConcurrentPeers)
 	var mu sync.Mutex
-	var allMovies []model.Movie
+	var allMovies []model.FileItem
 	var wg sync.WaitGroup
 
 	for _, peer := range peers {
@@ -60,7 +60,7 @@ func SearchPeers(searchParam model.SearchParam) []model.Movie {
 }
 
 // searchPeer 向单个远程节点发送搜索请求
-func searchPeer(peer *Peer, searchParam model.SearchParam) ([]model.Movie, error) {
+func searchPeer(peer *Peer, searchParam model.SearchParam) ([]model.FileItem, error) {
 	// 远程也用大 pageSize 获取全部结果，由请求端做最终分页
 	remoteParam := searchParam
 	remoteParam.Page = 1
@@ -97,25 +97,25 @@ func searchPeer(peer *Peer, searchParam model.SearchParam) ([]model.Movie, error
 
 	movies, ok := result.Data.([]interface{})
 	if !ok {
-		// Data 可能是 []model.Movie，尝试类型断言
-		moviesTyped, ok2 := result.Data.([]model.Movie)
+		// Data 可能是 []model.FileItem，尝试类型断言
+		moviesTyped, ok2 := result.Data.([]model.FileItem)
 		if !ok2 {
 			return nil, fmt.Errorf("远程节点返回的数据类型非预期: %T", result.Data)
 		}
 		return moviesTyped, nil
 	}
 
-	// 从 []interface{} 转为 []model.Movie
-	var out []model.Movie
+	// 从 []interface{} 转为 []model.FileItem
+	var out []model.FileItem
 	raw, _ := json.Marshal(movies)
 	json.Unmarshal(raw, &out)
 	return out, nil
 }
 
 // MergeResults 合并本地与远程结果，按 Code+Size 或 Name+Size 去重，本机优先
-func MergeResults(local, remote []model.Movie) []model.Movie {
+func MergeResults(local, remote []model.FileItem) []model.FileItem {
 	seen := make(map[string]bool)
-	merged := make([]model.Movie, 0, len(local)+len(remote))
+	merged := make([]model.FileItem, 0, len(local)+len(remote))
 
 	// 本机优先
 	for _, m := range local {
@@ -136,7 +136,7 @@ func MergeResults(local, remote []model.Movie) []model.Movie {
 }
 
 // dedupKey 生成去重 key：Code+Size（优先）或 Name+Size（兜底）
-func dedupKey(m model.Movie) string {
+func dedupKey(m model.FileItem) string {
 	if m.Code != "" {
 		return fmt.Sprintf("code:%s:%d", m.Code, m.Size)
 	}
@@ -145,7 +145,7 @@ func dedupKey(m model.Movie) string {
 
 // FillURLs 为搜索结果填充流媒体 URL
 // 本机文件使用请求进来的网卡 IP；远程文件指向源节点
-func FillURLs(c *gin.Context, movies []model.Movie) {
+func FillURLs(c *gin.Context, movies []model.FileItem) {
 	clientIP := c.ClientIP()
 	if clientIP == "" {
 		clientIP, _, _ = net.SplitHostPort(c.Request.RemoteAddr)
@@ -229,7 +229,7 @@ func fallbackLocalIP() string {
 }
 
 // PaginateMovies 对合并后的结果进行分页
-func PaginateMovies(movies []model.Movie, pageNo, pageSize int) ([]model.Movie, int) {
+func PaginateMovies(movies []model.FileItem, pageNo, pageSize int) ([]model.FileItem, int) {
 	total := len(movies)
 	if pageNo <= 0 {
 		pageNo = 1

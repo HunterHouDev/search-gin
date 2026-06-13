@@ -129,7 +129,7 @@
           >
             <q-img
               fit="fill"
-              :src="getActressImage(item.Name)"
+              :src="getAuthorImage(item.Name)"
               class="item-img"
               @click="fileEditRef.open(item)"
             >
@@ -244,8 +244,8 @@
 
 <script setup>
 import { onMounted, reactive, ref, computed } from 'vue';
-import { getActressImage } from '../../components/utils/images';
-import { QueryActressList } from '../../components/api/actressAPI';
+import { getAuthorImage } from '../../components/utils/images';
+import { QueryAuthorList } from '../../components/api/authorAPI';
 import { useSystemProperty } from '../../stores/System';
 import { useRouter } from 'vue-router';
 import PictureInfo from './components/PictureInfo.vue';
@@ -319,7 +319,7 @@ const nextPage = (n) => {
 const fetchSearch = async () => {
   scrollTop();
   isLoading.value = true;
-  const { data } = await QueryActressList(view.queryParam);
+  const { data } = await QueryAuthorList(view.queryParam);
   view.resultData = { ...data, Data: data.Data || [] };
   isLoading.value = false;
 };

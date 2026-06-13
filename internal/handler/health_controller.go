@@ -19,7 +19,7 @@ type IndexHealth struct {
 	TotalSize       int64               `json:"totalSize"`
 	TotalSizeStr    string              `json:"totalSizeStr"`
 	LastScanTime    string              `json:"lastScanTime"`
-	ActorCount      int                 `json:"actorCount"`
+	AuthorCount      int                 `json:"actorCount"`
 	TagCount        int                 `json:"tagCount"`
 	TypeCount       int                 `json:"typeCount"`
 	SeriesCount     int                 `json:"seriesCount"`
@@ -38,7 +38,7 @@ func GetIndexHealthCheck(c *gin.Context) {
 	health.TotalSize = service.SearchEngine.GetTotalSize()
 	health.TotalSizeStr = utils.GetSizeStr(health.TotalSize)
 	health.LastScanTime = consts.LastScanTime.Format("2006-01-02 15:04:05")
-	health.ActorCount = service.SearchEngine.GetActorCount()
+	health.AuthorCount = service.SearchEngine.GetAuthorCount()
 	health.TagCount = consts.GetSyncMapCount(&consts.TagMenu)
 	health.TypeCount = consts.GetSyncMapCount(&consts.TypeMenu) - 1 // 排除"全部"
 	if health.TypeCount < 0 {

@@ -148,7 +148,7 @@
                     style="color: #9e089e; background-color: rgba(0, 0, 0, 0.1)"
                     class="mr10 cursor-pointer text-title"
                     target="_blank"
-                    >{{ item.Actress?.substring(0, 6) }}</a
+                    >{{ item.Author?.substring(0, 6) }}</a
                   >
                   <a
                     style="

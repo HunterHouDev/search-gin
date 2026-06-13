@@ -69,8 +69,8 @@
                 {{ formatTitle(item.Title, 24) }}
               </div>
               <div class="search-card-tags">
-                <span class="tag tag-actress" v-if="item.Actress" @click="$emit('keyword', item.Actress)">{{
-                  item.Actress?.substring(0, 10) }}</span>
+                <span class="tag tag-author" v-if="item.Author" @click="$emit('keyword', item.Author)">{{
+                  item.Author?.substring(0, 10) }}</span>
                 <span class="tag tag-code" v-if="item.Code" @click="$emit('keyword', item.Code)">{{
                   item.Code.substring(0, 10) }}</span>
                 <template v-if="item.Tags">
@@ -594,7 +594,7 @@ defineExpose({ fetchSearch });
   cursor: pointer;
 }
 
-.tag-actress {
+.tag-author {
   color: #a78bfa;
   background: rgba(139, 92, 246, 0.14);
   border: 1px solid rgba(139, 92, 246, 0.25);

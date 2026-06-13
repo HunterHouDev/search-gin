@@ -30,8 +30,8 @@ export const useSystemProperty = defineStore({
     showStyle:'lg', // lg md sm
     showImage:'poster', // post cover
     expireTime:null,
-    lastActress:'',
-    lastActresses:[],
+    lastAuthor:'',
+    lastAuthores:[],
     searchPageAutoPullData: false,
     pictureInPictureVideoOffset: defaultVideoOffset,
     pictureInPictureVideoOffsetFullBefore: defaultVideoOffset,
@@ -41,7 +41,7 @@ export const useSystemProperty = defineStore({
     theme: 'star', // 'star' 星空主题, 'natural' 自然主题
     isElectron: false,
     addPlayingTagGoNext: true,
-    goActressNewWidow: false,
+    goAuthorNewWidow: false,
     goSearchNewWidow: false,
     submitTagFromData: true,
     submitMutiTag: true,

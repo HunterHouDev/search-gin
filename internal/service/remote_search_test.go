@@ -18,7 +18,7 @@ func TestSetMovieNode_AssignsHostAndName(t *testing.T) {
 	LocalNodeHost = "mypc:10081"
 	LocalNodeName = "书房电脑"
 
-	m := &model.Movie{Id: "abc123"}
+	m := &model.FileItem{Id: "abc123"}
 	SetMovieNode(m)
 
 	assert.Equal(t, "mypc:10081", m.NodeHost)
@@ -31,27 +31,27 @@ func TestSetMovieNode_AssignsHostAndName(t *testing.T) {
 // ── dedupKey 测试 ──
 
 func TestDedupKey_WithCode(t *testing.T) {
-	m := model.Movie{Code: "ABC-123", Size: 999999, Name: "test.mp4"}
+	m := model.FileItem{Code: "ABC-123", Size: 999999, Name: "test.mp4"}
 	assert.Equal(t, "code:ABC-123:999999", dedupKey(m))
 }
 
 func TestDedupKey_WithoutCode_FallsBackToName(t *testing.T) {
-	m := model.Movie{Code: "", Name: "unique.mp4", Size: 500000}
+	m := model.FileItem{Code: "", Name: "unique.mp4", Size: 500000}
 	assert.Equal(t, "name:unique.mp4:500000", dedupKey(m))
 }
 
 func TestDedupKey_ZeroSize(t *testing.T) {
-	m := model.Movie{Code: "XYZ", Size: 0}
+	m := model.FileItem{Code: "XYZ", Size: 0}
 	assert.Equal(t, "code:XYZ:0", dedupKey(m))
 }
 
 // ── MergeResults 测试 ──
 
 func TestMergeResults_CodeSizeDedup(t *testing.T) {
-	local := []model.Movie{
+	local := []model.FileItem{
 		{Id: "1", Code: "ABC", Size: 100, Name: "local-a.mp4"},
 	}
-	remote := []model.Movie{
+	remote := []model.FileItem{
 		{Id: "2", Code: "ABC", Size: 100, Name: "remote-a.mp4"}, // Code+Size 相同 → 去重
 		{Id: "3", Code: "DEF", Size: 200, Name: "remote-b.mp4"},
 	}
@@ -62,10 +62,10 @@ func TestMergeResults_CodeSizeDedup(t *testing.T) {
 }
 
 func TestMergeResults_NameSizeDedup(t *testing.T) {
-	local := []model.Movie{
+	local := []model.FileItem{
 		{Id: "1", Code: "", Name: "same.mp4", Size: 777},
 	}
-	remote := []model.Movie{
+	remote := []model.FileItem{
 		{Id: "2", Code: "", Name: "same.mp4", Size: 777}, // Name+Size 相同 → 去重
 		{Id: "3", Code: "", Name: "same.mp4", Size: 888}, // 不同 Size → 不去重
 	}
@@ -77,13 +77,13 @@ func TestMergeResults_NameSizeDedup(t *testing.T) {
 
 func TestMergeResults_EdgeCases(t *testing.T) {
 	assert.Len(t, MergeResults(nil, nil), 0)
-	assert.Len(t, MergeResults([]model.Movie{}, nil), 0)
-	assert.Len(t, MergeResults(nil, []model.Movie{}), 0)
+	assert.Len(t, MergeResults([]model.FileItem{}, nil), 0)
+	assert.Len(t, MergeResults(nil, []model.FileItem{}), 0)
 
-	onlyLocal := []model.Movie{{Id: "L", Code: "X", Size: 1}}
+	onlyLocal := []model.FileItem{{Id: "L", Code: "X", Size: 1}}
 	assert.Len(t, MergeResults(onlyLocal, nil), 1)
 
-	onlyRemote := []model.Movie{{Id: "R", Code: "X", Size: 1}}
+	onlyRemote := []model.FileItem{{Id: "R", Code: "X", Size: 1}}
 	assert.Len(t, MergeResults(nil, onlyRemote), 1)
 }
 
@@ -91,7 +91,7 @@ func TestMergeResults_EdgeCases(t *testing.T) {
 
 func TestPaginateMovies_AllCases(t *testing.T) {
 	// 25 items, pageSize=10
-	m25 := make([]model.Movie, 25)
+	m25 := make([]model.FileItem, 25)
 	for i := range m25 {
 		m25[i].Id = string(rune('A' + i%26))
 		m25[i].Size = int64(i)
@@ -154,7 +154,7 @@ func TestFillURLs_LocalFile_AssignsURLs(t *testing.T) {
 	setupFillURLsTest()
 	c := newTestContext("192.168.1.100:12345")
 
-	movies := []model.Movie{
+	movies := []model.FileItem{
 		{Id: "file-a", NodeHost: ""},                // 空 → 视为本机
 		{Id: "file-b", NodeHost: "mypc:10081"},      // 匹配本机
 	}
@@ -175,7 +175,7 @@ func TestFillURLs_RemoteFile_UsesPeerIP(t *testing.T) {
 	addFakePeer("remote-pc:10081", "10.0.0.99")
 	c := newTestContext("192.168.1.100:12345")
 
-	movies := []model.Movie{
+	movies := []model.FileItem{
 		{Id: "r-file", NodeHost: "remote-pc:10081", NodeName: "远程机器"},
 	}
 
@@ -193,7 +193,7 @@ func TestFillURLs_RemoteFile_PeerOffline_NoURL(t *testing.T) {
 	// 不注册 peer → ResolvePeerIP 返回 ""
 	c := newTestContext("192.168.1.100:12345")
 
-	movies := []model.Movie{
+	movies := []model.FileItem{
 		{Id: "off", NodeHost: "ghost-pc:10081", NodeName: "离线"},
 	}
 
@@ -211,14 +211,14 @@ func TestFillURLs_EmptyList_NoPanic(t *testing.T) {
 	c := newTestContext("192.168.1.100:12345")
 
 	assert.NotPanics(t, func() { FillURLs(c, nil) })
-	assert.NotPanics(t, func() { FillURLs(c, []model.Movie{}) })
+	assert.NotPanics(t, func() { FillURLs(c, []model.FileItem{}) })
 }
 
 func TestFillURLs_UsesFilePort(t *testing.T) {
 	setupFillURLsTest()
 	c := newTestContext("192.168.1.100:12345")
 
-	movies := []model.Movie{{Id: "pt", NodeHost: "mypc:10081"}}
+	movies := []model.FileItem{{Id: "pt", NodeHost: "mypc:10081"}}
 	FillURLs(c, movies)
 
 	m := movies[0]

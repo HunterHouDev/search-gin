@@ -1,7 +1,8 @@
 package model
 
+// PageResultWrapper 搜索引擎返回的分页结果
 type PageResultWrapper struct {
-	FileList    []Movie
+	FileList    []FileItem
 	Size        int64
 	LibCount    int
 	LibSize     int64
@@ -12,7 +13,7 @@ type PageResultWrapper struct {
 }
 
 func NewPageWrapper() PageResultWrapper {
- return PageResultWrapper{}
+	return PageResultWrapper{}
 }
 
 func (fsw PageResultWrapper) IsNotEmpty() bool {

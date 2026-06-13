@@ -362,10 +362,10 @@
                           glossy
                           class="mr10 cursor-pointer"
                           @click="
-                            view.queryParam.Keyword = item.Actress;
+                            view.queryParam.Keyword = item.Author;
                             fetchSearch();
                           "
-                          >{{ item.Actress?.substring(0, 8) }}</q-btn
+                          >{{ item.Author?.substring(0, 8) }}</q-btn
                         >
                         <q-chip color="orange" text-color="white" size="sm">
                           {{ `${item.FileType}` }}
@@ -523,14 +523,14 @@
               <q-field color="purple-12" label="图鉴点击" stack-label>
                 <template v-slot:control>
                   <q-radio
-                    v-model="systemProperty.goActressNewWidow"
+                    v-model="systemProperty.goAuthorNewWidow"
                     checked-icon="task_alt"
                     unchecked-icon="panorama_fish_eye"
                     :val="true"
                     label="新窗口"
                   />
                   <q-radio
-                    v-model="systemProperty.goActressNewWidow"
+                    v-model="systemProperty.goAuthorNewWidow"
                     checked-icon="task_alt"
                     unchecked-icon="panorama_fish_eye"
                     :val="false"

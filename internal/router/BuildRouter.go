@@ -83,8 +83,8 @@ func BuildAPIRouter() *gin.Engine {
 
 	router.GET("/api/transferTasks", handler.GetTransferTask)
 	router.GET("/api/delTransferTasks/:create", handler.GetDelTransferTask)
-	router.POST("/api/actressList", handler.PostActress)
-	router.GET("/api/actressImgae/:path", handler.GetActressImage)
+	router.POST("/api/authorList", handler.PostAuthor)
+	router.GET("/api/authorImage/:path", handler.GetAuthorImage)
 
 	router.GET("/api/play/:id", handler.GetPlay)
 	router.GET("/api/tranferToMp4/:id/:xcode", handler.GetTransferToMp4)

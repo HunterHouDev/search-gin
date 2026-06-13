@@ -110,7 +110,7 @@ func PostRename(c *gin.Context) {
 	}
 	c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 
-	currentFile := model.MovieEdit{}
+	currentFile := model.FileEdit{}
 	err = c.ShouldBindJSON(&currentFile)
 	if err != nil {
 		utils.InfoNormal(err)
@@ -137,7 +137,7 @@ func PostMove(c *gin.Context) {
 	}
 	c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 
-	currentFile := model.MovieEdit{}
+	currentFile := model.FileEdit{}
 	err = c.ShouldBindJSON(&currentFile)
 	if err != nil {
 		utils.InfoNormal(err)
@@ -188,13 +188,13 @@ func GetDirInfo(c *gin.Context) {
 	// 使用读写锁保护并发访问
 	consts.TempImageMutex.Lock()
 	if len(consts.TempImage) > 1000 {
-		consts.TempImage = make(map[string]model.Movie)
+		consts.TempImage = make(map[string]model.FileItem)
 	}
 	id := c.Param("id")
 	sort := c.Param("sort")
 	file := service.SearchApp.FindOne(id)
 	files := service.FileApp.Walk(file.DirPath, consts.Images, false)
-	model.SortMoviesUtils(files, "MTime", sort)
+	model.SortFileItems(files, "MTime", sort)
 	for i := 0; i < len(files); i++ {
 		consts.TempImage[files[i].Id] = files[i]
 	}
@@ -322,12 +322,12 @@ func GetJpg(c *gin.Context) {
 
 }
 
-// GetActressImage 获取脸谱的图片流
-func GetActressImage(c *gin.Context) {
+// GetAuthorImage 获取脸谱的图片流
+func GetAuthorImage(c *gin.Context) {
 	path := c.Param("path")
-	actress := service.SearchEngine.FindActressByName(path)
-	if actress.IsNotEmpty() {
-		for _, v := range actress.Images {
+	author := service.SearchEngine.FindAuthorByName(path)
+	if author.IsNotEmpty() {
+		for _, v := range author.Images {
 			if utils.ExistsFiles(v) {
 				c.File(v)
 				return

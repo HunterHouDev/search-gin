@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-// Movie 声明一个File结构体 表示一个文件信息
-type Movie struct {
+// FileItem 文件条目 — 表示一个被索引的文件
+type FileItem struct {
 	Id        string `xorm:"Varchar(255) pk"  `
 	Code      string `xorm:"Varchar(255)"`
 	Name      string `xorm:"Text"`
@@ -18,7 +18,7 @@ type Movie struct {
 	Srt       string `xorm:"Text" json:"Srt,omitempty"`
 	Jpg       string `xorm:"Text"`
 	Gif       string `xorm:"Text"`
-	Actress   string `xorm:"Text"`
+	Author   string `xorm:"Text"`
 	FileType  string `xorm:"Text"`
 	DirPath   string `xorm:"Text"`
 	Size      int64
@@ -43,27 +43,27 @@ type Movie struct {
 	JpgUrl   string `json:"JpgUrl,omitempty" xorm:"Text"`
 
 	// 多节点字段
-	NodeHost   string `json:"nodeHost,omitempty"`   // "PC-A:10081" 文件所属节点
-	NodeName   string `json:"nodeName,omitempty"`   // "书房电脑" 节点可读别名
-	StreamUrl  string `json:"streamUrl,omitempty"`  // 文件流直连 URL
+	NodeHost  string `json:"nodeHost,omitempty"`  // "PC-A:10081" 文件所属节点
+	NodeName  string `json:"nodeName,omitempty"`  // "书房电脑" 节点可读别名
+	StreamUrl string `json:"streamUrl,omitempty"` // 文件流直连 URL
 
 	PageNo int
 }
 
-// MovieEdit 文件修改模型
-type MovieEdit struct {
-	Movie
+// FileEdit 文件修改模型
+type FileEdit struct {
+	FileItem
 	MoveOut   bool
 	NoRefresh bool
 }
 
-func EasyFile(dir string, path string, name string, fileType string, size int64, modTime time.Time, baseDir string) Movie {
-	// 使用工厂模式 返回一个 Movie 实例
+// EasyFile 快速创建文件条目（无指定类型，自动推断）
+func EasyFile(dir string, path string, name string, fileType string, size int64, modTime time.Time, baseDir string) FileItem {
 	fileKey, _ := utils.DirpathForId(path)
 	movieType := utils.GetMovieType(name)
-	Actress := utils.GetActress(name)
+	author := utils.GetAuthor(name)
 	code := utils.GetCode(name)
-	result := Movie{
+	result := FileItem{
 		Id:        fileKey,
 		Code:      code,
 		Title:     utils.GetTitle(name),
@@ -74,7 +74,7 @@ func EasyFile(dir string, path string, name string, fileType string, size int64,
 		Srt:       utils.ConcatSuffix(path, "srt"),
 		Gif:       utils.ConcatSuffix(path, "gif"),
 		Tags:      utils.GetTags(path, ""),
-		Actress:   Actress,
+		Author:   author,
 		FileType:  fileType,
 		DirPath:   dir,
 		Size:      size,
@@ -89,12 +89,12 @@ func EasyFile(dir string, path string, name string, fileType string, size int64,
 	return result
 }
 
-func NewFile(dir string, path string, name string, fileType string, size int64, modTime time.Time, movieType string, baseDir string) Movie {
-	// 使用工厂模式 返回一个 Movie 实例
+// NewFile 创建文件条目（完整参数）
+func NewFile(dir string, path string, name string, fileType string, size int64, modTime time.Time, movieType string, baseDir string) FileItem {
 	generateId, _ := utils.DirpathForId(path)
 	code := utils.GetCode(name)
-	Actress := utils.GetActress(name)
-	result := Movie{
+	author := utils.GetAuthor(name)
+	result := FileItem{
 		Id:        generateId,
 		Code:      code,
 		Title:     utils.GetTitle(name),
@@ -105,7 +105,7 @@ func NewFile(dir string, path string, name string, fileType string, size int64, 
 		Srt:       utils.ConcatSuffix(path, "srt"),
 		Gif:       utils.ConcatSuffix(path, "gif"),
 		Tags:      utils.GetTags(path, ""),
-		Actress:   Actress,
+		Author:   author,
 		FileType:  fileType,
 		DirPath:   dir,
 		Size:      size,
@@ -120,28 +120,27 @@ func NewFile(dir string, path string, name string, fileType string, size int64, 
 	return result
 }
 
-func (f *Movie) SetId(id string) Movie {
+func (f *FileItem) SetId(id string) FileItem {
 	f.Id = id
 	return *f
 }
 
-func (f Movie) GetFileInfo() string {
-	//
-	info := fmt.Sprintf("name: %v\t code:%v\t fileType:%v\t sizeStr:%v\t actress:%v\t path:%v\t",
-		f.Name, f.Code, f.FileType, f.SizeStr, f.Actress, f.Path)
+func (f FileItem) GetFileInfo() string {
+	info := fmt.Sprintf("name: %v\t code:%v\t fileType:%v\t sizeStr:%v\t author:%v\t path:%v\t",
+		f.Name, f.Code, f.FileType, f.SizeStr, f.Author, f.Path)
 	return info
 }
 
-// IsNull
-func (f Movie) IsNull() bool {
-	//
+// IsNull 检查文件条目是否有效
+func (f FileItem) IsNull() bool {
 	if f.Id == "" || f.Path == "" {
 		return true
 	}
 	return false
 }
 
-func SortMoviesUtils(sortModels []Movie, sF string, sT string) {
+// SortFileItems 文件排序工具
+func SortFileItems(sortModels []FileItem, sF string, sT string) {
 	sort.Slice(sortModels, func(i, j int) bool {
 		switch sF {
 		case "Code":
@@ -165,7 +164,8 @@ func SortMoviesUtils(sortModels []Movie, sF string, sT string) {
 	})
 }
 
-func GetPageOfFiles(files []Movie, pageNo int, pageSize int) ([]Movie, int64) {
+// GetPageOfFiles 分页
+func GetPageOfFiles(files []FileItem, pageNo int, pageSize int) ([]FileItem, int64) {
 	if len(files) == 0 {
 		return files, 0
 	}
@@ -176,14 +176,14 @@ func GetPageOfFiles(files []Movie, pageNo int, pageSize int) ([]Movie, int64) {
 	start := (pageNo - 1) * pageSize
 
 	if start >= length {
-		return []Movie{}, 0
+		return []FileItem{}, 0
 	}
 
 	end := length
 	if length-start >= pageSize {
 		end = start + pageSize
 	}
-	data := make([]Movie, 0, end-start)
+	data := make([]FileItem, 0, end-start)
 	var volume int64
 	for i := start; i < end; i++ {
 		curFile := files[i]

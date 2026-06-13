@@ -17,7 +17,7 @@ import (
 // HandleRemote 判断 movie 是否属远程节点，若是则转发请求
 // 返回 true 表示已转发并写了响应，调用方应 return
 // 返回 false 表示是本机文件，继续原逻辑
-func HandleRemote(c *gin.Context, movie model.Movie, action string) bool {
+func HandleRemote(c *gin.Context, movie model.FileItem, action string) bool {
 	if movie.NodeHost == "" || movie.NodeHost == LocalNodeHost {
 		return false
 	}
@@ -51,7 +51,7 @@ func HandleRemoteByID(c *gin.Context, id string, action string) bool {
 }
 
 // HandleRemoteByMovieEdit 从 MovieEdit 提取 id 查找 Movie，若远程则转发
-func HandleRemoteByMovieEdit(c *gin.Context, edit model.MovieEdit, action string) bool {
+func HandleRemoteByMovieEdit(c *gin.Context, edit model.FileEdit, action string) bool {
 	movie := SearchApp.FindOne(edit.Id)
 	return HandleRemote(c, movie, action)
 }

@@ -15,7 +15,7 @@ import (
 
 type repeatModel struct {
 	Code  string
-	Files model.Movie
+	Files model.FileItem
 	Count int
 }
 
@@ -25,8 +25,8 @@ type searchSnapshot struct {
 	bucketCount int32
 	totalSize   int64
 	totalCount  int
-	repeatFiles []model.Movie
-	actressMap  map[string]model.Actress
+	repeatFiles []model.FileItem
+	actorMap  map[string]model.Author
 
 	// 预聚合的菜单数据（写入 consts.* 前暂存）
 	typeMenu      map[string]consts.MenuSize
@@ -40,9 +40,9 @@ type searchEngineCore struct {
 	KeywordHistoryCache *utils.LRUCache // 搜索结果缓存
 	searchPool          *utils.GoroutinePool
 	rebuildMu           sync.Mutex // 防止并发 rebuildWithBucket（ScanAll 与 taskQueue 可能重叠）
-	// PageActress 空关键词结果缓存（减少重复排序）
-	actressSizeCache  []model.Actress
-	actressCountCache []model.Actress
+	// PageAuthor 空关键词结果缓存（减少重复排序）
+	actorSizeCache  []model.Author
+	actorCountCache []model.Author
 }
 
 // loadSnapshot 线程安全地获取当前快照；尚未初始化时返回空快照
@@ -51,7 +51,7 @@ func (se *searchEngineCore) loadSnapshot() *searchSnapshot {
 	if s == nil {
 		return &searchSnapshot{
 			buckets:    make(map[string]*bucketFile),
-			actressMap: make(map[string]model.Actress),
+			actorMap: make(map[string]model.Author),
 		}
 	}
 	return s.(*searchSnapshot)
@@ -67,8 +67,8 @@ func (se *searchEngineCore) installSnapshot(snap *searchSnapshot) {
 	se.snapshot.Store(snap)
 	se.KeywordHistoryCache.Clear()
 	// 清空演员缓存（新快照的数据可能变化）
-	se.actressSizeCache = nil
-	se.actressCountCache = nil
+	se.actorSizeCache = nil
+	se.actorCountCache = nil
 
 	// 同步菜单到全局 consts（首页等模块使用）
 	consts.TypeMenu.Clear()
@@ -90,7 +90,7 @@ func (se *searchEngineCore) installSnapshot(snap *searchSnapshot) {
 func (se *searchEngineCore) Reset() {
 	empty := &searchSnapshot{
 		buckets:    make(map[string]*bucketFile),
-		actressMap: make(map[string]model.Actress),
+		actorMap: make(map[string]model.Author),
 	}
 	se.installSnapshot(empty)
 }
@@ -194,7 +194,7 @@ func (se *searchEngineCore) rebuildWithBucket(baseDir string, newBucket *bucketF
 func buildSnapshotFromBuckets(buckets map[string]*bucketFile) *searchSnapshot {
 	snap := &searchSnapshot{
 		buckets:    make(map[string]*bucketFile, len(buckets)),
-		actressMap: make(map[string]model.Actress),
+		actorMap: make(map[string]model.Author),
 		typeMenu:   make(map[string]consts.MenuSize),
 		tagMenu:    make(map[string]consts.MenuSize),
 		seriesCount: make(map[string]consts.MenuSize),
@@ -207,7 +207,7 @@ func buildSnapshotFromBuckets(buckets map[string]*bucketFile) *searchSnapshot {
 
 	sizeRepeats := make(map[int64]repeatModel, 1000)
 	codeRepeats := make(map[string]repeatModel, 1000)
-	fileRepeats := make(map[string]model.Movie, 2000)
+	fileRepeats := make(map[string]model.FileItem, 2000)
 
 	for _, bucket := range snap.buckets {
 		if bucket.isEmpty() {
@@ -221,15 +221,15 @@ func buildSnapshotFromBuckets(buckets map[string]*bucketFile) *searchSnapshot {
 
 		for _, movie := range bucket.FileLib {
 			// 演员聚合
-			if len(movie.Actress) > 0 {
-				if cur, ok := snap.actressMap[movie.Actress]; ok {
+			if len(movie.Author) > 0 {
+				if cur, ok := snap.actorMap[movie.Author]; ok {
 					cur.PlusCnt()
 					cur.PlusSize(movie.Size)
 					cur.AddImage(movie.Png)
 					cur.AddImage(movie.Jpg)
-					snap.actressMap[movie.Actress] = cur
+					snap.actorMap[movie.Author] = cur
 				} else {
-					snap.actressMap[movie.Actress] = model.NewActress(movie.Actress, movie.Jpg, movie.Size)
+					snap.actorMap[movie.Author] = model.NewAuthor(movie.Author, movie.Jpg, movie.Size)
 				}
 			}
 
@@ -297,7 +297,7 @@ func buildSnapshotFromBuckets(buckets map[string]*bucketFile) *searchSnapshot {
 	}
 
 	// 构建重复文件列表
-	repeatSearch := make([]model.Movie, 0, len(fileRepeats))
+	repeatSearch := make([]model.FileItem, 0, len(fileRepeats))
 	for _, m := range fileRepeats {
 		repeatSearch = append(repeatSearch, m)
 	}
@@ -309,26 +309,26 @@ func buildSnapshotFromBuckets(buckets map[string]*bucketFile) *searchSnapshot {
 	return snap
 }
 
-// PageActress 演员搜索
-func (se *searchEngineCore) PageActress(searchParam model.SearchParam) model.PageActressResultWrapper {
+// PageAuthor 演员搜索
+func (se *searchEngineCore) PageAuthor(searchParam model.SearchParam) model.PageAuthorResultWrapper {
 	snap := se.loadSnapshot()
 
 	// 空关键词：优先走缓存
 	if searchParam.Keyword == "" {
 		switch searchParam.SortField {
 		case "Size":
-			if se.actressSizeCache != nil {
-				resultWrapper := model.PageActressResultWrapper{}
-				list, size := model.GetActressPageOfFiles(se.actressSizeCache, searchParam.Page, searchParam.PageSize)
+			if se.actorSizeCache != nil {
+				resultWrapper := model.PageAuthorResultWrapper{}
+				list, size := model.GetAuthorPageOfFiles(se.actorSizeCache, searchParam.Page, searchParam.PageSize)
 				resultWrapper.FileList = list
 				resultWrapper.Size = size
 				resultWrapper.ResultCount = len(list)
 				return resultWrapper
 			}
 		case "Cnt":
-			if se.actressCountCache != nil {
-				resultWrapper := model.PageActressResultWrapper{}
-				list, size := model.GetActressPageOfFiles(se.actressCountCache, searchParam.Page, searchParam.PageSize)
+			if se.actorCountCache != nil {
+				resultWrapper := model.PageAuthorResultWrapper{}
+				list, size := model.GetAuthorPageOfFiles(se.actorCountCache, searchParam.Page, searchParam.PageSize)
 				resultWrapper.FileList = list
 				resultWrapper.Size = size
 				resultWrapper.ResultCount = len(list)
@@ -337,10 +337,10 @@ func (se *searchEngineCore) PageActress(searchParam model.SearchParam) model.Pag
 		}
 	}
 
-	result := make([]model.Actress, 0, len(snap.actressMap))
-	for _, actress := range snap.actressMap {
-		if searchParam.Keyword == "" || strings.Contains(actress.Name, searchParam.Keyword) {
-			result = append(result, actress)
+	result := make([]model.Author, 0, len(snap.actorMap))
+	for _, author := range snap.actorMap {
+		if searchParam.Keyword == "" || strings.Contains(author.Name, searchParam.Keyword) {
+			result = append(result, author)
 		}
 	}
 
@@ -350,19 +350,19 @@ func (se *searchEngineCore) PageActress(searchParam model.SearchParam) model.Pag
 			return result[i].Size > result[j].Size
 		})
 		if searchParam.Keyword == "" {
-			se.actressSizeCache = result
+			se.actorSizeCache = result
 		}
 	case "Cnt":
 		sort.Slice(result, func(i, j int) bool {
 			return result[i].Cnt > result[j].Cnt
 		})
 		if searchParam.Keyword == "" {
-			se.actressCountCache = result
+			se.actorCountCache = result
 		}
 	}
 
-	resultWrapper := model.PageActressResultWrapper{}
-	list, size := model.GetActressPageOfFiles(result, searchParam.Page, searchParam.PageSize)
+	resultWrapper := model.PageAuthorResultWrapper{}
+	list, size := model.GetAuthorPageOfFiles(result, searchParam.Page, searchParam.PageSize)
 	resultWrapper.FileList = list
 	resultWrapper.Size = size
 	resultWrapper.ResultCount = len(list)
@@ -374,7 +374,7 @@ func (se *searchEngineCore) returnRepeatSearch() model.PageResultWrapper {
 	snap := se.loadSnapshot()
 	resultWrapper := model.NewPageWrapper()
 	if len(snap.repeatFiles) > 0 {
-		resultWrapper.FileList = make([]model.Movie, len(snap.repeatFiles))
+		resultWrapper.FileList = make([]model.FileItem, len(snap.repeatFiles))
 		copy(resultWrapper.FileList, snap.repeatFiles)
 	}
 	resultWrapper.ResultCount = len(snap.repeatFiles)
@@ -403,7 +403,7 @@ func (se *searchEngineCore) PageAsync(searchParam model.SearchParam) model.PageR
 	bucketCount := len(snap.buckets)
 	if bucketCount <= 0 {
 		AddLogMemory("警告: bucketCount=0, 跳过搜索")
-		resultWrapper.FileList = []model.Movie{}
+		resultWrapper.FileList = []model.FileItem{}
 		return resultWrapper
 	}
 
@@ -466,7 +466,7 @@ loop:
 		}
 	}
 
-	model.SortMoviesUtils(resultWrapper.FileList, searchParam.SortField, searchParam.SortType)
+	model.SortFileItems(resultWrapper.FileList, searchParam.SortField, searchParam.SortType)
 	se.addHistory(cacheKey, resultWrapper)
 
 	resultWrapper.FileList, resultWrapper.ResultSize = model.GetPageOfFiles(
@@ -479,7 +479,7 @@ func (se *searchEngineCore) addHistory(uniqueWords string, resultWrapper model.P
 }
 
 // FindById 查找文件——先查当前快照，未找到返回空
-func (se *searchEngineCore) FindById(id string) model.Movie {
+func (se *searchEngineCore) FindById(id string) model.FileItem {
 	snap := se.loadSnapshot()
 	for _, bucket := range snap.buckets {
 		if bucket.isEmpty() {
@@ -490,19 +490,19 @@ func (se *searchEngineCore) FindById(id string) model.Movie {
 			return result
 		}
 	}
-	return model.Movie{}
+	return model.FileItem{}
 }
 
-// FindActressByName 按名称查找演员
-func (se *searchEngineCore) FindActressByName(name string) model.Actress {
+// FindAuthorByName 按名称查找演员
+func (se *searchEngineCore) FindAuthorByName(name string) model.Author {
 	snap := se.loadSnapshot()
-	if a, ok := snap.actressMap[name]; ok {
+	if a, ok := snap.actorMap[name]; ok {
 		return a
 	}
-	return model.Actress{}
+	return model.Author{}
 }
 
-// GetActorCount 获取演员总数
-func (se *searchEngineCore) GetActorCount() int {
-	return len(se.loadSnapshot().actressMap)
+// GetAuthorCount 获取演员总数
+func (se *searchEngineCore) GetAuthorCount() int {
+	return len(se.loadSnapshot().actorMap)
 }

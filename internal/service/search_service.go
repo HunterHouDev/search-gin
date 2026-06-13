@@ -33,7 +33,7 @@ func (fs *searchService) SearchDataSource(searchParam model.SearchParam) utils.P
 	return result
 }
 
-func (fs *searchService) SetMovieType(movie model.Movie, movieType string) utils.Result {
+func (fs *searchService) SetMovieType(movie model.FileItem, movieType string) utils.Result {
 	newMovieType := "{{" + movieType + "}}"
 
 	if movie.MovieType != "" && movie.MovieType != "无" {
@@ -170,10 +170,10 @@ func (fs *searchService) ClearTag(id string, tag string) utils.Result {
 	return utils.NewSuccessByMsg("执行成功")
 }
 
-func (fs *searchService) MoveCut(srcFile model.Movie, toFile model.Movie) utils.Result {
+func (fs *searchService) MoveCut(srcFile model.FileItem, toFile model.FileItem) utils.Result {
 	result := utils.Result{}
 
-	if toFile.Actress == "" && toFile.Code == "" {
+	if toFile.Author == "" && toFile.Code == "" {
 		result.Message = "信息不全"
 		return result
 	}
@@ -184,8 +184,8 @@ func (fs *searchService) MoveCut(srcFile model.Movie, toFile model.Movie) utils.
 	title = strings.ReplaceAll(title, ".", "~")
 	title = strings.ReplaceAll(title, "!", "~")
 
-	dirname := "[" + toFile.Actress + "] " + toFile.Code + " " + title
-	path := srcFile.DirPath + utils.PathSeparator + toFile.Actress
+	dirname := "[" + toFile.Author + "] " + toFile.Code + " " + title
+	path := srcFile.DirPath + utils.PathSeparator + toFile.Author
 	if toFile.Studio != "" {
 		path += utils.PathSeparator + toFile.Studio
 	}
@@ -202,7 +202,7 @@ func (fs *searchService) MoveCut(srcFile model.Movie, toFile model.Movie) utils.
 	var createErr error
 	if jpgOut, createErr = os.Create(jpgPath); createErr != nil {
 		// 创建失败时，简化目录名重试
-		dirname = "[" + toFile.Actress + "]" + toFile.Code
+		dirname = "[" + toFile.Author + "]" + toFile.Code
 		dirpath = path + utils.PathSeparator + dirname
 		os.MkdirAll(dirpath, os.ModePerm)
 		filename = dirname + "." + utils.GetSuffix(srcFile.Path)
@@ -377,7 +377,7 @@ func httpGet(url string) (*resty.Response, error) {
 	return httpClient.R().EnableTrace().Get(url)
 }
 
-func (fs *searchService) FindOne(Id string) model.Movie {
+func (fs *searchService) FindOne(Id string) model.FileItem {
 	return SearchEngine.FindById(Id)
 }
 
@@ -390,7 +390,7 @@ func cleanPath(name string) string {
 	return newFilePath
 }
 
-func (fs *searchService) Rename(movie model.MovieEdit) utils.Result {
+func (fs *searchService) Rename(movie model.FileEdit) utils.Result {
 	res := utils.NewSuccess()
 	movieLib := fs.FindOne(movie.Id)
 	if movieLib.IsNull() {
@@ -406,13 +406,13 @@ func (fs *searchService) Rename(movie model.MovieEdit) utils.Result {
 	newPath := cleanPath(movieLib.DirPath)
 	newDir := newPath
 	if movie.MoveOut {
-		if movie.Actress != "" {
+		if movie.Author != "" {
 			arr := strings.Split(newPath, utils.PathSeparator)
-			if utils.HasItem(arr, movie.Actress) {
-				arr2 := strings.Split(newPath, movie.Actress)
+			if utils.HasItem(arr, movie.Author) {
+				arr2 := strings.Split(newPath, movie.Author)
 				newDir = arr2[0]
 			}
-			newDir += utils.PathSeparator + movie.Actress
+			newDir += utils.PathSeparator + movie.Author
 		}
 		if movie.Title != "" {
 			newDir += utils.PathSeparator
@@ -420,7 +420,7 @@ func (fs *searchService) Rename(movie model.MovieEdit) utils.Result {
 			if strings.HasPrefix(newCode, "-") {
 				newCode = strings.Replace(newCode, "-", "", 1)
 			}
-			newDir += choose2To1(!strings.HasPrefix(movie.Title, movie.Actress), choose2To1(movie.Actress != "", movie.Actress, ""), "")
+			newDir += choose2To1(!strings.HasPrefix(movie.Title, movie.Author), choose2To1(movie.Author != "", movie.Author, ""), "")
 			newDir += choose2To1(!strings.Contains(movie.Title, newCode), choose2To1(newCode != "", " "+newCode, ""), "")
 			newTitle := strings.Split(movie.Title, "{{")
 			newTitleStart := newTitle[0]
@@ -473,7 +473,7 @@ func (fs *searchService) Rename(movie model.MovieEdit) utils.Result {
 }
 
 // renameFile 重命名附属文件（如 jpg/png/gif
-func renameFile(oldSuffix, newSuffix, newPath string, movieLib model.Movie) bool {
+func renameFile(oldSuffix, newSuffix, newPath string, movieLib model.FileItem) bool {
 	oldPath := strings.ReplaceAll(movieLib.Path, oldSuffix, newSuffix)
 	if !utils.ExistsFiles(oldPath) {
 		return false

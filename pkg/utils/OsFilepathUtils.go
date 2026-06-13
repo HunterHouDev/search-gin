@@ -154,8 +154,8 @@ func GetTitle(filename string) string {
 
 }
 
-// GetActress 根据 文件名称  分析番号 [] 中包含 '-'符号...
-func GetActress(fileName string) string {
+// GetAuthor 根据 文件名称  分析番号 [] 中包含 '-'符号...
+func GetAuthor(fileName string) string {
 	code := ""
 	rights := strings.Split(fileName, "[")
 	if len(rights) <= 1 {

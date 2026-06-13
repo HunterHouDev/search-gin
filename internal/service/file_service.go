@@ -416,9 +416,9 @@ func (fs *fileService) ScanTarget(baseDir string) {
 }
 
 // Walks 并发扫描多文件夹并返回所有文件
-func (fs *fileService) Walks(baseDir []string, types []string) []model.Movie {
+func (fs *fileService) Walks(baseDir []string, types []string) []model.FileItem {
 	var wg sync.WaitGroup
-	var result []model.Movie
+	var result []model.FileItem
 	dirSize := len(baseDir)
 
 	SearchEngine.Reset()
@@ -507,17 +507,17 @@ type scanResult struct {
 }
 
 // Walk 遍历目录，获取指定类型文件列表（轻量版，不建索引）
-func (fs *fileService) Walk(dirPath string, types []string, deep bool) []model.Movie {
+func (fs *fileService) Walk(dirPath string, types []string, deep bool) []model.FileItem {
 	files, _ := fs.WalkInner(dirPath, types, deep, dirPath)
 	return files
 }
 
-func (fs *fileService) WalkInner(currentDir string, types []string, queryChild bool, basePath string) ([]model.Movie, int64) {
+func (fs *fileService) WalkInner(currentDir string, types []string, queryChild bool, basePath string) ([]model.FileItem, int64) {
 	typeSet := utils.ToSet(types)
 
 	dirStack := []stackItem{{path: currentDir, queryChild: queryChild, visited: false}}
 
-	var allFiles []model.Movie
+	var allFiles []model.FileItem
 	sizeMap := make(map[string]int64)
 	sizeMap[currentDir] = 0
 

@@ -1,4 +1,4 @@
-// 保留函数：getTempImage / getActressImage / getVideoSrt / GetFileByPathUseEncode
+// 保留函数：getTempImage / getAuthorImage / getVideoSrt / GetFileByPathUseEncode
 // getPng / getJpg / getFileStream 已废弃，改为从 movie 对象直接读取
 // streamUrl / pngUrl / jpgUrl 字段
 
@@ -16,8 +16,8 @@ export const getTempImage = (id: string) => {
   return `${getFileBaseUrl()}/api/stream/tempimage/` + id;
 };
 
-export const getActressImage = (actressUrl: string) => {
-  return '/api/actressImgae/' + actressUrl;
+export const getAuthorImage = (actressUrl: string) => {
+  return '/api/authorImage/' + actressUrl;
 };
 
 export const getVideoSrt = (path: string) => {

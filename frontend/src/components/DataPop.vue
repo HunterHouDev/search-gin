@@ -36,7 +36,7 @@
             class="w100"
           />
           <q-tab
-            name="actress"
+            name="author"
             :label="isMobile ? '图鉴' : '图鉴分析'"
             class="w100"
           />
@@ -69,7 +69,7 @@
             </q-btn>
           </div>
         </q-tab-panel>
-        <q-tab-panel name="actress" class="w100" style="max-height: 60vh">
+        <q-tab-panel name="author" class="w100" style="max-height: 60vh">
           <div
             class="q-gutter-sm w100"
             style="
@@ -83,7 +83,7 @@
               glossy
               flat
               v-model="view.sortField"
-              @update:model-value="fetchActress"
+              @update:model-value="fetchAuthor"
               toggle-color="primary"
               :options="[
                 { label: '容', value: 'Size' },
@@ -169,7 +169,7 @@
 import { format } from 'quasar';
 import { useQuasar } from 'quasar';
 import { ScanTime, TagSizeMap, SeriesCount } from 'components/api/homeAPI';
-import { QueryActressList } from 'components/api/actressAPI';
+import { QueryAuthorList } from 'components/api/authorAPI';
 import { computed, onMounted, reactive, ref, inject } from 'vue';
 import { useSystemProperty } from 'stores/System';
 import IndexButton from 'components/IndexButton.vue';
@@ -211,7 +211,7 @@ const searchKeyword = inject('searchKeyword', () => {
 const refreshView = () => {
   loadScanTime();
   loadTagSize();
-  fetchActress();
+  fetchAuthor();
   loadSeriesCount();
 };
 
@@ -229,8 +229,8 @@ const loadSeriesCount = async () => {
   }
 };
 
-const fetchActress = async () => {
-  const { data } = await QueryActressList({
+const fetchAuthor = async () => {
+  const { data } = await QueryAuthorList({
     Page: 1,
     PageSize: 400,
     SortField: view.sortField,
