@@ -21,6 +21,16 @@ export const GetIpAddr = async () => {
   return res && res.data;
 };
 
+export const GetLanPeers = async () => {
+  const res = await commonAxios().get('/api/lanPeers');
+  return res && res.data;
+};
+
+export const AddLanPeer = async (addr: string) => {
+  const res = await commonAxios().post('/api/addPeer', { addr });
+  return res && res.data;
+};
+
 export const GetShutDown = async () => {
   const res = await commonAxios().get('/api/shutDown');
   return res as unknown;
@@ -60,12 +70,6 @@ export const DeleteUser = async (username: string) => {
   const res = await commonAxios().post('/api/user/delete', {
     username
   });
-  return res && res.data;
-};
-
-// 多节点集群
-export const GetLanPeers = async () => {
-  const res = await commonAxios().get('/api/lanPeers');
   return res && res.data;
 };
 

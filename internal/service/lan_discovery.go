@@ -292,6 +292,25 @@ func GetOnlinePeers() []*Peer {
 	return result
 }
 
+// AddPeer 动态添加节点（手动添加）
+func AddPeer(ip, port string) bool {
+	// TCP 验证可连通性
+	if !lanDiscovery.verifyPeer(ip, port) {
+		return false
+	}
+	id := fmt.Sprintf("%s:%s", ip, port)
+	lanDiscovery.upsertPeer(&Peer{
+		ID:       id,
+		Hostname: ip,
+		Port:     port,
+		IP:       ip,
+		Name:     ip,
+		LastSeen: time.Now().Unix(),
+	})
+	utils.InfoFormat("手动添加节点成功: %s (%s)", id, ip)
+	return true
+}
+
 // ResolvePeerIP 从 NodeHost 解析对端 IP
 func ResolvePeerIP(nodeHost string) string {
 	lanDiscovery.mu.RLock()

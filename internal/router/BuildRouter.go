@@ -80,6 +80,7 @@ func BuildAPIRouter() *gin.Engine {
 
 	// 多节点：在线节点列表（无认证，仅用于前端识别局域网内其他节点）
 	router.GET("/api/lanPeers", handler.GetLanPeers)
+	router.POST("/api/addPeer", handler.AddLanPeer)
 
 	router.GET("/api/transferTasks", handler.GetTransferTask)
 	router.GET("/api/delTransferTasks/:create", handler.GetDelTransferTask)
