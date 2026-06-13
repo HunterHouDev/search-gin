@@ -46,6 +46,9 @@ func SearchPeers(searchParam model.SearchParam) ([]model.FileItem, int, int64) {
 	var wg sync.WaitGroup
 
 	for _, peer := range peers {
+		if peer.Disabled {
+			continue
+		}
 		wg.Add(1)
 		go func(p *Peer) {
 			defer wg.Done()

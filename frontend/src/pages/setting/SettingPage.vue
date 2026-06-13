@@ -9,10 +9,10 @@
     <!-- 头部 -->
     <q-header
       elevated
-      class="q-gutter-sm flex justify-center"
+      class="q-gutter-xs flex justify-center"
       style="
         backdrop-filter: blur(10px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         border-bottom: 1px solid var(--q-border);
       "
     >
@@ -23,6 +23,7 @@
         no-caps
         glossy
         inline-label
+        dense
         class="shadow-1 setting-tabs"
         active-color="white"
         indicator-color="white"
@@ -34,11 +35,11 @@
         <q-tab name="system" label="系统设置" />
       </q-tabs>
     </q-header>
-    <q-page-container class="scroll" style="margin-top: 4rem">
+    <q-page-container class="scroll" style="margin-top: 2.5rem">
       
-      <q-tab-panels v-model="tab" animated>
-        <q-tab-panel name="search">
-          <q-field color="primary" label="定时扫描" stack-label>
+      <q-tab-panels v-model="tab" animated class="compact-panels">
+        <q-tab-panel name="search" class="q-pa-xs">
+          <q-field color="primary" label="定时扫描" stack-label dense>
             <template v-slot:control>
               <div class="row q-gutter-md">
                 <q-radio
@@ -58,7 +59,7 @@
               </div>
             </template>
           </q-field>
-          <q-field color="primary" label="转码删除原文件" stack-label>
+          <q-field color="primary" label="转码删除原文件" stack-label dense>
             <template v-slot:control>
               <div class="row q-gutter-md">
                 <q-radio
@@ -79,7 +80,7 @@
             </template>
           </q-field>
           
-          <q-field color="primary" label="系统播放" stack-label>
+          <q-field color="primary" label="系统播放" stack-label dense>
             <template v-slot:control>
               <div class="row q-gutter-md">
                 <q-radio
@@ -100,7 +101,7 @@
             </template>
           </q-field>
           
-          <q-field color="primary" label="硬件加速编码" stack-label hint="开启后H264/H265转码将调用GPU硬件加速">
+          <q-field color="primary" label="硬件加速编码" stack-label dense hint="开启后H264/H265转码将调用GPU硬件加速">
             <template v-slot:control>
               <div class="row q-gutter-md items-center">
                 <q-radio
@@ -127,7 +128,7 @@
             </template>
           </q-field>
 
-          <q-field color="primary" label="Buttons" stack-label>
+          <q-field color="primary" label="Buttons" stack-label dense>
             <template v-slot:control>
               <MutiSelector
                 v-bind:model-value="view.settingInfo.Buttons"
@@ -137,7 +138,7 @@
             </template>
           </q-field>
 
-          <q-field color="primary" label="Dirs" stack-label>
+          <q-field color="primary" label="Dirs" stack-label dense>
             <template v-slot:control>
               <MutiSelector
                 v-bind:model-value="view.settingInfo.Dirs"
@@ -146,7 +147,7 @@
               />
             </template>
           </q-field>
-          <q-field color="primary" label="MovieTypes" stack-label>
+          <q-field color="primary" label="MovieTypes" stack-label dense>
             <template v-slot:control>
               <MutiInput
                 v-model="view.settingInfo.MovieTypes"
@@ -154,7 +155,7 @@
               />
             </template>
           </q-field>
-          <q-field color="primary" label="VideoTypes" stack-label>
+          <q-field color="primary" label="VideoTypes" stack-label dense>
             <template v-slot:control>
               <MutiSelector
                 v-bind:model-value="view.settingInfo.VideoTypes"
@@ -163,7 +164,7 @@
               />
             </template>
           </q-field>
-          <q-field color="primary" label="ImageTypes" stack-label>
+          <q-field color="primary" label="ImageTypes" stack-label dense>
             <template v-slot:control>
               <MutiSelector
                 v-bind:model-value="view.settingInfo.ImageTypes"
@@ -172,7 +173,7 @@
               />
             </template>
           </q-field>
-          <q-field color="primary" label="DocsTypes" stack-label>
+          <q-field color="primary" label="DocsTypes" stack-label dense>
             <template v-slot:control>
               <MutiSelector
                 v-bind:model-value="view.settingInfo.DocsTypes"
@@ -181,7 +182,7 @@
               />
             </template>
           </q-field>
-          <q-field color="primary" label="Tags" stack-label>
+          <q-field color="primary" label="Tags" stack-label dense>
             <template v-slot:control>
               <MutiSelector
                 v-bind:model-value="view.settingInfo.Tags"
@@ -192,28 +193,32 @@
           </q-field>
         </q-tab-panel>
 
-        <q-tab-panel name="base">
+        <q-tab-panel name="base" class="q-pa-xs">
           <q-input
             v-model="view.settingInfo.SystemPlayerVolumn"
             :max="100"
             :min="0"
             type="number"
             label="系统播放器音量"
+            dense
           />
           <q-input
             v-model="view.settingInfo.SystemPlayerWidth"
             label="系统播放器宽度"
+            dense
           />
           <q-input
             v-model="view.settingInfo.ControllerHost"
             label="ControllerHost"
+            dense
           />
           <q-input
             v-model="view.settingInfo.FileHost"
             label="FileHost"
             placeholder=":10081"
+            dense
           />
-          <q-field color="primary" label="DirsLib" stack-label>
+          <q-field color="primary" label="DirsLib" stack-label dense>
             <template v-slot:control>
               <MutiInput
                 v-model="view.settingInfo.DirsLib"
@@ -221,7 +226,7 @@
               />
             </template>
           </q-field>
-          <q-field color="primary" label="TagsLib" stack-label>
+          <q-field color="primary" label="TagsLib" stack-label dense>
             <template v-slot:control>
               <MutiInput
                 v-model="view.settingInfo.TagsLib"
@@ -229,7 +234,7 @@
               />
             </template>
           </q-field>
-          <q-field color="primary" label="Types" stack-label>
+          <q-field color="primary" label="Types" stack-label dense>
             <template v-slot:control>
               <MutiInput
                 v-model="view.settingInfo.Types"
@@ -237,7 +242,7 @@
               />
             </template>
           </q-field>
-          <q-field color="primary" label="Pages" stack-label>
+          <q-field color="primary" label="Pages" stack-label dense>
             <template v-slot:control>
               <MutiInput
                 v-model="view.settingInfo.Pages"
@@ -246,19 +251,20 @@
             </template>
           </q-field>
         </q-tab-panel>
-        <q-tab-panel name="note">
-          <q-input v-model="view.settingInfo.BaseUrl" label="BaseUrl" />
-          <q-input v-model="view.settingInfo.ImageUrl" label="ImageUrl" />
-          <q-input v-model="view.settingInfo.OMUrl" label="OMUrl" />
+        <q-tab-panel name="note" class="q-pa-xs">
+          <q-input v-model="view.settingInfo.BaseUrl" label="BaseUrl" dense />
+          <q-input v-model="view.settingInfo.ImageUrl" label="ImageUrl" dense />
+          <q-input v-model="view.settingInfo.OMUrl" label="OMUrl" dense />
           <q-input
             type="textarea"
             autogrow
             v-model="view.settingInfo.Remark"
             label="Remark"
+            dense
           />
         </q-tab-panel>
 
-        <q-tab-panel name="system">
+        <q-tab-panel name="system" class="q-pa-xs">
           <q-editor
             v-model="view.settingInfo.SystemHtml"
             :dense="$q.screen.lt.md"
@@ -508,90 +514,56 @@ onMounted(() => {
 </script>
 <style lang="scss" scoped>
 .setting-tabs {
-  .q-tab {
+  min-height: 32px;
+
+  :deep(.q-tab) {
     font-weight: 500;
-    letter-spacing: 0.5px;
-    transition: all 0.3s ease;
-
-    &--active {
-      font-weight: 600;
-    }
+    font-size: 0.85rem;
+    min-height: 32px;
+    padding: 4px 8px;
   }
-
+  :deep(.q-tab--active) {
+    font-weight: 600;
+  }
   :deep(.q-tab__indicator) {
-    height: 3px;
-    border-radius: 3px 3px 0 0;
+    height: 2px;
   }
 }
 
-.theme-card {
-  transition: all 0.3s ease;
-  border: 2px solid var(--q-border);
-  background: var(--q-bg-card);
-
-  &:hover {
-    border-color: var(--q-primary);
-    transform: translateY(-2px);
-    box-shadow: var(--q-shadow);
-  }
-
-  &.theme-card-active {
-    border-color: var(--q-primary);
-    box-shadow: 0 0 0 2px var(--q-primary-light);
-    background: rgba(99, 102, 241, 0.08);
-  }
+:deep(.compact-panels .q-tab-panel) {
+  padding: 4px;
 }
 
-.cursor-pointer {
-  cursor: pointer;
-}
-
-:deep(.q-tab-panel) {
-  background: transparent;
-  padding: 16px 8px;
+:deep(.q-field) {
+  padding-bottom: 4px;
 }
 
 :deep(.q-field__label) {
   color: var(--q-primary);
   font-weight: 500;
-}
-
-:deep(.q-field__native) {
-  color: var(--q-text-primary);
+  font-size: 0.85rem;
 }
 
 :deep(.q-radio__label) {
   color: var(--q-text-primary);
+  font-size: 0.85rem;
 }
 
-:deep(.q-input) {
-  .q-field__control {
-    background: var(--q-bg-input);
-    border-radius: 8px;
-
-    &:before {
-      border-color: var(--q-border);
-    }
-
-    &:hover:before {
-      border-color: var(--q-border-hover);
-    }
-  }
-
-  &.q-field--focused .q-field__control {
-    border-color: var(--q-primary);
-    box-shadow: 0 0 0 2px var(--q-primary-light);
-  }
+:deep(.q-input .q-field__control) {
+  background: var(--q-bg-input);
+  border-radius: 6px;
 }
 
 :deep(.q-editor) {
+  min-height: 200px;
   background: var(--q-bg-input);
   border: 1px solid var(--q-border);
-  border-radius: 8px;
+  border-radius: 6px;
 
   .q-editor__toolbar {
     background: var(--q-bg-card);
     border-bottom: 1px solid var(--q-border);
+    padding: 2px;
   }
 
   .q-editor__content {
@@ -606,46 +578,11 @@ onMounted(() => {
 :deep(.q-footer) {
   background: var(--q-bg-card);
   border-top: 1px solid var(--q-border);
-}
 
-.theme-selection-card {
-  background: var(--q-bg-card);
-  border: 1px solid var(--q-border);
-  border-radius: 12px;
-  transition: all 0.3s ease;
+		.q-btn {
+			min-height: 32px;
+			font-size: 0.85rem;
+		}
+	}
 
-  .text-h6 {
-    color: var(--q-text-primary);
-    display: flex;
-    align-items: center;
-  }
-}
-
-:deep(.q-card.theme-card) {
-  background: var(--q-bg-input);
-  border: 2px solid var(--q-border);
-  border-radius: 12px;
-  transition: all 0.3s ease;
-
-  &:hover {
-    border-color: var(--q-primary);
-    transform: translateY(-4px);
-    box-shadow: var(--q-shadow);
-  }
-
-  &.theme-card-active {
-    border-color: var(--q-primary);
-    box-shadow: 0 0 0 3px var(--q-primary-light), var(--q-shadow);
-    background: rgba(99, 102, 241, 0.1);
-  }
-
-  .text-subtitle1 {
-    font-weight: 600;
-    color: var(--q-text-primary);
-  }
-
-  .text-caption {
-    color: var(--q-text-muted);
-  }
-}
 </style>

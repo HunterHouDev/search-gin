@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { commonAxios } from 'src/boot/axios';
+import { commonAxios, api } from 'src/boot/axios';
 
 export interface OnlineUser {
   username: string;
@@ -43,10 +43,12 @@ function redirectToLogin() {
 
 function getWsUrl(): string {
   const token = localStorage.getItem('authToken');
-  const isSecure = location.protocol === 'https:';
+  // 使用 axios baseURL 中的 host，避免前端开发服务器（quasar dev）端口与 API 不一致
+  const apiUrl = api.defaults.baseURL || `http://${location.host}`;
+  const apiHost = apiUrl.replace(/^https?:\/\//, '');
+  const isSecure = apiUrl.startsWith('https:');
   const wsProtocol = isSecure ? 'wss:' : 'ws:';
-  const host = location.host;
-  return `${wsProtocol}//${host}/api/ws?token=${encodeURIComponent(token || '')}`;
+  return `${wsProtocol}//${apiHost}/api/ws?token=${encodeURIComponent(token || '')}`;
 }
 
 function scheduleReconnect() {

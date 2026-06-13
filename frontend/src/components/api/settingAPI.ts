@@ -36,6 +36,26 @@ export const PingHost = async (ip: string) => {
   return res && res.data;
 };
 
+export const RemoveLanPeer = async (id: string) => {
+  const res = await commonAxios().post('/api/removePeer', { id });
+  return res && res.data;
+};
+
+export const TogglePeer = async (id: string, disabled: boolean) => {
+  const res = await commonAxios().post('/api/togglePeer', { id, disabled });
+  return res && res.data;
+};
+
+export const CleanLanPeers = async () => {
+  const res = await commonAxios().post('/api/cleanLanPeers');
+  return res && res.data;
+};
+
+export const ToggleLanDiscovery = async (enable: boolean) => {
+  const res = await commonAxios().post('/api/toggleLanDiscovery', { enable });
+  return res && res.data;
+};
+
 export const GetShutDown = async () => {
   const res = await commonAxios().get('/api/shutDown');
   return res as unknown;
