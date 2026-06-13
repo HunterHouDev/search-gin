@@ -9,6 +9,7 @@ import (
 	"search-gin/internal/model"
 	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -22,17 +23,26 @@ const (
 	maxPageSize         = 99999 // 远程搜索获取全部结果
 )
 
+// PeerSearchResult 远程节点搜索结果
+type PeerSearchResult struct {
+	Movies    []model.FileItem
+	TotalCnt  int
+	TotalSize int64
+}
+
 // SearchPeers 并发搜索所有在线远程节点
-func SearchPeers(searchParam model.SearchParam) []model.FileItem {
+func SearchPeers(searchParam model.SearchParam) ([]model.FileItem, int, int64) {
 	peers := GetOnlinePeers()
 	if len(peers) == 0 {
-		return nil
+		return nil, 0, 0
 	}
 
 	// 信号量限制并发
 	semaphore := make(chan struct{}, maxConcurrentPeers)
 	var mu sync.Mutex
 	var allMovies []model.FileItem
+	var remoteTotalCnt int
+	var remoteTotalSize int64
 	var wg sync.WaitGroup
 
 	for _, peer := range peers {
@@ -44,23 +54,25 @@ func SearchPeers(searchParam model.SearchParam) []model.FileItem {
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 
-			movies, err := searchPeer(p, searchParam)
+			result, err := searchPeer(p, searchParam)
 			if err != nil {
 				utils.ErrorFormat("远程搜索失败 [%s:%s]: %v", p.ID, p.IP, err)
 				return
 			}
 			mu.Lock()
-			allMovies = append(allMovies, movies...)
+			allMovies = append(allMovies, result.Movies...)
+			remoteTotalCnt += result.TotalCnt
+			remoteTotalSize += result.TotalSize
 			mu.Unlock()
 		}(peer)
 	}
 	wg.Wait()
 
-	return allMovies
+	return allMovies, remoteTotalCnt, remoteTotalSize
 }
 
 // searchPeer 向单个远程节点发送搜索请求
-func searchPeer(peer *Peer, searchParam model.SearchParam) ([]model.FileItem, error) {
+func searchPeer(peer *Peer, searchParam model.SearchParam) (*PeerSearchResult, error) {
 	// 远程也用大 pageSize 获取全部结果，由请求端做最终分页
 	remoteParam := searchParam
 	remoteParam.Page = 1
@@ -102,14 +114,44 @@ func searchPeer(peer *Peer, searchParam model.SearchParam) ([]model.FileItem, er
 		if !ok2 {
 			return nil, fmt.Errorf("远程节点返回的数据类型非预期: %T", result.Data)
 		}
-		return moviesTyped, nil
+		return &PeerSearchResult{Movies: moviesTyped, TotalCnt: result.TotalCnt, TotalSize: ParseTotalSize(result.TotalSize)}, nil
 	}
 
 	// 从 []interface{} 转为 []model.FileItem
 	var out []model.FileItem
 	raw, _ := json.Marshal(movies)
 	json.Unmarshal(raw, &out)
-	return out, nil
+	return &PeerSearchResult{Movies: out, TotalCnt: result.TotalCnt, TotalSize: ParseTotalSize(result.TotalSize)}, nil
+}
+
+// ParseTotalSize 将 "23.53 G" 格式的字符串解析为 int64 字节数
+func ParseTotalSize(s string) int64 {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0
+	}
+	parts := strings.SplitN(s, " ", 2)
+	if len(parts) != 2 {
+		return 0
+	}
+	val, err := strconv.ParseFloat(parts[0], 64)
+	if err != nil {
+		return 0
+	}
+	switch strings.ToUpper(parts[1]) {
+	case "B":
+		return int64(val)
+	case "K":
+		return int64(val * 1024)
+	case "M":
+		return int64(val * 1024 * 1024)
+	case "G":
+		return int64(val * 1024 * 1024 * 1024)
+	case "T":
+		return int64(val * 1024 * 1024 * 1024 * 1024)
+	default:
+		return 0
+	}
 }
 
 // MergeResults 合并本地与远程结果，按 Code+Size 或 Name+Size 去重，本机优先
@@ -165,11 +207,15 @@ func FillURLs(c *gin.Context, movies []model.FileItem) {
 			m.NodeHost = localNode
 			m.NodeName = LocalNodeName
 		} else {
-			// 远程文件 → 指向源节点的文件流端口
+			// 远程文件 → 指向源节点的文件流端口（优先使用对端上报的 filePort）
+			peerFilePort := filePort
+			if p := GetPeer(m.NodeHost); p != nil && p.FilePort != "" {
+				peerFilePort = p.FilePort
+			}
 			if peerIP := ResolvePeerIP(m.NodeHost); peerIP != "" {
-				m.StreamUrl = fmt.Sprintf("http://%s:%s/api/stream/file/%s", peerIP, filePort, m.Id)
-				m.PngUrl = fmt.Sprintf("http://%s:%s/api/stream/png/%s", peerIP, filePort, m.Id)
-				m.JpgUrl = fmt.Sprintf("http://%s:%s/api/stream/jpg/%s", peerIP, filePort, m.Id)
+				m.StreamUrl = fmt.Sprintf("http://%s:%s/api/stream/file/%s", peerIP, peerFilePort, m.Id)
+				m.PngUrl = fmt.Sprintf("http://%s:%s/api/stream/png/%s", peerIP, peerFilePort, m.Id)
+				m.JpgUrl = fmt.Sprintf("http://%s:%s/api/stream/jpg/%s", peerIP, peerFilePort, m.Id)
 			}
 		}
 	}

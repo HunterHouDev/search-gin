@@ -12,6 +12,7 @@
     >
       <q-tab name="info" label="系统信息" />
       <q-tab name="cluster" label="集群" />
+      <q-tab name="user" label="用户管理" />
       <q-tab name="log" label="系统日志" />
     </q-tabs>
 
@@ -65,33 +66,16 @@
 
         <q-card class="q-mb-md theme-card">
           <q-card-section>
-            <h6 class="text-subtitle1 q-mb-sm">手动添加在线节点</h6>
-            <div class="row q-gutter-sm">
-              <q-input
-                v-model="newPeerInput"
-                placeholder="例如: 192.168.1.102:10081"
-                dense
-                outlined
-                style="max-width: 250px"
-                @keyup.enter="addManualPeer"
-              />
-              <q-btn color="primary" dense icon="add" @click="addManualPeer" :disable="!newPeerInput.trim()">
-                添加
-              </q-btn>
-            </div>
-            <p class="text-grey text-caption q-mt-sm">
-              添加后会自动验证节点是否可达，成功后显示在在线节点列表中
-            </p>
-          </q-card-section>
-        </q-card>
-
-        <q-card class="q-mb-md theme-card">
-          <q-card-section>
             <div class="row items-center justify-between q-mb-sm">
               <h6 class="text-subtitle1 q-mb-none">在线节点 ({{ cluster.peers.length }})</h6>
-              <q-btn flat dense icon="refresh" size="sm" color="primary" @click="fetchPeers" :loading="cluster.loading">
-                刷新
-              </q-btn>
+              <div class="row q-gutter-sm">
+                <q-btn flat dense icon="add" size="sm" color="positive" @click="showAddPeerDialog = true">
+                  添加
+                </q-btn>
+                <q-btn flat dense icon="refresh" size="sm" color="primary" @click="fetchPeers" :loading="cluster.loading">
+                  刷新
+                </q-btn>
+              </div>
             </div>
 
             <q-table
@@ -136,6 +120,48 @@
         </q-card>
       </q-tab-panel>
 
+      <q-tab-panel name="user">
+        <div class="q-gutter-md">
+          <!-- 添加用户 -->
+          <q-card flat bordered class="q-pa-md theme-card">
+            <q-card-section>
+              <div class="text-h6 q-mb-md">添加用户</div>
+              <q-input v-model="newUser.username" label="用户名" class="q-mb-sm" />
+              <q-input v-model="newUser.password" label="密码" type="password" class="q-mb-sm" />
+              <q-input v-model="newUser.expireDate" label="有效期（可选，YYYY-MM-DD）" class="q-mb-sm">
+                <template v-slot:append>
+                  <q-icon name="event" class="cursor-pointer">
+                    <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+                      <q-date v-model="newUser.expireDate" mask="YYYY-MM-DD" today-btn />
+                    </q-popup-proxy>
+                  </q-icon>
+                </template>
+              </q-input>
+              <q-btn color="primary" label="添加" @click="addUser" />
+            </q-card-section>
+          </q-card>
+
+          <!-- 用户列表 -->
+          <q-card flat bordered class="q-pa-md theme-card">
+            <q-card-section>
+              <div class="text-h6 q-mb-md">用户列表</div>
+              <q-list bordered separator>
+                <q-item v-for="user in userList" :key="user.username">
+                  <q-item-section>
+                    <q-item-label>{{ user.username }}</q-item-label>
+                    <q-item-label caption v-if="user.expireDate">有效期至：{{ user.expireDate }}</q-item-label>
+                    <q-item-label caption v-else>永不过期</q-item-label>
+                  </q-item-section>
+                  <q-item-section side>
+                    <q-btn flat round icon="delete" color="negative" @click="deleteUser(user.username)" />
+                  </q-item-section>
+                </q-item>
+              </q-list>
+            </q-card-section>
+          </q-card>
+        </div>
+      </q-tab-panel>
+
       <q-tab-panel name="log">
         <q-card class="theme-card">
           <q-card-section>
@@ -150,23 +176,158 @@
         </q-card>
       </q-tab-panel>
     </q-tab-panels>
+
+    <!-- 添加节点弹窗 -->
+    <q-dialog v-model="showAddPeerDialog" persistent @before-show="resetPeerTest">
+      <q-card style="min-width: 450px" class="theme-card">
+        <q-card-section>
+          <div class="text-h6 q-mb-md">手动添加在线节点</div>
+          <q-input
+            v-model="newPeer.ip"
+            label="IP 地址"
+            placeholder="例如: 192.168.1.102"
+            dense
+            outlined
+            autofocus
+            class="q-mb-sm"
+          />
+          <div class="row q-gutter-sm">
+            <q-input
+              v-model="newPeer.port"
+              label="API 端口"
+              placeholder="10081"
+              dense
+              outlined
+              style="max-width: 140px"
+              class="q-mb-sm"
+            />
+            <q-input
+              v-model="newPeer.filePort"
+              label="文件端口"
+              placeholder="10082"
+              dense
+              outlined
+              style="max-width: 140px"
+              class="q-mb-sm"
+            />
+          </div>
+          <div class="row items-center q-gutter-sm q-mt-sm">
+            <q-btn
+              dense
+              outline
+              :color="ipTestResult === true ? 'positive' : (ipTestResult === false ? 'negative' : 'grey')"
+              :icon="peerTestStatus === 'testing' ? 'sync' : (ipTestResult === true ? 'check_circle' : (ipTestResult === false ? 'cancel' : 'computer'))"
+              :loading="peerTestStatus === 'testing' && !portTestDone"
+              :disable="!newPeer.ip.trim() || peerTestStatus === 'testing'"
+              @click="testIPConnection"
+            >
+              {{ peerTestStatus === 'testing' && !portTestDone ? 'IP检测中...' : (ipTestResult === true ? 'IP可达' : (ipTestResult === false ? 'IP不可达' : '检测IP')) }}
+            </q-btn>
+            <q-btn
+              dense
+              outline
+              :color="portTestResult === true ? 'positive' : (portTestResult === false ? 'negative' : 'grey')"
+              :icon="peerTestStatus === 'testing' && portTestDone ? 'sync' : (portTestResult === true ? 'check_circle' : (portTestResult === false ? 'cancel' : 'router'))"
+              :loading="peerTestStatus === 'testing' && portTestDone"
+              :disable="!newPeer.ip.trim() || !newPeer.port.trim() || peerTestStatus === 'testing'"
+              @click="testPortConnection"
+            >
+              {{ peerTestStatus === 'testing' && portTestDone ? '端口检测中...' : (portTestResult === true ? '端口开放' : (portTestResult === false ? '端口不通' : '检测端口')) }}
+            </q-btn>
+          </div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="取消" color="grey" v-close-popup @click="resetPeerTest" />
+          <q-btn flat label="添加" color="primary" :disable="!newPeer.ip.trim()" @click="addManualPeer" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
-import { GetSettingInfo, GetIpAddr, GeMemeryLog, GetLanPeers, PostSettingInfo, AddLanPeer } from '../../components/api/settingAPI';
+import { useRoute, useRouter } from 'vue-router';
+import { GetSettingInfo, GetIpAddr, GeMemeryLog, GetLanPeers, PostSettingInfo, AddLanPeer, GetUsers, AddUser, DeleteUser, PingHost } from '../../components/api/settingAPI';
 import { useSystemProperty } from '../../stores/System';
 
 const systemProperty = useSystemProperty();
 const $q = useQuasar();
-const tab = ref('info');
-const newPeerInput = ref('');
+const route = useRoute();
+const router = useRouter();
+const tab = ref((route.query.tab as string) || 'info');
+const newPeer = reactive({
+  ip: '',
+  port: '10081',
+  filePort: '10082',
+});
+const showAddPeerDialog = ref(false);
+const peerTestStatus = ref<'idle' | 'testing' | 'done'>('idle');
+const ipTestResult = ref<boolean | null>(null);
+const portTestResult = ref<boolean | null>(null);
+const portTestDone = ref(false);
+
+// 用户管理
+const newUser = reactive({
+  username: '',
+  password: '',
+  expireDate: '',
+});
+const userList = ref<any[]>([]);
+
+const fetchUsers = async () => {
+  try {
+    const res = await GetUsers();
+    if (res.code === 200) {
+      userList.value = res.data;
+    }
+  } catch (error) {
+    console.error('获取用户列表失败:', error);
+  }
+};
+
+const addUser = async () => {
+  if (!newUser.username || !newUser.password) {
+    $q.notify({ type: 'warning', message: '请填写用户名和密码' });
+    return;
+  }
+  try {
+    const res = await AddUser(newUser.username, newUser.password, newUser.expireDate);
+    if (res.code === 200) {
+      $q.notify({ type: 'positive', message: '添加成功' });
+      newUser.username = '';
+      newUser.password = '';
+      newUser.expireDate = '';
+      fetchUsers();
+    } else {
+      $q.notify({ type: 'negative', message: res.message || '添加失败' });
+    }
+  } catch (error) {
+    $q.notify({ type: 'negative', message: '添加失败' });
+    console.error(error);
+  }
+};
+
+const deleteUser = async (username: string) => {
+  try {
+    const res = await DeleteUser(username);
+    if (res.code === 200) {
+      $q.notify({ type: 'positive', message: '删除成功' });
+      fetchUsers();
+    } else {
+      $q.notify({ type: 'negative', message: res.message || '删除失败' });
+    }
+  } catch (error) {
+    $q.notify({ type: 'negative', message: '删除失败' });
+    console.error(error);
+  }
+};
+
 const view = reactive({
   settingInfo: {} as any,
   ipAddr: '',
-  logs: [],
+  logs: [] as any[],
 });
 
 const fetchSearch = async () => {
@@ -192,7 +353,7 @@ const fetchLogs = async () => {
   view.logs = Array.isArray(data) ? data.reverse() : [];
 };
 
-let logIntervalId;
+let logIntervalId: ReturnType<typeof setInterval>;
 
 // ── 多节点集群 ──
 const cluster = reactive({
@@ -204,13 +365,16 @@ const cluster = reactive({
 });
 
 const peerColumns = [
-  { name: 'status', label: '状态', field: '_alive', align: 'center', sortable: false },
-  { name: 'id', label: '节点 ID', field: 'id', align: 'left', sortable: true },
-  { name: 'name', label: '别名', field: 'name', align: 'left', sortable: true },
-  { name: 'ip', label: 'IP 地址', field: 'ip', align: 'left', sortable: true },
-  { name: 'lastSeen', label: '最后心跳', field: 'lastSeen', align: 'left', sortable: true,
-    format: (v) => v ? new Date(v * 1000).toLocaleString() : '-' },
-  { name: 'actions', label: '操作', field: '', align: 'center', sortable: false },
+  { name: 'status', label: '状态', field: '_alive', align: 'center' as const, sortable: false },
+  { name: 'id', label: '节点 ID', field: 'id', align: 'left' as const, sortable: true },
+  { name: 'name', label: '别名', field: 'name', align: 'left' as const, sortable: true },
+  { name: 'ip', label: 'IP 地址', field: 'ip', align: 'left' as const, sortable: true },
+  { name: 'port', label: 'API 端口', field: 'port', align: 'left' as const, sortable: true },
+  { name: 'filePort', label: '文件端口', field: 'filePort', align: 'left' as const, sortable: true,
+    format: (v: any) => v || '10082' },
+  { name: 'lastSeen', label: '最后心跳', field: 'lastSeen', align: 'left' as const, sortable: true,
+    format: (v: any) => v ? new Date(v * 1000).toLocaleString() : '-' },
+  { name: 'actions', label: '操作', field: '', align: 'center' as const, sortable: false },
 ];
 
 const fetchPeers = async () => {
@@ -220,7 +384,7 @@ const fetchPeers = async () => {
     if (res) {
       cluster.localNodeHost = res.localNodeHost || '';
       cluster.localNodeName = res.localNodeName || '';
-      cluster.peers = (res.peers || []).map(p => ({ ...p, _alive: null, _checking: false }));
+      cluster.peers = (res.peers || []).map((p: any) => ({ ...p, _alive: null, _checking: false }));
     }
   } catch (e) {
     console.error('获取集群信息失败', e);
@@ -229,7 +393,7 @@ const fetchPeers = async () => {
   }
 };
 
-const checkPeer = async (peer) => {
+const checkPeer = async (peer: any) => {
   peer._checking = true;
   peer._alive = false;
   try {
@@ -243,23 +407,69 @@ const checkPeer = async (peer) => {
   }
 };
 
+const testIPConnection = async () => {
+  const ip = newPeer.ip.trim();
+  if (!ip) return;
+  peerTestStatus.value = 'testing';
+  portTestDone.value = false;
+  ipTestResult.value = null;
+  try {
+    const res = await PingHost(ip);
+    ipTestResult.value = res?.alive === true;
+  } catch {
+    ipTestResult.value = false;
+  } finally {
+    peerTestStatus.value = 'done';
+  }
+};
+
+const testPortConnection = async () => {
+  const ip = newPeer.ip.trim();
+  const port = newPeer.port.trim() || '10081';
+  if (!ip || !port) return;
+  peerTestStatus.value = 'testing';
+  portTestDone.value = true;
+  portTestResult.value = null;
+  try {
+    const url = `http://${ip}:${port}/api/heartBeat`;
+    const resp = await fetch(url, { method: 'GET', signal: AbortSignal.timeout(5000) });
+    portTestResult.value = resp.ok;
+  } catch {
+    portTestResult.value = false;
+  } finally {
+    peerTestStatus.value = 'done';
+  }
+};
+
+const resetPeerTest = () => {
+  peerTestStatus.value = 'idle';
+  ipTestResult.value = null;
+  portTestResult.value = null;
+  portTestDone.value = false;
+};
+
 const addManualPeer = async () => {
-  const addr = newPeerInput.value.trim();
-  if (!addr) return;
+  const ip = newPeer.ip.trim();
+  const port = newPeer.port.trim() || '10081';
+  const filePort = newPeer.filePort.trim() || '10082';
+  if (!ip) return;
 
   // 检查是否已在在线列表中
-  const exists = cluster.peers.some(p => p.ID === addr || `${p.IP}:${p.Port}` === addr);
+  const exists = cluster.peers.some((p: any) => p.ID === `${ip}:${port}`);
   if (exists) {
     $q.notify({ message: '节点已在线', color: 'warning', position: 'top', timeout: 2000 });
     return;
   }
 
   try {
-    const res = await AddLanPeer(addr);
+    const res = await AddLanPeer(ip, port, filePort);
     if (res.success) {
       $q.notify({ message: '添加成功', color: 'positive', position: 'top', timeout: 2000 });
-      newPeerInput.value = '';
-      await fetchPeers(); // 刷新在线节点列表
+      newPeer.ip = '';
+      newPeer.port = '10081';
+      newPeer.filePort = '10082';
+      showAddPeerDialog.value = false;
+      await fetchPeers();
     } else {
       $q.notify({ message: res.msg || '添加失败', color: 'negative', position: 'top', timeout: 2000 });
     }
@@ -269,7 +479,7 @@ const addManualPeer = async () => {
   }
 };
 
-const toggleLanDiscovery = async (val) => {
+const toggleLanDiscovery = async (val: boolean) => {
   try {
     view.settingInfo.enableLanDiscovery = val;
     await PostSettingInfo(view.settingInfo);
@@ -286,12 +496,18 @@ const toggleLanDiscovery = async (val) => {
   }
 };
 
+// tab 切换时同步到 URL query
+watch(tab, (val) => {
+  router.replace({ query: { ...route.query, tab: val } });
+});
+
 onMounted(() => {
   document.title = '系统信息';
   fetchSearch();
   queryIpAddr();
   fetchLogs();
   fetchPeers();
+  fetchUsers();
   logIntervalId = setInterval(() => {
     fetchLogs();
   }, 5000);

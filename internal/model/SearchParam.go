@@ -23,6 +23,7 @@ type SearchParam struct {
 	SortField  string
 	SortType   string
 	Sql        string
+	SearchMode string // "mixed" 混合(默认) / "local" 仅本地 / "remote" 仅远程
 }
 
 func NewSearchParam(keyword string, page int, pageSize int, sortField string, sortType string, moiveType string) SearchParam {

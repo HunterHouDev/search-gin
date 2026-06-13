@@ -120,7 +120,7 @@
         <q-pagination v-model="searchParams.Page" @update:model-value="fetchSearch" color="deep-orange"
           :ellipses="true" :max="searchResults.TotalPage || 0" :max-pages="isSmall ? 5 : 8" boundary-numbers
           direction-links></q-pagination>
-        <span class="page-count">共 {{ searchResults.TotalCount }} 条</span>
+        <span class="page-count">共 {{ searchResults.TotalCnt }} 条</span>
         <q-select size="xs" dense flat @update:model-value="currentPageSizeChange" filled bgColor="orange"
           style="text-align: center; width: 70px" v-model="searchParams.PageSize" :options="pageOptions">
         </q-select>
@@ -194,7 +194,7 @@ const isSmall = computed(() => $q.screen.lt.sm);
 const activeTab = ref('search');
 const searchLoading = ref(false);
 const imagesLoading = ref(false);
-const searchResults = reactive({ Data: [] , TotalPage: 0, TotalCount: 0 });
+const searchResults = reactive({ Data: [] , TotalPage: 0, TotalCnt: 0 });
 const localImages = ref<[]>([]);
 const gotoPage = ref(1);
 const pageOptions = ref([10, 20, 40, 60]);

@@ -132,6 +132,55 @@
                 <q-icon name="check" color="primary" size="18px" />
               </q-item-section>
             </q-item>
+            <!-- 搜索范围 -->
+            <div class="q-px-md q-py-xs">
+              <q-item-label header class="text-grey-5 text-xs font-medium">搜索范围</q-item-label>
+            </div>
+            <q-item clickable v-close-popup @click="view.queryParam.SearchMode = 'mixed'; fetchSearch()"
+              :active="view.queryParam.SearchMode === 'mixed'" class="q-mx-sm rounded-lg">
+              <q-item-section avatar>
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10">
+                  <q-icon name="cloud_sync" color="primary" size="16px" />
+                </div>
+              </q-item-section>
+              <q-item-section>
+                <q-item-label class="font-medium">混合查询</q-item-label>
+                <q-item-label caption class="text-xs">本地 + 集群节点</q-item-label>
+              </q-item-section>
+              <q-item-section side v-if="searchMode === 'mixed'">
+                <q-icon name="check" color="primary" size="18px" />
+              </q-item-section>
+            </q-item>
+            <q-item clickable v-close-popup @click="view.queryParam.SearchMode = 'local'; fetchSearch()"
+              :active="view.queryParam.SearchMode === 'local'" class="q-mx-sm rounded-lg">
+              <q-item-section avatar>
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-green/10">
+                  <q-icon name="computer" color="green" size="16px" />
+                </div>
+              </q-item-section>
+              <q-item-section>
+                <q-item-label class="font-medium">本地查询</q-item-label>
+                <q-item-label caption class="text-xs">仅搜索本机文件</q-item-label>
+              </q-item-section>
+              <q-item-section side v-if="searchMode === 'local'">
+                <q-icon name="check" color="primary" size="18px" />
+              </q-item-section>
+            </q-item>
+            <q-item clickable v-close-popup @click="view.queryParam.SearchMode = 'remote'; fetchSearch()"
+              :active="view.queryParam.SearchMode === 'remote'" class="q-mx-sm rounded-lg">
+              <q-item-section avatar>
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-purple/10">
+                  <q-icon name="dns" color="purple" size="16px" />
+                </div>
+              </q-item-section>
+              <q-item-section>
+                <q-item-label class="font-medium">节点查询</q-item-label>
+                <q-item-label caption class="text-xs">仅搜索集群节点</q-item-label>
+              </q-item-section>
+              <q-item-section side v-if="searchMode === 'remote'">
+                <q-icon name="check" color="primary" size="18px" />
+              </q-item-section>
+            </q-item>
           </q-list>
         </q-btn-dropdown>
         <!-- 重命名按钮 -->
@@ -377,6 +426,10 @@
                 <q-chip square v-if="item.FileType != 'mp4'" :size="btnSize('top')" dense color="orange">
                   <span @click="searchKeyword(item.FileType)">
                     {{ item.FileType }}</span>
+                </q-chip>
+                <!-- 节点来源标记 -->
+                <q-chip square v-if="item.NodeName" :size="btnSize('top')" dense :color="item.NodeName === localNodeName ? 'green' : 'purple'">
+                  {{ item.NodeName === localNodeName ? '本机' : item.NodeName }}
                 </q-chip>
               </div>
               <!-- 图片 -->
@@ -641,7 +694,7 @@ import {
 import { computed, onMounted, onUnmounted, provide, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
-import { GetSettingInfo } from 'components/api/settingAPI';
+import { GetSettingInfo, GetLanPeers } from 'components/api/settingAPI';
 import {
   DescEnum,
   FieldEnum,
@@ -686,6 +739,9 @@ const isFetching = ref(false);
 const pageOptions = ref([10, 12, 20, 30, 50, 200]);
 // AbortController 用于取消前一个搜索请求
 const searchAbortController = ref(null);
+
+// 本机节点名，用于标记文件来源
+const localNodeName = ref('');
 
 
 const moveView = reactive({
@@ -789,6 +845,7 @@ const view = reactive({
     PageSize: 20,
     SortField: 'MTime',
     SortType: 'desc',
+    SearchMode: 'mixed',
   },
   resultData: {},
 });
@@ -1442,7 +1499,7 @@ watch(
   () => thisRoute.query,
   () => {
     if (skipWatch || isInitializing) return;
-    const { Page, PageSize, MovieType, SortField, SortType, Keyword } = thisRoute.query;
+    const { Page, PageSize, MovieType, SortField, SortType, Keyword, SearchMode } = thisRoute.query;
     if (Object.keys(thisRoute.query).length === 0) return;
     view.queryParam.Page = Number(Page) || 1;
     view.queryParam.PageSize = Number(PageSize) || 10;
@@ -1450,6 +1507,7 @@ watch(
     view.queryParam.SortField = SortField || 'publish_time';
     view.queryParam.SortType = SortType || 'desc';
     view.queryParam.Keyword = Keyword || '';
+    view.queryParam.SearchMode = SearchMode || 'mixed';
     fetchSearch(true);
   }
 );
@@ -1461,7 +1519,7 @@ const saveParam = (skipPush = false) => {
   localStorage.setItem('isAuthenticated', 'true');
   // 避免频繁 push 导致组件重创建，仅在需要时更新 URL
   if (skipPush) return;
-  const { Page, PageSize, MovieType, SortField, SortType, Keyword } =
+  const { Page, PageSize, MovieType, SortField, SortType, Keyword, SearchMode } =
     view.queryParam;
   const currentQuery = thisRoute.query;
   if (
@@ -1470,7 +1528,8 @@ const saveParam = (skipPush = false) => {
     currentQuery.PageSize !== String(PageSize) ||
     currentQuery.MovieType !== MovieType ||
     currentQuery.SortField !== SortField ||
-    currentQuery.SortType !== SortType
+    currentQuery.SortType !== SortType ||
+    currentQuery.SearchMode !== SearchMode
   ) {
     skipWatch = true;
     push({
@@ -1482,6 +1541,7 @@ const saveParam = (skipPush = false) => {
         SortField,
         SortType,
         Keyword,
+        SearchMode,
       },
     });
     setTimeout(() => { skipWatch = false; }, 100);
@@ -1527,10 +1587,18 @@ onMounted(async () => {
     SortField,
     SortType,
     Keyword,
+    SearchMode,
     showStyle,
     from,
   } = thisRoute.query;
   await fetchGetSettingInfo();
+  // 获取本机节点名
+  try {
+    const peerRes = await GetLanPeers();
+    if (peerRes) {
+      localNodeName.value = peerRes.localNodeName || '';
+    }
+  } catch {/* 忽略 */}
   if (Keyword) {
     view.queryParam.Keyword = Keyword;
   }
@@ -1541,6 +1609,7 @@ onMounted(async () => {
     view.queryParam.SortField = SortField;
     view.queryParam.SortType = SortType;
     view.queryParam.Keyword = Keyword;
+    view.queryParam.SearchMode = SearchMode || 'mixed';
     view.queryParam.showStyle = showStyle;
   } else {
     if (from === 'index') {

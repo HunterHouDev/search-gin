@@ -123,6 +123,7 @@ func BuildAPIRouter() *gin.Engine {
 	router.GET("/api/seriesCount", handler.GetSeriesSize)
 	router.GET("/api/scanTime", handler.GetScanTime)
 	router.GET("/api/heartBeat", handler.GetHeartBeat)
+	router.GET("/api/pingHost", handler.PingHost)
 	router.GET("/api/logMemory", handler.GetLogMemory)
 	router.GET("/api/indexHealth", handler.GetIndexHealthCheck)
 	router.GET("/api/ws", handler.HandleWebSocket)

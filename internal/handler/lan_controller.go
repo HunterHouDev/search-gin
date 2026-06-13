@@ -21,22 +21,36 @@ func GetLanPeers(c *gin.Context) {
 // AddLanPeer 手动添加节点
 func AddLanPeer(c *gin.Context) {
 	var req struct {
-		Addr string `json:"addr"` // "ip:port"
+		Addr     string `json:"addr"`     // "ip:port"（兼容旧格式）
+		IP       string `json:"ip"`       // IP 地址
+		Port     string `json:"port"`     // API 端口
+		FilePort string `json:"filePort"` // 文件流端口
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"fail": true, "msg": "参数错误"})
 		return
 	}
 
-	parts := strings.Split(req.Addr, ":")
-	if len(parts) < 2 {
-		c.JSON(http.StatusBadRequest, gin.H{"fail": true, "msg": "格式错误，应为 ip:port"})
+	ip, port, filePort := req.IP, req.Port, req.FilePort
+
+	// 兼容旧格式 "ip:port" 或 "ip:port:filePort"
+	if ip == "" && req.Addr != "" {
+		parts := strings.Split(req.Addr, ":")
+		if len(parts) >= 2 {
+			ip = parts[0]
+			port = parts[1]
+		}
+		if len(parts) >= 3 {
+			filePort = parts[2]
+		}
+	}
+
+	if ip == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"fail": true, "msg": "格式错误，需要 ip"})
 		return
 	}
-	ip := parts[0]
-	port := parts[1]
 
-	if service.AddPeer(ip, port) {
+	if service.AddPeer(ip, port, filePort) {
 		c.JSON(http.StatusOK, gin.H{"success": true, "msg": "添加成功"})
 	} else {
 		c.JSON(http.StatusBadRequest, gin.H{"fail": true, "msg": "无法连接到该节点"})

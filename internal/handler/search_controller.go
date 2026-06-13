@@ -20,65 +20,99 @@ import (
 // @Produce json
 // @Router /api/search/movies [post]
 func PostMovies(c *gin.Context) {
- // 检查是否为远程转发请求（X-Search-Gin-Remote: true）
- isRemote := c.GetHeader("X-Search-Gin-Remote") == "true"
+	// 检查是否为远程转发请求（X-Search-Gin-Remote: true）
+	isRemote := c.GetHeader("X-Search-Gin-Remote") == "true"
 
- if service.SearchEngine.IsEmpty() {
-  service.FileApp.ScanAll()
- }
+	if service.SearchEngine.IsEmpty() {
+		service.FileApp.ScanAll()
+	}
 
- searchParam := model.SearchParam{}
- err := c.Bind(&searchParam)
- if err != nil {
-  c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数绑定失败"))
-  return
- }
+	searchParam := model.SearchParam{}
+	err := c.Bind(&searchParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数绑定失败"))
+		return
+	}
 
- if isRemote {
-  // 远程转发：只返回本地结果，不递归搜索其他节点
-  result := service.SearchApp.SearchDataSource(searchParam)
-  movies, ok := result.Data.([]model.FileItem)
-  if ok {
-   service.FillURLs(c, movies)
-   result.Data = movies
-  }
-  result.SetProgress(consts.IndexNumber)
-  c.JSON(http.StatusOK, result)
-  return
- }
+	if isRemote {
+		// 远程转发：只返回本地结果，不递归搜索其他节点
+		result := service.SearchApp.SearchDataSource(searchParam)
+		movies, ok := result.Data.([]model.FileItem)
+		if ok {
+			service.FillURLs(c, movies)
+			result.Data = movies
+		}
+		result.SetProgress(consts.IndexNumber)
+		c.JSON(http.StatusOK, result)
+		return
+	}
 
- // 前端请求：查本地（集群模式启用时并发查所有在线节点）
- localResult := service.SearchApp.SearchDataSource(searchParam)
- localMovies, ok := localResult.Data.([]model.FileItem)
- if !ok {
-  localMovies = []model.FileItem{}
- }
+	// 前端请求：根据 SearchMode 决定搜索范围
+	var merged []model.FileItem
+	var remoteTotalCnt int
+	var remoteTotalSize int64
+	var localResult utils.Page
 
- var merged []model.FileItem
- if service.IsClusterEnabled() {
-  remoteMovies := service.SearchPeers(searchParam)
-  merged = service.MergeResults(localMovies, remoteMovies)
- } else {
-  merged = localMovies
- }
+	searchMode := searchParam.SearchMode
+	doLocal := searchMode == "" || searchMode == "mixed" || searchMode == "local"
+	doRemote := service.IsClusterEnabled() && (searchMode == "" || searchMode == "mixed" || searchMode == "remote")
 
- // 对合并结果重新分页
- pageMovies, total := service.PaginateMovies(merged, searchParam.Page, searchParam.PageSize)
+	if doLocal {
+		localResult = service.SearchApp.SearchDataSource(searchParam)
+		localMovies, ok := localResult.Data.([]model.FileItem)
+		if !ok {
+			localMovies = []model.FileItem{}
+		}
+		if doRemote {
+			remoteMovies, rCnt, rSize := service.SearchPeers(searchParam)
+			merged = service.MergeResults(localMovies, remoteMovies)
+			remoteTotalCnt = rCnt
+			remoteTotalSize = rSize
+		} else {
+			merged = localMovies
+		}
+	} else if doRemote {
+		// 仅远程搜索
+		remoteMovies, rCnt, rSize := service.SearchPeers(searchParam)
+		merged = remoteMovies
+		remoteTotalCnt = rCnt
+		remoteTotalSize = rSize
+		localResult = utils.NewPage()
+	} else {
+		merged = []model.FileItem{}
+		localResult = utils.NewPage()
+	}
 
- // 填充 URL
- service.FillURLs(c, pageMovies)
+	// 对合并结果重新分页
+	pageMovies, _ := service.PaginateMovies(merged, searchParam.Page, searchParam.PageSize)
 
- // 构造返回结果
- result := utils.NewPage()
- result.PageNo = searchParam.Page
- result.PageSize = searchParam.PageSize
- result.TotalCnt = total
- result.ResultCnt = total
- result.CurCnt = len(pageMovies)
- result.Data = pageMovies
- result.SetProgress(consts.IndexNumber)
+	// 计算当前页大小
+	var curSize int64
+	for _, m := range pageMovies {
+		curSize += m.Size
+	}
 
- c.JSON(http.StatusOK, result)
+	// 填充 URL
+	service.FillURLs(c, pageMovies)
+
+	// 构造返回结果：TotalCnt = 本地总数 + 远程节点总数
+	totalCnt := localResult.TotalCnt + remoteTotalCnt
+	totalSize := service.ParseTotalSize(localResult.TotalSize) + remoteTotalSize
+
+	result := utils.NewPage()
+	result.PageNo = searchParam.Page
+	result.PageSize = searchParam.PageSize
+	result.TotalCnt = totalCnt
+	result.TotalSize = utils.GetSizeStr(totalSize)
+	result.ResultSize = utils.GetSizeStr(totalSize)
+	result.ResultCnt = totalCnt
+	result.CurSize = utils.GetSizeStr(curSize)
+	result.CurCnt = len(pageMovies)
+	result.Data = pageMovies
+	result.SetResultCnt(totalCnt, searchParam.Page)
+	result.SetProgress(consts.IndexNumber)
+
+	c.JSON(http.StatusOK, result)
 }
 
 // PostAuthor 演员搜索处理函数

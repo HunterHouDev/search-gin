@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"search-gin/internal/model"
 	"search-gin/pkg/consts"
@@ -24,10 +25,11 @@ var (
 type Peer struct {
 	ID       string `json:"id"`       // "PC-A:10081"
 	Hostname string `json:"hostname"` // "PC-A"
-	Port     string `json:"port"`     // "10081"
+	Port     string `json:"port"`     // "10081" API 端口
 	IP       string `json:"ip"`       // 可连通的 IP（UDP来源 IP 经 TCP 验证）
 	Name     string `json:"name"`     // 节点别名
 	LastSeen int64  `json:"lastSeen"` // Unix 时间戳
+	FilePort string `json:"filePort"` // 文件流端口，为空时默认 ":10082"
 }
 
 // heartbeatMsg UDP 心跳消息
@@ -249,15 +251,23 @@ func (d *LanDiscovery) sendHeartbeat() {
 	d.conn.WriteTo(data, addr)
 }
 
-// verifyPeer TCP 验证对端是否可连通
+// verifyPeer HTTP 验证对端搜索服务是否可连通
 func (d *LanDiscovery) verifyPeer(ip string, port string) bool {
 	port = strings.TrimPrefix(port, ":")
-	conn, err := net.DialTimeout("tcp", net.JoinHostPort(ip, port), 2*time.Second)
+	url := fmt.Sprintf("http://%s:%s/api/heartBeat", ip, port)
+	client := &http.Client{Timeout: 3 * time.Second}
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return false
 	}
-	conn.Close()
-	return true
+	// 增加 header 跳过远程节点的认证检查
+	req.Header.Set("X-Search-Gin-Remote", "true")
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
 }
 
 // upsertPeer 更新或添加节点
@@ -293,7 +303,13 @@ func GetOnlinePeers() []*Peer {
 }
 
 // AddPeer 动态添加节点（手动添加）
-func AddPeer(ip, port string) bool {
+func AddPeer(ip, port, filePort string) bool {
+	if port == "" {
+		port = "10081"
+	}
+	if filePort == "" {
+		filePort = "10082"
+	}
 	// TCP 验证可连通性
 	if !lanDiscovery.verifyPeer(ip, port) {
 		return false
@@ -305,6 +321,7 @@ func AddPeer(ip, port string) bool {
 		Port:     port,
 		IP:       ip,
 		Name:     ip,
+		FilePort: filePort,
 		LastSeen: time.Now().Unix(),
 	})
 	utils.InfoFormat("手动添加节点成功: %s (%s)", id, ip)
@@ -313,12 +330,20 @@ func AddPeer(ip, port string) bool {
 
 // ResolvePeerIP 从 NodeHost 解析对端 IP
 func ResolvePeerIP(nodeHost string) string {
-	lanDiscovery.mu.RLock()
-	defer lanDiscovery.mu.RUnlock()
-	if p, ok := lanDiscovery.peers[nodeHost]; ok {
+	if p := GetPeer(nodeHost); p != nil {
 		return p.IP
 	}
 	return ""
+}
+
+// GetPeer 从 NodeHost 获取完整 Peer 信息
+func GetPeer(nodeHost string) *Peer {
+	lanDiscovery.mu.RLock()
+	defer lanDiscovery.mu.RUnlock()
+	if p, ok := lanDiscovery.peers[nodeHost]; ok {
+		return p
+	}
+	return nil
 }
 
 // SetMovieNode 为 Movie 设置节点信息

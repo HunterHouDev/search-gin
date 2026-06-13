@@ -13,13 +13,21 @@ func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
 		skipPaths := []string{
-		 "/api/login",
+		"/api/login",
 		 "/login",
 		 "/",
 		 "/index.html",
 		 "/api/ws",
 		 "/api/lanPeers",
+		 "/api/heartBeat",
 		}
+
+		// 集群节点间转发携带此头，跳过认证
+		if c.GetHeader("X-Search-Gin-Remote") == "true" {
+			c.Next()
+			return
+		}
+
 		for _, sp := range skipPaths {
 			if strings.HasSuffix(sp, "/") {
 				if strings.HasPrefix(path, sp) {

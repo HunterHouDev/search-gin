@@ -32,7 +32,6 @@
         <q-tab name="base" label="基础设置" />
         <q-tab name="note" label="网络设置" />
         <q-tab name="system" label="系统设置" />
-        <q-tab name="user" label="用户管理" />
       </q-tabs>
     </q-header>
     <q-page-container class="scroll" style="margin-top: 4rem">
@@ -350,48 +349,6 @@
         </q-tab-panel>
 
 
-        <!-- 用户管理面板 -->
-        <q-tab-panel name="user">
-          <div class="q-gutter-md">
-            <!-- 添加用户 -->
-            <q-card flat bordered class="q-pa-md">
-              <q-card-section>
-                <div class="text-h6 q-mb-md">添加用户</div>
-                <q-input v-model="newUser.username" label="用户名" class="q-mb-sm" />
-                <q-input v-model="newUser.password" label="密码" type="password" class="q-mb-sm" />
-                <q-input v-model="newUser.expireDate" label="有效期（可选，YYYY-MM-DD）" class="q-mb-sm">
-                  <template v-slot:append>
-                    <q-icon name="event" class="cursor-pointer">
-                      <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-                        <q-date v-model="newUser.expireDate" mask="YYYY-MM-DD" today-btn />
-                      </q-popup-proxy>
-                    </q-icon>
-                  </template>
-                </q-input>
-                <q-btn color="primary" label="添加" @click="addUser" />
-              </q-card-section>
-            </q-card>
-
-            <!-- 用户列表 -->
-            <q-card flat bordered class="q-pa-md">
-              <q-card-section>
-                <div class="text-h6 q-mb-md">用户列表</div>
-                <q-list bordered separator>
-                  <q-item v-for="user in userList" :key="user.username">
-                    <q-item-section>
-                      <q-item-label>{{ user.username }}</q-item-label>
-                      <q-item-label caption v-if="user.expireDate">有效期至：{{ user.expireDate }}</q-item-label>
-                      <q-item-label caption v-else>永不过期</q-item-label>
-                    </q-item-section>
-                    <q-item-section side>
-                      <q-btn flat round icon="delete" color="negative" @click="deleteUser(user.username)" />
-                    </q-item-section>
-                  </q-item>
-                </q-list>
-              </q-card-section>
-            </q-card>
-          </div>
-        </q-tab-panel>
       </q-tab-panels>
     </q-page-container>
     <q-footer elevated class="glossy">
@@ -422,9 +379,6 @@ import {
   GetSettingInfo,
   PostSettingInfo,
   GetIpAddr,
-  GetUsers,
-  AddUser,
-  DeleteUser,
   AppRestart,
 } from '../../components/api/settingAPI';
 import MutiSelector from '../../components/MutiSelector.vue';
@@ -458,62 +412,6 @@ const view = reactive({
   ipAddr: '',
 });
 const systemProperty = useSystemProperty();
-
-// 用户管理
-const newUser = reactive({
-  username: '',
-  password: '',
-  expireDate: '',
-});
-const userList = ref([]);
-
-const fetchUsers = async () => {
-  try {
-    const res = await GetUsers();
-    if (res.code === 200) {
-      userList.value = res.data;
-    }
-  } catch (error) {
-    console.error('获取用户列表失败:', error);
-  }
-};
-
-const addUser = async () => {
-  if (!newUser.username || !newUser.password) {
-    $q.notify({ type: 'warning', message: '请填写用户名和密码' });
-    return;
-  }
-  try {
-    const res = await AddUser(newUser.username, newUser.password, newUser.expireDate);
-    if (res.code === 200) {
-      $q.notify({ type: 'positive', message: '添加成功' });
-      newUser.username = '';
-      newUser.password = '';
-      newUser.expireDate = '';
-      fetchUsers();
-    } else {
-      $q.notify({ type: 'negative', message: res.message || '添加失败' });
-    }
-  } catch (error) {
-    $q.notify({ type: 'negative', message: '添加失败' });
-    console.error(error);
-  }
-};
-
-const deleteUser = async (username) => {
-  try {
-    const res = await DeleteUser(username);
-    if (res.code === 200) {
-      $q.notify({ type: 'positive', message: '删除成功' });
-      fetchUsers();
-    } else {
-      $q.notify({ type: 'negative', message: res.message || '删除失败' });
-    }
-  } catch (error) {
-    $q.notify({ type: 'negative', message: '删除失败' });
-    console.error(error);
-  }
-};
 
 const themeStyle = computed(() => {
   return {
@@ -606,7 +504,6 @@ onMounted(() => {
   document.title = '设置';
   fetchSearch();
   queryIpAddr();
-  fetchUsers();
 });
 </script>
 <style lang="scss" scoped>
