@@ -239,8 +239,8 @@ import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import SkeletonLoader from 'components/SkeletonLoader.vue';
 import {
-  DeleteFolerByPath,
-  OpenFolerByPath,
+  DeleteFolderByPath,
+  OpenFolderByPath,
 } from '../components/api/searchAPI';
 import {
   ScanTime,
@@ -352,7 +352,7 @@ onMounted(() => {
 
 const openThis = async (data) => {
   const { Name } = data;
-  const res = await OpenFolerByPath({ dirpath: Name });
+  const res = await OpenFolderByPath({ dirpath: Name });
   if (res.Code === 200) {
     $q.notify({ type: 'positive', message: '执行成功' });
   } else {
@@ -361,7 +361,7 @@ const openThis = async (data) => {
 };
 const deleteThis = async (data) => {
   const { Name } = data;
-  const res = await DeleteFolerByPath({ dirpath: Name });
+  const res = await DeleteFolderByPath({ dirpath: Name });
   if (res.Code === 200) {
     $q.notify({ type: 'positive', message: '执行成功' });
     indexButton.value.refreshIndex();

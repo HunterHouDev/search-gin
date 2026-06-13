@@ -77,7 +77,7 @@ func (q *taskQueue) executeTask(task *scanTask) {
 	queryTypes = utils.ExtendsItems(queryTypes, setting.ImageTypes)
 
 	// 执行扫描
-	files, _ := FileApp.WalkInnter(task.baseDir, queryTypes, true, task.baseDir)
+	files, _ := FileApp.WalkInner(task.baseDir, queryTypes, true, task.baseDir)
 	newBucket := newInstanceWithFiles(task.baseDir, files)
 	// 影子索引：构造新快照并原子替换
 	SearchEngin.rebuildWithBucket(task.baseDir, newBucket)

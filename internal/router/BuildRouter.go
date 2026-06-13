@@ -99,8 +99,8 @@ func BuildAPIRouter() *gin.Engine {
 	router.GET("/api/delete/:id", handler.GetDelete)
 
 	router.GET("/api/openFolder/:id", handler.GetOpenFolder)
-	router.POST("/api/OpenFolerByPath", handler.PostOpenFolderByPath)
-	router.POST("/api/DeleteFolerByPath", handler.PostDeleteFolerByPath)
+	router.POST("/api/OpenFolderByPath", handler.PostOpenFolderByPath)
+	router.POST("/api/DeleteFolderByPath", handler.PostDeleteFolderByPath)
 	router.POST("/api/moveFile", handler.PostMove)
 
 	router.GET("/api/DeleteFileByPathUseEncode/:path", handler.GetDeleteFileByPathUseEncode)
@@ -122,7 +122,7 @@ func BuildAPIRouter() *gin.Engine {
 	router.GET("/api/seriesCount", handler.GetSeriesSize)
 	router.GET("/api/scanTime", handler.GetScanTime)
 	router.GET("/api/heartBeat", handler.GetHeartBeat)
-	router.GET("/api/logMemery", handler.GetLogMemery)
+	router.GET("/api/logMemory", handler.GetLogMemory)
 	router.GET("/api/indexHealth", handler.GetIndexHealthCheck)
 	router.GET("/api/ws", handler.HandleWebSocket)
 

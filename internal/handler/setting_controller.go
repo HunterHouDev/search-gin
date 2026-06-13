@@ -1,4 +1,4 @@
-﻿package handler
+package handler
 
 import (
 	"crypto/rand"
@@ -71,9 +71,6 @@ func Login(c *gin.Context) {
 
 	c.JSON(http.StatusUnauthorized, utils.NewFailByMsg("用户名或密码错误"))
 }
-
-// 在consts包中添加token存储
-// 这里简单存储在内存中
 
 func GetSettingInfo(c *gin.Context) {
 	setting := consts.GetOSSetting()

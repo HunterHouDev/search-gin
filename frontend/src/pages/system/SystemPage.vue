@@ -131,7 +131,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { GetSettingInfo, GetIpAddr, GeMemeryLog, GetLanPeers, PostSettingInfo } from '../../components/api/settingAPI';
@@ -148,7 +148,6 @@ const view = reactive({
 
 const fetchSearch = async () => {
   const { data } = await GetSettingInfo();
-  console.log(data);
   view.settingInfo = data;
   // nil/未配置 → 默认 true
   cluster.clusterEnabled = data.enableLanDiscovery !== false;

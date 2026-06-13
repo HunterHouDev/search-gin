@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"search-gin/pkg/consts"
+	"search-gin/pkg/utils"
 )
 
 func AuthMiddleware() gin.HandlerFunc {
@@ -41,13 +42,13 @@ func AuthMiddleware() gin.HandlerFunc {
 			token = c.Query("token")
 		}
 		if token == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "no token"})
+			c.JSON(http.StatusUnauthorized, utils.NewFailByMsg("未认证"))
 			c.Abort()
 			return
 		}
 		tokenInfo, valid := consts.ValidateTokenWithInfo(token)
 		if !valid {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			c.JSON(http.StatusUnauthorized, utils.NewFailByMsg("认证失败"))
 			c.Abort()
 			return
 		}

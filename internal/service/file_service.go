@@ -474,7 +474,7 @@ func (fs *fileService) goWalkWithResult(baseDir string, types []string, resultCh
 
 	AddLogMemory("goWalkWithResult: 开始扫描目录 %s", baseDir)
 	start := time.Now()
-	files, size := fs.WalkInnter(baseDir, types, true, baseDir)
+	files, size := fs.WalkInner(baseDir, types, true, baseDir)
 
 	AddLogMemory("goWalkWithResult: 扫描完成 %s, 发现 %d 个文件", baseDir, len(files))
 	// 更新已扫描文件计数
@@ -508,11 +508,11 @@ type scanResult struct {
 
 // Walk 遍历目录，获取指定类型文件列表（轻量版，不建索引）
 func (fs *fileService) Walk(dirPath string, types []string, deep bool) []model.Movie {
-	files, _ := fs.WalkInnter(dirPath, types, deep, dirPath)
+	files, _ := fs.WalkInner(dirPath, types, deep, dirPath)
 	return files
 }
 
-func (fs *fileService) WalkInnter(currentDir string, types []string, queryChild bool, basePath string) ([]model.Movie, int64) {
+func (fs *fileService) WalkInner(currentDir string, types []string, queryChild bool, basePath string) ([]model.Movie, int64) {
 	typeSet := utils.ToSet(types)
 
 	dirStack := []stackItem{{path: currentDir, queryChild: queryChild, visited: false}}
@@ -698,7 +698,7 @@ func (fs *fileService) transferFormatWithCopy(model model.TransferTaskModel) uti
 	thisNow := model.CreateTime
 
 	args := []string{"-i", from, "-vcodec", "copy", dest}
-	res := fs.ffmepgExec(args, thisNow)
+	res := fs.ffmpegExec(args, thisNow)
 
 	if res.IsSuccess() {
 		fs.cleanupSourceIfNeeded(model.Path)
@@ -731,7 +731,7 @@ func (fs *fileService) TransferFormatter264(model model.TransferTaskModel) utils
 		args = append(args, strings.Fields(decodeParams)...)
 	}
 	args = append(args, "-i", from, "-c:v", encoder, qualityParam, "23", dest)
-	res := fs.ffmepgExec(args, thisNow)
+	res := fs.ffmpegExec(args, thisNow)
 
 	if res.IsSuccess() {
 		fs.cleanupSourceIfNeeded(model.Path)
@@ -764,7 +764,7 @@ func (fs *fileService) TransferFormatter265(model model.TransferTaskModel) utils
 		args = append(args, strings.Fields(decodeParams)...)
 	}
 	args = append(args, "-i", from, "-c:v", encoder, qualityParam, "28", dest)
-	res := fs.ffmepgExec(args, thisNow)
+	res := fs.ffmpegExec(args, thisNow)
 
 	if res.IsSuccess() {
 		fs.cleanupSourceIfNeeded(model.Path)
@@ -778,7 +778,7 @@ func (fs *fileService) MergeFiles(model model.TransferTaskModel) utils.Result {
 	thisNow := model.CreateTime
 
 	args := []string{"-f", "concat", "-safe", "0", "-i", model.ConcatFile, "-vcodec", "copy", model.Dest}
-	res := fs.ffmepgExec(args, thisNow)
+	res := fs.ffmpegExec(args, thisNow)
 
 	if res.IsSuccess() && model.DeleteSource {
 		fs.cleanupSourceIfNeeded(model.Path)
@@ -801,7 +801,7 @@ func (fs *fileService) CutFormatter(model model.TransferTaskModel) utils.Result 
 	thisNow := model.CreateTime
 
 	args := []string{"-i", from, "-ss", model.Start, "-t", model.End, "-c", "copy", dest}
-	res := fs.ffmepgExec(args, thisNow)
+	res := fs.ffmpegExec(args, thisNow)
 
 	if res.IsSuccess() && consts.GetOSSetting().CutThenDelete {
 		fs.cleanupSourceIfNeeded(model.Path)
@@ -865,8 +865,8 @@ func (fs *fileService) CutImage(path string, typeImage string, start string) uti
 	return res
 }
 
-// ffmepgExec 执行ffmpeg命令
-func (fs *fileService) ffmepgExec(args []string, thisNow time.Time) utils.Result {
+// ffmpegExec 执行ffmpeg命令
+func (fs *fileService) ffmpegExec(args []string, thisNow time.Time) utils.Result {
 	consts.TransferTaskMutex.Lock()
 	task, exists := consts.TransferTask[thisNow]
 	if !exists {

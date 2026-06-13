@@ -14,6 +14,7 @@ func InterfaceToMap(setting interface{}) map[string]interface{} {
 	}
 	return data
 }
+// InterfaceFields 获取结构体字段名列表
 func InterfaceFields(setting interface{}) []string {
 
 	refType := reflect.TypeOf(setting)
@@ -24,7 +25,7 @@ func InterfaceFields(setting interface{}) []string {
 	return data
 }
 
-func FieldsMapToStruck(setting interface{}, valueMap map[string]interface{}) error {
+func FieldsMapToStruct(setting interface{}, valueMap map[string]interface{}) error {
 	jsn, _ := json.Marshal(valueMap)
 	err := json.Unmarshal(jsn, setting)
 	if err != nil {

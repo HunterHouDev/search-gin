@@ -233,7 +233,7 @@ import {
   CutImage,
   DeleteFileByPathUseEncode,
   QueryDirImageBase64,
-  OpenFolerByPath,
+  OpenFolderByPath,
 } from 'components/api/searchAPI';
 import { getTempImage } from 'components/utils/images';
 import { isMobile } from 'src/boot/platform';
@@ -473,7 +473,7 @@ const scalePng = () => {
       document.body.removeChild(a); // 移除链接
       URL.revokeObjectURL(a.href); // 释放URL对象
     });
-    OpenFolerByPath(view.item.DirPath);
+    OpenFolderByPath(view.item.DirPath);
     // OpenFolerByPath({ dirpath: 'downloads' });
   }
 };

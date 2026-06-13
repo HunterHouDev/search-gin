@@ -1,14 +1,14 @@
-﻿package handler
+package handler
 
 import (
-	"net/http"
-	"search-gin/internal/service"
-	"search-gin/pkg/consts"
-	"search-gin/pkg/utils"
-	"sort"
-	"sync"
+ "net/http"
+ "search-gin/internal/service"
+ "search-gin/pkg/consts"
+ "search-gin/pkg/utils"
+ "sort"
+ "sync"
 
-	"github.com/gin-gonic/gin"
+ "github.com/gin-gonic/gin"
 )
 
 func Index(c *gin.Context) {
@@ -44,7 +44,7 @@ func GetSeriesSize(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 
-func GetLogMemery(c *gin.Context) {
+func GetLogMemory(c *gin.Context) {
 	c.JSON(http.StatusOK, consts.LogMemory)
 }
 

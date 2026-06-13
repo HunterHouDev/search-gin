@@ -123,12 +123,12 @@ export const MoveFile = async (data: unknown) => {
   return res && res.data;
 }
 
-export const OpenFolerByPath = async (data: unknown) => {
-  const res = await commonAxios().post('/api/OpenFolerByPath', data);
+export const OpenFolderByPath = async (data: unknown) => {
+  const res = await commonAxios().post('/api/OpenFolderByPath', data);
   return res && res.data;
 };
-export const DeleteFolerByPath = async (data: unknown) => {
-  const res = await commonAxios().post('/api/DeleteFolerByPath', data);
+export const DeleteFolderByPath = async (data: unknown) => {
+  const res = await commonAxios().post('/api/DeleteFolderByPath', data);
   return res && res.data;
 };
 

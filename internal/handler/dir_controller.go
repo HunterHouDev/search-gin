@@ -54,8 +54,8 @@ func PostOpenFolderByPath(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 
-// PostDeleteFolerByPath 通过路径删除文件夹
-func PostDeleteFolerByPath(c *gin.Context) {
+// PostDeleteFolderByPath 通过路径删除文件夹
+func PostDeleteFolderByPath(c *gin.Context) {
 
 	forms := make(map[string]string)
 	err := c.ShouldBindJSON(&forms)

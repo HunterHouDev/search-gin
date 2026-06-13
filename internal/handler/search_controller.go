@@ -1,4 +1,4 @@
-﻿// controller 包包含所有HTTP请求的处理函数
+// controller 包包含所有HTTP请求的处理函数
 // 这些函数负责接收请求、处理业务逻辑并返回响应
 package handler
 
