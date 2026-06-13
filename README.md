@@ -72,9 +72,10 @@ search-gin/
 │   ├── model/           # 数据模型
 │   ├── router/          # 路由注册
 │   ├── service/         # 业务逻辑（索引、搜索、文件扫描、多节点集群）
-│   │   ├── lan_discovery.go    # UDP 组播节点发现
-│   │   ├── remote_search.go    # 跨节点搜索 + 合并去重
-│   │   └── remote_operation.go # 跨节点文件操作转发
+│   │   ├── lan_discovery.go      # UDP 组播节点发现
+│   │   ├── remote_search.go      # 跨节点搜索 + 合并去重
+│   │   ├── remote_operation.go   # 跨节点文件操作转发
+│   │   └── index_engine_cache.go # 快照磁盘缓存（gob 序列化）
 │   └── env/             # 环境配置（prod/dev build tag）
 ├── pkg/
 │   ├── consts/          # 常量、配置、Token 管理
@@ -95,7 +96,7 @@ search-gin/
   - `:10082` — 文件/图片/视频流（无需认证，跨节点直连使用）
   - `:10083` — UDP 组播（多节点自动发现）
 - **认证**：默认管理员 `admin` / `qwer`，Token 存储在内存中
-- **无数据库**：所有数据为内存存储，通过文件系统扫描填充，重启后需重新索引
+- **无数据库**：所有数据为内存存储，通过文件系统扫描填充。索引快照自动持久化到 `search_cache.gob`（gob 序列化），重启后优先加载缓存，用户无空白等待期；后台继续扫描以同步最新文件变更
 - **多节点**：`setting.json` 中配置 `enableLanDiscovery: true` 开启 UDP 组播发现，节点间通过 `:10082` 直连传输文件流
 
 ## 主要依赖
@@ -223,6 +224,44 @@ ScanAll()
 4. 在新集合上运行 `buildSnapshotFromBuckets`
 5. `installSnapshot` 原子替换
 
+### 快照磁盘缓存（填补启动空窗期）
+
+`installSnapshot` 每次执行时异步将当前快照序列化（`encoding/gob`）写入工作目录的 `search_cache.gob`：
+
+```
+installSnapshot(newSnap)
+  ├─ snapshot.Store(newSnap)
+  ├─ 同步菜单到 consts.**
+  ├─ 清空 LRU 缓存
+  └─ saveSnapshotToCache(newSnap)    ← 异步 goroutine
+       ├─ 遍历 buckets，持有 RLock 复制数据
+       ├─ gob.Encode → .tmp 文件
+       └─ os.Rename → search_cache.gob   ← 原子替换，防碎裂
+```
+
+**启动时**（`main.go` L41-42）在 HTTP 服务启动前加载缓存：
+
+```
+main()
+  ├─ TempDir = getwd()
+  ├─ LoadCachedSnapshot()                ← 加载磁盘缓存
+  │     └─ installSnapshot(loaded)       ← 用户立刻可搜
+  ├─ InitSetting()
+  ├─ StartScanQueue() / ScanAll()        ← 后台扫描, 完成后原子替换
+  └─ server.ListenAndServe()
+```
+
+**设计要点：**
+
+| 决策 | 理由 |
+|------|------|
+| 每次 `installSnapshot` 都保存 | 保证缓存与内存状态一致，无不一致窗口 |
+| 空快照跳过（`len(buckets)==0`） | 防止 `Reset()` 清空磁盘缓存 |
+| 异步写入 goroutine | 不阻塞搜索/扫描路径 |
+| `encoding/gob` 而非 JSON | 二进制紧凑、支持 Go 原生类型、无需 tag |
+| `.tmp` + `Rename` 原子写入 | 防止写入中断导致文件损坏 |
+| 启动静默降级 | 缓存不存在/损坏/版本不匹配时打日志后继续正常扫描 |
+
 ### 并发安全设计
 
 | 场景 | 机制 | 级别 |
@@ -232,6 +271,7 @@ ScanAll()
 | Bucket 内部写入 | `bucketFile.mu` (RWMutex) | 细粒度，不影响其他 bucket |
 | 全局菜单同步 | `sync.Map` | 原子读写 |
 | LRU 缓存 | `sync.RWMutex` + double-check | 高并发读优化 |
+| 快照磁盘缓存 | 异步 goroutine + 原子 rename | 不阻塞任何路径，写中断不损坏文件 |
 
 ### 性能特征
 
@@ -242,6 +282,8 @@ ScanAll()
 | 类型筛选 | O(匹配数) | 走 TypeIndex 倒排索引 |
 | 索引构建 | O(文件总数) | 全量扫描，单次构建 |
 | 增量更新 | O(目标目录文件数) | 只重建一个 bucket |
+| 缓存加载 | O(文件总数) | 启动时 gob 反序列化，代替扫描 |
+| 缓存保存 | O(文件总数) | scan 完成后异步 gob 序列化 + 原子写盘 |
 
 > 关键词搜索 O(n) 是当前瓶颈。文件数 10 万级时搜索延时仍在可接受范围（毫秒级），百万级需引入倒排索引。
 
