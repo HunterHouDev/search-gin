@@ -38,6 +38,9 @@ func main() {
 	}
 	service.TempDir = tempDir
 
+	// ── 2.1 加载上次扫描的索引缓存（填补启动空窗期） ──
+	service.SearchEngine.LoadCachedSnapshot()
+
 	// ── 2. 解压嵌入式资源 ──
 	assetsExtracted := extractAssets(tempDir)
 

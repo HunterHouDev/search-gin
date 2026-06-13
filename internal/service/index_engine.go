@@ -84,6 +84,9 @@ func (se *searchEngineCore) installSnapshot(snap *searchSnapshot) {
 		consts.SeriesCount.Store(k, v)
 	}
 	consts.LastScanTime = time.Now()
+
+	// 异步保存缓存快照，保证下次启动时能恢复本次索引状态
+	saveSnapshotToCache(snap)
 }
 
 // Reset 清空搜索引擎全部状态和缓存
