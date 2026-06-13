@@ -656,9 +656,9 @@ import {
 
 const getImage = (item) => {
   if (systemProperty.showImage === 'poster') {
-    return item.pngUrl;
+    return item.PngUrl;
   }
-  return item.jpgUrl;
+  return item.JpgUrl;
 };
 
 import DataPop from 'components/DataPop.vue';

@@ -17,9 +17,9 @@ import (
 )
 
 const (
-	maxConcurrentPeers = 5
+	maxConcurrentPeers  = 5
 	remoteSearchTimeout = 2 * time.Second
-	maxPageSize        = 99999 // 远程搜索获取全部结果
+	maxPageSize         = 99999 // 远程搜索获取全部结果
 )
 
 // SearchPeers 并发搜索所有在线远程节点
@@ -178,7 +178,7 @@ func FillURLs(c *gin.Context, movies []model.FileItem) {
 // pickLocalIP 从客户端 IP 找到本机同网段的出口 IP
 func pickLocalIP(clientIP string) string {
 	parsedIP := net.ParseIP(clientIP)
-	if parsedIP == nil {
+	if parsedIP == nil || parsedIP.IsLoopback() {
 		return fallbackLocalIP()
 	}
 
@@ -187,6 +187,23 @@ func pickLocalIP(clientIP string) string {
 		return fallbackLocalIP()
 	}
 
+	// 优先匹配 IPv4 同网段
+	for _, iface := range interfaces {
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			ipNet, ok := addr.(*net.IPNet)
+			if !ok {
+				continue
+			}
+			if ipNet.IP.To4() != nil && ipNet.Contains(parsedIP) {
+				return ipNet.IP.String()
+			}
+		}
+	}
+	// 兜底：匹配 IPv6 同网段
 	for _, iface := range interfaces {
 		addrs, err := iface.Addrs()
 		if err != nil {
