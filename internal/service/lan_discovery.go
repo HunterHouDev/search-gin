@@ -119,6 +119,10 @@ func loadStaticPeers() {
 		}
 		ip := parts[0]
 		port := parts[1]
+		filePort := ""
+		if len(parts) >= 3 {
+			filePort = parts[2]
+		}
 		id := fmt.Sprintf("%s:%s", ip, port)
 		lanDiscovery.mu.Lock()
 		lanDiscovery.peers[id] = &Peer{
@@ -127,6 +131,7 @@ func loadStaticPeers() {
 			Port:     port,
 			IP:       ip,
 			Name:     ip,
+			FilePort: filePort,
 			LastSeen: time.Now().Unix(),
 		}
 		lanDiscovery.mu.Unlock()
@@ -324,6 +329,21 @@ func AddPeer(ip, port, filePort string) bool {
 		FilePort: filePort,
 		LastSeen: time.Now().Unix(),
 	})
+	// 持久化到 setting.json，重启后自动加载
+	addr := fmt.Sprintf("%s:%s:%s", ip, port, filePort)
+	consts.UpdateOSSetting(func(s model.Setting) model.Setting {
+		for _, v := range s.DiscoveryPeers {
+			if v == addr {
+				return s // 已存在
+			}
+		}
+		s.DiscoveryPeers = append(s.DiscoveryPeers, addr)
+		return s
+	})
+	// 刷新配置文件
+	curDir, _ := os.Getwd()
+	setting := consts.GetOSSetting()
+	FlushDictionary(curDir + utils.PathSeparator + setting.SelfPath)
 	utils.InfoFormat("手动添加节点成功: %s (%s)", id, ip)
 	return true
 }

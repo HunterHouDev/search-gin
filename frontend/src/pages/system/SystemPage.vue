@@ -114,7 +114,16 @@
             </q-table>
 
             <div v-if="cluster.peers.length === 0 && !cluster.loading" class="text-center q-py-md text-grey">
-              暂未发现其他在线节点
+              <div class="q-mb-sm">暂未发现其他在线节点</div>
+              <div class="text-caption">
+                <div v-if="!cluster.clusterEnabled" class="text-warning">⚠ 集群模式已关闭，请在「本机信息」中开启</div>
+                <div v-else class="text-info">
+                  集群已启用，正在通过 UDP 组播 (239.255.255.250:10083) 发现节点<br>
+                  • 确保其他节点也已启用集群并已重启<br>
+                  • 检查防火墙是否放行 UDP 10083 端口<br>
+                  • 所有节点需在同一网段
+                </div>
+              </div>
             </div>
           </q-card-section>
         </q-card>
