@@ -26,7 +26,7 @@ const view = reactive({
 const fetchSearch = async () => {
   const { data } = await GeMemeryLog();
   console.log(data);
-  view.logs = data.reverse();
+  view.logs = Array.isArray(data) ? data.reverse() : [];
 };
 let intervalId;
 

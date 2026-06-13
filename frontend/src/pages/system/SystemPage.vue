@@ -1,10 +1,10 @@
 <template>
   <div class="q-pa-md">
-    <q-tabs 
-      v-model="tab" 
+    <q-tabs
+      v-model="tab"
       class="q-mb-md setting-tabs"
-      align="justify" 
-      narrow-indicator 
+      align="justify"
+      narrow-indicator
       active-color="white"
       indicator-color="white"
       glossy
@@ -63,7 +63,29 @@
           </q-card-section>
         </q-card>
 
-        <q-card class="theme-card">
+        <q-card class="q-mb-md theme-card">
+          <q-card-section>
+            <h6 class="text-subtitle1 q-mb-sm">手动添加在线节点</h6>
+            <div class="row q-gutter-sm">
+              <q-input
+                v-model="newPeerInput"
+                placeholder="例如: 192.168.1.102:10081"
+                dense
+                outlined
+                style="max-width: 250px"
+                @keyup.enter="addManualPeer"
+              />
+              <q-btn color="primary" dense icon="add" @click="addManualPeer" :disable="!newPeerInput.trim()">
+                添加
+              </q-btn>
+            </div>
+            <p class="text-grey text-caption q-mt-sm">
+              添加后会自动验证节点是否可达，成功后显示在在线节点列表中
+            </p>
+          </q-card-section>
+        </q-card>
+
+        <q-card class="q-mb-md theme-card">
           <q-card-section>
             <div class="row items-center justify-between q-mb-sm">
               <h6 class="text-subtitle1 q-mb-none">在线节点 ({{ cluster.peers.length }})</h6>
@@ -134,14 +156,15 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useQuasar } from 'quasar';
-import { GetSettingInfo, GetIpAddr, GeMemeryLog, GetLanPeers, PostSettingInfo } from '../../components/api/settingAPI';
+import { GetSettingInfo, GetIpAddr, GeMemeryLog, GetLanPeers, PostSettingInfo, AddLanPeer } from '../../components/api/settingAPI';
 import { useSystemProperty } from '../../stores/System';
 
 const systemProperty = useSystemProperty();
 const $q = useQuasar();
 const tab = ref('info');
+const newPeerInput = ref('');
 const view = reactive({
-  settingInfo: {},
+  settingInfo: {} as any,
   ipAddr: '',
   logs: [],
 });
@@ -166,7 +189,7 @@ const queryIpAddr = async () => {
 
 const fetchLogs = async () => {
   const { data } = await GeMemeryLog();
-  view.logs = data.reverse();
+  view.logs = Array.isArray(data) ? data.reverse() : [];
 };
 
 let logIntervalId;
@@ -220,6 +243,32 @@ const checkPeer = async (peer) => {
   }
 };
 
+const addManualPeer = async () => {
+  const addr = newPeerInput.value.trim();
+  if (!addr) return;
+
+  // 检查是否已在在线列表中
+  const exists = cluster.peers.some(p => p.ID === addr || `${p.IP}:${p.Port}` === addr);
+  if (exists) {
+    $q.notify({ message: '节点已在线', color: 'warning', position: 'top', timeout: 2000 });
+    return;
+  }
+
+  try {
+    const res = await AddLanPeer(addr);
+    if (res.success) {
+      $q.notify({ message: '添加成功', color: 'positive', position: 'top', timeout: 2000 });
+      newPeerInput.value = '';
+      await fetchPeers(); // 刷新在线节点列表
+    } else {
+      $q.notify({ message: res.msg || '添加失败', color: 'negative', position: 'top', timeout: 2000 });
+    }
+  } catch (e) {
+    console.error('添加节点失败', e);
+    $q.notify({ message: '添加失败', color: 'negative', position: 'top', timeout: 2000 });
+  }
+};
+
 const toggleLanDiscovery = async (val) => {
   try {
     view.settingInfo.enableLanDiscovery = val;
@@ -257,7 +306,7 @@ onUnmounted(() => {
 <style lang="scss" scoped>
 .setting-tabs {
   border-radius: 8px 8px 0 0;
-  
+
   .q-tab {
     font-weight: 500;
     letter-spacing: 0.5px;

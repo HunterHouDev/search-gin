@@ -24,6 +24,7 @@ export class SettingInfo {
 
   EnableLanDiscovery: boolean | null = null;
   NodeName: string | undefined;
+  DiscoveryPeers: string[] = [];
 
   ControllerHost: string | undefined;
   FileHost: string | undefined;
