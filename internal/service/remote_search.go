@@ -154,26 +154,11 @@ func ParseTotalSize(s string) int64 {
 	}
 }
 
-// MergeResults 合并本地与远程结果，按 Code+Size 或 Name+Size 去重，本机优先
+// MergeResults 合并本地与远程结果，保留所有文件（不主动去重）
 func MergeResults(local, remote []model.FileItem) []model.FileItem {
-	seen := make(map[string]bool)
 	merged := make([]model.FileItem, 0, len(local)+len(remote))
-
-	// 本机优先
-	for _, m := range local {
-		key := dedupKey(m)
-		seen[key] = true
-		merged = append(merged, m)
-	}
-
-	// 远程：不重复才加入
-	for _, m := range remote {
-		key := dedupKey(m)
-		if !seen[key] {
-			merged = append(merged, m)
-			seen[key] = true
-		}
-	}
+	merged = append(merged, local...)
+	merged = append(merged, remote...)
 	return merged
 }
 

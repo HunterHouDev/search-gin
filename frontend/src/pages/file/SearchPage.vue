@@ -508,8 +508,23 @@
                   height: isLarge ? '51px' : '34px',
                   fontSize: isLarge ? '14px' : '14px',
                   color: 'grey',
-                  backgroundColor: 'rgba(250, 250, 250,0.8)',
+                  backgroundColor: 'rgba(250, 250, 250,0.4)',
                 }">
+                  <span
+                    :style="{
+                      color: item.nodeName === localNodeName ? 'black' : 'purple',
+                      marginRight: '1px',
+                      backgroundColor: 'rgba(0, 0, 0, 0.1)',
+                    }"
+                    class="cursor-pointer"
+                  >
+                    {{ item.nodeName === localNodeName ? '本机' : '集群' }}
+                    <q-tooltip class="bg-white text-primary">
+                      <div v-if="item.nodeName === localNodeName">来源: 本机</div>
+                      <div v-else>来源: {{ item.nodeName }}</div>
+                      <div>节点: {{ item.nodeHost }}</div>
+                    </q-tooltip>
+                  </span>
                   <span style="
                     color: green;
                     margin-right: 1px;
