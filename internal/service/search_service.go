@@ -18,7 +18,7 @@ type searchService struct{}
 
 func (fs *searchService) SearchDataSource(searchParam model.SearchParam) utils.Page {
 	result := utils.NewPage()
-	searchResult := SearchEngin.PageAsync(searchParam)
+	searchResult := SearchEngine.PageAsync(searchParam)
 	result.TotalCnt = searchResult.SearchCount
 	result.TotalSize = utils.GetSizeStr(searchResult.SearchSize)
 	result.PageSize = searchParam.PageSize
@@ -378,7 +378,7 @@ func httpGet(url string) (*resty.Response, error) {
 }
 
 func (fs *searchService) FindOne(Id string) model.Movie {
-	return SearchEngin.FindById(Id)
+	return SearchEngine.FindById(Id)
 }
 
 func cleanPath(name string) string {

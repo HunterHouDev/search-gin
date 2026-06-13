@@ -1,0 +1,506 @@
+package service
+
+import (
+	"search-gin/internal/model"
+	"search-gin/pkg/consts"
+	"search-gin/pkg/utils"
+	"sync"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+// ── 辅助函数 ──
+
+func makeMovie(id, name, path, code, movieType, actress string, size int64) model.Movie {
+	return model.Movie{
+		Id:        id,
+		Name:      name,
+		Path:      path,
+		Code:      code,
+		MovieType: movieType,
+		Actress:   actress,
+		Size:      size,
+		DirPath:   "/test",
+		BaseDir:   "/test",
+	}
+}
+
+func makeBucket(name string, movies ...model.Movie) *bucketFile {
+	b := newInstance(name)
+	for _, m := range movies {
+		b.put(m)
+	}
+	return b
+}
+
+// ── bucketFile 测试 ──
+
+func TestBucketFile_NewInstance(t *testing.T) {
+	b := newInstance("dir-a")
+	assert.NotNil(t, b)
+	assert.Equal(t, "dir-a", b.InstanceName)
+	assert.Equal(t, int64(0), b.TotalSize)
+	assert.Equal(t, 0, b.TotalCount)
+	assert.Empty(t, b.FileLib)
+	assert.Empty(t, b.TypeIndex)
+}
+
+func TestBucketFile_PutAndGet(t *testing.T) {
+	b := newInstance("dir-a")
+	m := makeMovie("1", "test.mp4", "/test/test.mp4", "ABC-123", "骑兵", "田中", 1024)
+
+	b.put(m)
+
+	assert.Equal(t, int64(1024), b.TotalSize)
+	assert.Equal(t, 1, b.TotalCount)
+
+	got := b.get("1")
+	assert.Equal(t, "test.mp4", got.Name)
+	assert.Equal(t, "ABC-123", got.Code)
+
+	// 不存在的 id
+	notFound := b.get("nonexist")
+	assert.True(t, notFound.IsNull())
+}
+
+func TestBucketFile_PutBatch(t *testing.T) {
+	b := newInstance("dir-a")
+	movies := []model.Movie{
+		makeMovie("1", "a.mp4", "/test/a.mp4", "AAA", "骑兵", "", 100),
+		makeMovie("2", "b.mp4", "/test/b.mp4", "BBB", "步兵", "", 200),
+		makeMovie("3", "c.mp4", "/test/c.mp4", "CCC", "骑兵", "", 300),
+	}
+	b.putBatch(movies)
+
+	assert.Equal(t, 3, b.TotalCount)
+	assert.Equal(t, int64(600), b.TotalSize)
+	assert.Equal(t, 2, len(b.TypeIndex["骑兵"]))
+	assert.Equal(t, 1, len(b.TypeIndex["步兵"]))
+}
+
+func TestBucketFile_IsEmpty(t *testing.T) {
+	b1 := newInstance("empty")
+	assert.True(t, b1.isEmpty())
+
+	b2 := makeBucket("not-empty", makeMovie("1", "f.mp4", "/f.mp4", "", "", "", 10))
+	assert.False(t, b2.isEmpty())
+}
+
+func TestBucketFile_TypeIndex(t *testing.T) {
+	b := newInstance("dir")
+	m1 := makeMovie("1", "a.mp4", "/a.mp4", "", "骑兵", "", 100)
+	m2 := makeMovie("2", "b.mp4", "/b.mp4", "", "步兵", "", 200)
+	m3 := makeMovie("3", "c.mp4", "/c.mp4", "", "骑兵", "", 300)
+
+	b.putBatch([]model.Movie{m1, m2, m3})
+
+	assert.Contains(t, b.TypeIndex["骑兵"], "1")
+	assert.Contains(t, b.TypeIndex["骑兵"], "3")
+	assert.Contains(t, b.TypeIndex["步兵"], "2")
+	assert.NotContains(t, b.TypeIndex["骑兵"], "2")
+
+	// 无类型的文件不加入索引
+	noType := makeMovie("4", "d.txt", "/d.txt", "", "", "", 50)
+	b.put(noType)
+	_, exists := b.TypeIndex[""]
+	assert.False(t, exists, "空类型不应加入 TypeIndex")
+}
+
+// ── buildSnapshotFromBuckets 测试 ──
+
+func TestBuildSnapshotFromBuckets_AggregatesStats(t *testing.T) {
+	b1 := makeBucket("dir-a",
+		makeMovie("1", "a.mp4", "/a.mp4", "AAA", "骑兵", "田中", 100),
+		makeMovie("2", "b.mp4", "/b.mp4", "BBB", "骑兵", "佐藤", 200),
+	)
+	b2 := makeBucket("dir-b",
+		makeMovie("3", "c.mp4", "/c.mp4", "CCC", "步兵", "田中", 300),
+	)
+
+	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir-a": b1, "dir-b": b2})
+
+	assert.Equal(t, int64(600), snap.totalSize)
+	assert.Equal(t, 3, snap.totalCount)
+	assert.Equal(t, int32(2), snap.bucketCount)
+}
+
+func TestBuildSnapshotFromBuckets_ActressAggregation(t *testing.T) {
+	b := makeBucket("dir",
+		makeMovie("1", "a.mp4", "/a.mp4", "", "骑兵", "田中", 100),
+		makeMovie("2", "b.mp4", "/b.mp4", "", "骑兵", "田中", 200),
+		makeMovie("3", "c.mp4", "/c.mp4", "", "步兵", "佐藤", 150),
+	)
+
+	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir": b})
+
+	assert.Equal(t, 2, len(snap.actressMap))
+	assert.Equal(t, 2, snap.actressMap["田中"].Cnt)
+	assert.Equal(t, int64(300), snap.actressMap["田中"].Size)
+	assert.Equal(t, 1, snap.actressMap["佐藤"].Cnt)
+}
+
+func TestBuildSnapshotFromBuckets_TypeMenu(t *testing.T) {
+	b := makeBucket("dir",
+		makeMovie("1", "a.mp4", "/a.mp4", "", "骑兵", "", 100),
+		makeMovie("2", "b.mp4", "/b.mp4", "", "步兵", "", 200),
+		makeMovie("3", "c.mp4", "/c.mp4", "", "骑兵", "", 300),
+	)
+
+	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir": b})
+
+	assert.Equal(t, int64(600), snap.typeMenu["全部"].Size)
+	assert.Equal(t, int64(400), snap.typeMenu["骑兵"].Size)
+	assert.Equal(t, int64(200), snap.typeMenu["步兵"].Size)
+}
+
+func TestBuildSnapshotFromBuckets_RepeatByCode(t *testing.T) {
+	b := makeBucket("dir",
+		makeMovie("1", "a.mp4", "/a.mp4", "ABC-123", "", "", 100),
+		makeMovie("2", "b.mp4", "/b.mp4", "ABC-123", "", "", 100), // 同 Code+Size
+	)
+
+	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir": b})
+	// 两个文件 Size 相同且 Code 相同 → 标记为重复
+	assert.GreaterOrEqual(t, len(snap.repeatFiles), 2, "重复文件应被检测到")
+}
+
+func TestBuildSnapshotFromBuckets_EmptyBucket(t *testing.T) {
+	b := newInstance("empty-dir")
+	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"empty-dir": b})
+
+	assert.Equal(t, int64(0), snap.totalSize)
+	assert.Equal(t, 0, snap.totalCount)
+	assert.Equal(t, int32(0), snap.bucketCount)
+}
+
+func TestBuildSnapshotFromBuckets_NoTypeFallsback(t *testing.T) {
+	m := makeMovie("1", "a.mp4", "/a.mp4", "", "", "", 100)
+	m.MovieType = "" // 确保无类型
+	b := makeBucket("dir", m)
+
+	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir": b})
+
+	// 空类型应归为"无"
+	assert.Contains(t, snap.typeMenu, "无")
+	assert.Equal(t, int64(100), snap.typeMenu["无"].Size)
+}
+
+// ── searchEngineCore 测试 ──
+
+func newTestEngine() searchEngineCore {
+	return searchEngineCore{
+		KeywordHistoryCache: utils.NewLRUCache(100),
+		searchPool:          utils.NewGoroutinePool(4),
+	}
+}
+
+func TestSearchEngineCore_IsEmpty(t *testing.T) {
+	core := newTestEngine()
+	defer core.Reset()
+
+	assert.True(t, core.IsEmpty())
+}
+
+func TestSearchEngineCore_InstallSnapshot(t *testing.T) {
+	core := newTestEngine()
+	defer core.Reset()
+
+	b := makeBucket("dir", makeMovie("1", "f.mp4", "/f.mp4", "", "", "", 100))
+	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir": b})
+	core.installSnapshot(snap)
+
+	assert.False(t, core.IsEmpty())
+	assert.Equal(t, 1, core.GetTotalCount())
+	assert.Equal(t, int64(100), core.GetTotalSize())
+	assert.Equal(t, int32(1), core.BucketCount())
+}
+
+func TestSearchEngineCore_Reset(t *testing.T) {
+	core := newTestEngine()
+
+	b := makeBucket("dir", makeMovie("1", "f.mp4", "/f.mp4", "", "", "", 100))
+	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir": b})
+	core.installSnapshot(snap)
+	core.Reset()
+
+	assert.True(t, core.IsEmpty())
+	assert.Equal(t, 0, core.GetTotalCount())
+}
+
+func TestSearchEngineCore_FindById(t *testing.T) {
+	core := newTestEngine()
+	defer core.Reset()
+
+	b := makeBucket("dir",
+		makeMovie("id-a", "a.mp4", "/a.mp4", "", "", "", 100),
+		makeMovie("id-b", "b.mp4", "/b.mp4", "", "", "", 200),
+	)
+	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir": b})
+	core.installSnapshot(snap)
+
+	found := core.FindById("id-a")
+	assert.False(t, found.IsNull())
+	assert.Equal(t, "a.mp4", found.Name)
+
+	notFound := core.FindById("nonexist")
+	assert.True(t, notFound.IsNull())
+}
+
+func TestSearchEngineCore_GetActorCount(t *testing.T) {
+	core := newTestEngine()
+	defer core.Reset()
+
+	b := makeBucket("dir",
+		makeMovie("1", "a.mp4", "/a.mp4", "", "骑兵", "田中", 100),
+		makeMovie("2", "b.mp4", "/b.mp4", "", "步兵", "佐藤", 200),
+	)
+	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir": b})
+	core.installSnapshot(snap)
+
+	assert.Equal(t, 2, core.GetActorCount())
+}
+
+func TestSearchEngineCore_FindActressByName(t *testing.T) {
+	core := newTestEngine()
+	defer core.Reset()
+
+	b := makeBucket("dir",
+		makeMovie("1", "a.mp4", "/a.mp4", "", "骑兵", "田中", 100),
+	)
+	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir": b})
+	core.installSnapshot(snap)
+
+	act := core.FindActressByName("田中")
+	assert.True(t, act.IsNotEmpty())
+	assert.Equal(t, "田中", act.Name)
+
+	notFound := core.FindActressByName("不存在")
+	assert.True(t, notFound.IsEmpty())
+}
+
+// ── bucketFile.searchBucket 测试 ──
+
+func TestBucketFile_SearchBucket_NoKeyword(t *testing.T) {
+	b := makeBucket("dir",
+		makeMovie("1", "a.mp4", "/test/a.mp4", "", "骑兵", "", 100),
+		makeMovie("2", "b.mp4", "/test/b.mp4", "", "步兵", "", 200),
+	)
+
+	param := model.SearchParam{Keyword: "", Page: 1, PageSize: 10}
+	result := b.searchBucket(param)
+	assert.Equal(t, 2, len(result.FileList))
+}
+
+func TestBucketFile_SearchBucket_KeywordMatch(t *testing.T) {
+	b := makeBucket("dir",
+		makeMovie("1", "alpha.mp4", "/test/alpha.mp4", "", "", "", 100),
+		makeMovie("2", "beta.mp4", "/test/beta.mp4", "", "", "", 200),
+		makeMovie("3", "gamma.mp4", "/test/gamma.mp4", "", "", "", 300),
+	)
+
+	param := model.SearchParam{Keyword: "alpha", Page: 1, PageSize: 10}
+	result := b.searchBucket(param)
+	assert.Equal(t, 1, len(result.FileList))
+	assert.Equal(t, "alpha.mp4", result.FileList[0].Name)
+}
+
+func TestBucketFile_SearchBucket_MultiKeywords(t *testing.T) {
+	b := makeBucket("dir",
+		makeMovie("1", "abc-def.mp4", "/test/abc-def.mp4", "", "", "", 100),
+		makeMovie("2", "abc-ghi.mp4", "/test/abc-ghi.mp4", "", "", "", 200),
+		makeMovie("3", "xyz.mp4", "/test/xyz.mp4", "", "", "", 300),
+	)
+
+	// 空格分隔 = AND 匹配
+	param := model.SearchParam{Keyword: "abc def", Page: 1, PageSize: 10}
+	result := b.searchBucket(param)
+	assert.Equal(t, 1, len(result.FileList))
+	assert.Equal(t, "abc-def.mp4", result.FileList[0].Name)
+}
+
+func TestBucketFile_SearchKeyword_TypeFilter(t *testing.T) {
+	b := makeBucket("dir",
+		makeMovie("1", "a.mp4", "/a.mp4", "", "骑兵", "", 100),
+		makeMovie("2", "b.mp4", "/b.mp4", "", "步兵", "", 200),
+		makeMovie("3", "c.mp4", "/c.mp4", "", "骑兵", "", 300),
+	)
+
+	param := model.SearchParam{Keyword: "", MovieType: "步兵", Page: 1, PageSize: 10}
+	result := b.searchBucket(param)
+	assert.Equal(t, 1, len(result.FileList))
+	assert.Equal(t, "b.mp4", result.FileList[0].Name)
+}
+
+func TestBucketFile_SearchKeyword_NoMatch(t *testing.T) {
+	b := makeBucket("dir",
+		makeMovie("1", "cat.mp4", "/test/cat.mp4", "", "", "", 100),
+	)
+
+	param := model.SearchParam{Keyword: "nonexistent", Page: 1, PageSize: 10}
+	result := b.searchBucket(param)
+	assert.Equal(t, 0, len(result.FileList))
+}
+
+// ── rebuildWithBucket 测试 ──
+
+func TestRebuildWithBucket_ReplacesExisting(t *testing.T) {
+	core := newTestEngine()
+	defer core.Reset()
+
+	// 设置配置目录使 rebuildWithBucket 不会跳过 bucket
+	orig := consts.GetOSSetting()
+	consts.SetOSSetting(model.Setting{
+		Dirs: []string{"dir-a"},
+	})
+	defer consts.SetOSSetting(orig)
+
+	// 初始：dir-a 有文件
+	b1 := makeBucket("dir-a", makeMovie("1", "old.mp4", "/old.mp4", "", "", "", 100))
+	snap1 := buildSnapshotFromBuckets(map[string]*bucketFile{"dir-a": b1})
+	core.installSnapshot(snap1)
+	assert.Equal(t, 1, core.GetTotalCount())
+
+	// 替换 dir-a 为新文件
+	b2 := makeBucket("dir-a", makeMovie("2", "new.mp4", "/new.mp4", "", "", "", 200))
+	core.rebuildWithBucket("dir-a", b2)
+
+	assert.Equal(t, 1, core.GetTotalCount())
+	assert.Equal(t, int64(200), core.GetTotalSize())
+
+	found := core.FindById("1")
+	assert.True(t, found.IsNull(), "旧文件 id=1 应已被替换")
+	found = core.FindById("2")
+	assert.False(t, found.IsNull(), "新文件 id=2 应可查")
+}
+
+func TestRebuildWithBucket_KeepsOtherBuckets(t *testing.T) {
+	core := newTestEngine()
+	defer core.Reset()
+
+	// 设置配置目录使 rebuildWithBucket 不会跳过这些 bucket
+	orig := consts.GetOSSetting()
+	consts.SetOSSetting(model.Setting{
+		Dirs: []string{"dir-a", "dir-b"},
+	})
+	defer consts.SetOSSetting(orig)
+
+	bA := makeBucket("dir-a", makeMovie("1", "a.mp4", "/a.mp4", "", "", "", 100))
+	bB := makeBucket("dir-b", makeMovie("2", "b.mp4", "/b.mp4", "", "", "", 200))
+	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir-a": bA, "dir-b": bB})
+	core.installSnapshot(snap)
+
+	// 只替换 dir-a 不影响 dir-b
+	bA2 := makeBucket("dir-a", makeMovie("3", "a2.mp4", "/a2.mp4", "", "", "", 300))
+	core.rebuildWithBucket("dir-a", bA2)
+
+	assert.Equal(t, int32(2), core.BucketCount())
+	assert.Equal(t, int64(500), core.GetTotalSize())
+	_ = bB // dir-b 保持不变
+}
+
+// ── 多 bucket 并发搜索（PageAsync） ──
+
+func TestPageAsync_SearchAcrossAllBuckets(t *testing.T) {
+	engine := newTestEngine()
+	defer engine.Reset()
+
+	b1 := makeBucket("dir-a", makeMovie("1", "alpha.mp4", "/a/alpha.mp4", "", "", "", 100))
+	b2 := makeBucket("dir-b", makeMovie("2", "beta.mp4", "/b/beta.mp4", "", "", "", 200))
+	b3 := makeBucket("dir-c", makeMovie("3", "alpha-beta.mp4", "/c/alpha-beta.mp4", "", "", "", 300))
+
+	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir-a": b1, "dir-b": b2, "dir-c": b3})
+	engine.installSnapshot(snap)
+
+	param := model.SearchParam{Keyword: "alpha", Page: 1, PageSize: 10, SortField: "Size", SortType: "desc"}
+	result := engine.PageAsync(param)
+
+	assert.Equal(t, 2, len(result.FileList), "应找到 2 个含 alpha 的文件")
+	assert.Equal(t, "alpha-beta.mp4", result.FileList[0].Name, "应按 size desc 排序")
+	assert.Equal(t, "alpha.mp4", result.FileList[1].Name)
+}
+
+func TestPageAsync_NoMatchReturnsEmpty(t *testing.T) {
+	engine := newTestEngine()
+	defer engine.Reset()
+
+	b := makeBucket("dir", makeMovie("1", "cat.mp4", "/cat.mp4", "", "", "", 100))
+	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir": b})
+	engine.installSnapshot(snap)
+
+	param := model.SearchParam{Keyword: "dog", Page: 1, PageSize: 10}
+	result := engine.PageAsync(param)
+	assert.Equal(t, 0, len(result.FileList))
+}
+
+func TestPageAsync_Pagination(t *testing.T) {
+	engine := newTestEngine()
+	defer engine.Reset()
+
+	movies := make([]model.Movie, 25)
+	for i := range movies {
+		title := string(rune('A' + i))
+		movies[i] = makeMovie(
+			string(rune('a'+i)),
+			title+".mp4",
+			"/test/"+title+".mp4",
+			"", "", "", int64(i+1),
+		)
+	}
+	b := makeBucket("dir", movies...)
+	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir": b})
+	engine.installSnapshot(snap)
+
+	// 第1页 10条
+	r1 := engine.PageAsync(model.SearchParam{Keyword: "", Page: 1, PageSize: 10})
+	assert.Equal(t, 10, len(r1.FileList))
+
+	// 第2页 10条
+	r2 := engine.PageAsync(model.SearchParam{Keyword: "", Page: 2, PageSize: 10})
+	assert.Equal(t, 10, len(r2.FileList))
+
+	// 第3页 5条
+	r3 := engine.PageAsync(model.SearchParam{Keyword: "", Page: 3, PageSize: 10})
+	assert.Equal(t, 5, len(r3.FileList))
+}
+
+func TestPageAsync_EmptyEngine(t *testing.T) {
+	engine := newTestEngine()
+	defer engine.Reset()
+
+	param := model.SearchParam{Keyword: "test", Page: 1, PageSize: 10}
+	result := engine.PageAsync(param)
+	assert.Equal(t, 0, len(result.FileList))
+}
+
+// ── repeat search ──
+
+func TestReturnRepeatSearch(t *testing.T) {
+	engine := newTestEngine()
+	defer engine.Reset()
+
+	// 创建重复文件：同 Code + 同 Size
+	b := makeBucket("dir",
+		makeMovie("1", "a.mp4", "/a.mp4", "ABC", "", "", 100),
+		makeMovie("2", "b.mp4", "/b.mp4", "ABC", "", "", 100), // 重复
+	)
+	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir": b})
+	engine.installSnapshot(snap)
+
+	param := model.SearchParam{OnlyRepeat: true}
+	result := engine.PageAsync(param)
+	assert.Greater(t, len(result.FileList), 0, "应检测到重复文件")
+}
+
+// ── 全局状态清理 ──
+
+func resetGlobalState() {
+	consts.TypeMenu = sync.Map{}
+	consts.TagMenu = sync.Map{}
+	consts.SeriesCount = sync.Map{}
+}
+
+func TestMain(m *testing.M) {
+	resetGlobalState()
+	m.Run()
+}

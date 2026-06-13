@@ -80,7 +80,7 @@ func (q *taskQueue) executeTask(task *scanTask) {
 	files, _ := FileApp.WalkInner(task.baseDir, queryTypes, true, task.baseDir)
 	newBucket := newInstanceWithFiles(task.baseDir, files)
 	// 影子索引：构造新快照并原子替换
-	SearchEngin.rebuildWithBucket(task.baseDir, newBucket)
+	SearchEngine.rebuildWithBucket(task.baseDir, newBucket)
 
 	// 清理
 	clear(queryTypes)
@@ -136,8 +136,8 @@ var TempDir string
 var FileApp = new(fileService)
 var SearchApp = new(searchService)
 
-// SearchEngin 搜索引擎
-var SearchEngin = searchEnginCore{
+// SearchEngine 搜索引擎
+var SearchEngine = searchEngineCore{
  KeywordHistoryCache: utils.NewLRUCache(500),
 }
 

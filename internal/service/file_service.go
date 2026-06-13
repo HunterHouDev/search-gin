@@ -385,7 +385,7 @@ func (fs *fileService) ScanAll() int {
  fs.Walks(dirList, queryTypes)
 
  // 一致性检查：验证 bucket 数量和目录数量
- bucketCount := SearchEngin.BucketCount()
+ bucketCount := SearchEngine.BucketCount()
  indexNumber := atomic.LoadInt32(&consts.IndexNumber)
  AddLogMemory("ScanAll 一致性检查: BucketCount=%d, IndexNumber=%d, Expected=%d", bucketCount, indexNumber, dirCount)
  if bucketCount != int32(dirCount) {
@@ -421,7 +421,7 @@ func (fs *fileService) Walks(baseDir []string, types []string) []model.Movie {
 	var result []model.Movie
 	dirSize := len(baseDir)
 
-	SearchEngin.Reset()
+	SearchEngine.Reset()
 
 	resultChan := make(chan scanResult, dirSize)
 
@@ -452,7 +452,7 @@ func (fs *fileService) Walks(baseDir []string, types []string) []model.Movie {
 	}
 
 	AddLogMemory("Walks: 扫描完成, 共 %d 个目录, 准备重建索引", len(buckets))
-	SearchEngin.rebuildWithBuckets(buckets)
+	SearchEngine.rebuildWithBuckets(buckets)
 	AddLogMemory("Walks: 索引重建完成")
 
 	return result

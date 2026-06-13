@@ -16,7 +16,7 @@ func Index(c *gin.Context) {
 }
 
 func GetTypeSize(c *gin.Context) {
-	if service.SearchEngin.IsEmpty() {
+	if service.SearchEngine.IsEmpty() {
 		service.FileApp.ScanAll()
 	}
 	res := mapToSlice(&consts.TypeMenu)

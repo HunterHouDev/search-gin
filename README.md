@@ -108,6 +108,160 @@ search-gin/
 | github.com/stretchr/testify  | 测试断言        |
 | github.com/go-resty/resty/v2 | HTTP 客户端     |
 
+---
+
+## 架构解析：无锁内存搜索引擎
+
+### 设计目标
+
+- **读不阻塞写**：索引构建/更新期间，搜索请求不受影响
+- **高并发读**：不加锁、不等待，多 goroutine 可同时搜索
+- **增量更新**：单目录重扫不重建全局索引
+
+### 三层架构
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                     searchEngineCore                     │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │  snapshot (atomic.Value) → *searchSnapshot        │  │
+│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐              │  │
+│  │  │bucket   │ │bucket   │ │bucket   │  ...          │  │
+│  │  │ dir A   │ │ dir B   │ │ dir C   │              │  │
+│  │  │FileLib  │ │FileLib  │ │FileLib  │              │  │
+│  │  │TypeIdx  │ │TypeIdx  │ │TypeIdx  │              │  │
+│  │  └─────────┘ └─────────┘ └─────────┘              │  │
+│  ├────────────────────────────────────────────────────┤  │
+│  │  KeywordHistoryCache  (LRU, 500 条)                │  │
+│  │  searchPool           (goroutine 池, 20 并发)       │  │
+│  └────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────┘
+```
+
+#### 1. bucketFile — 数据分片
+
+每个扫描目录对应一个 `bucketFile`，内部包含：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `FileLib` | `map[string]Movie` | 主存储，文件 ID → 文件对象 O(1) 查找 |
+| `TypeIndex` | `map[string]map[string]struct{}` | 倒排索引，文件类型 → 文件 ID 集合 |
+| `mu` | `sync.RWMutex` | 每 bucket 独立读写锁 |
+
+每个 bucket 有自有的 `RWMutex`，写入时只锁单个 bucket，不影响其他 bucket 并发读。
+
+#### 2. searchSnapshot — 只读快照
+
+`searchSnapshot` 是一个不可变结构体，包含：
+
+- **buckets**：所有 bucket 的引用（非拷贝，pointer 共享）
+- **预聚合数据**：`actressMap`、`typeMenu`、`tagMenu`、`seriesCount`、`repeatFiles`
+- **统计**：`totalSize`、`totalCount`、`bucketCount`
+
+预聚合数据在快照构建时一次性算好，搜索时零计算开销。
+
+#### 3. searchEngineCore — 引擎门面
+
+核心使用 `atomic.Value` 存储当前快照指针：
+
+```go
+type searchEngineCore struct {
+    snapshot            atomic.Value    // *searchSnapshot
+    KeywordHistoryCache *utils.LRUCache // 搜索结果 LRU 缓存
+    searchPool          *utils.GoroutinePool
+    rebuildMu           sync.Mutex      // 防止并发重建
+}
+```
+
+### 搜索流程
+
+```
+PageAsync(keyword, type, page)
+  │
+  ├─ LRU 缓存命中？ → 直接分页返回
+  │
+  ├─ 加载快照 (atomic.Value.Load → 无锁)
+  │
+  ├─ 遍历 buckets → 每个 bucket 提交到 goroutine 池
+  │     │
+  │     ├─ searchBucket():
+  │     │   ├─ 空关键词 + 类型筛选 → 走 TypeIndex 倒排
+  │     │   └─ 有关键词 → 遍历 FileLib + strings.Contains
+  │     │       (关键词空格分隔，AND 匹配)
+  │     │
+  │     └─ 结果 → resultChan
+  │
+  ├─ 汇集结果 → 排序 → 分页
+  │
+  └─ 写入 LRU 缓存 → 返回
+```
+
+### 索引构建流程（影子索引）
+
+```
+ScanAll()
+  │
+  ├─ 并发 WalkInner() 扫描所有配置目录
+  │   每个目录产出一个 bucketFile
+  │
+  ├─ buildSnapshotFromBuckets()
+  │   ├─ 复制 bucket 指针
+  │   ├─ 遍历所有文件 → 聚合演员/类型/标签/系列/重复检测
+  │   └─ 返回完整 searchSnapshot
+  │
+  └─ installSnapshot()
+      ├─ snapshot.Store(newSnap)    ← 原子切换
+      ├─ 清空 LRU 缓存
+      ├─ 清空演员缓存
+      └─ 同步 typeMenu/tagMenu/seriesCount 到全局 consts
+```
+
+**增量扫描**（单目录）走 `rebuildWithBucket()`：
+1. 加载当前快照
+2. 复制除目标目录外的所有 bucket 引用
+3. 放入新 bucket
+4. 在新集合上运行 `buildSnapshotFromBuckets`
+5. `installSnapshot` 原子替换
+
+### 并发安全设计
+
+| 场景 | 机制 | 级别 |
+|------|------|------|
+| 搜索读 | `atomic.Value.Load` | **完全无锁** |
+| 索引重建写 | `rebuildMu` + 影子快照 | 写时排他，读不受影响 |
+| Bucket 内部写入 | `bucketFile.mu` (RWMutex) | 细粒度，不影响其他 bucket |
+| 全局菜单同步 | `sync.Map` | 原子读写 |
+| LRU 缓存 | `sync.RWMutex` + double-check | 高并发读优化 |
+
+### 性能特征
+
+| 操作 | 复杂度 | 说明 |
+|------|--------|------|
+| 文件查找 (by ID) | O(1) | map 直接寻址 |
+| 关键词搜索 | O(n) | 遍历所有文件，`strings.Contains` 匹配 |
+| 类型筛选 | O(匹配数) | 走 TypeIndex 倒排索引 |
+| 索引构建 | O(文件总数) | 全量扫描，单次构建 |
+| 增量更新 | O(目标目录文件数) | 只重建一个 bucket |
+
+> 关键词搜索 O(n) 是当前瓶颈。文件数 10 万级时搜索延时仍在可接受范围（毫秒级），百万级需引入倒排索引。
+
+### 测试覆盖
+
+引擎测试位于 `internal/service/index_engine_test.go`，覆盖：
+
+| 测试类别 | 用例数 | 覆盖范围 |
+|----------|--------|----------|
+| bucketFile | 5 | 创建/写入/读取/批量/空判断/索引 |
+| buildSnapshot | 5 | 聚合统计/演员/菜单/重复/空 |
+| searchEngineCore | 6 | 生命周期/查找/重置 |
+| searchBucket | 5 | 关键词/多词/类型过滤/无匹配 |
+| rebuildWithBucket | 2 | 替换/保留其他 |
+| PageAsync | 4 | 跨 bucket/分页/空引擎/重复搜索 |
+
+```bash
+go test ./internal/service/ -run "Test" -v
+```
+
 ## License
 
 [MIT](LICENSE)

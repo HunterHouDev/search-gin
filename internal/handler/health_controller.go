@@ -31,14 +31,14 @@ type IndexHealth struct {
 func GetIndexHealthCheck(c *gin.Context) {
 	health := IndexHealth{}
 
-	health.BucketCount = service.SearchEngin.BucketCount()
+	health.BucketCount = service.SearchEngine.BucketCount()
 	health.IndexNumber = consts.IndexNumber
 	health.ExpectedDirs = len(consts.GetOSSetting().Dirs)
-	health.TotalCount = service.SearchEngin.GetTotalCount()
-	health.TotalSize = service.SearchEngin.GetTotalSize()
+	health.TotalCount = service.SearchEngine.GetTotalCount()
+	health.TotalSize = service.SearchEngine.GetTotalSize()
 	health.TotalSizeStr = utils.GetSizeStr(health.TotalSize)
 	health.LastScanTime = consts.LastScanTime.Format("2006-01-02 15:04:05")
-	health.ActorCount = service.SearchEngin.GetActorCount()
+	health.ActorCount = service.SearchEngine.GetActorCount()
 	health.TagCount = consts.GetSyncMapCount(&consts.TagMenu)
 	health.TypeCount = consts.GetSyncMapCount(&consts.TypeMenu) - 1 // 排除"全部"
 	if health.TypeCount < 0 {

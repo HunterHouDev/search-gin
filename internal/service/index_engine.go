@@ -34,8 +34,8 @@ type searchSnapshot struct {
 	seriesCount   map[string]consts.MenuSize
 }
 
-// searchEnginCore 搜索引擎：只保留快照指针 + 不变的辅助字段
-type searchEnginCore struct {
+// searchEngineCore 搜索引擎：只保留快照指针 + 不变的辅助字段
+type searchEngineCore struct {
 	snapshot            atomic.Value     // *searchSnapshot
 	KeywordHistoryCache *utils.LRUCache // 搜索结果缓存
 	searchPool          *utils.GoroutinePool
@@ -46,7 +46,7 @@ type searchEnginCore struct {
 }
 
 // loadSnapshot 线程安全地获取当前快照；尚未初始化时返回空快照
-func (se *searchEnginCore) loadSnapshot() *searchSnapshot {
+func (se *searchEngineCore) loadSnapshot() *searchSnapshot {
 	s := se.snapshot.Load()
 	if s == nil {
 		return &searchSnapshot{
@@ -59,11 +59,11 @@ func (se *searchEnginCore) loadSnapshot() *searchSnapshot {
 
 // init 初始化 goroutine 池
 func init() {
-	SearchEngin.searchPool = utils.NewGoroutinePool(20)
+	SearchEngine.searchPool = utils.NewGoroutinePool(20)
 }
 
 // installSnapshot 原子替换搜索引擎快照，并同步全局菜单
-func (se *searchEnginCore) installSnapshot(snap *searchSnapshot) {
+func (se *searchEngineCore) installSnapshot(snap *searchSnapshot) {
 	se.snapshot.Store(snap)
 	se.KeywordHistoryCache.Clear()
 	// 清空演员缓存（新快照的数据可能变化）
@@ -87,7 +87,7 @@ func (se *searchEnginCore) installSnapshot(snap *searchSnapshot) {
 }
 
 // Reset 清空搜索引擎全部状态和缓存
-func (se *searchEnginCore) Reset() {
+func (se *searchEngineCore) Reset() {
 	empty := &searchSnapshot{
 		buckets:    make(map[string]*bucketFile),
 		actressMap: make(map[string]model.Actress),
@@ -96,28 +96,28 @@ func (se *searchEnginCore) Reset() {
 }
 
 // IsEmpty 检查是否有 bucket 数据
-func (se *searchEnginCore) IsEmpty() bool {
+func (se *searchEngineCore) IsEmpty() bool {
 	snap := se.loadSnapshot()
 	return len(snap.buckets) == 0
 }
 
 // GetTotalCount 获取文件总数
-func (se *searchEnginCore) GetTotalCount() int {
+func (se *searchEngineCore) GetTotalCount() int {
 	return se.loadSnapshot().totalCount
 }
 
 // GetTotalSize 获取文件总大小
-func (se *searchEnginCore) GetTotalSize() int64 {
+func (se *searchEngineCore) GetTotalSize() int64 {
 	return se.loadSnapshot().totalSize
 }
 
 // BucketCount 返回 bucket 数量
-func (se *searchEnginCore) BucketCount() int32 {
+func (se *searchEngineCore) BucketCount() int32 {
 	return se.loadSnapshot().bucketCount
 }
 
 // rebuildWithBuckets 批量重建：一次性替换所有 bucket，O(N) 聚合
-func (se *searchEnginCore) rebuildWithBuckets(entries map[string]*bucketFile) {
+func (se *searchEngineCore) rebuildWithBuckets(entries map[string]*bucketFile) {
 	defer func() {
 		if r := recover(); r != nil {
 			AddLogMemory("rebuildWithBuckets 异常: %v", r)
@@ -140,7 +140,7 @@ func (se *searchEnginCore) rebuildWithBuckets(entries map[string]*bucketFile) {
 
 // rebuildWithBucket 影子索引核心：用指定目录的新 bucket 构造一份新快照，原子替换
 // 这是 executeTask 的唯一入口，替代了旧的 setBucket + buildIndexEngin
-func (se *searchEnginCore) rebuildWithBucket(baseDir string, newBucket *bucketFile) {
+func (se *searchEngineCore) rebuildWithBucket(baseDir string, newBucket *bucketFile) {
 	defer func() {
 		if r := recover(); r != nil {
 			AddLogMemory("rebuildWithBucket 异常: %v", r)
@@ -310,7 +310,7 @@ func buildSnapshotFromBuckets(buckets map[string]*bucketFile) *searchSnapshot {
 }
 
 // PageActress 演员搜索
-func (se *searchEnginCore) PageActress(searchParam model.SearchParam) model.PageActressResultWrapper {
+func (se *searchEngineCore) PageActress(searchParam model.SearchParam) model.PageActressResultWrapper {
 	snap := se.loadSnapshot()
 
 	// 空关键词：优先走缓存
@@ -370,7 +370,7 @@ func (se *searchEnginCore) PageActress(searchParam model.SearchParam) model.Page
 }
 
 // returnRepeatSearch 返回重复文件
-func (se *searchEnginCore) returnRepeatSearch() model.PageResultWrapper {
+func (se *searchEngineCore) returnRepeatSearch() model.PageResultWrapper {
 	snap := se.loadSnapshot()
 	resultWrapper := model.NewPageWrapper()
 	if len(snap.repeatFiles) > 0 {
@@ -384,7 +384,7 @@ func (se *searchEnginCore) returnRepeatSearch() model.PageResultWrapper {
 }
 
 // PageAsync 异步分页搜索
-func (se *searchEnginCore) PageAsync(searchParam model.SearchParam) model.PageResultWrapper {
+func (se *searchEngineCore) PageAsync(searchParam model.SearchParam) model.PageResultWrapper {
 	if searchParam.OnlyRepeat {
 		return se.returnRepeatSearch()
 	}
@@ -474,12 +474,12 @@ loop:
 	return resultWrapper
 }
 
-func (se *searchEnginCore) addHistory(uniqueWords string, resultWrapper model.PageResultWrapper) {
+func (se *searchEngineCore) addHistory(uniqueWords string, resultWrapper model.PageResultWrapper) {
 	se.KeywordHistoryCache.Set(uniqueWords, resultWrapper)
 }
 
 // FindById 查找文件——先查当前快照，未找到返回空
-func (se *searchEnginCore) FindById(id string) model.Movie {
+func (se *searchEngineCore) FindById(id string) model.Movie {
 	snap := se.loadSnapshot()
 	for _, bucket := range snap.buckets {
 		if bucket.isEmpty() {
@@ -494,7 +494,7 @@ func (se *searchEnginCore) FindById(id string) model.Movie {
 }
 
 // FindActressByName 按名称查找演员
-func (se *searchEnginCore) FindActressByName(name string) model.Actress {
+func (se *searchEngineCore) FindActressByName(name string) model.Actress {
 	snap := se.loadSnapshot()
 	if a, ok := snap.actressMap[name]; ok {
 		return a
@@ -503,6 +503,6 @@ func (se *searchEnginCore) FindActressByName(name string) model.Actress {
 }
 
 // GetActorCount 获取演员总数
-func (se *searchEnginCore) GetActorCount() int {
+func (se *searchEngineCore) GetActorCount() int {
 	return len(se.loadSnapshot().actressMap)
 }

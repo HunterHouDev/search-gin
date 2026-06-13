@@ -23,7 +23,7 @@ func PostMovies(c *gin.Context) {
  // 检查是否为远程转发请求（X-Search-Gin-Remote: true）
  isRemote := c.GetHeader("X-Search-Gin-Remote") == "true"
 
- if service.SearchEngin.IsEmpty() {
+ if service.SearchEngine.IsEmpty() {
   service.FileApp.ScanAll()
  }
 
@@ -96,10 +96,10 @@ func PostActress(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数绑定失败"))
 			return
 		}
-		if service.SearchEngin.IsEmpty() {
+		if service.SearchEngine.IsEmpty() {
 			service.FileApp.ScanAll()
 		}
-		pageActressResultWrapper := service.SearchEngin.PageActress(param)
+		pageActressResultWrapper := service.SearchEngine.PageActress(param)
 		result := utils.NewPage()
 		result.CurCnt = pageActressResultWrapper.ResultCount
 		result.TotalCnt = pageActressResultWrapper.SearchCount
@@ -120,12 +120,12 @@ func PostActress(c *gin.Context) {
 	}
 
 	// 检查搜索引擎索引是否为空，如果为空则执行扫描
-	if service.SearchEngin.IsEmpty() {
+	if service.SearchEngine.IsEmpty() {
 		service.FileApp.ScanAll()
 	}
 
 	// 调用搜索引擎获取演员分页搜索结果
-	pageActressResultWrapper := service.SearchEngin.PageActress(param)
+	pageActressResultWrapper := service.SearchEngine.PageActress(param)
 
 	// 初始化分页结果对象
 	result := utils.NewPage()
