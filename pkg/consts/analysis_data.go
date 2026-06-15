@@ -19,16 +19,19 @@ var FolderTime sync.Map
 var LogMemory = []Log{}
 var logMemoryMutex sync.Mutex
 
+// 内存日志上限 1000 行，超出则丢弃最旧的
+const logMemoryMaxLines = 1000
+const logMemoryTrimLines = 800
+
 func AddLogMemory(format string, v ...any) {
-	msg := fmt.Sprintf(format, v...)
-	log := Log{Time: time.Now().Local().String(), Msg: msg}
-	logMemoryMutex.Lock()
-	LogMemory = append(LogMemory, log)
-	// 硬上限 500 条，超过则保留最新的 400 条
-	if n := len(LogMemory); n > 500 {
-	 LogMemory = LogMemory[n-400:]
-	}
-	logMemoryMutex.Unlock()
+ msg := fmt.Sprintf(format, v...)
+ log := Log{Time: time.Now().Local().String(), Msg: msg}
+ logMemoryMutex.Lock()
+ LogMemory = append(LogMemory, log)
+ if n := len(LogMemory); n > logMemoryMaxLines {
+  LogMemory = LogMemory[n-logMemoryTrimLines:]
+ }
+ logMemoryMutex.Unlock()
 }
 
 type Log struct {
