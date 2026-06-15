@@ -134,6 +134,13 @@ func setupFillURLsTest() {
 	gin.SetMode(gin.TestMode)
 	LocalNodeHost = "mypc:10081"
 	LocalNodeName = "测试机器"
+	// 初始化 lanDiscovery（测试环境中需手动创建）
+	if lanDiscovery == nil {
+		lanDiscovery = &LanDiscovery{
+			peers:    make(map[string]*Peer),
+			stopChan: make(chan struct{}),
+		}
+	}
 	lanDiscovery.mu.Lock()
 	lanDiscovery.peers = make(map[string]*Peer)
 	lanDiscovery.mu.Unlock()

@@ -90,7 +90,9 @@
     <q-page-container>
       <router-view v-slot="{ Component, route }">
         <transition name="page-fade" mode="out-in">
-          <component :is="Component" :key="route.path" />
+          <keep-alive :max="5">
+            <component :is="Component" :key="route.path" />
+          </keep-alive>
         </transition>
       </router-view>
     </q-page-container>
@@ -128,18 +130,18 @@ const view = reactive({
   fullscreen: false,
 });
 
-// 动态 header 样式
+// 动态 header 样式 — Design System
 const headerStyle = computed(() => {
   return systemProperty.theme === 'natural'
-    ? 'background: linear-gradient(90deg, #94a3b8 0%, #cbd5e1 100%) !important; color: white;'
-    : 'background: rgba(0, 0, 0, 0.85) !important; color: white;';
+    ? 'background: #FFFFFF !important; color: #0F172A; border-bottom: 1px solid #E2E8F0;'
+    : 'background: #1B2336 !important; color: #F8FAFC; border-bottom: 1px solid #272F42;';
 });
 
-// 动态抽屉样式 - 与主题保持一致
+// 动态抽屉样式 — Design System: bg-shift, no borders
 const drawerStyle = computed(() => {
   return systemProperty.theme === 'natural'
-    ? 'background-color: rgba(245, 243, 255, 0.95); color: #5b21b6;'
-    : 'background-color: rgba(0, 0, 0, 0.85); color: aliceblue;';
+    ? 'background-color: #F1F5F9; color: #0F172A;'
+    : 'background-color: #0F172A; color: #F8FAFC;';
 });
 
 // 响应式抽屉宽度
@@ -293,11 +295,8 @@ const essentialLinks = [
 </script>
 
 <style lang="scss" scoped>
-// 主 Header 样式
+// 主 Header 样式 — Minimalism: no shadow, subtle border
 .main-header {
-  /* backdrop-filter: blur(16px); - 移除以提升性能 */
-  border-bottom: 1px solid var(--q-border);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
   transition: background-color 0.4s ease;
 }
 

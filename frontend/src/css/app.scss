@@ -1,87 +1,98 @@
 // app global css in SCSS form
 
-// ============== 星空主题 (默认) ==============
+// ============== Design System Fonts ==============
+// JetBrains Mono: headings & code · IBM Plex Sans: body & UI
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+:root {
+  --font-heading: 'JetBrains Mono', 'Sarasa Gothic SC', monospace;
+  --font-body: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+// ============== Design System — Dark Mode (默认) ==============
+// Minimalism & Swiss Style · Developer Tool / IDE
 :root {
   --theme: 'star';
   
-  // Primary Colors
-  --q-primary: #6366f1;
-  --q-primary-light: #818cf8;
-  --q-primary-lighter: #a5b4fc;
-  --q-primary-dark: #4f46e5;
+  // Brand / Primary Colors
+  --q-primary: #1E293B;
+  --q-primary-light: #334155;
+  --q-primary-lighter: #475569;
+  --q-primary-dark: #0F172A;
 
-  // Background Colors
-  --q-bg-dark: #0f0f1a;
-  --q-bg-darker: #090912;
-  --q-bg-card: rgba(15, 15, 26, 0.95);
-  --q-bg-input: rgba(30, 30, 50, 0.6);
+  // Surface / Background
+  --q-bg-dark: #0F172A;
+  --q-bg-darker: #0F172A;
+  --q-bg-card: #1B2336;
+  --q-bg-input: #1B2336;
 
-  // Text Colors
-  --q-text-primary: #e0e7ff;
-  --q-text-secondary: #a5b4fc;
-  --q-text-muted: #6b7280;
+  // Text
+  --q-text-primary: #F8FAFC;
+  --q-text-secondary: #94A3B8;
+  --q-text-muted: #64748B;
 
-  // Border Colors
-  --q-border: rgba(99, 102, 241, 0.25);
-  --q-border-light: rgba(99, 102, 241, 0.15);
-  --q-border-hover: rgba(99, 102, 241, 0.4);
+  // Border
+  --q-border: #475569;
+  --q-border-light: #334155;
+  --q-border-hover: #64748B;
 
-  // Status Colors
-  --q-success: #10b981;
-  --q-warning: #f59e0b;
-  --q-danger: #ef4444;
-  --q-info: #06b6d4;
+  // Status — matches design system
+  --q-success: #22C55E;
+  --q-warning: #F59E0B;
+  --q-danger: #EF4444;
+  --q-info: #475569;
 
-  // Shadows
-  --q-shadow: 0 4px 16px rgba(99, 102, 241, 0.25);
-  --q-shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.4);
+  // Shadows — Minimalism: no shadows, use bg-shift for separation
+  --q-shadow: none;
+  --q-shadow-lg: none;
   
-  // 交互反馈色
-  --q-hover-bg: rgba(99, 102, 241, 0.12);
-  --q-active-bg: rgba(99, 102, 241, 0.24);
-  --q-focus-ring: rgba(99, 102, 241, 0.5);
+  // Interaction
+  --q-hover-bg: rgba(34, 197, 94, 0.1);
+  --q-active-bg: rgba(34, 197, 94, 0.2);
+  --q-focus-ring: rgba(34, 197, 94, 0.5);
 }
 
-// ============== 自然主题 ==============
+// ============== Design System — Light Mode ==============
 :root.theme-natural {
   --theme: 'natural';
   
-  // Primary Colors (柔和的绿色系)
-  --q-primary: #4a7c59;
-  --q-primary-light: #5d9a6d;
-  --q-primary-lighter: #7cb88c;
-  --q-primary-dark: #3a5f45;
+  // Brand — same navy base, unchanged in light mode
+  --q-primary: #1E293B;
+  --q-primary-light: #334155;
+  --q-primary-lighter: #475569;
+  --q-primary-dark: #0F172A;
 
-  // Background Colors (温暖的米色系)
-  --q-bg-dark: #f8f5f0;
-  --q-bg-darker: #f0eae0;
-  --q-bg-card: rgba(248, 245, 240, 0.95);
-  --q-bg-input: rgba(230, 225, 215, 0.6);
+  // Surface
+  --q-bg-dark: #FFFFFF;
+  --q-bg-darker: #F1F5F9;
+  --q-bg-card: #F1F5F9;
+  --q-bg-input: #F1F5F9;
 
-  // Text Colors (深棕色系)
-  --q-text-primary: #3d352a;
-  --q-text-secondary: #6b6050;
-  --q-text-muted: #9e9382;
+  // Text — inverted from dark
+  --q-text-primary: #0F172A;
+  --q-text-secondary: #475569;
+  --q-text-muted: #64748B;
 
-  // Border Colors
-  --q-border: rgba(74, 124, 89, 0.25);
-  --q-border-light: rgba(74, 124, 89, 0.15);
-  --q-border-hover: rgba(74, 124, 89, 0.4);
+  // Border
+  --q-border: #CBD5E1;
+  --q-border-light: #E2E8F0;
+  --q-border-hover: #94A3B8;
 
-  // Status Colors
-  --q-success: #2e7d32;
-  --q-warning: #f57c00;
-  --q-danger: #c62828;
-  --q-info: #1565c0;
+  // Status
+  --q-success: #22C55E;
+  --q-warning: #F59E0B;
+  --q-danger: #EF4444;
+  --q-info: #475569;
 
-  // Shadows
-  --q-shadow: 0 4px 16px rgba(74, 124, 89, 0.2);
-  --q-shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.15);
+  // Shadows — Minimalism: no shadows
+  --q-shadow: none;
+  --q-shadow-lg: none;
   
-  // 交互反馈色
-  --q-hover-bg: rgba(74, 124, 89, 0.1);
-  --q-active-bg: rgba(74, 124, 89, 0.2);
-  --q-focus-ring: rgba(74, 124, 89, 0.5);
+  // Interaction
+  --q-hover-bg: rgba(34, 197, 94, 0.08);
+  --q-active-bg: rgba(34, 197, 94, 0.16);
+  --q-focus-ring: rgba(34, 197, 94, 0.5);
 }
 
 // ============== 全局样式 ==============
@@ -92,7 +103,22 @@
 body {
   background-color: var(--q-bg-darker);
   color: var(--q-text-primary);
+  font-family: var(--font-body);
   transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+// Typography: headings use JetBrains Mono
+h1, h2, h3, h4, h5, h6,
+.q-toolbar__title,
+.text-h1, .text-h2, .text-h3, .text-h4, .text-h5, .text-h6 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+// Monospace for data/metrics/IDs
+code, pre, .text-mono, .text-code {
+  font-family: var(--font-mono);
 }
 
 // 全局过渡优化
@@ -107,35 +133,37 @@ html {
   transition: background-color 0.4s ease !important;
 }
 
-// 卡片样式
+// 卡片样式 — Minimalism: no shadows, no borders, bg-shift for separation
 .q-card {
   background: var(--q-bg-card) !important;
-  /* backdrop-filter: blur(32px); - 移除以解决大量卡片时的闪屏问题 */
-  border: 1px solid var(--q-border);
-  transition: background 0.4s ease, border-color 0.4s ease, box-shadow 0.3s ease !important;
+  border: none;
+  border-radius: 6px;
+  transition: background 0.4s ease, box-shadow 0.3s ease !important;
 }
 
-// 输入框样式
+// 输入框样式 — Design System: bottom-bar only, label above
 .q-field--dark .q-field__control,
 .q-field .q-field__control {
   background: var(--q-bg-input) !important;
   color: var(--q-text-primary) !important;
+  border-radius: 6px;
   transition: background 0.4s ease, color 0.4s ease, border-color 0.3s ease !important;
 }
 
 .q-field .q-field__label,
 .q-field .q-field__native {
-  color: var(--q-text-primary) !important;
+  color: var(--q-text-secondary) !important;
   transition: color 0.3s ease;
 }
 
-// 按钮样式
+.q-field--focused .q-field__label {
+  color: var(--q-accent, #22C55E) !important;
+}
+
+// 按钮样式 — Design System: solid-block primary, border-only secondary
 .q-btn {
   transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, transform 0.15s ease, box-shadow 0.2s ease !important;
-  
-  &:hover {
-    transform: translateY(-1px);
-  }
+  border-radius: 6px;
   
   &:active {
     transform: translateY(0px) scale(0.98);
@@ -147,30 +175,31 @@ html {
 }
 
 .q-btn.btn-primary {
-  background: var(--q-primary) !important;
-  color: white !important;
+  background: var(--q-accent, #22C55E) !important;
+  color: #fff !important;
 }
 
 .q-btn.btn-outline-primary {
-  border: 1px solid var(--q-primary) !important;
-  color: var(--q-primary) !important;
+  border: 1.5px solid var(--q-border) !important;
+  color: var(--q-text-secondary) !important;
+  background: transparent !important;
 }
 
 // 进度条样式
 :root {
-  --q-progress-track: rgba(99, 102, 241, 0.15);
-  --q-scrollbar: rgba(99, 102, 241, 0.3);
-  --q-scrollbar-hover: rgba(99, 102, 241, 0.5);
-  --q-menu-hover: rgba(99, 102, 241, 0.1);
-  --q-menu-active: rgba(99, 102, 241, 0.2);
+  --q-progress-track: rgba(34, 197, 94, 0.15);
+  --q-scrollbar: rgba(71, 85, 105, 0.4);
+  --q-scrollbar-hover: rgba(71, 85, 105, 0.6);
+  --q-menu-hover: rgba(34, 197, 94, 0.08);
+  --q-menu-active: rgba(34, 197, 94, 0.16);
 }
 
 :root.theme-natural {
-  --q-progress-track: rgba(74, 124, 89, 0.15);
-  --q-scrollbar: rgba(74, 124, 89, 0.3);
-  --q-scrollbar-hover: rgba(74, 124, 89, 0.5);
-  --q-menu-hover: rgba(74, 124, 89, 0.1);
-  --q-menu-active: rgba(74, 124, 89, 0.2);
+  --q-progress-track: rgba(34, 197, 94, 0.12);
+  --q-scrollbar: rgba(148, 163, 184, 0.4);
+  --q-scrollbar-hover: rgba(148, 163, 184, 0.6);
+  --q-menu-hover: rgba(34, 197, 94, 0.06);
+  --q-menu-active: rgba(34, 197, 94, 0.12);
 }
 
 .q-linear-progress .q-linear-progress__track {
@@ -286,11 +315,12 @@ html {
 }
 
 // ============== 弹窗样式 ==============
-// 对话框
+// 对话框 — Minimalism: no border
 .q-dialog {
   .q-card {
     background: var(--q-bg-card) !important;
     color: var(--q-text-primary) !important;
+    border-radius: 8px;
   }
 }
 
@@ -298,21 +328,21 @@ html {
 .q-notification {
   background: var(--q-bg-card) !important;
   color: var(--q-text-primary) !important;
-  border: 1px solid var(--q-border);
+  border-radius: 6px;
 }
 
 // 工具提示
 .q-tooltip {
   background: var(--q-bg-card) !important;
   color: var(--q-text-primary) !important;
-  border: 1px solid var(--q-border);
+  border-radius: 4px;
 }
 
-// 菜单
+// 菜单 — Minimalism: bg-shift, no border
 .q-menu {
   background: var(--q-bg-card) !important;
   color: var(--q-text-primary) !important;
-  border: 1px solid var(--q-border);
+  border-radius: 6px;
   
   .q-item {
     color: var(--q-text-primary) !important;

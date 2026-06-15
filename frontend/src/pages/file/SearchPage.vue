@@ -16,7 +16,7 @@
             <q-icon :name="themeIcon" size="14px" class="theme-icon" />
             {{ currentThemeLabel }}
           </template>
-          <q-list style="min-width: 160px; padding: 8px 0;">
+          <q-list class="menu-min-w">
             <q-item clickable v-close-popup @click="setTheme('star')" :active="systemProperty.theme === 'star'"
               class="q-mx-xs rounded-lg">
               <q-item-section avatar>
@@ -144,7 +144,7 @@
         </q-btn>
 
         <!-- 排序字段选择 -->
-        <q-btn-dropdown glossy color="primary" :size="btnSize('head')" style="width: 5.5rem"
+        <q-btn-dropdown glossy color="primary" :size="btnSize('head')" class="w-5"
           :label="getLabelByValue(currentSort, sortOptions)">
           <q-list>
             <q-item v-for="item in sortOptions" :key="item.label" clickable v-close-popup @click="
@@ -256,7 +256,7 @@
                 <div class="row justify-between">
                   <q-btn flat dense> 每页大小 </q-btn>
                   <q-select size="sm" dense flat @update:model-value="currentPageSizeChange" filled bgColor="orange"
-                    style="text-align: center; width: 40%" v-model="view.queryParam.PageSize" :options="pageOptions">
+                    class="page-control" v-model="view.queryParam.PageSize" :options="pageOptions">
                   </q-select>
                 </div>
                 <div class="row justify-between">
@@ -349,12 +349,12 @@
                     }}</span>
                 </q-chip>
               </div>
-              <div class="card-top-type" style="align-items: flex-end">
+              <div class="card-top-type">
                 <!-- 电影类型选择按钮 -->
                 <q-btn dense :size="btnSize('top')" class="glossy" color="primary"
                   :label="`${item.MovieType === '无' ? `分类 ` : item.MovieType}`">
                   <q-menu>
-                    <q-list style="min-width: 68px">
+                    <q-list class="menu-min-w-sm">
                       <q-item v-for="mt in MovieTypeOptions" :key="mt.value" clickable v-close-popup>
                         <q-item-section @click="
                           setMovieType(item.Id, mt.value);
@@ -362,17 +362,17 @@
                         ">{{ mt.label }}</q-item-section>
                       </q-item>
                       <q-item clickable v-close-popup>
-                        <q-item-section style="color: blue" @click="refreshDebounceFn(item)">刷新</q-item-section>
+                        <q-item-section class="tag-blue" @click="refreshDebounceFn(item)">刷新</q-item-section>
                       </q-item>
                     </q-list>
                   </q-menu>
                 </q-btn>
-                <q-btn dense glossy color="grey" size="sm" style="margin-top: 4px" v-if="formatSeries(item.Code)">
+                <q-btn dense glossy color="grey" size="sm" class="mt-1" v-if="formatSeries(item.Code)">
                   <span @click="searchKeyword(formatSeries(item.Code))">{{
                     formatSeries(item.Code).substring(0, 4)
                     }}</span>
                 </q-btn>
-                <q-btn dense flat text-color="green" size="sm" style="margin-top: 4px"
+                <q-btn dense flat text-color="green" size="sm" class="mt-1"
                   v-if="systemProperty.getPlayTime(item.Id)">
                   <span>{{ formatPlayTime(systemProperty.getPlayTime(item.Id)) }}</span>
                 </q-btn>
@@ -387,12 +387,8 @@
                 'large-result-image': isLarge,
                 'medium-result-image': isMedium,
                 'small-result-image': isSmall,
-              }" :src="getImage(item)" @contextmenu="(e) => pictureRightClick(item, e)" @click="openFileInfoRef(item)"
-                style="
-                border-radius: 6px 6px 0 0;
-                background: linear-gradient(135deg, rgba(30, 30, 50, 0.8), rgba(15, 15, 26, 0.9));
-                overflow: hidden;
-              ">
+                'card-img': true,
+              }" :src="getImage(item)" @contextmenu="(e) => pictureRightClick(item, e)" @click="openFileInfoRef(item)">
                 <template v-slot:loading>
                   <q-spinner-ios color="white" size="2em">Loading...</q-spinner-ios>
                 </template>
@@ -408,7 +404,7 @@
                 <q-inner-loading :showing="item.Id == view.currentDataInPlayer.Id" label="播放中" label-class="text-teal"
                   label-style="font-size: 1.1em" />
               </q-img>
-              <div class="absolute-bottom float-btn" style="background-color: rgba(0, 0, 0, 0.3)">
+              <div class="absolute-bottom float-btn card-btn-bar">
                 <div>
                   <div class="btn-row">
                     <!-- 播放按钮 -->
@@ -479,16 +475,16 @@
                           " class="cursor-pointer" @click="copyText(item.Author)">{{ item.Author }}</span>
                         </div>
                         <div>
-                          <span style="color: rgb(239, 30, 30)" class="cursor-pointer" @click="copyText(item.Code)">{{
+                          <span class="tag-red cursor-pointer" @click="copyText(item.Code)">{{
                             item.Code }}</span>
                         </div>
                         <div>
                           {{ formatTitle(item.Title) }}
                         </div>
-                        <div style="color: green" class="cursor-pointer" @click="searchKeyword(item.BaseDir)">
+                        <div class="tag-green cursor-pointer" @click="searchKeyword(item.BaseDir)">
                           {{ item.BaseDir }}
                         </div>
-                        <div style="color: grey">
+                        <div class="tag-gray">
                           {{ item.Path }}
                         </div>
                       </div>
@@ -667,17 +663,10 @@
 import { date, format, useQuasar } from 'quasar';
 const { humanStorageSize } = format;
 
-const isSmall = computed(() => {
-  return systemProperty.showStyle === 'sm';
-});
-
-const isLarge = computed(() => {
-  return systemProperty.showStyle === 'lg';
-});
-
-const isMedium = computed(() => {
-  return systemProperty.showStyle === 'md';
-});
+// 卡片大小样式（基于 System store showStyle）
+const isSmall = computed(() => systemProperty.showStyle === 'sm');
+const isLarge = computed(() => systemProperty.showStyle === 'lg');
+const isMedium = computed(() => systemProperty.showStyle === 'md');
 
 import {
   DeleteFile,
@@ -722,6 +711,8 @@ import Screenshot from './components/ScreenshotDialog.vue';
 import InnerVideoPlayer from './components/VideoPlayerInPicture.vue';
 
 import { onKeyStroke, useClipboard, useDebounceFn } from '@vueuse/core';
+import { getTimeAgoShort as getTimeAgo } from 'src/utils/date';
+import { useSortOptions } from 'src/composables/useSortOptions';
 
 // 变量声明
 const $q = useQuasar();
@@ -849,18 +840,7 @@ const view = reactive({
   nodeList: [],
 });
 
-const sortOptions = computed(() => {
-  const options = [];
-  for (const field of FieldEnum) {
-    for (const desc of DescEnum) {
-      options.push({
-        label: `${field.label}   ${desc.label}`,
-        value: `${field.value}_${desc.value}`
-      });
-    }
-  }
-  return options;
-});
+const sortOptions = useSortOptions('   ');
 
 const currentSort = computed({
   get: () => `${view.queryParam.SortField}_${view.queryParam.SortType}`,
@@ -883,7 +863,6 @@ const listButtons = computed(() => {
   return view.settingInfo.Buttons;
 });
 
-const today = new Date();
 const reg = /\w+[-_]\d+/;
 
 const scrollTop = () => {
@@ -961,22 +940,6 @@ const btnSize = (position) => {
     }
     return '12px';
   }
-};
-
-const getTimeAgo = (MTime) => {
-  const days = date.getDateDiff(today, MTime, 'days');
-  if (days > 365) {
-    const years = Math.floor(days / 365);
-    return `${years}年`;
-  }
-  if (days > 30) {
-    const months = Math.floor(days / 30);
-    return `${months}月`;
-  }
-  if (days > 0) {
-    return `${days}天`;
-  }
-  return '今天';
 };
 
 const formatPlayTime = (timestamp) => {

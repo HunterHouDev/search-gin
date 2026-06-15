@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -100,15 +101,23 @@ func StopLanDiscovery() {
 
 // RestartLanDiscovery 重启局域网节点发现
 func RestartLanDiscovery() {
+	if lanDiscovery == nil {
+		return
+	}
+	lanDiscovery.mu.Lock()
 	StopLanDiscovery()
 	// 重置 stopChan 和 once，原 goroutine 收到关闭信号后退出
 	lanDiscovery.stopChan = make(chan struct{})
 	lanDiscoveryStopOnce = sync.Once{}
+	lanDiscovery.mu.Unlock()
 	StartLanDiscovery()
 }
 
 // CleanExpiredPeers 手动清理超时节点
 func CleanExpiredPeers() int {
+	if lanDiscovery == nil {
+		return 0
+	}
 	count := lanDiscovery.cleanExpiredCount(defaultTimeout)
 	if count > 0 {
 		utils.InfoFormat("手动清理 %d 个超时节点", count)
@@ -294,7 +303,11 @@ func (d *LanDiscovery) sendHeartbeat() {
 		Port:     strings.TrimPrefix(consts.PortNo, ":"),
 		Name:     LocalNodeName,
 	}
-	data, _ := json.Marshal(msg)
+	data, err := json.Marshal(msg)
+	if err != nil {
+		utils.ErrorFormat("心跳序列化失败: %v", err)
+		return
+	}
 
 	addr, err := net.ResolveUDPAddr("udp", multicastAddr)
 	if err != nil {
@@ -307,18 +320,19 @@ func (d *LanDiscovery) sendHeartbeat() {
 func (d *LanDiscovery) verifyPeer(ip string, port string) bool {
 	port = strings.TrimPrefix(port, ":")
 	url := fmt.Sprintf("http://%s:%s/api/heartBeat", ip, port)
-	client := &http.Client{Timeout: 3 * time.Second}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return false
 	}
 	// 增加 header 跳过远程节点的认证检查
 	req.Header.Set("X-Search-Gin-Remote", "true")
-	resp, err := client.Do(req)
+	resp, err := peerClient.Do(req)
 	if err != nil {
 		return false
 	}
 	defer resp.Body.Close()
+	// 确保 body 被完全读取以释放连接回连接池
+	io.Copy(io.Discard, resp.Body)
 	return resp.StatusCode == http.StatusOK
 }
 
@@ -355,6 +369,9 @@ func (d *LanDiscovery) cleanExpired(timeout time.Duration) {
 
 // GetOnlinePeers 获取在线节点列表
 func GetOnlinePeers() []*Peer {
+	if lanDiscovery == nil {
+		return nil
+	}
 	lanDiscovery.mu.RLock()
 	defer lanDiscovery.mu.RUnlock()
 	result := make([]*Peer, 0, len(lanDiscovery.peers))
@@ -366,6 +383,9 @@ func GetOnlinePeers() []*Peer {
 
 // GetPeerStats 获取指定节点的文件总数和总大小
 func GetPeerStats(nodeID string) (totalCnt int, totalSize string, nodeName string) {
+	if lanDiscovery == nil {
+		return 0, "", ""
+	}
 	lanDiscovery.mu.RLock()
 	p, ok := lanDiscovery.peers[nodeID]
 	lanDiscovery.mu.RUnlock()
@@ -383,6 +403,9 @@ func GetPeerStats(nodeID string) (totalCnt int, totalSize string, nodeName strin
 
 // AddPeer 动态添加节点（手动添加）
 func AddPeer(ip, port, filePort string) bool {
+	if lanDiscovery == nil {
+		return false
+	}
 	if port == "" {
 		port = "10081"
 	}
@@ -415,7 +438,11 @@ func AddPeer(ip, port, filePort string) bool {
 		return s
 	})
 	// 刷新配置文件
-	curDir, _ := os.Getwd()
+	curDir, err := os.Getwd()
+	if err != nil {
+		utils.ErrorFormat("获取当前目录失败: %v", err)
+		return false
+	}
 	setting := consts.GetOSSetting()
 	FlushDictionary(curDir + utils.PathSeparator + setting.SelfPath)
 	utils.InfoFormat("手动添加节点成功: %s (%s)", id, ip)
@@ -424,6 +451,9 @@ func AddPeer(ip, port, filePort string) bool {
 
 // RemovePeer 删除节点（从内存和配置文件中移除）
 func RemovePeer(id string) bool {
+	if lanDiscovery == nil {
+		return false
+	}
 	lanDiscovery.mu.Lock()
 	if _, ok := lanDiscovery.peers[id]; !ok {
 		lanDiscovery.mu.Unlock()
@@ -443,7 +473,11 @@ func RemovePeer(id string) bool {
 		s.DiscoveryPeers = keep
 		return s
 	})
-	curDir, _ := os.Getwd()
+	curDir, err := os.Getwd()
+	if err != nil {
+		utils.ErrorFormat("获取当前目录失败: %v", err)
+		return false
+	}
 	setting := consts.GetOSSetting()
 	FlushDictionary(curDir + utils.PathSeparator + setting.SelfPath)
 	utils.InfoFormat("删除节点: %s", id)
@@ -452,6 +486,9 @@ func RemovePeer(id string) bool {
 
 // TogglePeerDisabled 启用/禁用节点
 func TogglePeerDisabled(id string, disabled bool) bool {
+	if lanDiscovery == nil {
+		return false
+	}
 	lanDiscovery.mu.Lock()
 	defer lanDiscovery.mu.Unlock()
 	if p, ok := lanDiscovery.peers[id]; ok {

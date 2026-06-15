@@ -9,7 +9,6 @@ import (
 	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -39,7 +38,12 @@ func HandleRemote(c *gin.Context, movie model.FileItem, action string) bool {
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		utils.ErrorFormat("读取远程响应失败 [%s]: %v", action, err)
+		c.JSON(http.StatusBadGateway, utils.NewFailByMsg("读取远程响应失败"))
+		return true
+	}
 	c.Data(resp.StatusCode, resp.Header.Get("Content-Type"), body)
 	return true
 }
@@ -82,6 +86,5 @@ func forwardRequest(targetURL string, c *gin.Context) (*http.Response, error) {
 
 	req.URL.RawQuery = c.Request.URL.RawQuery
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	return client.Do(req)
+	return peerClient.Do(req)
 }

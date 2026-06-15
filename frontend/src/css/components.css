@@ -1,0 +1,309 @@
+/* ── 搜索卡片通用样式 — 统一 SearchPage / SearchPanel / ListEditDialog ── */
+
+/* 卡片容器 — Minimalism: 无阴影，细边框，圆角 */
+.card-search {
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #E2E8F0);
+  overflow: hidden;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+  cursor: pointer;
+}
+.card-search:hover {
+  border-color: var(--accent-color, #22C55E);
+  transform: translateY(-2px);
+}
+
+/* 卡片图片区 */
+.card-media {
+  position: relative;
+  overflow: hidden;
+  background: var(--card-bg, #F1F5F9);
+}
+
+/* 顶部标签栏（MovieType + Code） */
+.card-top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  gap: 4px;
+}
+
+/* 型号标签（top-tag） */
+.card-tag {
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 种类标签（top-type） */
+.card-type {
+  font-size: 0.65rem;
+  text-align: right;
+  display: flex;
+  align-items: flex-end;
+}
+
+/* 底部信息栏 */
+.card-footer {
+  padding: 6px 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.7rem;
+}
+
+/* 文件大小指示 */
+.card-size-badge {
+  font-size: 0.65rem;
+  color: var(--size-color, #22C55E);
+  margin-right: 4px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--size-bg, rgba(34, 197, 94, 0.1));
+}
+
+/* 角色名 */
+.card-author {
+  color: var(--author-color, #A1A1AA);
+  font-size: 0.65rem;
+  margin-right: 6px;
+}
+
+/* ── 搜索栏 ──────────────────────────────────────── */
+
+.search-bar {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  background: var(--search-bg, transparent);
+}
+.search-bar .q-field {
+  margin: 0;
+}
+
+/* 搜索输入框 */
+.search-input {
+  max-width: 320px;
+}
+
+/* ── 顶部操作栏 ───────────────────────────────────── */
+
+.action-bar {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border-color, #E2E8F0);
+}
+
+/* ── 通用状态标签色 ───────────────────────────────── */
+
+.tag-green { color: #22C55E; }
+.tag-red { color: #EF4444; }
+.tag-orange { color: #F59E0B; }
+.tag-blue { color: #3B82F6; }
+.tag-gray { color: #94A3B8; }
+
+.badge-green {
+  background: rgba(34, 197, 94, 0.12);
+  color: #16A34A;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 0.7rem;
+}
+.badge-red {
+  background: rgba(239, 68, 68, 0.12);
+  color: #DC2626;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 0.7rem;
+}
+.badge-orange {
+  background: rgba(245, 158, 11, 0.12);
+  color: #D97706;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 0.7rem;
+}
+
+/* ── 间距工具类（基于 4px 栅格） ───────────────── */
+
+.gap-1 { gap: 4px; }
+.gap-2 { gap: 8px; }
+.gap-3 { gap: 12px; }
+.gap-4 { gap: 16px; }
+.gap-6 { gap: 24px; }
+
+.p-2 { padding: 8px; }
+.p-3 { padding: 12px; }
+.p-4 { padding: 16px; }
+
+.px-2 { padding-left: 8px; padding-right: 8px; }
+.px-3 { padding-left: 12px; padding-right: 12px; }
+.px-4 { padding-left: 16px; padding-right: 16px; }
+
+.py-1 { padding-top: 4px; padding-bottom: 4px; }
+.py-2 { padding-top: 8px; padding-bottom: 8px; }
+
+.mr-2 { margin-right: 8px; }
+
+/* ── 文本截断 ──────────────────────────────────── */
+
+.text-ellipsis {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── FAB 拖拽按钮 ────────────────────────────────── */
+
+.fab-draggable {
+  position: fixed;
+  z-index: 2000;
+  touch-action: none;
+}
+
+/* ── 卡片图片 ────────────────────────────────── */
+
+.card-img {
+  border-radius: 6px 6px 0 0;
+  background: linear-gradient(135deg, rgba(30, 30, 50, 0.8), rgba(15, 15, 26, 0.9));
+  overflow: hidden;
+}
+
+/* 卡片底部浮动按钮栏 */
+.card-btn-bar {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+/* 卡片底部 row */
+.card-btn-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+/* ── 间距补充 ────────────────────────────────── */
+
+.mt-1 { margin-top: 4px; }
+.mt-2 { margin-top: 8px; }
+.mb-1 { margin-bottom: 4px; }
+
+.ml-1 { margin-left: 4px; }
+.ml-2 { margin-left: 8px; }
+
+/* ── 布局 ──────────────────────────────────── */
+
+.flex-center { display: flex; align-items: center; justify-content: center; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
+.flex-col { display: flex; flex-direction: column; }
+
+/* ── 卡片行（每个文件条目行） ────────────────── */
+
+.search-card-row {
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  gap: 6px;
+  border-bottom: 1px solid var(--border-color, #E2E8F0);
+}
+
+/* ── SearchPage 专用 ────────────────────────────── */
+
+.card-top-tag { width: 80%; }
+
+.card-top-type {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.card-content-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+}
+
+/* 浮动元素 */
+.float-left { float: left; }
+.float-right { float: right; }
+
+/* 历史记录条目 */
+.history-item {
+  display: flex;
+  justify-content: space-between;
+  margin: 4px;
+  padding: 4px;
+  color: #3B82F6;
+  cursor: pointer;
+}
+
+/* 搜索框宽度 */
+.search-input-wide { width: 200px; }
+
+/* 下拉菜单 */
+.menu-min-w { min-width: 160px; padding: 8px 0; }
+.menu-min-w-sm { min-width: 68px; }
+
+/* 文本居中 */
+.text-center { text-align: center; }
+
+/* 背景色 */
+.bg-glass { background: rgba(250, 250, 250, 0.8); }
+.bg-glass-9 { background: rgba(250, 250, 250, 0.9); }
+
+/* 历史面板 */
+.history-panel {
+  background: rgba(250, 250, 250, 0.9);
+  width: 400px;
+}
+
+/* 滚动列表 */
+.scroll-list {
+  height: 50vh;
+  overflow: auto;
+}
+
+/* 分页控件 */
+.page-control {
+  text-align: center;
+  width: 40%;
+}
+
+/* 宽按钮 */
+.w-5 { width: 5.5rem; }
+
+/* 搜索卡片间距 */
+.card-content-spacing {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 6px;
+  gap: 2px;
+}
+
+/* ── 暗色模式适配 ────────────────────────────────── */
+
+.body--dark .card-search {
+  background: #1B2336;
+  border-color: #272F42;
+}
+.body--dark .card-search:hover {
+  border-color: var(--accent-color, #22C55E);
+}
+.body--dark .card-media {
+  background: #0F172A;
+}
+.body--dark .card-author {
+  color: #64748B;
+}
+.body--dark .card-size-badge {
+  background: rgba(34, 197, 94, 0.18);
+}

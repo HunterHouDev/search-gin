@@ -1,6 +1,6 @@
 <template>
   <div class="immersive-container" @mousemove="onMouseMove" @click.self="togglePlay" @dblclick="toggleFullscreen">
-    <canvas ref="particleCanvas" class="particle-canvas"></canvas>
+    <!-- 粒子背景由 App.vue 中的 ParticleBackground 全局处理 -->
 
     <!-- 左上角返回按钮 -->
     <q-btn flat color="white" icon="arrow_back" class="fixed-top-left-btn" @click.stop="goBack">
@@ -486,6 +486,7 @@ import VideoCutParam from 'components/VideoCutParam.vue';
 import EditVideoTag from 'components/EditVideoTag.vue';
 import IndexButton from 'components/IndexButton.vue';
 import FileEdit from '../file/components/FileEditDialog.vue';
+import { useTorrentDownload } from 'src/composables/useTorrentDownload';
 
 
 const $q = useQuasar();
@@ -497,7 +498,6 @@ const systemProperty = useSystemProperty();
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
 const videoRef = ref(null);
-const particleCanvas = ref(null);
 const progressBar = ref(null);
 const fileEditRef = ref(null);
 const currentEditItem = ref(null);
@@ -536,23 +536,17 @@ const seekSeconds = [-60, -30, 30, 60, 120];
 
 // ── 音量控制 ──────────────────────────────────────────────────────────────────
 const showVolume = ref(false);
-
-// ── 磁力链 ────────────────────────────────────────────────────────────────────
-const magnetURI = ref('');
-const magnetFocused = ref(false);
 const isDragOver = ref(false);
-const torrentLoading = ref(false);
-const torrentName = ref('');
-const torrentProgress = ref(0);
-const torrentState = ref('');
-const torrentPeers = ref(0);
-const currentInfoHash = ref('');
-const torrentFiles = ref([]);
-const showTorrentFiles = ref(false);
-const selectedTorrentFile = ref(null);
-const showDownloadManager = ref(false);
-const activeDownloads = ref([]);
-let torrentPollTimer = null;
+
+// ── 磁力链 / BT 下载（组合式函数） ──────────────────────────────────────────────
+const {
+  magnetURI, magnetFocused, torrentLoading, torrentName, torrentProgress,
+  torrentState, torrentPeers, currentInfoHash, torrentFiles, showTorrentFiles,
+  selectedTorrentFile, showDownloadManager, activeDownloads,
+  submitMagnet, selectTorrentFile, playSelectedTorrentFile,
+  cancelTorrent, playDownloadTask, openDownloadFolder, removeDownloadTask,
+  cleanup: torrentCleanup,
+} = useTorrentDownload($q, (src, name) => loadVideo(src, name));
 
 // ── 播放列表 ──────────────────────────────────────────────────────────────────
 const playlist = ref([]);
@@ -586,10 +580,8 @@ const currentPageSizeChange = (size) => {
   }
 };
 
-// ── 粒子 / 音频 ───────────────────────────────────────────────────────────────
+// ── 音频 ───────────────────────────────────────────────────────────────
 let audioContext = null;
-let animationFrameId = null;
-let particles = [];
 
 // ── 计算属性 ──────────────────────────────────────────────────────────────────
 const progressPercent = computed(() => {
@@ -820,64 +812,6 @@ function parseTime(seconds) {
   ).padStart(2, '0')}`;
 }
 
-// ── 粒子系统 ──────────────────────────────────────────────────────────────────
-class Particle {
-  constructor(canvas) {
-    this.canvas = canvas;
-    this.reset();
-  }
-
-  reset() {
-    this.x = Math.random() * this.canvas.width;
-    this.y = Math.random() * this.canvas.height;
-    this.size = Math.random() * 2.5 + 0.5;
-    this.baseSize = this.size;
-    this.speedX = (Math.random() - 0.5) * 0.4;
-    this.speedY = (Math.random() - 0.5) * 0.4;
-    this.opacity = Math.random() * 0.4 + 0.15;
-    this.hue = Math.random() * 60 + 230;
-    this.pulsePhase = Math.random() * Math.PI * 2;
-    this.pulseSpeed = Math.random() * 0.018 + 0.008;
-  }
-
-  draw(ctx) {
-    ctx.save();
-    ctx.globalAlpha = this.opacity;
-    ctx.shadowBlur = 12;
-    ctx.shadowColor = `hsl(${this.hue}, 80%, 65%)`;
-    ctx.fillStyle = `hsl(${this.hue}, 70%, 72%)`;
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, Math.max(0.1, this.size), 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  }
-}
-
-function initParticles() {
-  if (!particleCanvas.value) return;
-  const canvas = particleCanvas.value;
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  particles = [];
-  const count = Math.min(
-    350,
-    Math.floor((canvas.width * canvas.height) / 6000)
-  );
-  for (let i = 0; i < count; i++) particles.push(new Particle(canvas));
-}
-
-function animate() {
-  if (!particleCanvas.value) return;
-  const canvas = particleCanvas.value;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = 'rgba(8, 8, 14, 0.12)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  particles.forEach((p) => {
-    p.draw(ctx);
-  });
-  animationFrameId = requestAnimationFrame(animate);
-}
-
 // ── 文件拖拽 ──────────────────────────────────────────────────────────────────
 function handleDrop(e) {
   e.preventDefault();
@@ -909,238 +843,20 @@ function loadVideo(src, name, poster, item = {}) {
       videoRef.value.play().catch((e) => {
         console.warn('Autoplay blocked on mobile, user interaction needed:', e.message);
       });
-
-      if (!animationFrameId) animate();
     }, { once: true });
   }
 }
 
-// ── 磁力链 ────────────────────────────────────────────────────────────────────
-async function submitMagnet() {
-  const uri = magnetURI.value.trim();
-  if (!uri.startsWith('magnet:')) {
-    $q.notify({
-      type: 'negative',
-      message: '请输入有效的磁力链',
-      position: 'top',
-    });
-    return;
-  }
-  torrentLoading.value = true;
-  torrentProgress.value = 0;
-  torrentState.value = '正在解析磁力链...';
-  torrentName.value = '获取种子信息中...';
-  try {
-    const res = await axios.post('/api/torrent/add', { magnetURI: uri });
-    console.log(res.data);
-    const code = res.data?.code ?? res.data?.Code;
-    const data = res.data?.data ?? res.data?.Data;
-    if (code === 200 && data) {
-      currentInfoHash.value = data.infoHash;
-      torrentName.value = data.name || '未知种子';
-      torrentFiles.value = data.files || [];
-      if (torrentFiles.value.length > 0) {
-        showTorrentFiles.value = true;
-        torrentLoading.value = false;
-      } else {
-        $q.notify({
-          type: 'warning',
-          message: '未解析到文件',
-          position: 'top',
-        });
-        torrentLoading.value = false;
-      }
-    } else {
-      $q.notify({
-        type: 'negative',
-        message: res.data?.message ?? res.data?.Message ?? '添加磁力链失败',
-        position: 'top',
-      });
-      torrentLoading.value = false;
-    }
-  } catch (err) {
-    $q.notify({
-      type: 'negative',
-      message: err.response?.data?.message ?? err.response?.data?.Message ?? '请求失败: ' + err.message,
-      position: 'top',
-    });
-    torrentLoading.value = false;
-  }
-}
-
-function selectTorrentFile(file) {
-  selectedTorrentFile.value = file.path;
-}
-
-async function playSelectedTorrentFile() {
-  if (!selectedTorrentFile.value || !currentInfoHash.value) return;
-  torrentLoading.value = true;
-  showTorrentFiles.value = false;
-  torrentState.value = '正在开始下载...';
-  torrentProgress.value = 0;
-  const fileName =
-    torrentFiles.value.find((f) => f.path === selectedTorrentFile.value)
-      ?.name || '未知文件';
-  try {
-    const response = await axios.post('/api/torrent/startDownload', {
-      infoHash: currentInfoHash.value,
-      filePath: selectedTorrentFile.value,
-    });
-    const result = response.data?.data ?? response.data?.Data;
-    const newTask = {
-      infoHash: currentInfoHash.value,
-      name: torrentName.value,
-      fileName: fileName,
-      filePath: selectedTorrentFile.value,
-      progress: result?.skipped ? 100 : 0,
-      state: result?.skipped ? '已下载' : '准备下载',
-      peers: 0,
-    };
-    activeDownloads.value.push(newTask);
-    if (!result?.skipped) {
-      startPolling(currentInfoHash.value, newTask, selectedTorrentFile.value);
-    }
-    const streamUrl = `/api/torrent/stream/${currentInfoHash.value
-      }?file=${encodeURIComponent(selectedTorrentFile.value)}`;
-    loadVideo(streamUrl, fileName);
-    if (result?.skipped) {
-      $q.notify({
-        type: 'positive',
-        message: '文件已存在，无需下载',
-        position: 'top',
-        timeout: 2000,
-      });
-    }
-  } catch (err) {
-    $q.notify({
-      type: 'negative',
-      message: '启动下载失败: ' + ((err.response?.data?.message ?? err.response?.data?.Message) || err.message),
-      position: 'top',
-    });
-  }
-  torrentLoading.value = false;
-  selectedTorrentFile.value = null;
-}
-
+// 文件图标映射（模板中用）
 function getFileIcon(fileName) {
   const ext = fileName.split('.').pop()?.toLowerCase();
-  const videoExts = [
-    'mp4',
-    'mkv',
-    'avi',
-    'mov',
-    'wmv',
-    'flv',
-    'webm',
-    'm4v',
-    'mpg',
-    'mpeg',
-  ];
+  const videoExts = ['mp4', 'mkv', 'avi', 'mov', 'wmv', 'flv', 'webm', 'm4v', 'mpg', 'mpeg'];
   const audioExts = ['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a'];
   const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'];
   if (videoExts.includes(ext)) return 'movie';
   if (audioExts.includes(ext)) return 'audio_file';
   if (imageExts.includes(ext)) return 'image';
   return 'insert_drive_file';
-}
-
-function startPolling(infoHash, task, filePath) {
-  stopPolling();
-  const pollStartTime = Date.now();
-  const POLL_TIMEOUT_MS = 5 * 60 * 1000; // 5 分钟超时
-  torrentPollTimer = setInterval(async () => {
-    // 超时检测
-    if (Date.now() - pollStartTime > POLL_TIMEOUT_MS) {
-      stopPolling();
-      $q.notify({
-        type: 'warning',
-        message: '下载超时，请检查网络或更换磁力链',
-        position: 'top',
-      });
-      return;
-    }
-    try {
-      const res = await axios.get(`/api/torrent/status/${infoHash}`);
-      // 兼容大小写字段
-      const d = res.data?.data ?? res.data?.Data;
-      const code = res.data?.code ?? res.data?.Code;
-      if (code === 200 && d) {
-        torrentName.value = d.name;
-        torrentProgress.value = d.progress;
-        torrentState.value = d.state;
-        torrentPeers.value = d.peers;
-        if (task) {
-          task.progress = d.progress;
-          task.state = d.state;
-          task.peers = d.peers;
-        }
-        if (d.progress >= 3 && !videoLoaded.value && !showTorrentFiles.value) {
-          torrentState.value = '缓冲就绪，开始播放';
-          const streamUrl = `/api/torrent/stream/${infoHash}?file=${encodeURIComponent(filePath)}`;
-          const newIdx = playlist.value.findIndex((p) => p.Id === infoHash);
-          currentIndex.value = newIdx;
-          loadVideo(streamUrl, d.videoFile || d.name);
-          stopPolling();
-        }
-      }
-    } catch (err) {
-      console.warn('轮询状态失败:', err);
-    }
-  }, 2000);
-}
-
-function stopPolling() {
-  if (torrentPollTimer) {
-    clearInterval(torrentPollTimer);
-    torrentPollTimer = null;
-  }
-}
-
-async function cancelTorrent() {
-  stopPolling();
-  if (currentInfoHash.value) {
-    try {
-      await axios.delete(`/api/torrent/${currentInfoHash.value}`);
-    } catch {
-      /* ignore */
-    }
-    activeDownloads.value = activeDownloads.value.filter(
-      (t) => t.infoHash !== currentInfoHash.value
-    );
-  }
-  torrentLoading.value = false;
-  torrentProgress.value = 0;
-  torrentState.value = '';
-  torrentName.value = '';
-  currentInfoHash.value = '';
-  torrentFiles.value = [];
-  showTorrentFiles.value = false;
-  selectedTorrentFile.value = null;
-}
-
-// ── 下载管理器 ─────────────────────────────────────────────────────────────────
-function playDownloadTask(task) {
-  const streamUrl = `/api/torrent/stream/${task.infoHash
-    }?file=${encodeURIComponent(task.filePath)}`;
-  currentInfoHash.value = task.infoHash;
-  loadVideo(streamUrl, task.fileName);
-}
-
-function openDownloadFolder(task) {
-  window.open(`/api/openFolder/${task.infoHash}`, '_blank');
-}
-
-function removeDownloadTask(task) {
-  axios.delete(`/api/torrent/${task.infoHash}`).catch(() => {
-    /* ignore */
-  });
-  activeDownloads.value = activeDownloads.value.filter(
-    (t) => t.infoHash !== task.infoHash
-  );
-  if (currentInfoHash.value === task.infoHash) {
-    currentInfoHash.value = '';
-    torrentLoading.value = false;
-  }
 }
 
 // ── 播放控制 ──────────────────────────────────────────────────────────────────
@@ -1521,43 +1237,24 @@ function handleKeydown(e) {
   }
 }
 
-// ── 窗口 resize ───────────────────────────────────────────────────────────────
-function handleResize() {
-  if (particleCanvas.value) {
-    particleCanvas.value.width = window.innerWidth;
-    particleCanvas.value.height = window.innerHeight;
-  }
-}
-
 // ── 监听 ──────────────────────────────────────────────────────────────────────
 watch(searchDialog, (val) => {
   if (val && searchResults.Data.length === 0) fetchSearch();
 });
 
-
 // ── 生命周期 ──────────────────────────────────────────────────────────────────
 onMounted(() => {
-  initParticles();
-  animate();
   document.addEventListener('fullscreenchange', () => {
     isFullscreen.value = !!document.fullscreenElement;
   });
-  window.addEventListener('resize', handleResize);
   document.addEventListener('keydown', handleKeydown);
   document.addEventListener('contextmenu', onContextMenu);
 });
 
 onUnmounted(() => {
-  if (animationFrameId) cancelAnimationFrame(animationFrameId);
   endSeek();
   if (audioContext) audioContext.close();
-  stopPolling();
-  if (currentInfoHash.value) {
-    axios.delete(`/api/torrent/${currentInfoHash.value}`).catch((e) => {
-      console.warn('删除种子失败:', e);
-    });
-  }
-  window.removeEventListener('resize', handleResize);
+  torrentCleanup();
   document.removeEventListener('keydown', handleKeydown);
   document.removeEventListener('contextmenu', onContextMenu);
 });
@@ -1576,14 +1273,6 @@ onUnmounted(() => {
 
 .immersive-container:hover {
   cursor: default;
-}
-
-/* ── 粒子画布 ─────────────────────────────────────────────────────────────── */
-.particle-canvas {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
 }
 
 .top-title {

@@ -12,15 +12,16 @@
 // to match your app's branding.
 // Tip: Use the "Theme Builder" on Quasar's documentation website.
 
-// Immersive Theme - Indigo based
-$primary: #6366f1;
-$secondary: #818cf8;
-$accent: #a5b4fc;
+// Design System — Developer Tool / IDE
+// Minimalism & Swiss Style · Navy + Green accent
+$primary: #1E293B;     // Deep Navy
+$secondary: #334155;   // Dark Slate
+$accent: #22C55E;      // Seafoam Green
 
-$dark: #0f0f1a;
-$dark-page: #090912;
+$dark: #0F172A;        // Dark bg
+$dark-page: #0F172A;
 
-$positive: #10b981;
-$negative: #ef4444;
-$info: #06b6d4;
-$warning: #f59e0b;
+$positive: #22C55E;    // Accent = success
+$negative: #EF4444;    // Destructive = error
+$info: #475569;        // Border = info
+$warning: #F59E0B;     // Amber

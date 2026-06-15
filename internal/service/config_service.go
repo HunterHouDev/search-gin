@@ -12,7 +12,11 @@ import (
 
 // InitSetting 读取配置文件并初始化全局设置
 func InitSetting() {
-	curDir, _ := filepath.Abs(".")
+	curDir, err := filepath.Abs(".")
+	if err != nil {
+		utils.ErrorFormat("获取当前目录失败: %v", err)
+		curDir = "."
+	}
 	osSetting := consts.GetOSSetting()
 	settingPath := curDir + utils.PathSeparator + osSetting.SelfPath
 	dict := ReadDictionaryFromJson(settingPath)

@@ -53,6 +53,7 @@ func main() {
 
 	// ── 5. 初始化配置和扫描队列 ──
 	service.InitSetting()
+	service.InitSearchPool()
 	service.StartScanQueue()
 
 	// ── 5.5 启动局域网节点发现 ──
@@ -103,7 +104,11 @@ func main() {
 			// 先通知旧进程关闭，等待端口释放再启动新进程
 			sigChan <- syscall.SIGTERM
 			time.Sleep(2 * time.Second)
-			exe, _ := os.Executable()
+			exe, err := os.Executable()
+			if err != nil {
+				utils.ErrorFormat("获取可执行文件路径失败: %v", err)
+				return
+			}
 			cmd := exec.Command(exe, os.Args[1:]...)
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
@@ -113,6 +118,9 @@ func main() {
 
 	// ── 12. 优雅关闭监听 ──
 	gracefulShutdown(sigChan, []*http.Server{apiSrv, fileSrv})
+
+	// 通知后台任务停止
+	service.TaskCancel()
 
 	// ── 13. 等待所有 HTTP 服务退出 ──
 	if err := g.Wait(); err != nil && err != http.ErrServerClosed {
