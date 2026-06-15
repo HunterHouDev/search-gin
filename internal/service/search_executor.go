@@ -73,6 +73,12 @@ func (se *searchEngineCore) returnRepeatSearch() model.PageResultWrapper {
 	return wrapper
 }
 
+// cachedResult wraps search result with epoch to detect stale cache entries
+type cachedResult struct {
+	epoch int64
+	data  model.PageResultWrapper
+}
+
 // PageAsync 异步分页搜索
 func (se *searchEngineCore) PageAsync(searchParam model.SearchParam) model.PageResultWrapper {
 	if searchParam.OnlyRepeat {
@@ -83,11 +89,15 @@ func (se *searchEngineCore) PageAsync(searchParam model.SearchParam) model.PageR
 	// 缓存命中
 	cacheKey := searchParam.UniWords()
 	if matchValue, ok := se.KeywordHistoryCache.Get(cacheKey); ok {
-		wrapper, ok2 := matchValue.(model.PageResultWrapper)
+		cr, ok2 := matchValue.(cachedResult)
 		if !ok2 {
 			// 脏缓存：类型不匹配，删除后继续搜索
 			se.KeywordHistoryCache.Delete(cacheKey)
+		} else if cr.epoch != se.cacheEpoch.Load() {
+			// 缓存过时：属于旧快照，删除后重新搜索
+			se.KeywordHistoryCache.Delete(cacheKey)
 		} else {
+			wrapper = cr.data
 			wrapper.FileList, wrapper.ResultSize = model.GetPageOfFiles(
 				wrapper.FileList, searchParam.Page, searchParam.PageSize)
 			return wrapper
@@ -166,7 +176,7 @@ loop:
 
 	// 只缓存小结果集：空关键词不缓存，结果超过 2000 条不缓存
 	if searchParam.Keyword != "" && wrapper.SearchCount <= 2000 {
-		se.KeywordHistoryCache.Set(cacheKey, wrapper)
+		se.KeywordHistoryCache.Set(cacheKey, cachedResult{epoch: se.cacheEpoch.Load(), data: wrapper})
 	}
 
 	wrapper.FileList, wrapper.ResultSize = model.GetPageOfFiles(

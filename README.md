@@ -98,6 +98,7 @@ search-gin/
 - **认证**：默认管理员 `admin` / `qwer`，Token 存储在内存中
 - **无数据库**：所有数据为内存存储，通过文件系统扫描填充。索引快照自动持久化到 `search_cache.gob`（gob 序列化），重启后优先加载缓存，用户无空白等待期；后台继续扫描以同步最新文件变更
 - **多节点**：`setting.json` 中配置 `enableLanDiscovery: true` 开启 UDP 组播发现，节点间通过 `:10082` 直连传输文件流
+- **集群安全认证**：跨节点 API 请求携带 `X-Search-Gin-Remote: true` header 绕过 Token 认证，但来源 IP 必须为集群内已知 peer。首次遇到未知 IP 时自动反向心跳验证（GET 该 IP 的 `/api/heartBeat`），通过后自动加入集群并持久化到 `setting.json`，后续请求直达免验证
 
 ## 主要依赖
 
@@ -171,6 +172,7 @@ type searchEngineCore struct {
     KeywordHistoryCache *utils.LRUCache // 搜索结果 LRU 缓存
     searchPool          *utils.GoroutinePool
     rebuildMu           sync.Mutex      // 防止并发重建
+    cacheEpoch          atomic.Int64    // 缓存失效纪元（installSnapshot 时递增，读写时校验）
 }
 ```
 
@@ -179,7 +181,9 @@ type searchEngineCore struct {
 ```
 PageAsync(keyword, type, page)
   │
-  ├─ LRU 缓存命中？ → 直接分页返回
+  ├─ LRU 缓存命中？
+  │   ├─ epoch 匹配？ → 直接分页返回
+  │   └─ epoch 过期？ → 删除缓存，继续搜索
   │
   ├─ 加载快照 (atomic.Value.Load → 无锁)
   │
@@ -213,6 +217,7 @@ ScanAll()
   └─ installSnapshot()
       ├─ snapshot.Store(newSnap)    ← 原子切换
       ├─ 清空 LRU 缓存
+      ├─ cacheEpoch.Add(1)          ← 递增纪元，旧缓存自动失效
       ├─ 清空演员缓存
       └─ 同步 typeMenu/tagMenu/seriesCount 到全局 consts
 ```
@@ -270,7 +275,7 @@ main()
 | 索引重建写 | `rebuildMu` + 影子快照 | 写时排他，读不受影响 |
 | Bucket 内部写入 | `bucketFile.mu` (RWMutex) | 细粒度，不影响其他 bucket |
 | 全局菜单同步 | `sync.Map` | 原子读写 |
-| LRU 缓存 | `sync.RWMutex` + double-check | 高并发读优化 |
+| LRU 缓存 | `sync.RWMutex` + epoch 校验 | 高并发读优化，索引更新后自动失效 |
 | 快照磁盘缓存 | 异步 goroutine + 原子 rename | 不阻塞任何路径，写中断不损坏文件 |
 
 ### 性能特征

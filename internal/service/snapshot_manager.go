@@ -37,6 +37,7 @@ type searchEngineCore struct {
 	KeywordHistoryCache *utils.LRUCache  // 搜索结果缓存
 	searchPool          *utils.GoroutinePool
 	rebuildMu           sync.Mutex       // 防止并发 rebuildWithBucket
+	cacheEpoch          atomic.Int64     // 缓存失效纪元，递增触发 cache 清空
 	actorSizeCache      []model.Author   // PageAuthor 空关键词缓存（按Size排序）
 	actorCountCache     []model.Author   // PageAuthor 空关键词缓存（按Cnt排序）
 }
@@ -80,6 +81,7 @@ func (se *searchEngineCore) loadSnapshot() *searchSnapshot {
 func (se *searchEngineCore) installSnapshot(snap *searchSnapshot) {
 	se.snapshot.Store(snap)
 	se.KeywordHistoryCache.Clear()
+	se.cacheEpoch.Add(1)
 	se.actorSizeCache = nil
 	se.actorCountCache = nil
 

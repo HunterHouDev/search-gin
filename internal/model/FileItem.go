@@ -9,30 +9,30 @@ import (
 
 // FileItem 文件条目 — 表示一个被索引的文件
 type FileItem struct {
-	Id        string `xorm:"Varchar(255) pk"  `
-	Code      string `xorm:"Varchar(255)"`
-	Name      string `xorm:"Text"`
-	Path      string `xorm:"Text"`
-	BaseDir   string `xorm:"Text"`
-	Png       string `xorm:"Text"`
-	Srt       string `xorm:"Text" json:"Srt,omitempty"`
-	Jpg       string `xorm:"Text"`
-	Gif       string `xorm:"Text"`
-	Author   string `xorm:"Text"`
-	FileType  string `xorm:"Text"`
-	DirPath   string `xorm:"Text"`
+	Id        string
+	Code      string
+	Name      string
+	Path      string
+	BaseDir   string
+	Png       string
+	Srt       string `json:"Srt,omitempty"`
+	Jpg       string
+	Gif       string
+	Author   string
+	FileType  string
+	DirPath   string
 	Size      int64
 	Flag      int64
 	SizeStr   string
-	MTime     string `xorm:"DateTime"`
+	MTime     string
 	MovieType string
 	PathUpper string
 	Tags      []string
 
 	Studio   string `json:"Studio,omitempty"`
 	Title    string
-	PngUrl   string `json:"PngUrl,omitempty" xorm:"Text" `
-	JpgUrl   string `json:"JpgUrl,omitempty" xorm:"Text"`
+	PngUrl   string `json:"PngUrl,omitempty"`
+	JpgUrl   string `json:"JpgUrl,omitempty"`
 
 	// 多节点字段
 	NodeHost  string `json:"NodeHost,omitempty"`  // "PC-A:10081" 文件所属节点

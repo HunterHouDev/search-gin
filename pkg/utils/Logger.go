@@ -31,7 +31,7 @@ func init() {
 	if env.IsProd {
 		logger.SetLevel(logrus.ErrorLevel)
 	} else {
-		logger.SetLevel(logrus.WarnLevel)
+		logger.SetLevel(logrus.InfoLevel)
 	}
 }
 
@@ -40,11 +40,11 @@ func NewLogger() *logrus.Logger {
 }
 
 func InfoFormat(format string, v ...any) {
-	logger.Warnf(format, v...)
+	logger.Infof(format, v...)
 }
 
 func InfoNormal(v ...any) {
-	logger.Warnf("%v", v...)
+	logger.Infof("%v", v...)
 }
 
 func ErrorFormat(format string, v ...any) {

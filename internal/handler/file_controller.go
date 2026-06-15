@@ -30,7 +30,7 @@ func GetPlay(c *gin.Context) {
 
 	sanitizePath, err := utils.ValidatePath(file.Path, consts.GetOSSetting().Dirs)
 	if err != nil {
-		utils.InfoFormat("命令注入攻击尝试: %s, 错误: %v", file.Path, err)
+		utils.ErrorFormat("命令注入攻击尝试: %s, 错误: %v", file.Path, err)
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("文件路径不在允许范围内"))
 		return
 	}
@@ -238,7 +238,7 @@ func GetFileByPathUseEncode(c *gin.Context) {
 	// 验证路径是否在允许的目录内
 	validatedPath, err := utils.ValidatePath(decodedPath, consts.GetOSSetting().Dirs)
 	if err != nil {
-		utils.InfoFormat("路径遍历攻击尝试: %s, 错误: %v", decodedPath, err)
+		utils.ErrorFormat("路径遍历攻击尝试: %s, 错误: %v", decodedPath, err)
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("访问被拒绝：路径不在允许范围内"))
 		return
 	}
@@ -261,7 +261,7 @@ func GetDeleteFileByPathUseEncode(c *gin.Context) {
 	// 验证路径是否在允许的目录内
 	validatedPath, err := utils.ValidatePath(decodedPath, consts.GetOSSetting().Dirs)
 	if err != nil {
-		utils.InfoFormat("路径遍历攻击尝试: %s, 错误: %v", decodedPath, err)
+		utils.ErrorFormat("路径遍历攻击尝试: %s, 错误: %v", decodedPath, err)
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("删除被拒绝：路径不在允许范围内"))
 		return
 	}

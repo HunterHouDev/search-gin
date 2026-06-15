@@ -369,16 +369,53 @@ func (d *LanDiscovery) cleanExpired(timeout time.Duration) {
 
 // GetOnlinePeers 获取在线节点列表
 func GetOnlinePeers() []*Peer {
+ if lanDiscovery == nil {
+  return nil
+ }
+ lanDiscovery.mu.RLock()
+ defer lanDiscovery.mu.RUnlock()
+ result := make([]*Peer, 0, len(lanDiscovery.peers))
+ for _, p := range lanDiscovery.peers {
+  result = append(result, p)
+ }
+ return result
+}
+
+// IsKnownPeerIP 判断指定 IP 是否属于集群内已知节点（含本机回环）
+// 用于 AuthMiddleware 校验 X-Search-Gin-Remote 请求的来源是否可信
+func IsKnownPeerIP(ip string) bool {
+ parsed := net.ParseIP(ip)
+ if parsed != nil && parsed.IsLoopback() {
+  return true
+ }
+
+ if lanDiscovery == nil {
+  return false
+ }
+
+ lanDiscovery.mu.RLock()
+ defer lanDiscovery.mu.RUnlock()
+
+ for _, p := range lanDiscovery.peers {
+  if p.Disabled {
+   continue
+  }
+  if p.IP == ip {
+   return true
+  }
+ }
+ return false
+}
+
+// TryVerifyAndAddPeer 向指定 IP 发起反向心跳验证，通过则自动加入集群
+// 用于 AuthMiddleware 首次遇到未知 IP 时自动发现
+func TryVerifyAndAddPeer(ip string) bool {
 	if lanDiscovery == nil {
-		return nil
+		return false
 	}
-	lanDiscovery.mu.RLock()
-	defer lanDiscovery.mu.RUnlock()
-	result := make([]*Peer, 0, len(lanDiscovery.peers))
-	for _, p := range lanDiscovery.peers {
-		result = append(result, p)
-	}
-	return result
+	port := strings.TrimPrefix(consts.PortNo, ":")
+	filePort := strings.TrimPrefix(consts.FilePortNo, ":")
+	return AddPeer(ip, port, filePort)
 }
 
 // GetPeerStats 获取指定节点的文件总数和总大小

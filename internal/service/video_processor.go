@@ -195,7 +195,7 @@ func (fs *fileService) ffmpegExec(args []string, thisNow time.Time) utils.Result
 
 	task.SetStatus("执行中")
 	task.CreateTime = time.Now()
-	task.Command = ffmpegPath + " " + strings.Join(args, "  ")
+	task.Command = ffmpegPath + " " + strings.Join(args, " ")
 	consts.TransferTask[thisNow] = task
 	consts.TransferTaskMutex.Unlock()
 

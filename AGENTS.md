@@ -36,14 +36,16 @@
 
 ## 无数据库
 
-`internal/repository/` 和 `configs/` 目录为空。所有数据存储在内存中（Go struct + `sync.Map`），通过文件系统扫描填充。`model/Movie.go` 中的 `xorm` 结构体标签是历史遗留，无实际作用。
+`internal/repository/` 和 `configs/` 目录为空。所有数据存储在内存中（Go struct + `sync.Map`），通过文件系统扫描填充。`FileItem` 结构体中历史遗留的 `xorm` 标签已清理。
 
 ## 认证
 
 - 硬编码管理员账号：`admin` / `qwer`（`pkg/consts/setting_data.go:16-18`）
 - Token 存储在内存中（`TokenStore` map），通过 `Authorization: Bearer <token>` 发送
 - WebSocket 使用 `?token=` 查询参数传递（无法设置自定义 Header）
+- **集群节点间转发**使用 `X-Search-Gin-Remote: true` header 跳过 Token 认证，但来源 IP 必须为集群内已知 peer（`middleware/common.go`），详见下方多节点集群认证机制
 - 中间件跳过认证的路径（API 路由 10081）：`/api/login`、`/`、`/index.html`、`/api/ws`、`/api/lanPeers`、`/api/heartBeat`
+  - ⚠️ skip path 检查必须在 `X-Search-Gin-Remote` 校验**之前**，否则 `verifyPeer` 反向心跳请求会形成递归死锁
 - 文件流路由统一走端口 10082（`BuildFileRouter`，无认证），前端通过 `setFileBaseUrl` 自动指向 `:10082`
 - `StreamUrl`（视频）→ `GetFileByPathUseEncode/:path`，`PngUrl`/`JpgUrl`（缩略图）→ `png/:id`/`jpg/:id`
 - 前端 API 基础地址为 `http://localhost:10081`（`frontend/src/boot/axios.ts:18`）
@@ -55,6 +57,8 @@
 | 功能 | 文件 | 说明 |
 |------|------|------|
 | **节点发现** | `internal/service/lan_discovery.go` | UDP 组播 `239.255.255.250:10083`，30s 心跳，90s 超时 |
+| **集群内认证** | `middleware/common.go` + `lan_discovery.go` | 跨节点请求通过 `X-Search-Gin-Remote: true` header 识别，来源 IP 必须在 peers 列表中或通过反向心跳自动加入 |
+| **反向心跳自动发现** | `lan_discovery.go:TryVerifyAndAddPeer()` | 首次收到未知 IP 的集群请求时，反向 GET 该 IP 的 `/api/heartBeat` 验证，通过则自动加入集群（持久化到 `setting.json`） |
 | **Peer 列表** | `internal/handler/lan_controller.go` | `GET /api/lanPeers` 返回在线节点 |
 | **跨节点搜索** | `internal/service/remote_search.go` | 并发请求所有在线节点（最多 5 个并发），合并结果并去重 |
 | **跨节点操作** | `internal/service/remote_operation.go` | 文件删除/重命名/移动/标签/转码等操作转发到源节点执行 |
@@ -117,10 +121,12 @@ bash ball_build.sh
 
 - 2 空格缩进（`.editorconfig`），LF 换行
 - 日志：使用 `utils.InfoFormat` / `utils.ErrorFormat`（封装 logrus；同时写入 stdout 和 `gin.log`）
+  - `InfoFormat` 对应 logrus `INFO` 级别（开发环境 `InfoLevel`，生产环境 `ErrorLevel` 下被抑制）
 - `main.go` 中启动的 goroutine 必须使用 `defer utils.RecoverPanic()`
 - HTTP 错误响应使用 `utils.NewFailByMsg(msg)` 返回 JSON `{fail: true, msg: "..."}`，成功响应使用 `gin.H` 或 model 结构体
 - `pkg/utils/Os.go` 导出 `PathSeparator`——请使用此常量而非直接使用 `os.PathSeparator`
 - 文件存在判断：`utils.ExistsFiles(path)`（定义在 `OsFilepathUtils.go`）
+- 搜索结果缓存（`KeywordHistoryCache`）使用 epoch 机制：`cacheEpoch` 在每次 `installSnapshot` 时递增，缓存读写时校验 epoch，防止索引重建后返回过时结果（`search_executor.go:cachedResult`）
 
 ## CI（已废弃）
 
