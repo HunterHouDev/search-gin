@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"search-gin/internal/model"
 	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
@@ -234,7 +235,7 @@ func FillURLs(c *gin.Context, movies []model.FileItem) {
 		m := &movies[i]
 		if m.NodeHost == localNode || m.NodeHost == "" {
 			// 本机文件 → 用请求进来的网卡 IP，指向文件流端口 :10082
-			m.StreamUrl = fmt.Sprintf("http://%s:%s/api/stream/file/%s", localIP, filePort, m.Id)
+			m.StreamUrl = fmt.Sprintf("http://%s:%s/api/stream/GetFileByPathUseEncode/%s", localIP, filePort, url.QueryEscape(m.Path))
 			m.PngUrl = fmt.Sprintf("http://%s:%s/api/stream/png/%s", localIP, filePort, m.Id)
 			m.JpgUrl = fmt.Sprintf("http://%s:%s/api/stream/jpg/%s", localIP, filePort, m.Id)
 			m.NodeHost = localNode
@@ -246,7 +247,7 @@ func FillURLs(c *gin.Context, movies []model.FileItem) {
 				peerFilePort = p.FilePort
 			}
 			if peerIP := ResolvePeerIP(m.NodeHost); peerIP != "" {
-				m.StreamUrl = fmt.Sprintf("http://%s:%s/api/stream/file/%s", peerIP, peerFilePort, m.Id)
+				m.StreamUrl = fmt.Sprintf("http://%s:%s/api/stream/GetFileByPathUseEncode/%s", peerIP, peerFilePort, url.QueryEscape(m.Path))
 				m.PngUrl = fmt.Sprintf("http://%s:%s/api/stream/png/%s", peerIP, peerFilePort, m.Id)
 				m.JpgUrl = fmt.Sprintf("http://%s:%s/api/stream/jpg/%s", peerIP, peerFilePort, m.Id)
 			}
