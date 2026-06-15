@@ -92,11 +92,9 @@
     </q-drawer>
     <q-page-container>
       <router-view v-slot="{ Component, route }">
-        <transition name="page-fade" mode="out-in">
-          <keep-alive :max="5">
-            <component :is="Component" :key="route.path" />
-          </keep-alive>
-        </transition>
+        <keep-alive :max="5">
+          <component :is="Component" :key="route.path" />
+        </keep-alive>
       </router-view>
     </q-page-container>
       <ShutdownComponent ref="shutdown" />
@@ -301,22 +299,6 @@ const essentialLinks = [
 // 主 Header 样式 — Minimalism: no shadow, subtle border
 .main-header {
   transition: background-color 0.4s ease;
-}
-
-// 页面切换过渡动画
-.page-fade-enter-active,
-.page-fade-leave-active {
-  transition: opacity 0.25s ease, transform 0.25s ease;
-}
-
-.page-fade-enter-from {
-  opacity: 0;
-  transform: translateY(10px);
-}
-
-.page-fade-leave-to {
-  opacity: 0;
-  transform: translateY(-10px);
 }
 
 // 隐藏滚动条

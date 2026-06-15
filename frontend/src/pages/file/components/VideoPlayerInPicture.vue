@@ -76,14 +76,14 @@
             icon="ti-arrow-top-left"
             color="red"
             v-touch-pan.prevent.mouse="zoomFab"
-            @click="view.showDrawer = !view.showDrawer"
+            @click="minimal ? null : view.showDrawer = !view.showDrawer"
           >
             <q-tooltip class="bg-white text-primary">缩放</q-tooltip>
           </q-btn>
           <q-btn
             dense
             flat
-            v-if="!view.webFullScreen"
+            v-if="!view.webFullScreen && !minimal"
             align="center"
             size="md"
             icon="ti-fullscreen"
@@ -98,7 +98,7 @@
           <q-btn
             dense
             flat
-            v-if="!isMobile() && !view.videoFullscreen && !view.webFullScreen"
+            v-if="!isMobile() && !view.videoFullscreen && !view.webFullScreen && !minimal"
             icon="ti-layout-media-right-alt"
             color="red"
             @click="requestPiP"
@@ -122,12 +122,14 @@
             flat
             dense
             color="red"
+            v-if="!minimal"
             icon="ti-menu-alt"
             @click="view.showDrawer = true"
             v-touch-pan.prevent.mouse="moveFab"
           ></q-btn>
         </div>
         <div
+          v-if="!minimal"
           style="
             width: auto;
             height: auto;
@@ -214,7 +216,7 @@
           <q-btn
             dense
             flat
-            v-if="!view.videoFullscreen && !isMobile()"
+            v-if="!view.videoFullscreen && !isMobile() && !minimal"
             align="center"
             size="md"
             :icon="view.videoFullscreen ? 'ti-zoom-out' : 'ti-zoom-in'"
@@ -230,6 +232,7 @@
           <DeleteBtn
             :dense="true"
             flat
+            v-if="!minimal"
             :current-data="view.currentData"
             @next-one="nextOne"
             @prev-one="prevOne"
@@ -291,7 +294,7 @@
             @prev-one="prevOne"
           />
           <VideoVolumnBtn
-            v-if="view.showExtraInfo"
+            v-if="view.showExtraInfo && !minimal"
             style="margin-top: 18px"
             v-touch-pan.prevent.mouse="moveFab"
             @volume-update="volumeUpdate"
@@ -317,6 +320,7 @@
             style="max-width: 10rem"
             v-touch-pan.prevent.mouse="moveFab"
             :label="view.currentVideoTime"
+            v-if="!minimal"
             >::{{ view.progress }}%
             <q-popup-proxy>
               <VideoCutParam
@@ -333,7 +337,7 @@
             </q-popup-proxy>
           </q-btn>
           <span
-            v-if="view.showExtraInfo && !isMobile()"
+            v-if="view.showExtraInfo && !isMobile() && !minimal"
             square
             dense
             v-touch-pan.prevent.mouse="moveFab"
@@ -367,6 +371,10 @@ import SearchPanel from 'components/SearchPanel.vue';
 import FileEdit from 'src/pages/file/components/FileEditDialog.vue';
 import VideoVolumnBtn from 'components/VideoVolumnBtn.vue';
 import DeleteBtn from 'components/DeleteBtn.vue';
+
+const props = defineProps({
+  minimal: { type: Boolean, default: false },
+});
 
 const source = ref('Hello');
 const { copy } = useClipboard({ source });
