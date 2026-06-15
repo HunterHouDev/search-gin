@@ -6,10 +6,13 @@ log() {
     printf "[%s] %s\n" "$level" "$message"
 }
 
-clean_dist() {
+clean_dirs() {
     log "INFO" "清理 dist 目录..."
     rm -rf dist
     mkdir -p dist
+
+    log "INFO" "清理 qapp/dist 和 qapp/log..."
+    rm -rf qapp/dist qapp/log
 }
 
 build_frontend() {
@@ -39,7 +42,7 @@ build_go_app() {
 
 log "INFO" "开始打包流程..."
 
-clean_dist
+clean_dirs
 
 build_frontend
 
