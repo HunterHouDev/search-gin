@@ -2,7 +2,12 @@ import { commonAxios } from '../../boot/axios';
 import { SettingInfo } from '../model/Setting';
 
 export const GeMemeryLog = async () => {
-  const res = await commonAxios().get('/api/logMemery');
+  const res = await commonAxios().get('/api/logMemory');
+  return res;
+};
+
+export const GetLocalLog = async () => {
+  const res = await commonAxios().get('/api/localLog');
   return res;
 };
 
@@ -102,4 +107,3 @@ export const DeleteUser = async (username: string) => {
   });
   return res && res.data;
 };
-

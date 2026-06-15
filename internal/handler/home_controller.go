@@ -1,14 +1,16 @@
 package handler
 
 import (
- "net/http"
- "search-gin/internal/service"
- "search-gin/pkg/consts"
- "search-gin/pkg/utils"
- "sort"
- "sync"
+	"net/http"
+	"os"
+	"path/filepath"
+	"search-gin/internal/service"
+	"search-gin/pkg/consts"
+	"search-gin/pkg/utils"
+	"sort"
+	"sync"
 
- "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 func Index(c *gin.Context) {
@@ -46,6 +48,44 @@ func GetSeriesSize(c *gin.Context) {
 
 func GetLogMemory(c *gin.Context) {
 	c.JSON(http.StatusOK, consts.LogMemory)
+}
+
+// LocalLogLine 本地日志行
+type LocalLogLine struct {
+	Raw string `json:"raw"`
+}
+
+func GetLocalLog(c *gin.Context) {
+	logPath := filepath.Join(service.TempDir, "gin.log")
+	content, err := os.ReadFile(logPath)
+	if err != nil {
+		c.JSON(http.StatusOK, []string{})
+		return
+	}
+	lines := splitLines(string(content))
+	// 反转（最新在前）
+	for i, j := 0, len(lines)-1; i < j; i, j = i+1, j-1 {
+		lines[i], lines[j] = lines[j], lines[i]
+	}
+	c.JSON(http.StatusOK, lines)
+}
+
+// splitLines 按换行符分割，忽略末尾空行
+func splitLines(s string) []string {
+	var result []string
+	start := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\n' {
+			if i > start {
+				result = append(result, s[start:i])
+			}
+			start = i + 1
+		}
+	}
+	if start < len(s) {
+		result = append(result, s[start:])
+	}
+	return result
 }
 
 func GetScanTime(c *gin.Context) {
