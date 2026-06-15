@@ -114,6 +114,8 @@ func PostRename(c *gin.Context) {
 	err = c.ShouldBindJSON(&currentFile)
 	if err != nil {
 		utils.InfoNormal(err)
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数绑定失败"))
+		return
 	}
 
 	// 远程转发：恢复 Body 供 forwardRequest 读取
@@ -141,6 +143,8 @@ func PostMove(c *gin.Context) {
 	err = c.ShouldBindJSON(&currentFile)
 	if err != nil {
 		utils.InfoNormal(err)
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数绑定失败"))
+		return
 	}
 
 	// 远程转发：恢复 Body 供 forwardRequest 读取

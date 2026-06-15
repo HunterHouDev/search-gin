@@ -223,7 +223,7 @@ const refreshIndex = async (item) => {
   const { Code, Message } = await RefreshAPI(item.BaseDir);
   if (Code === 200) {
     $q.notify({
-      type: 'negative',
+      type: 'positive',
       message: Message,
       position: 'bottom-left',
     });

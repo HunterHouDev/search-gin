@@ -50,11 +50,18 @@ type LanDiscovery struct {
 }
 
 var (
+	lanDiscovery     *LanDiscovery
+	lanDiscoveryOnce sync.Once
+
+	lanDiscoveryStopOnce sync.Once
+)
+
+func initLanDiscovery() {
 	lanDiscovery = &LanDiscovery{
 		peers:    make(map[string]*Peer),
 		stopChan: make(chan struct{}),
 	}
-)
+}
 
 const (
 	multicastAddr = "239.255.255.250:10083"
@@ -64,6 +71,7 @@ const (
 
 // StartLanDiscovery 启动局域网节点发现
 func StartLanDiscovery() {
+	lanDiscoveryOnce.Do(initLanDiscovery)
 	initNodeInfo()
 	if !IsClusterEnabled() {
 		utils.InfoFormat("集群模式未启用")
@@ -80,24 +88,22 @@ func StartLanDiscovery() {
 
 // StopLanDiscovery 停止局域网节点发现
 func StopLanDiscovery() {
-	select {
-	case <-lanDiscovery.stopChan:
-		// 已关闭
-	default:
+	lanDiscoveryStopOnce.Do(func() {
 		close(lanDiscovery.stopChan)
-	}
-	if lanDiscovery.conn != nil {
-		lanDiscovery.conn.Close()
-		lanDiscovery.conn = nil
-	}
+		if lanDiscovery.conn != nil {
+			lanDiscovery.conn.Close()
+			lanDiscovery.conn = nil
+		}
+	})
 	utils.InfoFormat("LAN 节点发现已停止")
 }
 
 // RestartLanDiscovery 重启局域网节点发现
 func RestartLanDiscovery() {
 	StopLanDiscovery()
-	// 重置 stopChan，原 goroutine 收到关闭信号后退出
+	// 重置 stopChan 和 once，原 goroutine 收到关闭信号后退出
 	lanDiscovery.stopChan = make(chan struct{})
+	lanDiscoveryStopOnce = sync.Once{}
 	StartLanDiscovery()
 }
 

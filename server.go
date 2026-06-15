@@ -27,14 +27,13 @@ func resolvePort(controllerHost string) string {
 }
 
 // createServer 创建 HTTP 服务器
-// 注意: 不设置 ReadTimeout，因为 WebSocket hijack 后超时仍会残留导致连接断开
+// 注意: 不设置 ReadTimeout 和 WriteTimeout，因为 WebSocket hijack 后超时仍会残留导致连接断开
 //       使用 ReadHeaderTimeout 防范慢连接攻击即可
 func createServer(addr string, handler http.Handler) *http.Server {
 	return &http.Server{
 		Addr:              addr,
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
-		WriteTimeout:      30 * time.Second,
 	}
 }
 
@@ -46,15 +45,17 @@ func gracefulShutdown(sigChan <-chan os.Signal, servers []*http.Server) {
 		sig := <-sigChan
 		utils.InfoFormat("收到信号 %v，正在优雅关闭所有服务...", sig)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
+		shutdownTimeout := 5 * time.Second
 		for _, srv := range servers {
-			srv.Shutdown(ctx)
-			log.Printf("端口 %s 已关闭", srv.Addr)
+			ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+			if err := srv.Shutdown(ctx); err != nil {
+				log.Printf("端口 %s 关闭失败: %v", srv.Addr, err)
+			} else {
+				log.Printf("端口 %s 已关闭", srv.Addr)
+			}
+			cancel()
 		}
 		service.TaskCancel()
-		<-ctx.Done()
 		log.Println("服务已全部关闭")
 	}()
 }

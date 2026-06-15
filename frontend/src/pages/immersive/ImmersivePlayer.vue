@@ -650,11 +650,10 @@ function goBack() {
   router.back();
 }
 
-
-document.addEventListener('contextmenu', function (e) {
-  e.preventDefault(); // 阻止默认行为
+function onContextMenu(e) {
+  e.preventDefault();
   searchDialog.value = !searchDialog.value;
-});
+}
 
 // ── 播放列表操作 ──────────────────────────────────────────────────────────────
 
@@ -764,7 +763,7 @@ async function setMovieType(item, Type) {
   await executeWithNextItem(item, async () => {
     const res = await ResetMovieType(item.Id, Type);
     if (res?.Code === 200) {
-      $q.notify({ type: 'negative', message: res.Message, position: 'bottom-left' });
+      $q.notify({ type: 'positive', message: res.Message, position: 'bottom-left' });
     } else {
       $q.notify({ type: 'warning', message: res?.Message || '设置失败', position: 'bottom-left' });
     }
@@ -1545,11 +1544,11 @@ onMounted(() => {
   });
   window.addEventListener('resize', handleResize);
   document.addEventListener('keydown', handleKeydown);
+  document.addEventListener('contextmenu', onContextMenu);
 });
 
 onUnmounted(() => {
   if (animationFrameId) cancelAnimationFrame(animationFrameId);
-  clearHideTimer();
   endSeek();
   if (audioContext) audioContext.close();
   stopPolling();
@@ -1560,6 +1559,7 @@ onUnmounted(() => {
   }
   window.removeEventListener('resize', handleResize);
   document.removeEventListener('keydown', handleKeydown);
+  document.removeEventListener('contextmenu', onContextMenu);
 });
 </script>
 

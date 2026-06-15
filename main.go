@@ -44,7 +44,7 @@ func main() {
 	// ── 2. 解压嵌入式资源 ──
 	assetsExtracted := extractAssets(tempDir)
 
-	// ── 3. 启动 pprof（仅开发环境） ──
+	// ── 3. 启动 pprof（生产环境通过 env.IsProd 自动禁用） ──
 	service.StartPprof()
 
 	// ── 4. 信号通道 ──

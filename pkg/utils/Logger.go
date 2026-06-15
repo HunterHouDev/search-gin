@@ -16,10 +16,11 @@ func init() {
 
 	f, err := os.OpenFile("gin.log", os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
 	if err != nil {
-		logger.Error(err)
+		logger.SetOutput(os.Stdout)
+		logger.Errorf("无法打开 gin.log: %v，仅输出至 stdout", err)
+	} else {
+		logger.SetOutput(io.MultiWriter(f, os.Stdout))
 	}
-
-	logger.SetOutput(io.MultiWriter(f, os.Stdout))
 	logger.SetFormatter(&logrus.JSONFormatter{
 		TimestampFormat: "2006-01-02 15:04:05",
 		FieldMap: logrus.FieldMap{

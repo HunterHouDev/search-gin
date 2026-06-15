@@ -383,7 +383,7 @@
                 </q-chip>
               </div>
               <!-- 图片 -->
-              <q-img fit="fill" lazy="true" :class="{
+              <q-img fit="fill" :lazy="true" :class="{
                 'large-result-image': isLarge,
                 'medium-result-image': isMedium,
                 'small-result-image': isSmall,
@@ -1470,7 +1470,7 @@ const moveThis = async () => {
   });
   if (res.Code === 200) {
     $q.notify({
-      type: 'negative',
+      type: 'positive',
       message: res.Message,
       position: 'bottom-left',
     });
@@ -1486,7 +1486,7 @@ const moveThis = async () => {
 const setMovieType = async (Id, Type) => {
   const { Code, Message } = await ResetMovieType(Id, Type);
   if (Code === 200) {
-    $q.notify({ type: 'negative', message: Message, position: 'bottom-left' });
+    $q.notify({ type: 'positive', message: Message, position: 'bottom-left' });
   } else {
     $q.notify({ type: 'warning', message: Message, position: 'bottom-left' });
   }

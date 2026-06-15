@@ -43,8 +43,11 @@
           :offset="isMobile ? [2, 50] : [10, 100]"
         >
           <div class="row column justify-end q-gutter-sm items-end">
-            <q-btn glossy color="black" @click="selectAll"
-              >{{ view.selectAll ? '不选' : '全选' }}
+            <q-btn glossy color="black" @click="selectAll">
+              {{ view.selectAll ? '取消' : '全选' }}
+              <q-badge v-if="selectedCount > 0" color="red" floating>
+                {{ selectedCount }}
+              </q-badge>
             </q-btn>
             <q-btn-dropdown label="类型" glossy dense color="primary">
               <q-list>
@@ -136,8 +139,26 @@
                 </div>
               </div>
             </q-btn-dropdown>
-            <q-btn glossy color="red" @click="deleteBySelector">删除 </q-btn>
-            <q-btn glossy color="red" @click="mergeFiles">合并 </q-btn>
+            <q-btn
+              glossy
+              color="teal"
+              :disable="selectedCount === 0 || isBatchProcessing"
+              @click="batchRename"
+              >改名
+            </q-btn>
+            <q-btn
+              glossy
+              color="red"
+              :disable="selectedCount === 0 || isBatchProcessing"
+              @click="confirmDelete"
+              :loading="isBatchProcessing"
+            >删除 </q-btn>
+            <q-btn
+              glossy
+              color="red"
+              :disable="selectedCount === 0 || isBatchProcessing"
+              @click="mergeFiles"
+              >合并 </q-btn>
           </div>
         </q-page-sticky>
         <q-page-sticky
@@ -151,6 +172,10 @@
               当前{{ view.queryParam.Page }}页， 每页{{
                 view.queryParam.PageSize
               }}条，共{{ view.resultData.TotalCnt }}条记录
+            </div>
+            <div v-if="isBatchProcessing" class="q-ml-md text-orange text-bold">
+              <q-spinner-dots size="sm" color="orange" />
+              批量处理中：{{ batchProgress }}/{{ selectedCount }}
             </div>
           </div>
         </q-page-sticky>
@@ -166,7 +191,7 @@
                   color="primary"
                   placeholder="搜索..."
                   style="width: 10rem"
-                  @update:model-value="fetchSearch()"
+                  @update:model-value="debouncedSearch"
                 >
                   <template v-slot:append>
                     <q-icon
@@ -212,10 +237,40 @@
                 <q-btn glossy color="black" @click="nextPage(1)">下 </q-btn>
               </div>
 
+              <div v-if="view.settingInfo.MovieTypes?.length" class="q-mb-sm q-gutter-xs row">
+                <q-chip
+                  v-for="mt in view.settingInfo.MovieTypes"
+                  :key="mt"
+                  :color="view.queryParam.MovieType === mt ? 'primary' : 'grey-6'"
+                  text-color="white"
+                  size="sm"
+                  clickable
+                  @click="view.queryParam.MovieType = view.queryParam.MovieType === mt ? '' : mt; fetchSearch()"
+                >{{ mt }}</q-chip>
+                <q-chip
+                  v-if="view.queryParam.MovieType"
+                  color="red"
+                  text-color="white"
+                  size="sm"
+                  clickable
+                  icon="close"
+                  @click="view.queryParam.MovieType = ''; fetchSearch()"
+                >清除</q-chip>
+              </div>
+
               <div
                 id="listRef"
                 style="height: 67vh; width: 100%; overflow: auto; padding: 4px"
               >
+                <div
+                  v-if="!view.resultData.Data || view.resultData.Data.length === 0"
+                  class="column items-center q-pa-xl text-grey-7"
+                >
+                  <q-icon name="search_off" size="3rem" class="q-mb-md" />
+                  <div class="text-h6">没有找到匹配的文件</div>
+                  <div class="text-caption q-mt-sm">换个关键词试试，或者刷新索引</div>
+                  <q-btn color="primary" flat class="q-mt-md" @click="refreshIndex">刷新索引</q-btn>
+                </div>
                 <div
                   v-for="item in view.resultData.Data"
                   :key="item.Id"
@@ -383,6 +438,17 @@
                             {{ `${ta}` }}
                           </q-chip>
                         </div>
+                        <q-btn
+                          dense
+                          flat
+                          size="xs"
+                          icon="content_copy"
+                          color="grey"
+                          class="q-mr-xs"
+                          @click.stop="copyPath(item)"
+                        >
+                          <q-tooltip>复制路径</q-tooltip>
+                        </q-btn>
                         <p
                           style="
                             display: -webkit-box; /* 将对象作为弹性伸缩盒子模型显示 */
@@ -393,6 +459,9 @@
                           "
                         >
                           【{{ item.SizeStr }}】{{ item.Title }}
+                          <q-tooltip anchor="bottom middle" self="top middle" max-width="600px">
+                            <div style="word-break: break-all; font-size: 0.8rem">{{ item.Path }}</div>
+                          </q-tooltip>
                         </p>
                       </q-item-section>
                     </template>
@@ -879,6 +948,8 @@ import {
   CloseTag,
   DelTransferTasksInfo,
   AddTag,
+  FileRename,
+  MoveFile,
 } from 'components/api/searchAPI';
 
 import Sortable from 'sortablejs';
@@ -908,6 +979,11 @@ const view = reactive({
   chooseInput: false,
   input: '',
 });
+
+const isBatchProcessing = ref(false);
+const batchProgress = ref(0);
+
+const selectedCount = computed(() => view.selector.length);
 
 const sortOptions = computed(() => {
   const options = [];
@@ -1114,6 +1190,87 @@ const deleteBySelector = () => {
   resetSelector();
 };
 
+// ── 批量处理进度辅助 ──
+const batchExec = async (items, itemFn) => {
+  isBatchProcessing.value = true;
+  batchProgress.value = 0;
+  let ok = 0;
+  let fail = 0;
+  let idx = 0;
+  for (const item of items) {
+    try {
+      const res = await itemFn(item, idx);
+      if (res && res.Code === 200) ok++;
+      else fail++;
+    } catch {
+      fail++;
+    }
+    batchProgress.value++;
+    idx++;
+  }
+  isBatchProcessing.value = false;
+  return { ok, fail, total: items.length };
+};
+
+// ── 批量删除（带确认） ──
+const confirmDelete = () => {
+  if (selectedCount.value === 0) return;
+  $q.dialog({
+    title: '确认删除',
+    message: `确定要删除选中的 ${selectedCount.value} 个文件吗？此操作不可撤销。`,
+    ok: { label: '删除', color: 'red', flat: true },
+    cancel: { label: '取消', color: 'grey', flat: true },
+  }).onOk(async () => {
+    const { ok, fail, total } = await batchExec(view.selector.slice(), (id) =>
+      DeleteFile(id)
+    );
+    $q.notify({
+      type: ok === total ? 'positive' : 'warning',
+      message: `删除完成：成功 ${ok}，失败 ${fail}，共 ${total}`,
+      position: 'bottom-left',
+    });
+    resetSelector();
+    fetchSearch();
+  });
+};
+
+// ── 批量改名 ──
+const batchRename = () => {
+  if (selectedCount.value === 0) return;
+  $q.dialog({
+    title: '批量改名',
+    message: '输入新名称（不含扩展名），多个文件将自动追加序号：',
+    prompt: {
+      model: '',
+      type: 'text',
+      label: '新名称',
+    },
+    ok: { label: '确认', color: 'teal', flat: true },
+    cancel: { label: '取消', color: 'grey', flat: true },
+  }).onOk(async (data) => {
+    const baseName = (data || '').trim();
+    if (!baseName) {
+      $q.notify({ type: 'warning', message: '名称不能为空', position: 'bottom-left' });
+      return;
+    }
+    const ids = view.selector.slice();
+    const { ok, fail, total } = await batchExec(ids, async (id, i) => {
+      const file = view.resultData.Data.find((f) => f.Id === id);
+      if (!file) return { Code: -1 };
+      const ext = file.FileType ? `.${file.FileType}` : '';
+      const newTitle = ids.length === 1 ? baseName : `${baseName}_${String(i + 1).padStart(2, '0')}`;
+      return FileRename({ Id: id, Title: newTitle + ext });
+    });
+    $q.notify({
+      type: ok === total ? 'positive' : 'warning',
+      message: `改名完成：成功 ${ok}，失败 ${fail}，共 ${total}`,
+      position: 'bottom-left',
+    });
+    resetSelector();
+    fetchSearch();
+  });
+};
+
 const mergeFiles = () => {
   if (view.selector && view.selector.length > 0) {
     commonExec(FilesMerge({ files: view.selector, DeleteFlag: false }));
@@ -1172,6 +1329,21 @@ const fetchSearch = async () => {
   view.resultData = { ...data };
 };
 
+let debounceTimer;
+const debouncedSearch = () => {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => fetchSearch(), 300);
+};
+
+const copyPath = async (item) => {
+  try {
+    await navigator.clipboard.writeText(item.Path || item.Name || '');
+    $q.notify({ type: 'positive', message: '路径已复制', position: 'bottom-left', timeout: 1500 });
+  } catch {
+    $q.notify({ type: 'negative', message: '复制失败', position: 'bottom-left' });
+  }
+};
+
 const commonExec = async (exec) => {
   const { Code, Message } = await exec;
   console.log(Code, Message);
@@ -1223,6 +1395,7 @@ const open = (data) => {
 };
 
 const dialogHide = async () => {
+  clearTimeout(debounceTimer);
   if (view.callback) {
     view.callback({ settingInfo: view.settingInfo });
   }

@@ -116,7 +116,7 @@ const login = async () => {
       
       router.push('/');
     } else {
-      errorMsg.value = result.message || '用户名或密码错误';
+      errorMsg.value = result.Message || result.message || '用户名或密码错误';
     }
   } catch (error) {
     errorMsg.value = '登录失败，请稍后重试';
