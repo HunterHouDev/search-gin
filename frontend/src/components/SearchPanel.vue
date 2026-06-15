@@ -47,7 +47,7 @@
             'search-card-playing': currentId === item.Id
           }">
             <div class="search-card-thumb">
-              <q-img :src="item.pngUrl" fit="cover" class="search-card-img" :ratio="3 / 4"
+              <q-img :src="item.PngUrl" fit="cover" class="search-card-img" :ratio="3 / 4"
                 @click="$emit('play', item)">
                 <template v-slot:error>
                   <div class="search-card-placeholder">
@@ -163,7 +163,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, inject } from 'vue';
+import { ref, reactive, computed, watch } from 'vue';
 import { format } from 'quasar';
 import { useQuasar } from 'quasar';
 import { SearchAPI, ResetMovieType } from 'components/api/searchAPI';
@@ -187,9 +187,6 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['play', 'close', 'keyword', 'edit', 'delete']);
-
-// ── 注入刷新函数（由父级 SearchPage 提供） ──
-const refreshDebounceFn = inject('refreshDebounceFn', () => {});
 
 // ── 状态 ───────────────────────────────────────────────────────────────
 const $q = useQuasar();

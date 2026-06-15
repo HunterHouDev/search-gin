@@ -1,6 +1,3 @@
-// 保留函数：getAuthorImage / getVideoSrt / GetFileByPathUseEncode
-// getPng / getJpg / getFileStream 已废弃，改为从 movie 对象直接读取
-// streamUrl / pngUrl / jpgUrl 字段
 
 let _fileBaseUrl: string | null = null;
 

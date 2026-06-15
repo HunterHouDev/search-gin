@@ -15,11 +15,11 @@
           </q-btn>
           <q-tabs
             ripple
-            shrink
-            outsideArrows
             v-model="tab"
             align="justify"
             style="width: 60%"
+            :active-color="systemProperty.theme === 'natural' ? 'primary' : 'white'"
+            :indicator-color="systemProperty.theme === 'natural' ? 'green' : 'white'"
             @update:model-value="view.startTime = '00:00:05'"
           >
             <q-tab name="png" label="png" />
@@ -121,7 +121,7 @@
                 fit="fill"
                 class="max-image-height"
                 v-if="!view.uImage"
-                :src="view.item.jpgUrl"
+                :src="view.item.JpgUrl"
               />
 
               <q-img
@@ -137,7 +137,7 @@
                 v-show="!view.showCanvas"
                 class="max-image-height"
                 v-if="!view.uPng"
-                :src="view.item.jpgUrl"
+                :src="view.item.JpgUrl"
               />
 
               <q-img
@@ -237,7 +237,10 @@ import {
 } from 'components/api/searchAPI';
 import { GetFileByPathUseEncode } from 'components/utils/images';
 import { isMobile } from 'src/boot/platform';
+import { useSystemProperty } from 'src/stores/System';
 
+
+const systemProperty = useSystemProperty()  
 const $q = useQuasar();
 const tab = ref('png');
 
@@ -264,7 +267,7 @@ const open = (item) => {
 
   const img = new Image(); // 创建一个新的图片对象
   img.crossOrigin = 'anonymous'; // 处理跨域问题
-  img.src = view.item.pngUrl; // 设置图片的源地址为base64编码的图片数据
+  img.src = view.item.PngUrl; // 设置图片的源地址为base64编码的图片数据
   canvasData.image = img;
 
   img.onload = function () {

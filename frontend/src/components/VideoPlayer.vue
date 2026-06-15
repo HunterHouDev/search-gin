@@ -281,7 +281,7 @@ const openVideo = async (item) => {
   view.currentData = item;
   systemProperty.PlayingMovie = item;
   view.videoUrl = item.StreamUrl;
-  view.videoPoster = item.jpgUrl;
+  view.videoPoster = item.JpgUrl;
   view.videoSubtitles = getVideoSrt(item.Srt);
 
   // 监听 loadedmetadata 事件，src 加载完成后才操作 DOM
@@ -428,6 +428,7 @@ const onWheel = (e) => {
 
 const checkSubtitles = () => {
   const video = document.getElementById('videoPlayerID');
+  if (!video) return;
   const track = video.textTracks[0];
   if(track) {
     track.mode = 'showing';

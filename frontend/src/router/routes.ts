@@ -24,10 +24,6 @@ const routes: RouteRecordRaw[] = [
         path: '/system',
         component: () => import('pages/system/SystemPage.vue'),
       },
-      {
-        path: '/systemLog',
-        component: () => import('src/pages/systemLog/LogPage.vue'),
-      },
     ],
   },
   {

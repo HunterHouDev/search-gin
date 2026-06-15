@@ -22,9 +22,10 @@
           ripple
           v-model="tab"
           align="justify"
-          narrow-indicator
           mobile-arrows
           style="width: 90%"
+          :active-color="systemProperty.theme === 'natural' ? 'primary' : 'white'"
+          :indicator-color="systemProperty.theme === 'natural' ? 'green' : 'white'"
         >
           <q-tab name="filelist" :label="isMobile ? '操作' : '批量操作'" />
           <q-tab name="tasking" :label="isMobile ? '任务' : '任务执行'" />
@@ -287,7 +288,7 @@
                         <q-img
                           fit="fill"
                           height="auto"
-                          :src="item.pngUrl"
+                          :src="item.PngUrl"
                           style="width: 80px; height: auto; max-height: 80px"
                           @click="checkThis(item)"
                         >
@@ -646,7 +647,7 @@
                 ripple
                 v-model="tabTask"
                 align="justify"
-                class="bg-primary text-white shadow-2 w100"
+                class="bg-blue text-white shadow-2 w100"
               >
                 <q-tab name="等待" label="等待">
                   <q-badge color="red" floating>{{

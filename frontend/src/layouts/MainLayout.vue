@@ -4,6 +4,7 @@
     container
     style="height: 100vh"
     class="shadow-2 rounded-borders"
+    :class="{ 'theme-natural': systemProperty.theme === 'natural' }"
   >
     <q-header 
       reveal 
@@ -72,7 +73,9 @@
       </q-toolbar>
     </q-header>
 
-    <q-drawer v-model="drawerLeft" :width="drawerWidth" :breakpoint="700" bordered>
+    <q-drawer v-model="drawerLeft" :width="drawerWidth" :breakpoint="700" bordered
+      :dark="systemProperty.theme !== 'natural'"
+      :class="{ 'drawer-natural': systemProperty.theme === 'natural' }">
       <q-scroll-area
         class="fit"
         :style="drawerStyle"
@@ -133,8 +136,8 @@ const view = reactive({
 // 动态 header 样式 — Design System
 const headerStyle = computed(() => {
   return systemProperty.theme === 'natural'
-    ? 'background: #FFFFFF !important; color: #0F172A; border-bottom: 1px solid #E2E8F0;'
-    : 'background: #1B2336 !important; color: #F8FAFC; border-bottom: 1px solid #272F42;';
+    ? 'background: #1B4336 !important; color: #F8FAFC; border-bottom: 1px solid #272F42;'
+    : 'background: #121316 !important; color: #F8FAFC; border-bottom: 1px solid #272F42;';
 });
 
 // 动态抽屉样式 — Design System: bg-shift, no borders
@@ -335,5 +338,30 @@ const essentialLinks = [
 :deep(.q-drawer) {
   /* backdrop-filter: blur(16px); - 移除以提升性能 */
   transition: transform 0.3s ease;
+}
+
+// 自然模式下抽屉背景色
+.drawer-natural {
+  background-color: #F1F5F9 !important;
+}
+
+// 自然模式下抽屉 item 文字色
+.drawer-natural ::deep(.q-item) {
+  color: #0F172A !important;
+}
+
+// 自然模式下抽屉中按钮颜色覆盖
+.drawer-natural ::deep(.q-btn) {
+  color: #0F172A !important;
+}
+
+// 自然模式下 header 中 EssentialLink 按钮文字颜色
+.theme-natural .q-header ::deep(.q-btn) {
+  color: #0F172A !important;
+}
+
+// 自然模式下 header 中当前页面的 EssentialLink 按钮保持红色
+.theme-natural .q-header ::deep(.q-btn.text-red) {
+  color: #EF4444 !important;
 }
 </style>

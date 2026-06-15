@@ -4,12 +4,11 @@
     container
     style="height: 93vh"
     class="shadow-2 rounded-borders"
-    :style="themeStyle"
   >
     <!-- 头部 -->
     <q-header
       elevated
-      class="q-gutter-xs flex justify-center"
+      class="q-gutter-xs flex justify-center bg-gray"
       style="
         backdrop-filter: blur(10px);
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -18,16 +17,10 @@
     >
       <q-tabs
         v-model="tab"
-        style="width: 100%; position: fixed; z-index: 9"
-        :style="{ backgroundColor: systemProperty.theme === 'star' ? 'rgba(15, 15, 26, 0.95)' : 'var(--q-primary)' }"
-        no-caps
-        glossy
-        inline-label
-        dense
-        class="shadow-1 setting-tabs"
-        active-color="white"
-        indicator-color="white"
+         class="q-mb-xs bg-black text-white w100"
         align="justify"
+        :active-color="systemProperty.theme === 'natural' ? 'green' : 'white'"
+        :indicator-color="systemProperty.theme === 'natural' ? 'green' : 'white'"
       >
         <q-tab name="search" label="搜索设置" />
         <q-tab name="base" label="基础设置" />
@@ -101,7 +94,7 @@
             </template>
           </q-field>
           
-          <q-field color="primary" label="硬件加速编码" stack-label dense hint="开启后H264/H265转码将调用GPU硬件加速">
+          <q-field color="primary" label="硬件加速编码" stack-label  hint="开启后H264/H265转码将调用GPU硬件加速">
             <template v-slot:control>
               <div class="row q-gutter-md items-center">
                 <q-radio
@@ -128,7 +121,7 @@
             </template>
           </q-field>
 
-          <q-field color="primary" label="Buttons" stack-label dense>
+          <q-field color="primary" label="Buttons" stack-label >
             <template v-slot:control>
               <MutiSelector
                 v-bind:model-value="view.settingInfo.Buttons"
@@ -138,7 +131,7 @@
             </template>
           </q-field>
 
-          <q-field color="primary" label="Dirs" stack-label dense>
+          <q-field color="primary" label="Dirs" stack-label >
             <template v-slot:control>
               <MutiSelector
                 v-bind:model-value="view.settingInfo.Dirs"
@@ -147,7 +140,7 @@
               />
             </template>
           </q-field>
-          <q-field color="primary" label="MovieTypes" stack-label dense>
+          <q-field color="primary" label="MovieTypes" stack-label >
             <template v-slot:control>
               <MutiInput
                 v-model="view.settingInfo.MovieTypes"
@@ -155,7 +148,7 @@
               />
             </template>
           </q-field>
-          <q-field color="primary" label="VideoTypes" stack-label dense>
+          <q-field color="primary" label="VideoTypes" stack-label >
             <template v-slot:control>
               <MutiSelector
                 v-bind:model-value="view.settingInfo.VideoTypes"
@@ -164,7 +157,7 @@
               />
             </template>
           </q-field>
-          <q-field color="primary" label="ImageTypes" stack-label dense>
+          <q-field color="primary" label="ImageTypes" stack-label >
             <template v-slot:control>
               <MutiSelector
                 v-bind:model-value="view.settingInfo.ImageTypes"
@@ -173,7 +166,7 @@
               />
             </template>
           </q-field>
-          <q-field color="primary" label="DocsTypes" stack-label dense>
+          <q-field color="primary" label="DocsTypes" stack-label >
             <template v-slot:control>
               <MutiSelector
                 v-bind:model-value="view.settingInfo.DocsTypes"
@@ -182,7 +175,7 @@
               />
             </template>
           </q-field>
-          <q-field color="primary" label="Tags" stack-label dense>
+          <q-field color="primary" label="Tags" stack-label >
             <template v-slot:control>
               <MutiSelector
                 v-bind:model-value="view.settingInfo.Tags"
@@ -200,25 +193,25 @@
             :min="0"
             type="number"
             label="系统播放器音量"
-            dense
+            
           />
           <q-input
             v-model="view.settingInfo.SystemPlayerWidth"
             label="系统播放器宽度"
-            dense
+            
           />
           <q-input
             v-model="view.settingInfo.ControllerHost"
             label="ControllerHost"
-            dense
+            
           />
           <q-input
             v-model="view.settingInfo.FileHost"
             label="FileHost"
             placeholder=":10081"
-            dense
+            
           />
-          <q-field color="primary" label="DirsLib" stack-label dense>
+          <q-field color="primary" label="DirsLib" stack-label >
             <template v-slot:control>
               <MutiInput
                 v-model="view.settingInfo.DirsLib"
@@ -226,7 +219,7 @@
               />
             </template>
           </q-field>
-          <q-field color="primary" label="TagsLib" stack-label dense>
+          <q-field color="primary" label="TagsLib" stack-label >
             <template v-slot:control>
               <MutiInput
                 v-model="view.settingInfo.TagsLib"
@@ -234,7 +227,7 @@
               />
             </template>
           </q-field>
-          <q-field color="primary" label="Types" stack-label dense>
+          <q-field color="primary" label="Types" stack-label >
             <template v-slot:control>
               <MutiInput
                 v-model="view.settingInfo.Types"
@@ -242,7 +235,7 @@
               />
             </template>
           </q-field>
-          <q-field color="primary" label="Pages" stack-label dense>
+          <q-field color="primary" label="Pages" stack-label >
             <template v-slot:control>
               <MutiInput
                 v-model="view.settingInfo.Pages"
@@ -252,22 +245,21 @@
           </q-field>
         </q-tab-panel>
         <q-tab-panel name="note" class="q-pa-xs">
-          <q-input v-model="view.settingInfo.BaseUrl" label="BaseUrl" dense />
-          <q-input v-model="view.settingInfo.ImageUrl" label="ImageUrl" dense />
-          <q-input v-model="view.settingInfo.OMUrl" label="OMUrl" dense />
+          <q-input v-model="view.settingInfo.BaseUrl" label="BaseUrl"  />
+          <q-input v-model="view.settingInfo.ImageUrl" label="ImageUrl"  />
+          <q-input v-model="view.settingInfo.OMUrl" label="OMUrl"  />
           <q-input
             type="textarea"
             autogrow
             v-model="view.settingInfo.Remark"
             label="Remark"
-            dense
+            
           />
         </q-tab-panel>
 
         <q-tab-panel name="system" class="q-pa-xs">
           <q-editor
             v-model="view.settingInfo.SystemHtml"
-            :dense="$q.screen.lt.md"
             :toolbar="[
               [
                 {
@@ -422,7 +414,7 @@ const systemProperty = useSystemProperty();
 const themeStyle = computed(() => {
   return {
     color: 'var(--q-text-primary)',
-    backgroundColor: 'var(--q-bg-card)',
+ 
   };
 });
 
@@ -513,46 +505,11 @@ onMounted(() => {
 });
 </script>
 <style lang="scss" scoped>
-.setting-tabs {
-  min-height: 32px;
-
-  :deep(.q-tab) {
-    font-weight: 500;
-    font-size: 0.85rem;
-    min-height: 32px;
-    padding: 4px 8px;
-  }
-  :deep(.q-tab--active) {
-    font-weight: 600;
-  }
-  :deep(.q-tab__indicator) {
-    height: 2px;
-  }
-}
 
 :deep(.compact-panels .q-tab-panel) {
   padding: 4px;
 }
 
-:deep(.q-field) {
-  padding-bottom: 4px;
-}
-
-:deep(.q-field__label) {
-  color: var(--q-primary);
-  font-weight: 500;
-  font-size: 0.85rem;
-}
-
-:deep(.q-radio__label) {
-  color: var(--q-text-primary);
-  font-size: 0.85rem;
-}
-
-:deep(.q-input .q-field__control) {
-  background: var(--q-bg-input);
-  border-radius: 6px;
-}
 
 :deep(.q-editor) {
   min-height: 200px;

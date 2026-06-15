@@ -144,23 +144,24 @@
         </q-btn>
 
         <!-- 排序字段选择 -->
-        <q-btn-dropdown glossy color="primary" :size="btnSize('head')" class="w-5"
+        <q-btn-dropdown glossy  :size="btnSize('head')" class="w-5"
           :label="getLabelByValue(currentSort, sortOptions)">
           <q-list>
             <q-item v-for="item in sortOptions" :key="item.label" clickable v-close-popup @click="
               currentSort = item.value;
             fetchSearch();
             ">
-              <q-item-section>
-                <q-item-label>{{ item.label }}</q-item-label>
+              <q-item-section :class="{ 'text-blue': currentSort === item.value }">
+                <q-item-label >{{ item.label }}</q-item-label>
               </q-item-section>
             </q-item>
           </q-list>
         </q-btn-dropdown>
 
         <!-- 电影类型选择   style="width: 26rem" -->
-        <q-btn-toggle v-if="!isSmall" glossy push ripple stack :size="btnSize('head')" stretch
-          v-model="view.queryParam.MovieType" @update:model-value="fetchSearch()" :options="MovieTypeSelects" />
+        <q-btn-toggle v-if="!isSmall" glossy push ripple stack :size="btnSize('head')" stretch toggleTextColor="red"
+          toggleColor="blue" v-model="view.queryParam.MovieType" @update:model-value="fetchSearch()"
+          :options="MovieTypeSelects" />
 
         <!-- 移动端电影类型选择 -->
         <q-btn-dropdown v-if="isSmall" glossy push ripple color="primary"
@@ -226,18 +227,18 @@
         </q-btn>
 
         <!-- 设置按钮 -->
-      <!-- Q-FAB 固定悬浮按钮 -->
-      <div class="fab-container">
-        <q-fab icon="ti-pencil-alt" direction="left" :color="view.runningTaskCount > 0 ? 'red' : 'orange'" glossy
-          :style="fabStyle" @touchstart="onFabTouchStart" @touchmove="onFabTouchMove"
-          @touchend="onFabTouchEnd" @mousedown.prevent="onFabDragStart" @mousemove="onFabDragMove"
-          @mouseup="onFabDragEnd" @mouseleave="onFabDragEnd">
-          <q-fab-action @click="openListEditRef('filelist')" color="primary" label="编辑" />
-          <q-fab-action @click="openListEditRef('tasking')" color="primary" label="任务" />
-          <q-fab-action @click="openListEditRef('setting')" color="primary" label="主题" />
-          <q-fab-action @click="openListEditRef('history')" color="primary" label="历史" />
-        </q-fab>
-      </div>
+        <!-- Q-FAB 固定悬浮按钮 -->
+        <div class="fab-container">
+          <q-fab icon="ti-pencil-alt" direction="left" :color="view.runningTaskCount > 0 ? 'red' : 'orange'" glossy
+            :style="fabStyle" @touchstart="onFabTouchStart" @touchmove="onFabTouchMove" @touchend="onFabTouchEnd"
+            @mousedown.prevent="onFabDragStart" @mousemove="onFabDragMove" @mouseup="onFabDragEnd"
+            @mouseleave="onFabDragEnd">
+            <q-fab-action @click="openListEditRef('filelist')" color="primary" label="编辑" />
+            <q-fab-action @click="openListEditRef('tasking')" color="primary" label="任务" />
+            <q-fab-action @click="openListEditRef('setting')" color="primary" label="主题" />
+            <q-fab-action @click="openListEditRef('history')" color="primary" label="历史" />
+          </q-fab>
+        </div>
       </q-header>
       <!-- 底部 -->
       <q-footer elevated :style="themeStyle" class="glossy">
@@ -346,7 +347,7 @@
                 <q-chip square dense v-for="tag in item.Tags" :key="tag" :size="btnSize('top')" class="chip-tag">
                   <span @click="searchKeyword(tag)">{{
                     tag?.substring(0, 4)
-                    }}</span>
+                  }}</span>
                 </q-chip>
               </div>
               <div class="card-top-type">
@@ -370,10 +371,9 @@
                 <q-btn dense glossy color="grey" size="sm" class="mt-1" v-if="formatSeries(item.Code)">
                   <span @click="searchKeyword(formatSeries(item.Code))">{{
                     formatSeries(item.Code).substring(0, 4)
-                    }}</span>
+                  }}</span>
                 </q-btn>
-                <q-btn dense flat text-color="green" size="sm" class="mt-1"
-                  v-if="systemProperty.getPlayTime(item.Id)">
+                <q-btn dense flat text-color="green" size="sm" class="mt-1" v-if="systemProperty.getPlayTime(item.Id)">
                   <span>{{ formatPlayTime(systemProperty.getPlayTime(item.Id)) }}</span>
                 </q-btn>
                 <!-- 文件类型标签 -->
@@ -511,7 +511,7 @@
                     12) : item.Code }}
                     <q-tooltip class="bg-white text-primary">{{
                       item.Code
-                      }}</q-tooltip>
+                    }}</q-tooltip>
                   </span>
 
                   {{ formatTitle(item.Title) }}
@@ -561,8 +561,8 @@
         <q-card-section class="q-pa-sm">
           <div class="text-subtitle2 q-mb-sm">选择搜索节点</div>
           <q-list bordered separator dense>
-            <q-item clickable v-close-popup :active="!view.queryParam.SearchNode"
-              @click="selectNode('')" class="q-py-xs">
+            <q-item clickable v-close-popup :active="!view.queryParam.SearchNode" @click="selectNode('')"
+              class="q-py-xs">
               <q-item-section avatar>
                 <q-icon name="computer" color="primary" />
               </q-item-section>
@@ -575,8 +575,7 @@
               </q-item-section>
             </q-item>
             <q-item clickable v-close-popup v-for="peer in view.nodeList" :key="peer.id"
-              :active="view.queryParam.SearchNode === peer.id"
-              @click="selectNode(peer.id)" class="q-py-xs">
+              :active="view.queryParam.SearchNode === peer.id" @click="selectNode(peer.id)" class="q-py-xs">
               <q-item-section avatar>
                 <q-icon name="dns" color="purple" />
               </q-item-section>
@@ -769,8 +768,8 @@ const onFabTouchMove = (e) => {
   const touch = e.touches[0];
   const dx = fabStart.x - touch.clientX;
   const dy = touch.clientY - fabStart.y;
-  if (Math.abs(fabStart.x - touch.clientX) > FAB_DRAG_THRESHOLD || 
-      Math.abs(touch.clientY - fabStart.y) > FAB_DRAG_THRESHOLD) {
+  if (Math.abs(fabStart.x - touch.clientX) > FAB_DRAG_THRESHOLD ||
+    Math.abs(touch.clientY - fabStart.y) > FAB_DRAG_THRESHOLD) {
     fabTouchMoved.value = true;
   }
   fabPos.x = Math.max(0, Math.min(window.innerWidth - 60, fabStart.posX + dx));

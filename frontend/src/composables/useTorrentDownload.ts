@@ -75,10 +75,11 @@ export function useTorrentDownload(
         })
         torrentLoading.value = false
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string; Message?: string } }; message?: string }
       $q.notify({
         type: 'negative',
-        message: err.response?.data?.message ?? err.response?.data?.Message ?? '请求失败: ' + err.message,
+        message: axiosErr.response?.data?.message ?? axiosErr.response?.data?.Message ?? '请求失败: ' + axiosErr.message,
         position: 'top',
       })
       torrentLoading.value = false
@@ -118,10 +119,11 @@ export function useTorrentDownload(
       if (result?.skipped) {
         $q.notify({ type: 'positive', message: '文件已存在，无需下载', position: 'top', timeout: 2000 })
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string; Message?: string } }; message?: string }
       $q.notify({
         type: 'negative',
-        message: '启动下载失败: ' + ((err.response?.data?.message ?? err.response?.data?.Message) || err.message),
+        message: '启动下载失败: ' + ((axiosErr.response?.data?.message ?? axiosErr.response?.data?.Message) || axiosErr.message),
         position: 'top',
       })
     }
@@ -189,7 +191,7 @@ export function useTorrentDownload(
   }
 
   function removeDownloadTask(task: DownloadTask) {
-    axios.delete(`/api/torrent/${task.infoHash}`).catch(() => {})
+    axios.delete(`/api/torrent/${task.infoHash}`).catch(() => { /* ignore */ })
     activeDownloads.value = activeDownloads.value.filter((t) => t.infoHash !== task.infoHash)
     if (currentInfoHash.value === task.infoHash) {
       currentInfoHash.value = ''
@@ -200,7 +202,7 @@ export function useTorrentDownload(
   function cleanup() {
     stopPolling()
     if (currentInfoHash.value) {
-      axios.delete(`/api/torrent/${currentInfoHash.value}`).catch(() => {})
+      axios.delete(`/api/torrent/${currentInfoHash.value}`).catch(() => { /* ignore */ })
     }
   }
 

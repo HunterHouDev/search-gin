@@ -111,7 +111,7 @@
                 <q-img
                   fit="scale-dowmn"
                   easier
-                  :src="item.pngUrl"
+                  :src="item.PngUrl"
                   style="
                     width: 80px;
                     height: 80px;

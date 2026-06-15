@@ -55,22 +55,11 @@
         v-model="showDetail"
         style="height: auto; padding-top: 3rem"
       >
-        <q-tab-panel name="web">
-          <iframe
-            :frameborder="0"
-            :allowfullscreen="true"
-            width="100%"
-            :style="{ height: isMobile ? 'calc(100vh - 150px)' : '720px' }"
-            :src="`${view.settingInfo.BaseUrl}${view.item.Code}`"
-          ></iframe>
-        </q-tab-panel>
-
         <q-tab-panel name="detail">
           <q-img
-            fit="fit"
-            easier
+            fit="scale-down"
             draggable
-            :src="view.item.jpgUrl"
+            :src="view.item.JpgUrl"
             style="max-height: 560px"
           >
           </q-img>
@@ -204,7 +193,6 @@ const ClickButtons = [
   { label: '播放', value: 'movie' },
   { label: '详情', value: 'detail' },
   { label: '图层', value: 'image' },
-  { label: 'JavBus', value: 'web' },
 ];
 
 const videoRef = ref(null);

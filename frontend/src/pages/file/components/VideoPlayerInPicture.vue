@@ -28,7 +28,7 @@
         id="hoverVideoID"
         controls
         :src="view.videoUrl"
-        :poster="view.currentData?.jpgUrl"
+        :poster="view.currentData?.JpgUrl"
         @ended="nextOne"
         @playing="systemProperty.playerRunning = true"
         @pause="systemProperty.playerRunning = false"

@@ -2,30 +2,26 @@
   <div class="q-pa-sm">
     <q-tabs
       v-model="tab"
-      class="q-mb-xs setting-tabs"
+      class="q-mb-xs bg-black text-white"
       align="justify"
-      narrow-indicator
-      active-color="white"
-      indicator-color="white"
-      glossy
-      dense
-      :style="{ backgroundColor: systemProperty.theme === 'star' ? 'rgba(15, 15, 26, 0.95)' : 'var(--q-primary)' }"
+      :active-color="systemProperty.theme === 'natural' ? 'green' : 'white'"
+      :indicator-color="systemProperty.theme === 'natural' ? 'green' : 'white'"
     >
       <q-tab name="info" label="系统信息" />
-      <q-tab name="cluster" label="集群" />
+      <q-tab name="cluster" label="集群信息" />
       <q-tab name="user" label="用户管理" />
       <q-tab name="log" label="系统日志" />
     </q-tabs>
 
     <q-tab-panels v-model="tab" animated>
       <q-tab-panel name="info" class="q-pa-xs">
-        <q-card class="q-mb-sm theme-card-compact">
+        <q-card class="q-mb-sm ">
           <q-card-section class="q-pa-sm">
             <div class="text-subtitle2 q-mb-xs">功能介绍</div>
             <div class="SystemHtml" v-html="view.settingInfo.SystemHtml"></div>
           </q-card-section>
         </q-card>
-        <q-card class="theme-card-compact">
+        <q-card class="">
           <q-card-section class="q-pa-sm">
             <div class="text-caption">网络访问：<a :href="view.ipAddr" class="text-primary">{{ view.ipAddr }}</a></div>
             <div class="text-caption text-wrap">userAgent：{{ userAgent }}</div>
@@ -35,7 +31,7 @@
       </q-tab-panel>
 
       <q-tab-panel name="cluster" class="q-pa-xs">
-        <q-card class="q-mb-sm theme-card-compact">
+        <q-card class="q-mb-sm ">
           <q-card-section class="q-pa-sm">
             <div class="row items-center">
               <div class="text-subtitle2">本机信息</div>
@@ -45,31 +41,29 @@
                 color="green"
                 label="启用集群"
                 left-label
-                dense
-                size="sm"
                 @update:model-value="toggleLanDiscovery"
               />
             </div>
             <div class="row q-gutter-xs">
-              <q-chip outline color="primary" size="sm" dense>
+              <q-chip outline color="blue"  >
+               <q-icon name="badge" class="q-mr-xs" size="14px" />
+                别名: {{ cluster.localNodeName }}
+              </q-chip>
+              <q-chip outline color="primary"  >
                 <q-icon name="computer" class="q-mr-xs" size="14px" />
                 节点: {{ cluster.localNodeHost }}
-              </q-chip>
-              <q-chip outline color="secondary" size="sm" dense>
-                <q-icon name="badge" class="q-mr-xs" size="14px" />
-                别名: {{ cluster.localNodeName }}
               </q-chip>
             </div>
           </q-card-section>
         </q-card>
 
-        <q-card class="theme-card-compact">
+        <q-card class="q-pa-xs">
           <q-card-section class="q-pa-sm">
             <div class="row items-center justify-between q-mb-xs">
               <div class="text-subtitle2">在线节点 ({{ cluster.peers.length }})</div>
               <div class="row q-gutter-xs">
-                <q-btn flat dense icon="add" size="sm" color="positive" @click="showAddPeerDialog = true">添加</q-btn>
-                <q-btn flat dense icon="refresh" size="sm" color="primary" @click="fetchPeers" :loading="cluster.loading">刷新</q-btn>
+                <q-btn flat  icon="add"  color="positive" @click="showAddPeerDialog = true">添加</q-btn>
+                <q-btn flat  icon="refresh"  color="primary" @click="fetchPeers" :loading="cluster.loading">刷新</q-btn>
               </div>
             </div>
 
@@ -78,7 +72,7 @@
               :columns="peerColumns"
               row-key="id"
               flat
-              dense
+              
               :pagination="{ rowsPerPage: 20 }"
               hide-pagination
               :rows-per-page-options="[0]"
@@ -102,12 +96,12 @@
               </template>
               <template v-slot:body-cell-actions="props">
                 <q-td key="actions" :props="props" class="q-pa-xs">
-                  <q-btn flat dense icon="wifi_find" size="sm" color="primary"
+                  <q-btn flat  icon="wifi_find"  color="primary"
                     :loading="props.row._checking" @click="checkPeer(props.row)" class="q-mr-xs">检测连通</q-btn>
-                  <q-btn flat dense :icon="props.row.disabled ? 'play_arrow' : 'pause'" size="sm"
+                  <q-btn flat  :icon="props.row.disabled ? 'play_arrow' : 'pause'" 
                     :color="props.row.disabled ? 'positive' : 'warning'"
                     @click="togglePeer(props.row)" class="q-mr-xs">{{ props.row.disabled ? '启用' : '禁用' }}</q-btn>
-                  <q-btn flat dense icon="delete" size="sm" color="negative"
+                  <q-btn flat  icon="delete"  color="negative"
                     @click="removePeer(props.row)">删除</q-btn>
                 </q-td>
               </template>
@@ -131,13 +125,39 @@
       </q-tab-panel>
 
       <q-tab-panel name="user" class="q-pa-xs">
-        <div class="row q-gutter-sm">
-          <q-card flat bordered class="theme-card-compact" style="flex:1; min-width:280px">
+        <q-card flat bordered class="q-pa-xs">
+          <q-card-section class="q-pa-sm">
+            <div class="row items-center justify-between q-mb-xs">
+              <div class="text-subtitle2">用户列表</div>
+              <q-btn flat dense color="primary" icon="person_add" size="sm" @click="showAddUserDialog = true">添加用户</q-btn>
+            </div>
+            <q-list bordered separator>
+              <q-item v-for="user in userList" :key="user.username" class="q-py-xs">
+                <q-item-section>
+                  <q-item-label class="text-caption">{{ user.username }}</q-item-label>
+                  <q-item-label caption v-if="user.expireDate" class="text-caption">有效期至：{{ user.expireDate }}</q-item-label>
+                  <q-item-label caption v-else class="text-caption">永不过期</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-btn flat round icon="delete" color="negative" size="sm" @click="deleteUser(user.username)" />
+                </q-item-section>
+              </q-item>
+              <div v-if="userList.length === 0" class="text-center text-grey q-py-md">
+                <q-icon name="group_off" size="3em" class="q-mb-sm" />
+                <div class="text-caption">暂无用户，点击右上角添加</div>
+              </div>
+            </q-list>
+          </q-card-section>
+        </q-card>
+
+        <!-- 添加用户弹窗 -->
+        <q-dialog v-model="showAddUserDialog" persistent>
+          <q-card style="min-width: 360px">
             <q-card-section class="q-pa-sm">
-              <div class="text-subtitle2 q-mb-xs">添加用户</div>
-              <q-input v-model="newUser.username" label="用户名" dense class="q-mb-xs" />
-              <q-input v-model="newUser.password" label="密码" type="password" dense class="q-mb-xs" />
-              <q-input v-model="newUser.expireDate" label="有效期（可选）" dense class="q-mb-xs">
+              <div class="text-subtitle2 q-mb-sm">添加用户</div>
+              <q-input v-model="newUser.username" label="用户名" class="q-mb-xs" autofocus />
+              <q-input v-model="newUser.password" label="密码" type="password" class="q-mb-xs" />
+              <q-input v-model="newUser.expireDate" label="有效期（可选）" class="q-mb-xs">
                 <template v-slot:append>
                   <q-icon name="event" class="cursor-pointer">
                     <q-popup-proxy cover transition-show="scale" transition-hide="scale">
@@ -146,40 +166,96 @@
                   </q-icon>
                 </template>
               </q-input>
-              <q-btn color="primary" dense label="添加" @click="addUser" />
             </q-card-section>
+            <q-card-actions align="right" class="q-pa-sm q-pt-none">
+              <q-btn flat dense label="取消" color="grey" v-close-popup @click="resetNewUser" />
+              <q-btn flat dense label="添加" color="primary" @click="addUser" />
+            </q-card-actions>
           </q-card>
-
-          <q-card flat bordered class="theme-card-compact" style="flex:1; min-width:280px">
-            <q-card-section class="q-pa-sm">
-              <div class="text-subtitle2 q-mb-xs">用户列表</div>
-              <q-list bordered separator dense>
-                <q-item v-for="user in userList" :key="user.username" dense class="q-py-xs">
-                  <q-item-section>
-                    <q-item-label class="text-caption">{{ user.username }}</q-item-label>
-                    <q-item-label caption v-if="user.expireDate" class="text-caption">有效期至：{{ user.expireDate }}</q-item-label>
-                    <q-item-label caption v-else class="text-caption">永不过期</q-item-label>
-                  </q-item-section>
-                  <q-item-section side>
-                    <q-btn flat round icon="delete" color="negative" size="sm" @click="deleteUser(user.username)" />
-                  </q-item-section>
-                </q-item>
-              </q-list>
-            </q-card-section>
-          </q-card>
-        </div>
+        </q-dialog>
       </q-tab-panel>
 
       <q-tab-panel name="log" class="q-pa-xs">
-        <q-card class="theme-card-compact">
+        <q-card class="q-pa-xs">
           <q-card-section class="q-pa-sm">
-            <div class="log-list">
-              <div v-for="(item, index) in view.logs" :key="index" class="log-item q-py-xs">
-                <span class="log-time text-caption">{{ item.time?.substring(0, 19) }}</span>
-                <span class="log-separator"> - </span>
-                <span class="log-msg text-caption">{{ item.msg }}</span>
-              </div>
+            <div class="row items-center q-gutter-sm q-mb-sm">
+              <q-btn-toggle
+                v-model="logTab"
+                :options="[
+                  { label: '内存日志', value: 'memory' },
+                  { label: '本地日志', value: 'local' },
+                ]"
+                toggleTextColor="white"
+                toggleColor="blue"
+              />
+              <q-space />
+              <q-btn dense flat icon="refresh" size="sm" @click="logTab === 'memory' ? fetchMemoryLog() : fetchLocalLog()" />
             </div>
+            <!-- 内存日志 -->
+            <template v-if="logTab === 'memory'">
+              <div class="row items-center q-gutter-sm q-mb-md">
+                <q-btn-toggle
+                  v-model="logTimeFilter"
+                  :options="logTimeOptions"
+                   flat no-caps class="q-ml-xs"
+                />
+                <q-select
+                  v-model="logTypeFilter"
+                  :options="logTypeOptions"
+                   clearable placeholder="类型"
+                  class="col-2" style="min-width:100px"
+                />
+                <q-input
+                  v-model="logKeyword"  debounce="300"
+                  placeholder="过滤关键词" clearable class="col-3"
+                >
+                  <template v-slot:prepend>
+                    <q-icon name="search" />
+                  </template>
+                </q-input>
+                <q-btn
+                  :icon="logSortAsc ? 'arrow_upward' : 'arrow_downward'"
+                  flat  @click="logSortAsc = !logSortAsc"
+                >
+                  <q-tooltip>{{ logSortAsc ? '时间正序' : '时间倒序' }}</q-tooltip>
+                </q-btn>
+              </div>
+              <div class="log-list">
+                <div v-for="item in memoryPageData" :key="item" class="log-item q-py-xs">
+                  <span class="log-type-dot" :class="logTypeColor(logExtractType(item.msg))" />
+                  <span class="log-time">{{ item.time.substring(0, 19) }}</span>
+                  <span class="log-separator"> - </span>
+                  <span class="log-msg">{{ simplifyLog(item.msg) }}</span>
+                </div>
+                <div v-if="memoryPageData.length === 0" class="text-center text-grey q-py-md">
+                  暂无匹配的日志
+                </div>
+              </div>
+              <div class="row justify-center q-mt-md" v-if="memoryTotalPages > 1">
+                <q-pagination
+                  v-model="memoryPage" :max="memoryTotalPages" :max-pages="7"
+                  boundary-links direction-links
+                />
+              </div>
+            </template>
+
+            <!-- 本地日志 -->
+            <template v-if="logTab === 'local'">
+              <div class="log-list">
+                <div v-for="(line, idx) in localPageData" :key="idx" class="log-item q-py-xs">
+                  <span class="log-raw">{{ line }}</span>
+                </div>
+                <div v-if="localPageData.length === 0" class="text-center text-grey q-py-md">
+                  暂无日志
+                </div>
+              </div>
+              <div class="row justify-center q-mt-md" v-if="localTotalPages > 1">
+                <q-pagination
+                  v-model="localPage" :max="localTotalPages" :max-pages="7"
+                  boundary-links direction-links
+                />
+              </div>
+            </template>
           </q-card-section>
         </q-card>
       </q-tab-panel>
@@ -187,16 +263,16 @@
 
     <!-- 添加节点弹窗 -->
     <q-dialog v-model="showAddPeerDialog" persistent @before-show="resetPeerTest">
-      <q-card style="min-width: 420px" class="theme-card-compact">
+      <q-card style="min-width: 420px" class="q-pa-xs">
         <q-card-section class="q-pa-sm">
           <div class="text-subtitle2 q-mb-sm">手动添加在线节点</div>
-          <q-input v-model="newPeer.ip" label="IP 地址" placeholder="例如: 192.168.1.102" dense outlined autofocus class="q-mb-xs" />
+          <q-input v-model="newPeer.ip" label="IP 地址" placeholder="例如: 192.168.1.102"  outlined autofocus class="q-mb-xs" />
           <div class="row q-gutter-xs q-mb-xs">
-            <q-input v-model="newPeer.port" label="API 端口" placeholder="10081" dense outlined style="max-width: 130px" />
-            <q-input v-model="newPeer.filePort" label="文件端口" placeholder="10082" dense outlined style="max-width: 130px" />
+            <q-input v-model="newPeer.port" label="API 端口" placeholder="10081"  outlined style="max-width: 130px" />
+            <q-input v-model="newPeer.filePort" label="文件端口" placeholder="10082"  outlined style="max-width: 130px" />
           </div>
           <div class="row items-center q-gutter-xs">
-            <q-btn dense outline size="sm"
+            <q-btn  outline 
               :color="ipTestResult === true ? 'positive' : (ipTestResult === false ? 'negative' : 'grey')"
               :icon="peerTestStatus === 'testing' ? 'sync' : (ipTestResult === true ? 'check_circle' : (ipTestResult === false ? 'cancel' : 'computer'))"
               :loading="peerTestStatus === 'testing' && !portTestDone"
@@ -204,7 +280,7 @@
               @click="testIPConnection">
               {{ peerTestStatus === 'testing' && !portTestDone ? 'IP检测中...' : (ipTestResult === true ? 'IP可达' : (ipTestResult === false ? 'IP不可达' : '检测IP')) }}
             </q-btn>
-            <q-btn dense outline size="sm"
+            <q-btn  outline 
               :color="portTestResult === true ? 'positive' : (portTestResult === false ? 'negative' : 'grey')"
               :icon="peerTestStatus === 'testing' && portTestDone ? 'sync' : (portTestResult === true ? 'check_circle' : (portTestResult === false ? 'cancel' : 'router'))"
               :loading="peerTestStatus === 'testing' && portTestDone"
@@ -215,8 +291,8 @@
           </div>
         </q-card-section>
         <q-card-actions align="right" class="q-pa-sm q-pt-none">
-          <q-btn flat dense label="取消" color="grey" v-close-popup @click="resetPeerTest" />
-          <q-btn flat dense label="添加" color="primary" :disable="!newPeer.ip.trim()" @click="addManualPeer" />
+          <q-btn flat  label="取消" color="grey" v-close-popup @click="resetPeerTest" />
+          <q-btn flat  label="添加" color="primary" :disable="!newPeer.ip.trim()" @click="addManualPeer" />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -227,11 +303,16 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRoute, useRouter } from 'vue-router';
-import { GetSettingInfo, GetIpAddr, GeMemeryLog, GetLanPeers, PostSettingInfo, AddLanPeer, RemoveLanPeer, TogglePeer, GetUsers, AddUser, DeleteUser, PingHost, ToggleLanDiscovery } from '../../components/api/settingAPI';
+import { GetSettingInfo, GetIpAddr, GeMemeryLog, GetLocalLog, GetLanPeers, PostSettingInfo, AddLanPeer, RemoveLanPeer, TogglePeer, GetUsers, AddUser, DeleteUser, PingHost, ToggleLanDiscovery } from '../../components/api/settingAPI';
 import { useSystemProperty } from '../../stores/System';
 
 const systemProperty = useSystemProperty();
 const $q = useQuasar();
+
+const themeStyle = computed(() => ({
+  color: 'var(--q-text-primary)',
+  backgroundColor: 'var(--q-bg-dark)',
+}));
 const route = useRoute();
 const router = useRouter();
 const tab = ref((route.query.tab as string) || 'info');
@@ -247,12 +328,19 @@ const portTestResult = ref<boolean | null>(null);
 const portTestDone = ref(false);
 
 // 用户管理
+const showAddUserDialog = ref(false);
 const newUser = reactive({
   username: '',
   password: '',
   expireDate: '',
 });
 const userList = ref<any[]>([]);
+
+const resetNewUser = () => {
+  newUser.username = '';
+  newUser.password = '';
+  newUser.expireDate = '';
+};
 
 const fetchUsers = async () => {
   try {
@@ -274,9 +362,8 @@ const addUser = async () => {
     const res = await AddUser(newUser.username, newUser.password, newUser.expireDate);
     if (res.code === 200) {
       $q.notify({ type: 'positive', message: '添加成功' });
-      newUser.username = '';
-      newUser.password = '';
-      newUser.expireDate = '';
+      showAddUserDialog.value = false;
+      resetNewUser();
       fetchUsers();
     } else {
       $q.notify({ type: 'negative', message: res.message || '添加失败' });
@@ -307,6 +394,125 @@ const view = reactive({
   ipAddr: '',
   logs: [] as any[],
 });
+
+// ── 日志 ──
+const logTab = ref('memory');
+const logKeyword = ref('');
+const logSortAsc = ref(true);
+const logTypeFilter = ref(null);
+const logTimeFilter = ref('');
+const logTimeOptions = [
+  { label: '全部', value: '' },
+  { label: '今天', value: 'today' },
+  { label: '昨天', value: 'yesterday' },
+  { label: '≥3天', value: 'older' },
+];
+const logPageSize = 50;
+const allMemoryLogs = ref([]);
+const memoryPage = ref(1);
+const allLocalLines = ref([]);
+const localPage = ref(1);
+
+function logExtractType(msg: string) {
+  if (!msg) return '';
+  const m = msg.match(/^[^：:　\s]+/);
+  return m ? m[0] : '';
+}
+const logTypeColorMap: Record<string, string> = {
+  '扫描': 'type-scan', '添加': 'type-add', '取消': 'type-cancel',
+  '开始': 'type-scan', '完成': 'type-done', '拒绝': 'type-deny',
+  '首次': 'type-join', '新节点': 'type-join', '全量': 'type-scan',
+  'Plan': 'type-info', 'ScanAll': 'type-scan', '索引': 'type-info',
+  '搜索': 'type-search',
+};
+// 简化 JSON 日志：提取 状态码 路径 数据长度
+function simplifyLog(msg: string): string {
+  try {
+    const obj = JSON.parse(msg);
+    const parts: string[] = [];
+    if (obj.statusCode) parts.push(String(obj.statusCode));
+    if (obj.method && obj.path) parts.push(`${obj.method} ${obj.path}`);
+    else if (obj.path) parts.push(obj.path);
+    if (obj.dataLength != null && obj.dataLength !== 0) parts.push(`${obj.dataLength}B`);
+    if (obj.latency != null) parts.push(`${obj.latency}ms`);
+    return parts.join(' ') || msg.substring(0, 120);
+  } catch {
+    return msg.substring(0, 120);
+  }
+}
+
+function logTypeColor(t: string) {
+  return logTypeColorMap[t] || 'type-default';
+}
+
+const logTypeOptions = computed(() => {
+  const seen = new Set<string>();
+  const types: string[] = [];
+  for (const item of allMemoryLogs.value) {
+    const t = logExtractType(item.msg);
+    if (t && !seen.has(t)) { seen.add(t); types.push(t); }
+  }
+  return types.sort();
+});
+
+function getDateYMD(timeStr: string) {
+  return timeStr ? timeStr.substring(0, 10) : '';
+}
+function todayYMD() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function daysAgoYMD(n: number) {
+  const d = new Date(); d.setDate(d.getDate() - n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+const memoryFiltered = computed(() => {
+  let list = [...allMemoryLogs.value];
+  const kw = logKeyword.value?.trim().toLowerCase();
+  if (kw) list = list.filter((item: any) => item.msg?.toLowerCase().includes(kw) || item.time?.includes(kw));
+  if (logTypeFilter.value) list = list.filter((item: any) => logExtractType(item.msg) === logTypeFilter.value);
+  if (logTimeFilter.value) {
+    const today = todayYMD();
+    const yesterday = daysAgoYMD(1);
+    const threeDaysAgo = daysAgoYMD(3);
+    list = list.filter((item: any) => {
+      const d = getDateYMD(item.time);
+      if (!d) return false;
+      switch (logTimeFilter.value) {
+        case 'today': return d === today;
+        case 'yesterday': return d === yesterday;
+        case 'older': return d <= threeDaysAgo;
+        default: return true;
+      }
+    });
+  }
+  list.sort((a: any, b: any) => logSortAsc.value ? a.time.localeCompare(b.time) : b.time.localeCompare(a.time));
+  return list;
+});
+
+const memoryTotalPages = computed(() => Math.max(1, Math.ceil(memoryFiltered.value.length / logPageSize)));
+const memoryPageData = computed(() => {
+  const start = (memoryPage.value - 1) * logPageSize;
+  return memoryFiltered.value.slice(start, start + logPageSize);
+});
+
+watch([logKeyword, logTypeFilter, logTimeFilter, logSortAsc], () => { memoryPage.value = 1; });
+
+const localTotalPages = computed(() => Math.max(1, Math.ceil(allLocalLines.value.length / logPageSize)));
+const localPageData = computed(() => {
+  const start = (localPage.value - 1) * logPageSize;
+  return allLocalLines.value.slice(start, start + logPageSize);
+});
+
+async function fetchLocalLog() {
+  const { data } = await GetLocalLog();
+  allLocalLines.value = Array.isArray(data) ? data : [];
+}
+async function fetchMemoryLog() {
+  const { data } = await GeMemeryLog();
+  allMemoryLogs.value = Array.isArray(data) ? data : [];
+}
 
 const fetchSearch = async () => {
   const { data } = await GetSettingInfo();
@@ -509,21 +715,34 @@ const removePeer = async (peer: any) => {
   }
 };
 
-// tab 切换时同步到 URL query
+// tab 切换时同步到 URL query，日志 tab 开启定时刷新
 watch(tab, (val) => {
   router.replace({ query: { ...route.query, tab: val } });
+  if (val === 'log') {
+    logIntervalId = setInterval(() => {
+      if (logTab.value === 'memory') fetchMemoryLog();
+      else fetchLocalLog();
+    }, 5000);
+  } else {
+    if (logIntervalId) { clearInterval(logIntervalId); logIntervalId = 0; }
+  }
 });
 
 onMounted(() => {
   document.title = '系统信息';
   fetchSearch();
   queryIpAddr();
-  fetchLogs();
+  fetchMemoryLog();
+  fetchLocalLog();
   fetchPeers();
   fetchUsers();
-  logIntervalId = setInterval(() => {
-    fetchLogs();
-  }, 5000);
+  // 如果初始 tab 就是日志，启动定时轮询
+  if (tab.value === 'log') {
+    logIntervalId = setInterval(() => {
+      if (logTab.value === 'memory') fetchMemoryLog();
+      else fetchLocalLog();
+    }, 5000);
+  }
 });
 
 onUnmounted(() => {
@@ -533,30 +752,6 @@ onUnmounted(() => {
 });
 </script>
 <style lang="scss" scoped>
-.setting-tabs {
-  border-radius: 4px 4px 0 0;
-  min-height: 32px;
-
-  :deep(.q-tab) {
-    font-weight: 500;
-    font-size: 0.85rem;
-    min-height: 32px;
-    padding: 4px 8px;
-  }
-  :deep(.q-tab--active) {
-    font-weight: 600;
-  }
-
-  :deep(.q-tab__indicator) {
-    height: 2px;
-  }
-}
-
-.theme-card-compact {
-  background: var(--q-bg-card);
-  border: 1px solid var(--q-border);
-  color: var(--q-text-primary);
-}
 
 .text-wrap {
   word-break: break-all;
@@ -569,26 +764,60 @@ onUnmounted(() => {
 }
 
 .log-list {
-  max-height: 65vh;
+  max-height: 70vh;
   overflow-y: auto;
 }
 
 .log-item {
   border-bottom: 1px solid var(--q-border-light);
   font-family: monospace;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
 }
 
 .log-time {
-  color: var(--q-text-secondary);
+  color: var(--q-text-primary);
+  flex-shrink: 0;
 }
 
 .log-separator {
   color: var(--q-border);
+  flex-shrink: 0;
 }
 
 .log-msg {
   color: var(--q-text-primary);
 }
+
+.log-raw {
+  color: var(--q-text-primary);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.text-subtitle1 {
+  color: var(--q-text-secondary);
+}
+
+/* 类型颜色圆点 */
+.log-type-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+.type-scan   { background: #42a5f5; }
+.type-add    { background: #66bb6a; }
+.type-cancel { background: #ef5350; }
+.type-done   { background: #26a69a; }
+.type-deny   { background: #ff7043; }
+.type-join   { background: #ab47bc; }
+.type-info   { background: #78909c; }
+.type-search { background: #ffca28; }
+.type-default { background: #90a4ae; }
 
 :deep(.compact-table) {
   .q-table__top,

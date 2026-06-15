@@ -203,7 +203,7 @@
                 'search-card-playing': currentData.Id === item.Id
               }">
                 <div class="search-card-thumb">
-                  <q-img :src="item.pngUrl" fit="cover" class="search-card-img" :ratio="3 / 4"
+                  <q-img :src="item.PngUrl" fit="cover" class="search-card-img" :ratio="3 / 4"
                     @click="playFromSearch(item)">
                     <template v-slot:error>
                       <div class="search-card-placeholder">

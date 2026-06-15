@@ -6,7 +6,7 @@
       dense
       v-if="props.icon"
       :icon="icon"
-      :color="currentPath == link ? 'red' : ''"
+      :color="currentPath == props.link ? 'red' : 'white'"
       >{{ props.title }}</q-btn
     >
   </q-item>
