@@ -24,20 +24,12 @@ type FileItem struct {
 	Size      int64
 	Flag      int64
 	SizeStr   string
-	CTime     string `xorm:"DateTime"`
 	MTime     string `xorm:"DateTime"`
-	PTime     string `xorm:"DateTime"`
 	MovieType string
 	PathUpper string
-	ImageBase string   `json:"ImageBase,omitempty"`
-	ImageList []string `json:"ImageList,omitempty"`
 	Tags      []string
 
 	Studio   string `json:"Studio,omitempty"`
-	Supplier string `json:"Supplier,omitempty"`
-	Length   string `json:"Length,omitempty"`
-	Series   string `json:"Series,omitempty"`
-	Director string `json:"Director,omitempty"`
 	Title    string
 	PngUrl   string `json:"PngUrl,omitempty" xorm:"Text" `
 	JpgUrl   string `json:"JpgUrl,omitempty" xorm:"Text"`
@@ -81,7 +73,6 @@ func EasyFile(dir string, path string, name string, fileType string, size int64,
 		Flag:      1,
 		Studio:    utils.GetSeriesByCode(code),
 		SizeStr:   utils.GetSizeStr(size),
-		CTime:     "",
 		MTime:     modTime.Format("2006-01-02 15:04:05"),
 		MovieType: movieType,
 		BaseDir:   baseDir,
@@ -112,7 +103,6 @@ func NewFile(dir string, path string, name string, fileType string, size int64, 
 		Flag:      1,
 		Studio:    utils.GetSeriesByCode(code),
 		SizeStr:   utils.GetSizeStr(size),
-		CTime:     "",
 		MTime:     modTime.Format("2006-01-02 15:04:05"),
 		MovieType: movieType,
 		BaseDir:   baseDir,
