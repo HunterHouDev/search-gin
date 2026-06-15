@@ -163,7 +163,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch } from 'vue';
+import { ref, reactive, computed, watch, inject } from 'vue';
 import { format } from 'quasar';
 import { useQuasar } from 'quasar';
 import { SearchAPI, ResetMovieType } from 'components/api/searchAPI';
@@ -186,6 +186,9 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['play', 'close', 'keyword', 'edit', 'delete']);
+
+// ── 注入刷新函数（由父级 SearchPage 提供） ──
+const refreshDebounceFn = inject('refreshDebounceFn', () => {});
 
 // ── 状态 ───────────────────────────────────────────────────────────────
 const $q = useQuasar();
@@ -283,6 +286,7 @@ async function setMovieType(item, type) {
   try {
     await ResetMovieType( item.Id,  type );
     item.MovieType = type;
+    refreshDebounceFn(item, 5000);
   } catch (e) {
     console.error('ResetMovieType failed:', e);
   }

@@ -193,6 +193,287 @@ func (se *searchEngineCore) rebuildWithBucket(baseDir string, newBucket *bucketF
 	AddLogMemory("rebuildWithBucket: 完成, 耗时 %dms, 文件数 %d", ti.Milliseconds(), newSnap.totalCount)
 }
 
+// rebuildWithBucketIncremental 增量重建：只遍历变化的 bucket，不遍历全部 index
+// 对已有 bucket 的增量扫描大幅降低耗时（O(变化量) 而非 O(全量)）
+func (se *searchEngineCore) rebuildWithBucketIncremental(baseDir string, newBucket *bucketFile) {
+	defer func() {
+		if r := recover(); r != nil {
+			AddLogMemory("rebuildWithBucketIncremental 异常: %v", r)
+			AddLogMemory("堆栈: %s", string(debug.Stack()))
+		}
+	}()
+
+	se.rebuildMu.Lock()
+	defer se.rebuildMu.Unlock()
+
+	start := time.Now()
+	old := se.loadSnapshot()
+
+	// 1. 读取当前配置的允许目录集合
+	dirs := consts.GetOSSetting().Dirs
+	dirSet := make(map[string]struct{}, len(dirs))
+	for _, d := range dirs {
+		dirSet[d] = struct{}{}
+	}
+
+	// 2. 构建新 bucket 映射
+	newBuckets := make(map[string]*bucketFile, len(old.buckets)+1)
+	for k, v := range old.buckets {
+		if k == baseDir {
+			continue
+		}
+		if _, ok := dirSet[k]; !ok {
+			continue
+		}
+		newBuckets[k] = v
+	}
+	if newBucket != nil && !newBucket.isEmpty() {
+		newBuckets[baseDir] = newBucket
+	}
+
+	// 3. 复制旧的聚合数据
+	snap := &searchSnapshot{
+		buckets:     newBuckets,
+		bucketCount: int32(len(newBuckets)),
+		totalSize:   old.totalSize,
+		totalCount:  old.totalCount,
+		actorMap:    cloneActorMap(old.actorMap),
+		typeMenu:    cloneMenuMap(old.typeMenu),
+		tagMenu:     cloneMenuMap(old.tagMenu),
+		seriesCount: cloneMenuMap(old.seriesCount),
+	}
+
+	// 4. 减去旧 bucket 的贡献
+	oldBucket := old.buckets[baseDir]
+	if oldBucket != nil && !oldBucket.isEmpty() {
+		subtractBucketFromSnapshot(snap, oldBucket)
+	}
+
+	// 5. 加上新 bucket 的贡献
+	if newBucket != nil && !newBucket.isEmpty() {
+		addBucketToSnapshot(snap, newBucket)
+	}
+
+	// 6. 重复文件检测（需要跨 bucket 全量扫描，但仅 map 操作，相对轻量）
+	recomputeRepeats(snap)
+
+	// 7. 原子替换
+	se.installSnapshot(snap)
+
+	ti := time.Since(start)
+	AddLogMemory("rebuildWithBucketIncremental: 完成, 耗时 %dms, bucket %s, 文件数 %d", ti.Milliseconds(), baseDir, snap.totalCount)
+}
+
+// ── 增量重建辅助函数 ──
+
+// cloneActorMap 浅拷贝 actor map
+func cloneActorMap(src map[string]model.Author) map[string]model.Author {
+	dst := make(map[string]model.Author, len(src))
+	for k, v := range src {
+		dst[k] = v
+	}
+	return dst
+}
+
+// cloneMenuMap 浅拷贝 MenuSize map
+func cloneMenuMap(src map[string]consts.MenuSize) map[string]consts.MenuSize {
+	dst := make(map[string]consts.MenuSize, len(src))
+	for k, v := range src {
+		dst[k] = v
+	}
+	return dst
+}
+
+// subtractBucketFromSnapshot 从快照中减去一个 bucket 的全部贡献（演员、菜单、总数）
+func subtractBucketFromSnapshot(snap *searchSnapshot, bucket *bucketFile) {
+	bucket.mu.RLock()
+	defer bucket.mu.RUnlock()
+
+	for _, movie := range bucket.FileLib {
+		movie := movie // 闭包捕获
+		snap.totalCount--
+		snap.totalSize -= movie.Size
+
+		// 演员
+		if len(movie.Author) > 0 {
+			if cur, ok := snap.actorMap[movie.Author]; ok {
+				cur.MinusCnt()
+				cur.MinusSize(movie.Size)
+				if cur.Cnt <= 0 {
+					delete(snap.actorMap, movie.Author)
+				} else {
+					snap.actorMap[movie.Author] = cur
+				}
+			}
+		}
+
+		// 类型菜单
+		mt := movie.MovieType
+		if mt == "" {
+			mt = "无"
+		}
+		if v, ok := snap.typeMenu[mt]; ok {
+			updated := v.Minus(movie.Size)
+			if updated.Cnt <= 0 {
+				delete(snap.typeMenu, mt)
+			} else {
+				snap.typeMenu[mt] = updated
+			}
+		}
+		if v, ok := snap.typeMenu["全部"]; ok {
+			updated := v.Minus(movie.Size)
+			if updated.Cnt <= 0 {
+				delete(snap.typeMenu, "全部")
+			} else {
+				snap.typeMenu["全部"] = updated
+			}
+		}
+
+		// 标签菜单
+		if len(movie.Tags) > 0 {
+			for i := range movie.Tags {
+				if v, ok := snap.tagMenu[movie.Tags[i]]; ok {
+					updated := v.Minus(movie.Size)
+					if updated.Cnt <= 0 {
+						delete(snap.tagMenu, movie.Tags[i])
+					} else {
+						snap.tagMenu[movie.Tags[i]] = updated
+					}
+				}
+			}
+		}
+
+		// 系列菜单
+		if len(movie.Studio) > 0 {
+			if v, ok := snap.seriesCount[movie.Studio]; ok {
+				updated := v.Minus(movie.Size)
+				if updated.Cnt <= 0 {
+					delete(snap.seriesCount, movie.Studio)
+				} else {
+					snap.seriesCount[movie.Studio] = updated
+				}
+			}
+		}
+	}
+}
+
+// addBucketToSnapshot 向快照添加一个 bucket 的全部贡献（演员、菜单、总数）
+func addBucketToSnapshot(snap *searchSnapshot, bucket *bucketFile) {
+	bucket.mu.RLock()
+	defer bucket.mu.RUnlock()
+
+	for _, movie := range bucket.FileLib {
+		movie := movie
+		snap.totalCount++
+		snap.totalSize += movie.Size
+
+		// 演员
+		if len(movie.Author) > 0 {
+			if cur, ok := snap.actorMap[movie.Author]; ok {
+				cur.PlusCnt()
+				cur.PlusSize(movie.Size)
+				cur.AddImage(movie.Png)
+				cur.AddImage(movie.Jpg)
+				snap.actorMap[movie.Author] = cur
+			} else {
+				snap.actorMap[movie.Author] = model.NewAuthor(movie.Author, movie.Jpg, movie.Size)
+			}
+		}
+
+		// 类型菜单
+		mt := movie.MovieType
+		if mt == "" {
+			mt = "无"
+		}
+		if v, ok := snap.typeMenu[mt]; ok {
+			snap.typeMenu[mt] = v.Plus(movie.Size)
+		} else {
+			snap.typeMenu[mt] = consts.MenuSize{Name: mt, Cnt: 1, Size: movie.Size}
+		}
+		if v, ok := snap.typeMenu["全部"]; ok {
+			snap.typeMenu["全部"] = v.Plus(movie.Size)
+		} else {
+			snap.typeMenu["全部"] = consts.MenuSize{Name: "全部", Cnt: 1, Size: movie.Size}
+		}
+
+		// 标签菜单
+		if len(movie.Tags) > 0 {
+			for i := range movie.Tags {
+				if v, ok := snap.tagMenu[movie.Tags[i]]; ok {
+					snap.tagMenu[movie.Tags[i]] = v.Plus(movie.Size)
+				} else {
+					snap.tagMenu[movie.Tags[i]] = consts.MenuSize{Name: movie.Tags[i], Cnt: 1, Size: movie.Size, IsDir: true}
+				}
+			}
+		}
+
+		// 系列菜单
+		if len(movie.Studio) > 0 {
+			if v, ok := snap.seriesCount[movie.Studio]; ok {
+				snap.seriesCount[movie.Studio] = v.Plus(movie.Size)
+			} else {
+				snap.seriesCount[movie.Studio] = consts.MenuSize{Name: movie.Studio, Cnt: 1, Size: movie.Size, IsDir: true}
+			}
+		}
+	}
+}
+
+// recomputeRepeats 在所有 bucket 上重新计算重复文件
+func recomputeRepeats(snap *searchSnapshot) {
+	sizeRepeats := make(map[int64]repeatModel, 1000)
+	codeRepeats := make(map[string]repeatModel, 1000)
+	fileRepeats := make(map[string]model.FileItem, 2000)
+
+	for _, bucket := range snap.buckets {
+		if bucket.isEmpty() {
+			continue
+		}
+		bucket.mu.RLock()
+
+		for _, movie := range bucket.FileLib {
+			if movie.IsNull() {
+				continue
+			}
+
+			// 大小去重
+			rs, ok := sizeRepeats[movie.Size]
+			if ok {
+				rs.Count++
+				fileRepeats[rs.Files.Path] = rs.Files
+				fileRepeats[movie.Path] = movie
+				sizeRepeats[movie.Size] = rs
+			} else {
+				sizeRepeats[movie.Size] = repeatModel{Code: movie.Code, Files: movie, Count: 1}
+			}
+
+			// Code 去重（去掉连字符和下划线）
+			pkCode := strings.ReplaceAll(movie.Code, "-", "")
+			pkCode = strings.ReplaceAll(pkCode, "_", "")
+			rc, ok := codeRepeats[pkCode]
+			if ok {
+				rc.Count++
+				fileRepeats[rc.Files.Path] = rc.Files
+				fileRepeats[movie.Path] = movie
+				codeRepeats[pkCode] = rc
+			} else {
+				codeRepeats[pkCode] = repeatModel{Code: movie.Code, Files: movie, Count: 1}
+			}
+		}
+
+		bucket.mu.RUnlock()
+	}
+
+	// 构建重复文件列表
+	repeatSearch := make([]model.FileItem, 0, len(fileRepeats))
+	for _, m := range fileRepeats {
+		repeatSearch = append(repeatSearch, m)
+	}
+	sort.Slice(repeatSearch, func(i, j int) bool {
+		return repeatSearch[i].Size > repeatSearch[j].Size
+	})
+	snap.repeatFiles = repeatSearch
+}
+
 // buildSnapshotFromBuckets 遍历所有 bucket，构造完整的 searchSnapshot
 func buildSnapshotFromBuckets(buckets map[string]*bucketFile) *searchSnapshot {
 	snap := &searchSnapshot{
@@ -470,7 +751,13 @@ loop:
 	}
 
 	model.SortFileItems(resultWrapper.FileList, searchParam.SortField, searchParam.SortType)
-	se.addHistory(cacheKey, resultWrapper)
+
+	// 只缓存小结果集，避免内存爆炸：
+	// - 空关键词（浏览全部）不缓存，每次都是全量扫描
+	// - 结果超过 2000 条不缓存（单条约 400 字节，2000 条 ≈ 0.8MB）
+	if searchParam.Keyword != "" && resultWrapper.SearchCount <= 2000 {
+		se.addHistory(cacheKey, resultWrapper)
+	}
 
 	resultWrapper.FileList, resultWrapper.ResultSize = model.GetPageOfFiles(
 		resultWrapper.FileList, searchParam.Page, searchParam.PageSize)

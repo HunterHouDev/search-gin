@@ -12,8 +12,9 @@ import (
 )
 
 type IndexHealth struct {
-	BucketCount     int32               `json:"bucketCount"`
-	IndexNumber     int32               `json:"indexNumber"`
+	BucketCount      int32               `json:"bucketCount"`
+	IndexNumber      int32               `json:"indexNumber"`
+	FullScanInProgress int32             `json:"fullScanInProgress"`
 	ExpectedDirs    int                 `json:"expectedDirs"`
 	TotalCount      int                 `json:"totalCount"`
 	TotalSize       int64               `json:"totalSize"`
@@ -33,6 +34,7 @@ func GetIndexHealthCheck(c *gin.Context) {
 
 	health.BucketCount = service.SearchEngine.BucketCount()
 	health.IndexNumber = consts.IndexNumber
+	health.FullScanInProgress = service.FullScanInProgress.Load()
 	health.ExpectedDirs = len(consts.GetOSSetting().Dirs)
 	health.TotalCount = service.SearchEngine.GetTotalCount()
 	health.TotalSize = service.SearchEngine.GetTotalSize()
@@ -53,8 +55,16 @@ func GetIndexHealthCheck(c *gin.Context) {
 
 	recommendations := []string{}
 
-	// 根据扫描阶段自动设置状态
-	if health.ScanProgress.Phase == "scanning" {
+	// 根据 FullScanInProgress 原子锁状态补充判断（比 ScanProgress.Phase 更实时）
+	if health.FullScanInProgress != 0 {
+		health.Status = "scanning"
+		if health.ScanProgress.Phase == "scanning" {
+			recommendations = append(recommendations,
+				fmt.Sprintf("正在扫描目录 %d/%d...", health.ScanProgress.CompletedDirs, health.ScanProgress.TotalDirs))
+		} else {
+			recommendations = append(recommendations, "全量扫描正在进行中...")
+		}
+	} else if health.ScanProgress.Phase == "scanning" {
 	 health.Status = "scanning"
 	 recommendations = append(recommendations,
 	  fmt.Sprintf("正在扫描目录 %d/%d...", health.ScanProgress.CompletedDirs, health.ScanProgress.TotalDirs))

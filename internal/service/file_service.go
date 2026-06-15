@@ -46,6 +46,8 @@ var hwAccel = struct {
 	force bool
 }{}
 
+var FullScanInProgress atomic.Int32
+
 var (
 	noPic       []byte
 	contentType = "image/png"
@@ -353,10 +355,11 @@ func (fs *fileService) ScanAll() int {
  dirList := make([]string, dirCount)
  copy(dirList, setting.Dirs)
  AddLogMemory("Plan to ScanAll dirTotal: %d, dirList: %v", dirCount, dirList)
- if !atomic.CompareAndSwapInt32(&consts.IndexNumber, 0, int32(dirCount)) {
-  AddLogMemory("索引构建任务正在执行中，剩余数量：%d", atomic.LoadInt32(&consts.IndexNumber))
+ if !FullScanInProgress.CompareAndSwap(0, 1) {
+  AddLogMemory("全量扫描正在进行中")
   return dirCount
  }
+ defer FullScanInProgress.Store(0)
 
  // 初始化扫描进度
  consts.SpMu.Lock()
@@ -460,7 +463,6 @@ func (fs *fileService) Walks(baseDir []string, types []string) []model.FileItem 
 
 // goWalkWithResult 协程方法扫描单个文件夹并返回结果
 func (fs *fileService) goWalkWithResult(baseDir string, types []string, resultChan chan<- scanResult) {
-	defer atomic.AddInt32(&consts.IndexNumber, -1)
 	defer func() {
 		consts.SpMu.Lock()
 		consts.Sp.CompletedDirs++

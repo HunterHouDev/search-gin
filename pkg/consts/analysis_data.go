@@ -74,6 +74,18 @@ func (m MenuSize) Plus(size int64) MenuSize {
 	return m
 }
 
+func (m MenuSize) Minus(size int64) MenuSize {
+	m.Cnt--
+	m.Size -= size
+	if m.Cnt < 0 {
+		m.Cnt = 0
+	}
+	if m.Size < 0 {
+		m.Size = 0
+	}
+	return m
+}
+
 func InitFolderTime() {
 	FolderTime = sync.Map{}
 }

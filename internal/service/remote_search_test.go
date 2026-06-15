@@ -46,33 +46,36 @@ func TestDedupKey_ZeroSize(t *testing.T) {
 }
 
 // ── MergeResults 测试 ──
+// MergeResults 不做去重，跨节点重复文件全部保留供用户知情后手动清理
 
-func TestMergeResults_CodeSizeDedup(t *testing.T) {
+func TestMergeResults_ConcatenatesLocalAndRemote(t *testing.T) {
 	local := []model.FileItem{
 		{Id: "1", Code: "ABC", Size: 100, Name: "local-a.mp4"},
 	}
 	remote := []model.FileItem{
-		{Id: "2", Code: "ABC", Size: 100, Name: "remote-a.mp4"}, // Code+Size 相同 → 去重
+		{Id: "2", Code: "ABC", Size: 100, Name: "remote-a.mp4"}, // Code+Size 相同但不同节点，保留
 		{Id: "3", Code: "DEF", Size: 200, Name: "remote-b.mp4"},
 	}
 	merged := MergeResults(local, remote)
-	assert.Len(t, merged, 2)
-	assert.Equal(t, "1", merged[0].Id) // local first
-	assert.Equal(t, "3", merged[1].Id)
+	assert.Len(t, merged, 3) // 不合并，全部保留
+	assert.Equal(t, "1", merged[0].Id)
+	assert.Equal(t, "2", merged[1].Id)
+	assert.Equal(t, "3", merged[2].Id)
 }
 
-func TestMergeResults_NameSizeDedup(t *testing.T) {
+func TestMergeResults_KeepsNameSizeDuplicates(t *testing.T) {
 	local := []model.FileItem{
 		{Id: "1", Code: "", Name: "same.mp4", Size: 777},
 	}
 	remote := []model.FileItem{
-		{Id: "2", Code: "", Name: "same.mp4", Size: 777}, // Name+Size 相同 → 去重
-		{Id: "3", Code: "", Name: "same.mp4", Size: 888}, // 不同 Size → 不去重
+		{Id: "2", Code: "", Name: "same.mp4", Size: 777}, // 不同节点同名同大小，保留
+		{Id: "3", Code: "", Name: "same.mp4", Size: 888},
 	}
 	merged := MergeResults(local, remote)
-	assert.Len(t, merged, 2)
+	assert.Len(t, merged, 3) // 不合并，全部保留
 	assert.Equal(t, "1", merged[0].Id)
-	assert.Equal(t, "3", merged[1].Id)
+	assert.Equal(t, "2", merged[1].Id)
+	assert.Equal(t, "3", merged[2].Id)
 }
 
 func TestMergeResults_EdgeCases(t *testing.T) {

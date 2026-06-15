@@ -589,7 +589,7 @@ const openVideo = async (params) => {
   view.queryParam = queryParam;
   view.currentData = item;
   systemProperty.PlayingMovie = item;
-  view.videoUrl = item.streamUrl;
+  view.videoUrl = item.StreamUrl;
 
   const videoElement = document.getElementById('hoverVideoID');
   const videoLocation = systemProperty.getPlayerLocation(item.Id);
@@ -655,7 +655,7 @@ const videoWidthDebounce = useDebounceFn(setVideoWidth, 500);
 const restartVideo = () => {
   view.videoUrl = null;
   const time1 = setTimeout(() => {
-    view.videoUrl = view.currentData.streamUrl;
+    view.videoUrl = view.currentData.StreamUrl;
     const videoLocation = systemProperty.getPlayerLocation(view.currentData.Id);
     if (videoLocation) {
       hoverPlayer.value.timeUpdate(videoLocation);

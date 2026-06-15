@@ -50,6 +50,20 @@ func (act *Author) AddImage(image string) {
 	}
 }
 
+// MinusCnt 减少计数（增量索引重建用）
+func (act *Author) MinusCnt() {
+	act.Cnt--
+}
+
+// MinusSize 减少大小（增量索引重建用）
+func (act *Author) MinusSize(size int64) {
+	act.Size -= size
+	if act.Size < 0 {
+		act.Size = 0
+	}
+	act.SizeStr = utils.GetSizeStr(act.Size)
+}
+
 // GetAuthorPageOfFiles 演员分页
 func GetAuthorPageOfFiles(files []Author, pageNo int, pageSize int) ([]Author, int64) {
 	if len(files) == 0 {

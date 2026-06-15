@@ -280,7 +280,7 @@ const openVideo = async (item) => {
   currentItemId = item.Id;
   view.currentData = item;
   systemProperty.PlayingMovie = item;
-  view.videoUrl = item.streamUrl;
+  view.videoUrl = item.StreamUrl;
   view.videoPoster = item.jpgUrl;
   view.videoSubtitles = getVideoSrt(item.Srt);
 

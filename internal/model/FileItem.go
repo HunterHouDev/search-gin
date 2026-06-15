@@ -43,9 +43,9 @@ type FileItem struct {
 	JpgUrl   string `json:"JpgUrl,omitempty" xorm:"Text"`
 
 	// 多节点字段
-	NodeHost  string `json:"nodeHost,omitempty"`  // "PC-A:10081" 文件所属节点
-	NodeName  string `json:"nodeName,omitempty"`  // "书房电脑" 节点可读别名
-	StreamUrl string `json:"streamUrl,omitempty"` // 文件流直连 URL
+	NodeHost  string `json:"NodeHost,omitempty"`  // "PC-A:10081" 文件所属节点
+	NodeName  string `json:"NodeName,omitempty"`  // "书房电脑" 节点可读别名
+	StreamUrl string `json:"StreamUrl,omitempty"` // 文件流直连 URL
 
 	PageNo int
 }

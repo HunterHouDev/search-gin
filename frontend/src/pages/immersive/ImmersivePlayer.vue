@@ -662,7 +662,7 @@ function switchToItem(index) {
   if (index < 0 || index >= playlist.value.length) return;
   currentIndex.value = index;
   const item = playlist.value[index];
-  const src = item.TorrentStream || item.streamUrl;
+  const src = item.TorrentStream || item.StreamUrl;
   loadVideo(
     src,
     item.Title || item.Name || item.Code || `#${index + 1}`,
@@ -768,6 +768,8 @@ async function setMovieType(item, Type) {
     } else {
       $q.notify({ type: 'warning', message: res?.Message || '设置失败', position: 'bottom-left' });
     }
+    // 延迟 5s 触发索引刷新
+    setTimeout(() => RefreshAPI(item.BaseDir), 5000);
   });
 }
 

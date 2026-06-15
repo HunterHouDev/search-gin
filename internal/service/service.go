@@ -57,6 +57,12 @@ func (q *taskQueue) executeTask(task *scanTask) {
 	default:
 	}
 
+	// 全量扫描互斥检查
+	if FullScanInProgress.Load() != 0 {
+		AddLogMemory("全量扫描中，跳过队列任务: %s", task.baseDir)
+		return
+	}
+
 	// 设置索引构建状态
 	atomic.AddInt32(&consts.IndexNumber, 1)
 	defer atomic.AddInt32(&consts.IndexNumber, -1)
@@ -80,7 +86,7 @@ func (q *taskQueue) executeTask(task *scanTask) {
 	files, _ := FileApp.WalkInner(task.baseDir, queryTypes, true, task.baseDir)
 	newBucket := newInstanceWithFiles(task.baseDir, files)
 	// 影子索引：构造新快照并原子替换
-	SearchEngine.rebuildWithBucket(task.baseDir, newBucket)
+	SearchEngine.rebuildWithBucketIncremental(task.baseDir, newBucket)
 
 	// 清理
 	clear(queryTypes)

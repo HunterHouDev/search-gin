@@ -1320,12 +1320,12 @@ const pictureRightClick = async (item, e) => {
   }
 };
 
-const refreshDebounceFn = async (item) => {
+const refreshDebounceFn = async (item, delayMs = 1000) => {
   await indexButton.value.refreshIndex(item);
   const timer = setTimeout(async () => {
     await fetchSearch();
     clearTimeout(timer);
-  }, 500);
+  }, delayMs);
 };
 
 const searchKeyword = async (keyword) => {
@@ -1490,6 +1490,9 @@ const setMovieType = async (Id, Type) => {
   } else {
     $q.notify({ type: 'warning', message: Message, position: 'bottom-left' });
   }
+  // 查找 item 触发索引刷新（5s 延迟，批量改类型时不频繁刷新）
+  const item = view.searchResults.find((f) => f.Id === Id);
+  if (item) refreshDebounceFn(item, 5000);
 };
 
 const fetchTasking = async () => {
