@@ -65,6 +65,7 @@
 
           <div class="log-list">
             <div v-for="item in memoryPageData" :key="item" class="log-item q-py-xs">
+              <span class="log-type-dot" :class="typeColor(extractType(item.msg))" />
               <span class="log-time">{{ item.time.substring(0,19) }}</span>
               <span class="log-separator"> - </span>
               <span class="log-msg">{{ item.msg }}</span>
@@ -147,6 +148,26 @@ function extractType(msg) {
   if (!msg) return '';
   const m = msg.match(/^[^：:　\s]+/);
   return m ? m[0] : '';
+}
+
+// 根据类型前缀返回颜色 class
+const typeColorMap = {
+  '扫描': 'type-scan',
+  '添加': 'type-add',
+  '取消': 'type-cancel',
+  '开始': 'type-scan',
+  '完成': 'type-done',
+  '拒绝': 'type-deny',
+  '首次': 'type-join',
+  '新节点': 'type-join',
+  '全量': 'type-scan',
+  'Plan': 'type-info',
+  'ScanAll': 'type-scan',
+  '索引': 'type-info',
+  '搜索': 'type-search',
+};
+function typeColor(t) {
+  return typeColorMap[t] || 'type-default';
 }
 
 const typeOptions = computed(() => {
@@ -296,6 +317,8 @@ onUnmounted(() => {
   border-bottom: 1px solid var(--q-border-light);
   font-family: monospace;
   font-size: 0.9rem;
+  display: flex;
+  align-items: center;
 }
 
 .log-time {
@@ -309,4 +332,23 @@ onUnmounted(() => {
 .log-msg {
   color: var(--q-text-primary);
 }
+
+/* 类型颜色圆点 */
+.log-type-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+.type-scan   { background: #42a5f5; }  /* 蓝 */
+.type-add    { background: #66bb6a; }  /* 绿 */
+.type-cancel { background: #ef5350; }  /* 红 */
+.type-done   { background: #26a69a; }  /* 青 */
+.type-deny   { background: #ff7043; }  /* 橙 */
+.type-join   { background: #ab47bc; }  /* 紫 */
+.type-info   { background: #78909c; }  /* 灰蓝 */
+.type-search { background: #ffca28; }  /* 黄 */
+.type-default { background: #90a4ae; } /* 默认灰 */
 </style>
