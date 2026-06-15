@@ -125,7 +125,7 @@ func TestBuildSnapshotFromBuckets_AggregatesStats(t *testing.T) {
 	assert.Equal(t, int32(2), snap.bucketCount)
 }
 
-func TestBuildSnapshotFromBuckets_ActressAggregation(t *testing.T) {
+func TestBuildSnapshotFromBuckets_AuthorAggregation(t *testing.T) {
 	b := makeBucket("dir",
 		makeMovie("1", "a.mp4", "/a.mp4", "", "骑兵", "田中", 100),
 		makeMovie("2", "b.mp4", "/b.mp4", "", "骑兵", "田中", 200),

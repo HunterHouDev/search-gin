@@ -45,7 +45,6 @@ func buildStreamMiddleware(router *gin.Engine) {
 	router.GET("/api/stream/png/:path", handler.GetPng)
 	router.GET("/api/stream/jpg/:path", handler.GetJpg)
 	router.GET("/api/stream/GetFileByPathUseEncode/:path", handler.GetFileByPathUseEncode)
-	router.GET("/api/stream/tempimage/:path", handler.GetTempImage)
 }
 
 // BuildAPIRouter 构建 API 业务路由（端口 10081）：需要认证

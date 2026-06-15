@@ -134,7 +134,7 @@
             fit="contain"
             v-for="item in view.prewiewImages"
             :key="item.Id"
-            :src="getTempImage(item.Id)"
+            :src="GetFileByPathUseEncode(item.Path)"
             style="width: 100%; height: auto; max-height: 500px"
           >
             <template v-slot:error>
@@ -188,11 +188,11 @@ import { onMounted, reactive, ref, computed } from 'vue';
 import { formatTitle } from 'components/utils';
 import { GetSettingInfo } from 'components/api/settingAPI';
 import {
-  QueryDirImageBase64,
+  QueryDirImages,
   OpenFileFolder,
   DeleteFileByPathUseEncode,
 } from 'components/api/searchAPI';
-import { getTempImage } from 'src/components/utils/images';
+import { GetFileByPathUseEncode } from 'src/components/utils/images';
 const { dialogRef, onDialogHide } = useDialogPluginComponent();
 
 const $q = useQuasar();
@@ -276,7 +276,7 @@ const open = (data) => {
 
 const loadImage = (item) => {
   if (item) {
-    QueryDirImageBase64(item.Id, 'asc').then((res) => {
+    QueryDirImages(item.Id, 'asc').then((res) => {
       view.prewiewImages = res.data;
     });
   }

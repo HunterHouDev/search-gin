@@ -81,7 +81,7 @@ func PostMovies(c *gin.Context) {
 // @Description 根据搜索参数查询演员信息
 // @Accept json
 // @Produce json
-// @Router /api/search/actresses [post]
+// @Router /api/search/authors [post]
 func PostAuthor(c *gin.Context) {
 	// 远程转发：只查本地，不递归
 	if c.GetHeader("X-Search-Gin-Remote") == "true" {

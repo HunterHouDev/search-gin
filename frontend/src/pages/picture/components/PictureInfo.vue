@@ -1,91 +1,77 @@
 <template>
-  <q-dialog
-    ref="dialogRef"
-    @escape-key="onDialogClose"
-    @before-hide="onDialogClose"
-    @hide="onDialogClose"
-    style="width: 80vw !important"
-    v-model:model-value="showDialog"
-  >
-    <q-card
-      class="q-dialog-plugin q-pa-md"
-      :style="{
-        height: '100%',
-        width: '100%',
-        padding: '4px',
-        lineHeight: '32px',
-        maxWidth: '80vw !important',
-      }"
-    >
-      <div style="margin-top: 0; height: 96%; overflow: auto">
-        <div v-for="item in view.prewiewImages" :key="item">
-          <q-img
-            fit="fill"
-            v-if="item.endsWith('.jpg')"
-            :src="GetFileByPathUseEncode(item)"
-            @click="gotoSearch(item)"
-            style="width: 100%; height: auto; max-height: 600px"
-          >
-            <template v-slot:error>
-              <!-- 图片加载失败时显示的占位图 -->
-              <div class="text-subtitle1 text-white">
-                <q-icon name="image_not_supported" size="8em"></q-icon>
-                <span
-                  style="
-                    z-index: 99;
-                    color: red;
-                    background-color: rgba(250, 250, 250, 0.7);
-                    text-align: center;
-                    font-size: 16px;
-                    font-weight: 550;
-                    height: 100%;
-                  "
-                  v-if="item.endsWith('.jpg')"
-                  >{{ item }}</span
-                >
-              </div>
-            </template>
-          </q-img>
+  <q-dialog ref="dialogRef" @escape-key="onDialogClose" @hide="onDialogHide" maximized>
+    <q-card class="q-dialog-plugin bg-dark">
+      <q-bar class="bg-primary text-white q-pa-sm">
+        <span class="text-subtitle2">{{ view.item.Name }}</span>
+        <q-space />
+        <q-btn dense flat icon="close" @click="onDialogClose">
+          <q-tooltip>关闭</q-tooltip>
+        </q-btn>
+      </q-bar>
+
+      <q-scroll-area class="fit" style="height: calc(100vh - 50px)">
+        <div v-if="view.prewiewImages.length === 0" class="column flex-center q-pa-xl">
+          <q-icon name="image_not_supported" size="80px" color="grey-6" />
+          <span class="text-grey-6 q-mt-md">暂无图片</span>
         </div>
-      </div>
+
+        <div v-else class="image-grid q-pa-md">
+          <div v-for="(item, idx) in view.prewiewImages" :key="idx" class="image-item">
+            <q-img
+              fit="contain"
+              :src="GetFileByPathUseEncode(item)"
+              @click="gotoSearch(item)"
+              class="rounded-borders cursor-pointer"
+              style="width: 100%; height: 100%; min-height: 300px"
+              loading="lazy"
+            >
+              <template v-slot:loading>
+                <div class="absolute-full flex flex-center bg-dark text-grey-6">
+                  <q-spinner-gears size="40px" />
+                </div>
+              </template>
+
+              <template v-slot:error>
+                <div class="absolute-full flex flex-center bg-grey-9 text-grey-5 column q-pa-sm">
+                  <q-icon name="broken-image" size="48px" />
+                  <span class="text-caption q-mt-xs text-center" style="word-break: break-all">{{ item }}</span>
+                </div>
+              </template>
+            </q-img>
+          </div>
+        </div>
+      </q-scroll-area>
     </q-card>
   </q-dialog>
 </template>
 <script setup>
 import { useDialogPluginComponent } from 'quasar';
-import { reactive, ref } from 'vue';
+import { reactive } from 'vue';
 import { GetFileByPathUseEncode } from 'src/components/utils/images';
 import { useRouter } from 'vue-router';
 import { useSystemProperty } from 'stores/System';
 
 const systemProperty = useSystemProperty();
-const showDialog = ref(false);
 
 const view = reactive({
   item: {},
   prewiewImages: [],
 });
 
-defineEmits([
-  // REQUIRED; 需要明确指出
-  // 组件通过 useDialogPluginComponent() 暴露哪些事件
-  ...useDialogPluginComponent.emits,
-]);
+defineEmits([...useDialogPluginComponent.emits]);
 
-const open = (data) => {
-  const item = data;
-  view.prewiewImages = [];
-  view.item = { ...item };
-  dialogRef.value.show();
-  view.prewiewImages = item.Images;
-};
-
-// onDialogOK, onDialogCancel
 const { dialogRef, onDialogHide } = useDialogPluginComponent();
 
 const onDialogClose = () => {
-  showDialog.value = false;
+  dialogRef.value.hide();
   onDialogHide();
+};
+
+const open = (data) => {
+  view.prewiewImages = [];
+  view.item = { ...data };
+  view.prewiewImages = data.Images || [];
+  dialogRef.value.show();
 };
 
 const reg2 = /\[\S+\]/g;
@@ -120,3 +106,31 @@ defineExpose({
   open,
 });
 </script>
+
+<style lang="scss" scoped>
+.image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.image-item {
+  break-inside: avoid;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: #1d1d1d;
+  transition: transform 0.2s ease;
+
+  &:hover {
+    transform: scale(1.02);
+  }
+}
+
+@media (max-width: 768px) {
+  .image-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+</style>

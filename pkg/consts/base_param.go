@@ -41,25 +41,8 @@ type ScanProgress struct {
 var Sp ScanProgress
 var SpMu sync.RWMutex
 
-var TempImage = make(map[string]model.FileItem)
-var TempImageMutex sync.RWMutex // 保护TempImage的并发访问
-
 var TransferTask = map[time.Time]model.TransferTaskModel{}
 var TransferTaskMutex sync.RWMutex // 保护TransferTask的并发访问
-
-func init() {
- go func() {
-  for {
-   time.Sleep(10 * time.Minute)
-   TempImageMutex.Lock()
-   // 保留最近 500 条，清空多余
-   if len(TempImage) > 500 {
-    TempImage = make(map[string]model.FileItem)
-   }
-   TempImageMutex.Unlock()
-  }
- }()
-}
 
 // PNG Base Dictory
 const PNG = "png"

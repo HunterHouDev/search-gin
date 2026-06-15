@@ -28,7 +28,7 @@ export const FindFileInfo = async (data: string | RouteParamValue[]) => {
   return res && res.data;
 };
 
-export const QueryDirImageBase64 = async (data: string, sort: string) => {
+export const QueryDirImages = async (data: string, sort: string) => {
   const res = await commonAxios().get(`/api/dir/${data}/${sort}`);
   return res;
 };

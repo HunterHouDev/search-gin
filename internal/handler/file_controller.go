@@ -185,26 +185,11 @@ func GetClearTag(c *gin.Context) {
 
 // GetDirInfo 文件夹信息 文件列表
 func GetDirInfo(c *gin.Context) {
-	// 使用读写锁保护并发访问
-	consts.TempImageMutex.Lock()
-	if len(consts.TempImage) > 1000 {
-		consts.TempImage = make(map[string]model.FileItem)
-	}
 	id := c.Param("id")
 	sort := c.Param("sort")
 	file := service.SearchApp.FindOne(id)
 	files := service.FileApp.Walk(file.DirPath, consts.Images, false)
 	model.SortFileItems(files, "MTime", sort)
-	for i := 0; i < len(files); i++ {
-		consts.TempImage[files[i].Id] = files[i]
-	}
-	consts.TempImageMutex.Unlock()
-
-	time.AfterFunc(30*time.Second, func() {
-		consts.TempImageMutex.Lock()
-		delete(consts.TempImage, id)
-		consts.TempImageMutex.Unlock()
-	})
 	c.JSON(http.StatusOK, files)
 }
 
@@ -236,20 +221,6 @@ func GetRefreshIndex(c *gin.Context) {
 	cnt := service.FileApp.ScanAll()
 	res := utils.NewSuccessByMsg("计划扫描：" + fmt.Sprint(cnt))
 	c.JSON(http.StatusOK, res)
-}
-
-// GetTempImage 临时图片 特指浏览某个文件夹的所有图片
-func GetTempImage(c *gin.Context) {
-	id := c.Param("path")
-	consts.TempImageMutex.RLock()
-	file, exists := consts.TempImage[id]
-	consts.TempImageMutex.RUnlock()
-
-	if !exists || !utils.ExistsFiles(file.Path) {
-		c.JSON(http.StatusNotFound, utils.NewFailByMsg("文件不存在"))
-		return
-	}
-	c.File(file.Path)
 }
 
 func GetFileByPathUseEncode(c *gin.Context) {

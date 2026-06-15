@@ -156,7 +156,7 @@ search-gin/
 `searchSnapshot` 是一个不可变结构体，包含：
 
 - **buckets**：所有 bucket 的引用（非拷贝，pointer 共享）
-- **预聚合数据**：`actressMap`、`typeMenu`、`tagMenu`、`seriesCount`、`repeatFiles`
+- **预聚合数据**：`actorMap`、`typeMenu`、`tagMenu`、`seriesCount`、`repeatFiles`
 - **统计**：`totalSize`、`totalCount`、`bucketCount`
 
 预聚合数据在快照构建时一次性算好，搜索时零计算开销。

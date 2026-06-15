@@ -215,7 +215,7 @@
           fit="fill"
           v-for="item in view.prewiewImages"
           :key="item.Id"
-          :src="getTempImage(item.Id)"
+          :src="GetFileByPathUseEncode(item.Path)"
           width="400px"
         >
           <div style="padding: 0; position: relative; float: right">
@@ -253,11 +253,11 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
-import { getTempImage } from 'components/utils/images';
+import { GetFileByPathUseEncode } from 'components/utils/images';
 import { formatCode, formatTitle } from 'components/utils';
 import {
   SearchAPI,
-  QueryDirImageBase64,
+  QueryDirImages,
   DeleteFileByPathUseEncode,
   CutImage,
 } from 'components/api/searchAPI';
@@ -301,7 +301,7 @@ const changeDiv = (v) => {
 };
 
 const loadDirImage = () => {
-  QueryDirImageBase64(props.currentId, 'desc').then((res) => {
+  QueryDirImages(props.currentId, 'desc').then((res) => {
     view.prewiewImages = [...res.data];
   });
 };

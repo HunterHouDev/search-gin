@@ -175,7 +175,7 @@
                 fit="contain"
                 v-for="item in view.prewiewImages"
                 :key="item.Id"
-                :src="getTempImage(item.Id)"
+                :src="GetFileByPathUseEncode(item.Path)"
                 style="width: 100%; height: auto"
                 class="max-image-height"
               >
@@ -232,10 +232,10 @@ import { useDialogPluginComponent, useQuasar } from 'quasar';
 import {
   CutImage,
   DeleteFileByPathUseEncode,
-  QueryDirImageBase64,
+  QueryDirImages,
   OpenFolderByPath,
 } from 'components/api/searchAPI';
-import { getTempImage } from 'components/utils/images';
+import { GetFileByPathUseEncode } from 'components/utils/images';
 import { isMobile } from 'src/boot/platform';
 
 const $q = useQuasar();
@@ -276,7 +276,7 @@ const open = (item) => {
 
 const loadImage = (item) => {
   if (item) {
-    QueryDirImageBase64(item.Id, 'asc').then((res) => {
+    QueryDirImages(item.Id, 'asc').then((res) => {
       view.prewiewImages = res.data;
     });
   }
