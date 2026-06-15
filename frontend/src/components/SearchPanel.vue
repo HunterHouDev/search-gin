@@ -286,7 +286,7 @@ async function setMovieType(item, type) {
   try {
     await ResetMovieType( item.Id,  type );
     item.MovieType = type;
-    refreshDebounceFn(item, 5000);
+    // 后端已直接更新索引，无需额外刷新
   } catch (e) {
     console.error('ResetMovieType failed:', e);
   }

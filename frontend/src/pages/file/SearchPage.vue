@@ -1490,9 +1490,7 @@ const setMovieType = async (Id, Type) => {
   } else {
     $q.notify({ type: 'warning', message: Message, position: 'bottom-left' });
   }
-  // 查找 item 触发索引刷新（5s 延迟，批量改类型时不频繁刷新）
-  const item = view.searchResults.find((f) => f.Id === Id);
-  if (item) refreshDebounceFn(item, 5000);
+  // 后端已直接更新索引，无需额外刷新
 };
 
 const fetchTasking = async () => {

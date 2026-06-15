@@ -1,6 +1,9 @@
 package model
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // 任务类型常量
 const (
@@ -83,6 +86,10 @@ func NewCutTask(path string, name string, start string, end string, to string) T
 
 func (p *TransferTaskModel) SetStatus(sts string) {
 	p.Status = sts
+}
+
+func (p *TransferTaskModel) Key() string {
+	return fmt.Sprintf("%s:%s:%d", p.Path, p.Type, p.CreateTime.UnixNano())
 }
 
 func (p *TransferTaskModel) GetLast() int64 {

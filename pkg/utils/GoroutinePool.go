@@ -37,12 +37,18 @@ func NewGoroutinePool(capacity int) *GoroutinePool {
  return pool
 }
 
-// Submit 提交任务，阻塞直到任务被接收
+// Submit 提交任务，非阻塞；若池满则在当前 goroutine 直接执行
 func (p *GoroutinePool) Submit(job func()) {
  p.wg.Add(1)
- p.jobs <- func() {
+ wrapped := func() {
   defer p.wg.Done()
   job()
+ }
+ select {
+ case p.jobs <- wrapped:
+ default:
+  // 池满，当前 goroutine 直接执行
+  wrapped()
  }
 }
 

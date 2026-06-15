@@ -100,12 +100,14 @@ func main() {
 		c.String(200, "正在重启服务器")
 		go func() {
 			time.Sleep(200 * time.Millisecond)
+			// 先通知旧进程关闭，等待端口释放再启动新进程
+			sigChan <- syscall.SIGTERM
+			time.Sleep(2 * time.Second)
 			exe, _ := os.Executable()
 			cmd := exec.Command(exe, os.Args[1:]...)
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 			cmd.Start()
-			sigChan <- syscall.SIGTERM
 		}()
 	})
 

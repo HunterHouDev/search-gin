@@ -768,8 +768,7 @@ async function setMovieType(item, Type) {
     } else {
       $q.notify({ type: 'warning', message: res?.Message || '设置失败', position: 'bottom-left' });
     }
-    // 延迟 5s 触发索引刷新
-    setTimeout(() => RefreshAPI(item.BaseDir), 5000);
+    // 后端已直接更新索引，无需额外刷新
   });
 }
 

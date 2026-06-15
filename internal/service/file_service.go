@@ -424,8 +424,7 @@ func (fs *fileService) Walks(baseDir []string, types []string) []model.FileItem 
 	var result []model.FileItem
 	dirSize := len(baseDir)
 
-	SearchEngine.Reset()
-
+	// 不提前 Reset，旧索引在扫描期间保持可用，避免正在播放的流媒体断连
 	resultChan := make(chan scanResult, dirSize)
 
 	wg.Add(dirSize)
@@ -455,6 +454,7 @@ func (fs *fileService) Walks(baseDir []string, types []string) []model.FileItem 
 	}
 
 	AddLogMemory("Walks: 扫描完成, 共 %d 个目录, 准备重建索引", len(buckets))
+	// rebuildWithBuckets 内部原子替换快照，无需提前 Reset，零窗口
 	SearchEngine.rebuildWithBuckets(buckets)
 	AddLogMemory("Walks: 索引重建完成")
 
@@ -496,10 +496,7 @@ func (fs *fileService) goWalkWithResult(baseDir string, types []string, resultCh
 	AddLogMemory("扫描目录:[%s] 耗时:[%d] 大小:[%s],剩余目录数:%d", baseDir, ti.Milliseconds(), utils.GetSizeStr(size), atomic.LoadInt32(&consts.IndexNumber))
 	consts.AddFolderTime(thisTime)
 
-	select {
-	case resultChan <- scanResult{dir: baseDir, bucket: bucket}:
-	default:
-	}
+	resultChan <- scanResult{dir: baseDir, bucket: bucket}
 }
 
 // scanResult 目录扫描结果
@@ -550,25 +547,18 @@ func (fs *fileService) WalkInner(currentDir string, types []string, queryChild b
 					name := f.Name()
 					suffix := utils.GetSuffix(name)
 
+					info, err := f.Info()
+					if err != nil {
+						utils.InfoFormat("获取文件信息失败: %s, 错误: %v", p, err)
+						continue
+					}
 					if utils.HasItemSet(typeSet, suffix) {
-						info, err := f.Info()
-						if err != nil {
-							utils.InfoFormat("获取文件信息失败: %s, 错误: %v", p, err)
-							continue
-						}
 						movie := model.EasyFile(currentPath, p, name, suffix,
-						 info.Size(), info.ModTime(), basePath)
+							info.Size(), info.ModTime(), basePath)
 						SetMovieNode(&movie)
 						allFiles = append(allFiles, movie)
-						sizeMap[currentPath] += info.Size()
-					} else {
-						info, err := f.Info()
-						if err != nil {
-							utils.InfoFormat("获取文件信息失败: %s, 错误: %v", p, err)
-							continue
-						}
-						sizeMap[currentPath] += info.Size()
 					}
+					sizeMap[currentPath] += info.Size()
 				}
 			}
 

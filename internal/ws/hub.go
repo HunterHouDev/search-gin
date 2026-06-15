@@ -119,15 +119,15 @@ func (h *Hub) Run() {
 
 			h.mu.RLock()
 			for client := range h.clients {
-				client.mu.Lock()
-				err := client.Conn.WriteMessage(websocket.TextMessage, message)
-				client.mu.Unlock()
-				if err != nil {
-					// 发送失败，延迟清理
-					go func(c *ClientConn) {
-						h.unregister <- c
-					}(client)
-				}
+			 client := client
+			 go func() {
+			  client.mu.Lock()
+			  err := client.Conn.WriteMessage(websocket.TextMessage, message)
+			  client.mu.Unlock()
+			  if err != nil {
+			   h.unregister <- client
+			  }
+			 }()
 			}
 			h.mu.RUnlock()
 		}

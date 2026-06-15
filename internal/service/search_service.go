@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"search-gin/internal/model"
 	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
@@ -46,7 +47,7 @@ func (fs *searchService) SetMovieType(movie model.FileItem, movieType string) ut
 		newPaths := make([]string, len(originalPaths))
 		for i, p := range originalPaths {
 			if p != "" {
-				newPaths[i] = strings.ReplaceAll(p, originVideoType, movieType)
+			newPaths[i] = filepath.Join(filepath.Dir(p), strings.ReplaceAll(filepath.Base(p), originVideoType, movieType))
 			}
 		}
 
@@ -93,6 +94,7 @@ func (fs *searchService) SetMovieType(movie model.FileItem, movieType string) ut
 			}
 		}
 	}
+	replaceIndexAfterRename(movie.Path, newFilePath, movie.BaseDir)
 	return utils.NewSuccessByMsg("执行成功")
 }
 
@@ -122,6 +124,7 @@ func (fs *searchService) AddTag(id string, tag string) utils.Result {
 				utils.InfoFormat("rename %s failed: %v", file, err)
 			}
 		}
+		replaceIndexAfterRename(movie.Path, strings.ReplaceAll(movie.Path, "《"+utils.GetTagStr(movie.Path)+"》", "《"+newTagStr+"》"), movie.BaseDir)
 		return utils.NewSuccessByMsg("执行成功")
 	}
 
@@ -140,6 +143,7 @@ func (fs *searchService) AddTag(id string, tag string) utils.Result {
 			os.Rename(file, newName+ext)
 		}
 	}
+	replaceIndexAfterRename(movie.Path, newFilePath, movie.BaseDir)
 	return utils.NewSuccessByMsg("执行成功")
 }
 func (fs *searchService) ClearTag(id string, tag string) utils.Result {
@@ -167,6 +171,7 @@ func (fs *searchService) ClearTag(id string, tag string) utils.Result {
 	for _, f := range files {
 		os.Rename(f, newName+"."+utils.GetSuffix(f))
 	}
+	replaceIndexAfterRename(movie.Path, path, movie.BaseDir)
 	return utils.NewSuccessByMsg("执行成功")
 }
 
@@ -469,6 +474,7 @@ func (fs *searchService) Rename(movie model.FileEdit) utils.Result {
 			}
 		}
 	}
+	replaceIndexAfterRename(oldPath, newPath, movieLib.BaseDir)
 	return res
 }
 
@@ -530,4 +536,23 @@ func choose2To1(tr bool, str1 string, str2 string) string {
 		return str1
 	}
 	return str2
+}
+
+// replaceIndexAfterRename 重命名文件后更新搜索引擎索引（无需全量扫描）
+// oldPath: 原完整路径；newPath: 新完整路径；baseDir: 所属扫描根目录
+func replaceIndexAfterRename(oldPath, newPath, baseDir string) {
+	info, err := os.Stat(newPath)
+	if err != nil {
+		return
+	}
+	suffix := utils.GetSuffix(newPath)
+	name := filepath.Base(newPath)
+	newFile := model.EasyFile(filepath.Dir(newPath), newPath, name, suffix,
+		info.Size(), info.ModTime(), baseDir)
+
+	// 用旧路径构造旧文件的 Id
+	oldId, _ := utils.DirpathForId(oldPath)
+	oldFile := model.FileItem{Id: oldId, BaseDir: baseDir}
+
+	SearchEngine.ReplaceFile(oldFile, newFile)
 }

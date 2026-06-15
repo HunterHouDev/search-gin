@@ -57,9 +57,17 @@ func (se *searchEngineCore) loadSnapshot() *searchSnapshot {
 	return s.(*searchSnapshot)
 }
 
-// init 初始化 goroutine 池
+// init 初始化 goroutine 池，根据配置的目录数量动态调整
 func init() {
-	SearchEngine.searchPool = utils.NewGoroutinePool(20)
+ dirCount := len(consts.GetOSSetting().Dirs)
+ poolSize := dirCount
+ if poolSize < 4 {
+  poolSize = 4
+ }
+ if poolSize > 50 {
+  poolSize = 50
+ }
+ SearchEngine.searchPool = utils.NewGoroutinePool(poolSize)
 }
 
 // installSnapshot 原子替换搜索引擎快照，并同步全局菜单
@@ -472,6 +480,176 @@ func recomputeRepeats(snap *searchSnapshot) {
 		return repeatSearch[i].Size > repeatSearch[j].Size
 	})
 	snap.repeatFiles = repeatSearch
+}
+
+// ── 单文件索引替换 ─────────────────────────────────────────────────
+
+// subtractFileFromSnapshot 从快照的聚合数据中减去单文件的贡献
+func subtractFileFromSnapshot(snap *searchSnapshot, movie model.FileItem) {
+	snap.totalCount--
+	snap.totalSize -= movie.Size
+
+	if len(movie.Author) > 0 {
+		if cur, ok := snap.actorMap[movie.Author]; ok {
+			cur.MinusCnt()
+			cur.MinusSize(movie.Size)
+			if cur.Cnt <= 0 {
+				delete(snap.actorMap, movie.Author)
+			} else {
+				snap.actorMap[movie.Author] = cur
+			}
+		}
+	}
+
+	mt := movie.MovieType
+	if mt == "" {
+		mt = "无"
+	}
+	if v, ok := snap.typeMenu[mt]; ok {
+		updated := v.Minus(movie.Size)
+		if updated.Cnt <= 0 {
+			delete(snap.typeMenu, mt)
+		} else {
+			snap.typeMenu[mt] = updated
+		}
+	}
+	if v, ok := snap.typeMenu["全部"]; ok {
+		updated := v.Minus(movie.Size)
+		if updated.Cnt <= 0 {
+			delete(snap.typeMenu, "全部")
+		} else {
+			snap.typeMenu["全部"] = updated
+		}
+	}
+
+	if len(movie.Tags) > 0 {
+		for i := range movie.Tags {
+			if v, ok := snap.tagMenu[movie.Tags[i]]; ok {
+				updated := v.Minus(movie.Size)
+				if updated.Cnt <= 0 {
+					delete(snap.tagMenu, movie.Tags[i])
+				} else {
+					snap.tagMenu[movie.Tags[i]] = updated
+				}
+			}
+		}
+	}
+
+	if len(movie.Studio) > 0 {
+		if v, ok := snap.seriesCount[movie.Studio]; ok {
+			updated := v.Minus(movie.Size)
+			if updated.Cnt <= 0 {
+				delete(snap.seriesCount, movie.Studio)
+			} else {
+				snap.seriesCount[movie.Studio] = updated
+			}
+		}
+	}
+}
+
+// addFileToSnapshot 向快照的聚合数据中添加单文件的贡献
+func addFileToSnapshot(snap *searchSnapshot, movie model.FileItem) {
+	snap.totalCount++
+	snap.totalSize += movie.Size
+
+	if len(movie.Author) > 0 {
+		if cur, ok := snap.actorMap[movie.Author]; ok {
+			cur.PlusCnt()
+			cur.PlusSize(movie.Size)
+			cur.AddImage(movie.Png)
+			cur.AddImage(movie.Jpg)
+			snap.actorMap[movie.Author] = cur
+		} else {
+			snap.actorMap[movie.Author] = model.NewAuthor(movie.Author, movie.Jpg, movie.Size)
+		}
+	}
+
+	mt := movie.MovieType
+	if mt == "" {
+		mt = "无"
+	}
+	if v, ok := snap.typeMenu[mt]; ok {
+		snap.typeMenu[mt] = v.Plus(movie.Size)
+	} else {
+		snap.typeMenu[mt] = consts.MenuSize{Name: mt, Cnt: 1, Size: movie.Size}
+	}
+	if v, ok := snap.typeMenu["全部"]; ok {
+		snap.typeMenu["全部"] = v.Plus(movie.Size)
+	} else {
+		snap.typeMenu["全部"] = consts.MenuSize{Name: "全部", Cnt: 1, Size: movie.Size}
+	}
+
+	if len(movie.Tags) > 0 {
+		for i := range movie.Tags {
+			if v, ok := snap.tagMenu[movie.Tags[i]]; ok {
+				snap.tagMenu[movie.Tags[i]] = v.Plus(movie.Size)
+			} else {
+				snap.tagMenu[movie.Tags[i]] = consts.MenuSize{Name: movie.Tags[i], Cnt: 1, Size: movie.Size, IsDir: true}
+			}
+		}
+	}
+
+	if len(movie.Studio) > 0 {
+		if v, ok := snap.seriesCount[movie.Studio]; ok {
+			snap.seriesCount[movie.Studio] = v.Plus(movie.Size)
+		} else {
+			snap.seriesCount[movie.Studio] = consts.MenuSize{Name: movie.Studio, Cnt: 1, Size: movie.Size, IsDir: true}
+		}
+	}
+}
+
+// ReplaceFile 替换索引中的单文件记录（重命名/改标签/改类型后同步索引，无需全量扫描）
+// 仅在文件仍在同一目录内移动时使用，不会改变 bucket 结构
+func (se *searchEngineCore) ReplaceFile(oldFile, newFile model.FileItem) {
+	se.rebuildMu.Lock()
+	defer se.rebuildMu.Unlock()
+
+	snap := se.loadSnapshot()
+	bucket := snap.buckets[oldFile.BaseDir]
+	if bucket == nil || bucket.isEmpty() {
+		return
+	}
+
+	// 从 bucket 中删除旧记录
+	bucket.mu.Lock()
+	oldEntry, exists := bucket.FileLib[oldFile.Id]
+	if !exists {
+		bucket.mu.Unlock()
+		return
+	}
+	delete(bucket.FileLib, oldFile.Id)
+	bucket.TotalCount--
+	bucket.TotalSize -= oldEntry.Size
+	if oldEntry.MovieType != "" {
+		if ids, ok := bucket.TypeIndex[oldEntry.MovieType]; ok {
+			delete(ids, oldEntry.Id)
+			if len(ids) == 0 {
+				delete(bucket.TypeIndex, oldEntry.MovieType)
+			}
+		}
+	}
+	bucket.mu.Unlock()
+
+	// 向 bucket 中添加新记录
+	bucket.put(newFile)
+
+	// 增量更新聚合数据
+	newSnap := &searchSnapshot{
+		buckets:     snap.buckets,
+		bucketCount: snap.bucketCount,
+		totalSize:   snap.totalSize,
+		totalCount:  snap.totalCount,
+		actorMap:    cloneActorMap(snap.actorMap),
+		typeMenu:    cloneMenuMap(snap.typeMenu),
+		tagMenu:     cloneMenuMap(snap.tagMenu),
+		seriesCount: cloneMenuMap(snap.seriesCount),
+	}
+
+	subtractFileFromSnapshot(newSnap, oldEntry)
+	addFileToSnapshot(newSnap, newFile)
+	recomputeRepeats(newSnap)
+
+	se.installSnapshot(newSnap)
 }
 
 // buildSnapshotFromBuckets 遍历所有 bucket，构造完整的 searchSnapshot

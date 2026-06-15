@@ -55,6 +55,13 @@ func HandleWebSocket(c *gin.Context) {
 		return
 	}
 
+	// 设置 Pong 处理器，检测僵尸连接
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return nil
+	})
+	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+
 	clientIP := c.ClientIP()
 	utils.InfoFormat("WebSocket 连接成功: %s (%s)", username, clientIP)
 
