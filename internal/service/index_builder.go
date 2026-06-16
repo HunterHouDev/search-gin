@@ -261,7 +261,16 @@ func buildSnapshotFromBuckets(buckets map[string]*bucketFile) *searchSnapshot {
 func cloneActorMap(src map[string]model.Author) map[string]model.Author {
 	dst := make(map[string]model.Author, len(src))
 	for k, v := range src {
-		dst[k] = v
+		images := make([]string, len(v.Images))
+		copy(images, v.Images)
+		dst[k] = model.Author{
+			Name:    v.Name,
+			Url:     v.Url,
+			Cnt:     v.Cnt,
+			Size:    v.Size,
+			SizeStr: v.SizeStr,
+			Images:  images,
+		}
 	}
 	return dst
 }

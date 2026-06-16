@@ -118,18 +118,21 @@ func (h *Hub) Run() {
 			}
 
 			h.mu.RLock()
+			failedClients := make([]*ClientConn, 0)
 			for client := range h.clients {
-			 client := client
-			 go func() {
-			  client.mu.Lock()
-			  err := client.Conn.WriteMessage(websocket.TextMessage, message)
-			  client.mu.Unlock()
-			  if err != nil {
-			   h.unregister <- client
-			  }
-			 }()
+				client := client
+				client.mu.Lock()
+				err := client.Conn.WriteMessage(websocket.TextMessage, message)
+				client.mu.Unlock()
+				if err != nil {
+					failedClients = append(failedClients, client)
+				}
 			}
 			h.mu.RUnlock()
+
+			for _, client := range failedClients {
+				h.unregister <- client
+			}
 		}
 	}
 }
@@ -171,25 +174,35 @@ func (h *Hub) SendToUser(username string, msg []byte) int {
 // GetOnlineUsers 获取在线用户列表（按用户名去重合并）
 func (h *Hub) GetOnlineUsers() []OnlineSession {
 	h.mu.RLock()
-	defer h.mu.RUnlock()
+	clients := make([]*ClientConn, 0, len(h.clients))
+	for client := range h.clients {
+		clients = append(clients, client)
+	}
+	h.mu.RUnlock()
 
 	userMap := make(map[string]*OnlineSession)
-	for client := range h.clients {
-		if entry, ok := userMap[client.Username]; ok {
+	for _, client := range clients {
+		client.mu.Lock()
+		username := client.Username
+		role := client.Role
+		ip := client.IP
+		client.mu.Unlock()
+
+		if entry, ok := userMap[username]; ok {
 			entry.DeviceCount++
-			if client.IP != "" {
-				entry.IPs = append(entry.IPs, client.IP)
+			if ip != "" {
+				entry.IPs = append(entry.IPs, ip)
 			}
 		} else {
 			entry = &OnlineSession{
-				Username:    client.Username,
-				Role:        client.Role,
+				Username:    username,
+				Role:        role,
 				DeviceCount: 1,
 			}
-			if client.IP != "" {
-				entry.IPs = []string{client.IP}
+			if ip != "" {
+				entry.IPs = []string{ip}
 			}
-			userMap[client.Username] = entry
+			userMap[username] = entry
 		}
 	}
 	result := make([]OnlineSession, 0, len(userMap))

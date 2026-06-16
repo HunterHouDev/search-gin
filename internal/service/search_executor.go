@@ -13,7 +13,6 @@ import (
 func (se *searchEngineCore) PageAuthor(searchParam model.SearchParam) model.PageAuthorResultWrapper {
 	snap := se.loadSnapshot()
 
-	// 空关键词：优先走缓存
 	if searchParam.Keyword == "" {
 		switch searchParam.SortField {
 		case "Size":
@@ -27,10 +26,18 @@ func (se *searchEngineCore) PageAuthor(searchParam model.SearchParam) model.Page
 		}
 	}
 
-	result := make([]model.Author, 0, len(snap.actorMap))
-	for _, author := range snap.actorMap {
-		if searchParam.Keyword == "" || strings.Contains(author.Name, searchParam.Keyword) {
+	var result []model.Author
+	if searchParam.Keyword == "" {
+		result = make([]model.Author, 0, len(snap.actorMap))
+		for _, author := range snap.actorMap {
 			result = append(result, author)
+		}
+	} else {
+		result = make([]model.Author, 0)
+		for _, author := range snap.actorMap {
+			if strings.Contains(author.Name, searchParam.Keyword) {
+				result = append(result, author)
+			}
 		}
 	}
 
