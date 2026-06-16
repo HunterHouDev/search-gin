@@ -343,7 +343,7 @@
                               <q-item-section>
                                 <q-item-label
                                   @click="
-                                    commonExec(
+                                    commonExec(() =>
                                       ResetMovieType(item.Id, mt.value)
                                     )
                                   "
@@ -359,7 +359,7 @@
                           dense
                           glossy
                           icon="open_in_new"
-                          @click="commonExec(OpenFileFolder(item.Id))"
+                          @click="commonExec(() => OpenFileFolder(item.Id))"
                         />
                         <q-btn
                           outline
@@ -434,7 +434,7 @@
                             v-for="ta in item.Tags"
                             :key="ta"
                             removable
-                            @remove="commonExec(CloseTag(item.Id, ta), true)"
+                            @remove="commonExec(() => CloseTag(item.Id, ta), true)"
                           >
                             {{ `${ta}` }}
                           </q-chip>
@@ -1066,7 +1066,7 @@ const getColor = (status) => {
 };
 
 const removeTask = async (name) => {
-  commonExec(DelTransferTasksInfo(name));
+  commonExec(() => DelTransferTasksInfo(name));
 };
 
 const emmits = defineEmits([
@@ -1150,14 +1150,14 @@ const toMp4 = (item) => {
   if (view.cutListIds.indexOf(item.Id) < 0) {
     view.cutListIds.push(item.Id);
   }
-  commonExec(TansferFileVcode(item.Id, 'copy'));
+  commonExec(() => TansferFileVcode(item.Id, 'copy'));
 };
 
 const toVcode = (item, vcode) => {
   if (view.cutListIds.indexOf(item.Id) < 0) {
     view.cutListIds.push(item.Id);
   }
-  commonExec(TansferFileVcode(item.Id, vcode));
+  commonExec(() => TansferFileVcode(item.Id, vcode));
 };
 
 const resetSelector = () => {
@@ -1177,7 +1177,7 @@ const selectAll = () => {
 const setTypeBySelector = (value) => {
   if (view.selector && view.selector.length > 0) {
     view.selector.forEach((item) => {
-      commonExec(ResetMovieType(item, value));
+      commonExec(() => ResetMovieType(item, value));
     });
   }
   resetSelector();
@@ -1185,7 +1185,7 @@ const setTypeBySelector = (value) => {
 const deleteBySelector = () => {
   if (view.selector && view.selector.length > 0) {
     view.selector.forEach((item) => {
-      commonExec(DeleteFile(item));
+      commonExec(() => DeleteFile(item));
     });
   }
   resetSelector();
@@ -1274,7 +1274,7 @@ const batchRename = () => {
 
 const mergeFiles = () => {
   if (view.selector && view.selector.length > 0) {
-    commonExec(FilesMerge({ files: view.selector, DeleteFlag: false }));
+    commonExec(() => FilesMerge({ files: view.selector, DeleteFlag: false }));
   }
 };
 
@@ -1305,7 +1305,7 @@ const addPlayingMutiTag = async () => {
 const addTagBySelector = (value) => {
   if (view.selector && view.selector.length > 0) {
     view.selector.forEach((item) => {
-      commonExec(AddTag(item, value));
+      commonExec(() => AddTag(item, value));
     });
   }
   resetSelector();

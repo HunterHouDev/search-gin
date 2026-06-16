@@ -51,7 +51,7 @@
           :key="tag"
           :label="tag"
           :val="tag"
-          @click="commonExec(CloseTag(props.currentData.Id, tag))"
+          @click="commonExec(() => CloseTag(props.currentData.Id, tag))"
         />
       </div>
       <div v-if="!systemProperty.submitMutiTag">
@@ -66,7 +66,7 @@
           :key="tag.Name"
           :label="tag.Name"
           :val="tag.Name"
-          @click="commonExec(AddTag(props.currentData.Id, tag.Name))"
+          @click="commonExec(() => AddTag(props.currentData.Id, tag.Name))"
           :disable="props.currentTag?.indexOf(tag.Name) >= 0"
         />
       </div>
@@ -179,7 +179,7 @@ const $q = useQuasar();
 const addPlayingMutiTag = async () => {
   if (view.submitMutiTag.length > 0) {
     const tags = view.submitMutiTag.join(',');
-    commonExec(AddTag(props.currentData.Id, tags));
+    commonExec(() => AddTag(props.currentData.Id, tags));
     view.submitMutiTag = [];
   }
 };
@@ -195,7 +195,7 @@ const chooseInput = () => {
 
 const submitInput = async () => {
   if (view.input) {
-    commonExec(AddTag(props.currentData.Id, view.input));
+    commonExec(() => AddTag(props.currentData.Id, view.input));
     view.input = '';
   }
 };

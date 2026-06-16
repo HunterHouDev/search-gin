@@ -619,3 +619,50 @@ func (se *searchEngineCore) ReplaceFile(oldFile, newFile model.FileItem) {
 
 	se.installSnapshot(newSnap)
 }
+
+// DeleteFile 从索引中删除文件记录（删除文件后同步索引）
+func (se *searchEngineCore) DeleteFile(file model.FileItem) {
+	se.rebuildMu.Lock()
+	defer se.rebuildMu.Unlock()
+
+	snap := se.loadSnapshot()
+	bucket := snap.buckets[file.BaseDir]
+	if bucket == nil || bucket.isEmpty() {
+		return
+	}
+
+	bucket.mu.Lock()
+	entry, exists := bucket.FileLib[file.Id]
+	if !exists {
+		bucket.mu.Unlock()
+		return
+	}
+	delete(bucket.FileLib, file.Id)
+	bucket.TotalCount--
+	bucket.TotalSize -= entry.Size
+	if entry.MovieType != "" {
+		if ids, ok := bucket.TypeIndex[entry.MovieType]; ok {
+			delete(ids, entry.Id)
+			if len(ids) == 0 {
+				delete(bucket.TypeIndex, entry.MovieType)
+			}
+		}
+	}
+	bucket.mu.Unlock()
+
+	newSnap := &searchSnapshot{
+		buckets:     snap.buckets,
+		bucketCount: snap.bucketCount,
+		totalSize:   snap.totalSize,
+		totalCount:  snap.totalCount,
+		actorMap:    cloneActorMap(snap.actorMap),
+		typeMenu:    cloneMenuMap(snap.typeMenu),
+		tagMenu:     cloneMenuMap(snap.tagMenu),
+		seriesCount: cloneMenuMap(snap.seriesCount),
+	}
+
+	subtractFileFromSnapshot(newSnap, entry)
+	recomputeRepeats(newSnap)
+
+	se.installSnapshot(newSnap)
+}

@@ -152,8 +152,19 @@ html {
 
 .q-field .q-field__label,
 .q-field .q-field__native {
-  color: var(--q-text-secondary) !important;
   transition: color 0.3s ease;
+}
+
+// 星空模式输入框文字用白色
+body:not(.theme-natural) .q-field .q-field__label,
+body:not(.theme-natural) .q-field .q-field__native {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+// 自然模式输入框文字用深色
+.theme-natural .q-field .q-field__label,
+.theme-natural .q-field .q-field__native {
+  color: var(--q-text-secondary) !important;
 }
 
 .q-field--focused .q-field__label {

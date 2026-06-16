@@ -160,30 +160,40 @@ func PostMove(c *gin.Context) {
 
 // GetAddTag 添加标签
 func GetAddTag(c *gin.Context) {
-	idInt := c.Param("id")
+	id := c.Param("id")
 	tag := c.Param("tag")
 
-	// 远程转发
-	if service.HandleRemoteByID(c, idInt, "addTag") {
+	// 先在本地查询是否存在
+	file := service.SearchApp.FindOne(id)
+	if file.IsNull() {
+		if service.HandleRemote(c, file, "addTag") {
+			return
+		}
+		c.JSON(http.StatusNotFound, utils.NewFailByMsg("文件不存在"))
 		return
 	}
 
-	utils.InfoFormat("GetAddTag [%v] [%v]  \n", idInt, tag)
-	res := service.SearchApp.AddTag(idInt, tag)
+	utils.InfoFormat("GetAddTag [%v] [%v]  \n", id, tag)
+	res := service.SearchApp.AddTag(id, tag)
 	c.JSON(http.StatusOK, res)
 }
 
 // GetClearTag 删除标签
 func GetClearTag(c *gin.Context) {
-	idInt := c.Param("id")
+	id := c.Param("id")
 	tag := c.Param("tag")
 
-	// 远程转发
-	if service.HandleRemoteByID(c, idInt, "clearTag") {
+	// 先在本地查询是否存在
+	file := service.SearchApp.FindOne(id)
+	if file.IsNull() {
+		if service.HandleRemote(c, file, "clearTag") {
+			return
+		}
+		c.JSON(http.StatusNotFound, utils.NewFailByMsg("文件不存在"))
 		return
 	}
 
-	res := service.SearchApp.ClearTag(idInt, tag)
+	res := service.SearchApp.ClearTag(id, tag)
 	c.JSON(http.StatusOK, res)
 }
 
@@ -201,14 +211,21 @@ func GetDirInfo(c *gin.Context) {
 func GetDelete(c *gin.Context) {
 	id := c.Param("id")
 
-	// 远程转发
-	if service.HandleRemoteByID(c, id, "delete") {
+	// 先在本地查询是否存在
+	file := service.SearchApp.FindOne(id)
+	if file.IsNull() {
+		// 本地不存在 → 转发到远端节点
+		if service.HandleRemote(c, file, "delete") {
+			return
+		}
+		c.JSON(http.StatusNotFound, utils.NewFailByMsg("文件不存在"))
 		return
 	}
 
-	service.SearchApp.Delete(id)
-	res := utils.NewSuccessByMsg("删除成功")
-	c.JSON(http.StatusOK, res)
+	// 本地存在：先更新索引，再删除物理文件
+	service.SearchEngine.DeleteFile(file)
+	service.FileApp.DeleteOne(file.DirPath, file.Title)
+	c.JSON(http.StatusOK, utils.NewSuccessByMsg("删除成功"))
 }
 
 // GetRefreshIndex 刷新索引
@@ -271,11 +288,34 @@ func GetDeleteFileByPathUseEncode(c *gin.Context) {
 		return
 	}
 
-	err = os.Remove(validatedPath)
-	if err != nil {
+	// 先从索引中移除
+	id, _ := utils.DirpathForId(validatedPath)
+	file := service.SearchApp.FindOne(id)
+	if !file.IsNull() {
+		service.SearchEngine.DeleteFile(file)
+		utils.InfoFormat("已从索引中删除: %s", file.Path)
+	}
+
+	// 删除物理文件
+	dir := filepath.Dir(validatedPath)
+	if err = os.Remove(validatedPath); err != nil {
 		utils.InfoFormat("删除文件失败: %s, 错误: %v", validatedPath, err)
 		c.JSON(http.StatusInternalServerError, utils.NewFailByMsg("删除失败"))
 		return
+	}
+
+	// 删除附属图片文件
+	for _, companion := range []string{file.Jpg, file.Png, file.Gif} {
+		if companion != "" && utils.ExistsFiles(companion) {
+			if e := os.Remove(companion); e != nil {
+				utils.InfoFormat("删除附属文件失败: %s, 错误: %v", companion, e)
+			}
+		}
+	}
+
+	// 清理空目录
+	if entries, e := os.ReadDir(dir); e == nil && len(entries) == 0 {
+		os.Remove(dir)
 	}
 
 	c.JSON(http.StatusOK, utils.NewSuccessByMsg("删除成功"))

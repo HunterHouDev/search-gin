@@ -138,12 +138,6 @@ func (fs *fileService) CutImage(path string, typeImage string, start string) uti
 	}
 	dest += "." + strings.ToLower(typeImage)
 
-	defer func() {
-		if utils.ExistsFiles(dest) {
-			os.Remove(dest)
-		}
-	}()
-
 	args := []string{"-y", "-ss", start}
 
 	decodeParams := fs.getHwDecodeParams()

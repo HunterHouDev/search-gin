@@ -527,7 +527,7 @@
           </div>
 
           <!-- 扫码下载弹窗 -->
-          <QrDownloadDialog v-model="qrDownloadRef" :item="qrDownloadItem" />
+          <QrDownloadDialog v-model="qrDownloadVisible" :item="qrDownloadItem" />
 
           <!-- 页面滚动器 -->
           <q-page-scroller position="bottom-right" :scroll-offset="150" :offset="[18, 100]">
@@ -1060,7 +1060,7 @@ const openFolder = (item) => {
   if ($q.platform.is.electron) {
     window.electron.showInFolder(item.Path);
   } else {
-    commonExec(OpenFileFolder(item.Id));
+    commonExec(() => OpenFileFolder(item.Id));
   }
 };
 
@@ -1070,7 +1070,7 @@ const playBySystem = (item) => {
   if ($q.platform.is.electron) {
     window.electron.playMovie(item.Id);
   } else {
-    commonExec(PlayMovie(item.Id));
+    commonExec(() => PlayMovie(item.Id));
   }
 };
 
@@ -1081,17 +1081,18 @@ const confirmDelete = (item) => {
     cancel: true,
     persistent: true,
   }).onOk(() => {
-    commonExec(DeleteFile(item.Id)).then(() => {
+    commonExec(() => DeleteFile(item.Id)).then(() => {
       refreshDebounceFn(item);
     });
   });
 };
 
+const qrDownloadVisible = ref(false);
 const qrDownloadItem = ref(null);
 
 const openQrDownload = (item) => {
   qrDownloadItem.value = item;
-  qrDownloadRef.value = true;
+  qrDownloadVisible.value = true;
 };
 
 const fetchGetSettingInfo = async () => {

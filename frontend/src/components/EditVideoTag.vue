@@ -112,10 +112,12 @@ import {
   TansferFileVcode,
 } from './api/searchAPI';
 import { onMounted, reactive, inject, computed } from 'vue';
+import { useCommonExec } from 'src/composables/useCommonExec';
 
 const $q = useQuasar();
 
 const systemProperty = useSystemProperty();
+const { exec: commonExec } = useCommonExec();
 const props = defineProps({
   currentData: {
     type: Object,
@@ -157,9 +159,9 @@ const toVcode = async (item, vcode) => {
     emmits('prevOne');
   }
   if (vcode == 'copy') {
-    commonExec(TansferFile(item));
+    commonExec(() => TansferFile(item));
   } else {
-    commonExec(TansferFileVcode(item, vcode));
+    commonExec(() => TansferFileVcode(item, vcode));
   }
 };
 
