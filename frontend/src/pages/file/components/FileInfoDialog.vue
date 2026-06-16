@@ -182,12 +182,11 @@ import {
   DeleteFileByPathUseEncode,
 } from 'components/api/searchAPI';
 import { GetFileByPathUseEncode } from 'src/components/utils/images';
+import { useBreakpoint } from 'src/composables/useBreakpoint';
 const { dialogRef, onDialogHide } = useDialogPluginComponent();
 
 const $q = useQuasar();
-const isMobile = computed(() => {
-  return $q.platform.is.mobile;
-});
+const { isMobile } = useBreakpoint();
 
 const ClickButtons = [
   { label: '播放', value: 'movie' },

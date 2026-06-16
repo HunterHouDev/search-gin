@@ -92,19 +92,59 @@ func HandleWebSocket(c *gin.Context) {
 			break
 		}
 
-		// 解析客户端发来的聊天消息
-		var chatMsg ws.ChatMessage
-		if err := json.Unmarshal(message, &chatMsg); err != nil {
+	// 解析客户端发来的消息
+		var msg struct {
+			Type        string          `json:"type"`
+			To          string          `json:"to,omitempty"`
+			Action      string          `json:"action,omitempty"`
+			FromSession string          `json:"fromSession,omitempty"`
+			Content     string          `json:"content,omitempty"`
+			Data        json.RawMessage `json:"data,omitempty"`
+		}
+		if err := json.Unmarshal(message, &msg); err != nil {
 			continue
 		}
 
-		if chatMsg.Type == "chat" && chatMsg.Content != "" {
-			// 服务端补充用户信息
-			chatMsg.Username = username
-			chatMsg.Role = role
-			chatMsg.Time = time.Now()
-
+		switch msg.Type {
+		case "chat":
+			if msg.Content == "" {
+				continue
+			}
+			chatMsg := ws.ChatMessage{
+				Type:     "chat",
+				Username: username,
+				Role:     role,
+				Content:  msg.Content,
+				Time:     time.Now(),
+			}
 			data, _ := json.Marshal(chatMsg)
+			ws.DefaultHub.Broadcast(data)
+
+		case "signal":
+			// WebRTC 信令中继：透传给指定用户
+			if msg.To == "" {
+				continue
+			}
+			signal := map[string]interface{}{
+				"type":   "signal",
+				"from":   username,
+				"action": msg.Action,
+				"data":   msg.Data,
+			}
+			data, _ := json.Marshal(signal)
+			ws.DefaultHub.SendToUser(msg.To, data)
+
+		case "signal-all":
+			// 广播给所有人（包括同名其他设备），由前端根据 fromSession 过滤
+			signal := map[string]interface{}{
+				"type":        "signal",
+				"from":        username,
+				"fromSession": msg.FromSession,
+				"action":      msg.Action,
+				"data":        msg.Data,
+				"role":        role,
+			}
+			data, _ := json.Marshal(signal)
 			ws.DefaultHub.Broadcast(data)
 		}
 	}

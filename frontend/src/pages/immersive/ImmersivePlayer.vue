@@ -487,6 +487,7 @@ import EditVideoTag from 'components/EditVideoTag.vue';
 import IndexButton from 'components/IndexButton.vue';
 import FileEdit from '../file/components/FileEditDialog.vue';
 import { useTorrentDownload } from 'src/composables/useTorrentDownload';
+import { useBreakpoint } from 'src/composables/useBreakpoint';
 
 
 const $q = useQuasar();
@@ -604,9 +605,8 @@ const bufferedPercent = computed(() => {
   return (bufferedSeconds.value / durationSeconds.value) * 100;
 });
 
-const isSmall = computed(() => {
-  return systemProperty.showStyle === 'sm' || $q.screen.lt.sm || $q.platform.is.mobile;
-});
+const { isSmall: screenIsSmall, isMobile } = useBreakpoint()
+const isSmall = computed(() => systemProperty.showStyle === 'sm' || screenIsSmall.value || isMobile.value)
 
 const sortOptions = computed(() => {
   const options = [];
@@ -657,7 +657,7 @@ function switchToItem(index) {
   loadVideo(
     src,
     item.Title || item.Name || item.Code || `#${index + 1}`,
-    item.jpgUrl,
+    item.JpgUrl,
     item
   );
   searchDialog.value = false;
@@ -1242,11 +1242,14 @@ watch(searchDialog, (val) => {
   if (val && searchResults.Data.length === 0) fetchSearch();
 });
 
+// ── 全屏变化处理 ──────────────────────────────────────────────────────────────
+const onFullscreenChange = () => {
+  isFullscreen.value = !!document.fullscreenElement;
+};
+
 // ── 生命周期 ──────────────────────────────────────────────────────────────────
 onMounted(() => {
-  document.addEventListener('fullscreenchange', () => {
-    isFullscreen.value = !!document.fullscreenElement;
-  });
+  document.addEventListener('fullscreenchange', onFullscreenChange);
   document.addEventListener('keydown', handleKeydown);
   document.addEventListener('contextmenu', onContextMenu);
 });
@@ -1255,6 +1258,7 @@ onUnmounted(() => {
   endSeek();
   if (audioContext) audioContext.close();
   torrentCleanup();
+  document.removeEventListener('fullscreenchange', onFullscreenChange);
   document.removeEventListener('keydown', handleKeydown);
   document.removeEventListener('contextmenu', onContextMenu);
 });

@@ -15,7 +15,6 @@
 |------|------|------|
 | `:10081` | API + 前端 | 业务路由，注册在 `BuildAPIRouter()`，需要认证 |
 | `:10082` | 文件/图片/视频流 | 注册在 `BuildFileRouter()`，无需认证 |
-| `:10083` | UDP 组播（多节点发现） | `239.255.255.250:10083`，心跳/节点发现 |
 | `:6060` | pprof（仅开发环境） | 开发调试用 |
 
 端口在 `pkg/consts/base_param.go:63-64` 硬编码（`PortNo=:10081`，`FilePortNo=:10082`）。
@@ -52,11 +51,11 @@
 
 ## 多节点集群
 
-支持局域网内多节点自动发现与协作：
+支持局域网多节点协作：
 
 | 功能 | 文件 | 说明 |
 |------|------|------|
-| **节点发现** | `internal/service/lan_discovery.go` | UDP 组播 `239.255.255.250:10083`，30s 心跳，90s 超时 |
+| **节点管理** | `internal/service/lan_discovery.go` | `InitPeerManager()` 从 `discoveryPeers` 加载手动节点，支持运行时动态增删 |
 | **集群内认证** | `middleware/common.go` + `lan_discovery.go` | 跨节点请求通过 `X-Search-Gin-Remote: true` header 识别，来源 IP 必须在 peers 列表中或通过反向心跳自动加入 |
 | **反向心跳自动发现** | `lan_discovery.go:TryVerifyAndAddPeer()` | 首次收到未知 IP 的集群请求时，反向 GET 该 IP 的 `/api/heartBeat` 验证，通过则自动加入集群（持久化到 `setting.json`） |
 | **Peer 列表** | `internal/handler/lan_controller.go` | `GET /api/lanPeers` 返回在线节点 |
@@ -71,8 +70,6 @@
 {
   "nodeName": "书房电脑",
   "enableLanDiscovery": true,
-  "lanDiscoveryInterval": 30,
-  "lanDiscoveryTimeout": 90,
   "discoveryPeers": ["192.168.1.102:10081"]
 }
 ```

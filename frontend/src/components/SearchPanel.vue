@@ -166,6 +166,7 @@
 import { ref, reactive, computed, watch } from 'vue';
 import { format } from 'quasar';
 import { useQuasar } from 'quasar';
+import { useBreakpoint } from 'src/composables/useBreakpoint';
 import { SearchAPI, ResetMovieType } from 'components/api/searchAPI';
 import { QueryDirImages, DeleteFileByPathUseEncode } from 'components/api/searchAPI';
 import { GetFileByPathUseEncode } from 'components/utils/images';
@@ -190,7 +191,7 @@ const emit = defineEmits(['play', 'close', 'keyword', 'edit', 'delete']);
 
 // ── 状态 ───────────────────────────────────────────────────────────────
 const $q = useQuasar();
-const isSmall = computed(() => $q.screen.lt.sm);
+const { isSmall } = useBreakpoint();
 
 const activeTab = ref('search');
 const searchLoading = ref(false);

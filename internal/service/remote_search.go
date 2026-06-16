@@ -112,7 +112,6 @@ func searchPeer(peer *Peer, searchParam model.SearchParam) (*PeerSearchResult, e
 
 	movies, ok := result.Data.([]interface{})
 	if !ok {
-		// Data 可能是 []model.FileItem，尝试类型断言
 		moviesTyped, ok2 := result.Data.([]model.FileItem)
 		if !ok2 {
 			return nil, fmt.Errorf("远程节点返回的数据类型非预期: %T", result.Data)
@@ -120,14 +119,21 @@ func searchPeer(peer *Peer, searchParam model.SearchParam) (*PeerSearchResult, e
 		return &PeerSearchResult{Movies: moviesTyped, TotalCnt: result.TotalCnt, TotalSize: ParseTotalSize(result.TotalSize)}, nil
 	}
 
-	// 从 []interface{} 转为 []model.FileItem
-	var out []model.FileItem
-	raw, err := json.Marshal(movies)
-	if err != nil {
-		return nil, fmt.Errorf("序列化远程数据失败: %w", err)
-	}
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, fmt.Errorf("反序列化远程数据失败: %w", err)
+	out := make([]model.FileItem, 0, len(movies))
+	for _, item := range movies {
+		if fileItem, ok := item.(model.FileItem); ok {
+			out = append(out, fileItem)
+		} else if m, ok := item.(map[string]interface{}); ok {
+			data, err := json.Marshal(m)
+			if err != nil {
+				continue
+			}
+			var fileItem model.FileItem
+			if err := json.Unmarshal(data, &fileItem); err != nil {
+				continue
+			}
+			out = append(out, fileItem)
+		}
 	}
 	return &PeerSearchResult{Movies: out, TotalCnt: result.TotalCnt, TotalSize: ParseTotalSize(result.TotalSize)}, nil
 }
@@ -164,15 +170,22 @@ func SearchRemotePeer(peer *Peer, searchParam model.SearchParam) (utils.Page, er
 
 	// 填充流媒体 URL
 	if movies, ok := result.Data.([]interface{}); ok {
-		var fileItems []model.FileItem
-		raw, err := json.Marshal(movies)
-		if err != nil {
-			return utils.Page{}, fmt.Errorf("序列化远程结果失败: %w", err)
+		fileItems := make([]model.FileItem, 0, len(movies))
+		for _, item := range movies {
+			if fileItem, ok := item.(model.FileItem); ok {
+				fileItems = append(fileItems, fileItem)
+			} else if m, ok := item.(map[string]interface{}); ok {
+				data, err := json.Marshal(m)
+				if err != nil {
+					continue
+				}
+				var fileItem model.FileItem
+				if err := json.Unmarshal(data, &fileItem); err != nil {
+					continue
+				}
+				fileItems = append(fileItems, fileItem)
+			}
 		}
-		if err := json.Unmarshal(raw, &fileItems); err != nil {
-			return utils.Page{}, fmt.Errorf("反序列化远程结果失败: %w", err)
-		}
-		// URL 由前端用本地 IP 填充更准确，远程节点返回的数据已包含 URL
 		result.Data = fileItems
 	} else if movies, ok := result.Data.([]model.FileItem); ok {
 		result.Data = movies

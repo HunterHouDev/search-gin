@@ -1,7 +1,6 @@
 package service
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -27,120 +26,33 @@ type Peer struct {
 	ID       string `json:"id"`       // "PC-A:10081"
 	Hostname string `json:"hostname"` // "PC-A"
 	Port     string `json:"port"`     // "10081" API 端口
-	IP       string `json:"ip"`       // 可连通的 IP（UDP来源 IP 经 TCP 验证）
+	IP       string `json:"ip"`       // 可连通的 IP
 	Name     string `json:"name"`     // 节点别名
 	LastSeen int64  `json:"lastSeen"` // Unix 时间戳
 	FilePort string `json:"filePort"` // 文件流端口，为空时默认 ":10082"
 	Disabled bool   `json:"disabled"` // 是否禁用，禁用的节点不会被搜索
 }
 
-// heartbeatMsg UDP 心跳消息
-type heartbeatMsg struct {
-	ID       string `json:"id"`
-	Hostname string `json:"hostname"`
-	Port     string `json:"port"`
-	Name     string `json:"name"`
-}
-
-// LanDiscovery 局域网节点发现
-type LanDiscovery struct {
-	mu       sync.RWMutex
-	peers    map[string]*Peer // key: NodeHost
-	conn     *net.UDPConn
-	stopChan chan struct{}
+// peerManager 节点管理器
+type peerManager struct {
+	mu    sync.RWMutex
+	peers map[string]*Peer // key: NodeHost
 }
 
 var (
-	lanDiscovery     *LanDiscovery
-	lanDiscoveryOnce sync.Once
-
-	lanDiscoveryStopOnce sync.Once
+	defaultManager *peerManager
 )
 
-func initLanDiscovery() {
-	lanDiscovery = &LanDiscovery{
-		peers:    make(map[string]*Peer),
-		stopChan: make(chan struct{}),
+const defaultPeerTimeout = 90 * time.Second
+
+// InitPeerManager 初始化节点管理器，从配置加载静态节点
+func InitPeerManager() {
+	defaultManager = &peerManager{
+		peers: make(map[string]*Peer),
 	}
-}
-
-const (
-	multicastAddr = "239.255.255.250:10083"
-	defaultInterval = 30 * time.Second
-	defaultTimeout  = 90 * time.Second
-)
-
-// StartLanDiscovery 启动局域网节点发现
-func StartLanDiscovery() {
-	lanDiscoveryOnce.Do(initLanDiscovery)
 	initNodeInfo()
-	if !IsClusterEnabled() {
-		utils.InfoFormat("集群模式未启用")
-		return
-	}
-
-	go func() {
-		defer utils.RecoverPanic()
-		if err := lanDiscovery.start(); err != nil {
-			utils.ErrorFormat("LAN 节点发现启动失败: %v", err)
-		}
-	}()
-}
-
-// StopLanDiscovery 停止局域网节点发现
-func StopLanDiscovery() {
-	lanDiscoveryStopOnce.Do(func() {
-		close(lanDiscovery.stopChan)
-		if lanDiscovery.conn != nil {
-			lanDiscovery.conn.Close()
-			lanDiscovery.conn = nil
-		}
-	})
-	utils.InfoFormat("LAN 节点发现已停止")
-}
-
-// RestartLanDiscovery 重启局域网节点发现
-func RestartLanDiscovery() {
-	if lanDiscovery == nil {
-		return
-	}
-	lanDiscovery.mu.Lock()
-	StopLanDiscovery()
-	// 重置 stopChan 和 once，原 goroutine 收到关闭信号后退出
-	lanDiscovery.stopChan = make(chan struct{})
-	lanDiscoveryStopOnce = sync.Once{}
-	lanDiscovery.mu.Unlock()
-	StartLanDiscovery()
-}
-
-// CleanExpiredPeers 手动清理超时节点
-func CleanExpiredPeers() int {
-	if lanDiscovery == nil {
-		return 0
-	}
-	count := lanDiscovery.cleanExpiredCount(defaultTimeout)
-	if count > 0 {
-		utils.InfoFormat("手动清理 %d 个超时节点", count)
-	}
-	return count
-}
-
-// cleanExpiredCount 清理超时节点并返回清理数量
-func (d *LanDiscovery) cleanExpiredCount(timeout time.Duration) int {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	now := time.Now()
-	var expired []string
-	for id, p := range d.peers {
-		lastSeen := time.Unix(p.LastSeen, 0)
-		if now.Sub(lastSeen) > timeout {
-			expired = append(expired, id)
-		}
-	}
-	for _, id := range expired {
-		delete(d.peers, id)
-	}
-	return len(expired)
+	loadStaticPeers()
+	utils.InfoFormat("节点管理器已初始化，本机: %s (%s)", LocalNodeHost, LocalNodeName)
 }
 
 // IsClusterEnabled 集群模式是否启用
@@ -176,6 +88,9 @@ func initNodeInfo() {
 
 // loadStaticPeers 加载手动配置节点
 func loadStaticPeers() {
+	if defaultManager == nil {
+		return
+	}
 	setting := consts.GetOSSetting()
 	for _, addr := range setting.DiscoveryPeers {
 		parts := strings.Split(addr, ":")
@@ -189,8 +104,8 @@ func loadStaticPeers() {
 			filePort = parts[2]
 		}
 		id := fmt.Sprintf("%s:%s", ip, port)
-		lanDiscovery.mu.Lock()
-		lanDiscovery.peers[id] = &Peer{
+		defaultManager.mu.Lock()
+		defaultManager.peers[id] = &Peer{
 			ID:       id,
 			Hostname: ip,
 			Port:     port,
@@ -199,218 +114,106 @@ func loadStaticPeers() {
 			FilePort: filePort,
 			LastSeen: time.Now().Unix(),
 		}
-		lanDiscovery.mu.Unlock()
+		defaultManager.mu.Unlock()
 		utils.InfoFormat("加载手动节点: %s (%s)", id, ip)
 	}
 }
 
-// start 启动 UDP 组播监听和心跳发送
-func (d *LanDiscovery) start() error {
-	addr, err := net.ResolveUDPAddr("udp", multicastAddr)
-	if err != nil {
-		return fmt.Errorf("解析组播地址失败: %w", err)
+// CleanExpiredPeers 手动清理超时节点
+func CleanExpiredPeers() int {
+	if defaultManager == nil {
+		return 0
 	}
-
-	// 监听组播
-	conn, err := net.ListenMulticastUDP("udp", nil, addr)
-	if err != nil {
-		return fmt.Errorf("监听组播失败: %w", err)
-	}
-	d.conn = conn
-
-	utils.InfoFormat("LAN 节点发现已启动，组播地址: %s", multicastAddr)
-
-	// 加入手动配置节点（无论组播是否成功，都加载）
-	loadStaticPeers()
-
-	// 启动时立即发送一次心跳
-	d.sendHeartbeat()
-
-	// 心跳发送协程
-	go func() {
-		defer utils.RecoverPanic()
-		ticker := time.NewTicker(defaultInterval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				d.sendHeartbeat()
-			case <-d.stopChan:
-				return
-			}
+	defaultManager.mu.Lock()
+	defer defaultManager.mu.Unlock()
+	now := time.Now()
+	var expired []string
+	for id, p := range defaultManager.peers {
+		lastSeen := time.Unix(p.LastSeen, 0)
+		if now.Sub(lastSeen) > defaultPeerTimeout {
+			expired = append(expired, id)
 		}
-	}()
-
-	// 心跳监听协程
-	go func() {
-		defer utils.RecoverPanic()
-		buf := make([]byte, 1024)
-		for {
-			select {
-			case <-d.stopChan:
-				return
-			default:
-			}
-			n, src, err := conn.ReadFromUDP(buf)
-			if err != nil {
-				utils.ErrorFormat("组播接收失败: %v", err)
-				continue
-			}
-
-			var msg heartbeatMsg
-			if err := json.Unmarshal(buf[:n], &msg); err != nil {
-				continue
-			}
-
-			// 忽略自己的消息
-			if msg.ID == LocalNodeHost {
-				continue
-			}
-
-			// 收到 UDP 心跳说明节点在线
-			peerIP := src.IP.String()
-			now := time.Now().Unix()
-
-			// 已有节点直接刷新 LastSeen（即使 verifyPeer 失败也不丢失）
-			// 新节点需通过 verifyPeer HTTP 验证后才加入
-			if existing := GetPeer(msg.ID); existing != nil {
-				d.updateLastSeen(msg.ID, peerIP, now)
-			} else if d.verifyPeer(peerIP, msg.Port) {
-				d.upsertPeer(&Peer{
-					ID:       msg.ID,
-					Hostname: msg.Hostname,
-					Port:     msg.Port,
-					IP:       peerIP,
-					Name:     msg.Name,
-					LastSeen: now,
-				})
-			}
-		}
-	}()
-
-	return nil
-}
-
-// sendHeartbeat 发送心跳消息
-func (d *LanDiscovery) sendHeartbeat() {
-	if d.conn == nil {
-		return
 	}
-
-	msg := heartbeatMsg{
-		ID:       LocalNodeHost,
-		Hostname: getHostname(),
-		Port:     strings.TrimPrefix(consts.PortNo, ":"),
-		Name:     LocalNodeName,
+	for _, id := range expired {
+		delete(defaultManager.peers, id)
 	}
-	data, err := json.Marshal(msg)
-	if err != nil {
-		utils.ErrorFormat("心跳序列化失败: %v", err)
-		return
-	}
-
-	addr, err := net.ResolveUDPAddr("udp", multicastAddr)
-	if err != nil {
-		return
-	}
-	d.conn.WriteTo(data, addr)
+	return len(expired)
 }
 
 // verifyPeer HTTP 验证对端搜索服务是否可连通
-func (d *LanDiscovery) verifyPeer(ip string, port string) bool {
-	port = strings.TrimPrefix(port, ":")
+func (m *peerManager) verifyPeer(ip string, port string) bool {
 	url := fmt.Sprintf("http://%s:%s/api/heartBeat", ip, port)
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return false
-	}
-	// 增加 header 跳过远程节点的认证检查
-	req.Header.Set("X-Search-Gin-Remote", "true")
-	resp, err := peerClient.Do(req)
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get(url)
 	if err != nil {
 		return false
 	}
 	defer resp.Body.Close()
-	// 确保 body 被完全读取以释放连接回连接池
 	io.Copy(io.Discard, resp.Body)
 	return resp.StatusCode == http.StatusOK
 }
 
 // upsertPeer 更新或添加节点
-func (d *LanDiscovery) upsertPeer(p *Peer) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	d.peers[p.ID] = p
+func (m *peerManager) upsertPeer(p *Peer) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.peers[p.ID] = p
 }
 
 // updateLastSeen 更新已有节点的 LastSeen 和 IP（线程安全）
-func (d *LanDiscovery) updateLastSeen(id, ip string, lastSeen int64) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	if p, ok := d.peers[id]; ok {
+func (m *peerManager) updateLastSeen(id, ip string, lastSeen int64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if p, ok := m.peers[id]; ok {
 		p.LastSeen = lastSeen
 		p.IP = ip
 	}
 }
 
-// cleanExpired 清理超时节点
-func (d *LanDiscovery) cleanExpired(timeout time.Duration) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	now := time.Now()
-	for id, p := range d.peers {
-		lastSeen := time.Unix(p.LastSeen, 0)
-		if now.Sub(lastSeen) > timeout {
-			utils.InfoFormat("节点超时离线: %s (%s)", id, p.IP)
-			delete(d.peers, id)
-		}
-	}
-}
-
 // GetOnlinePeers 获取在线节点列表
 func GetOnlinePeers() []*Peer {
- if lanDiscovery == nil {
-  return nil
- }
- lanDiscovery.mu.RLock()
- defer lanDiscovery.mu.RUnlock()
- result := make([]*Peer, 0, len(lanDiscovery.peers))
- for _, p := range lanDiscovery.peers {
-  result = append(result, p)
- }
- return result
+	if defaultManager == nil {
+		return nil
+	}
+	defaultManager.mu.RLock()
+	defer defaultManager.mu.RUnlock()
+	result := make([]*Peer, 0, len(defaultManager.peers))
+	for _, p := range defaultManager.peers {
+		result = append(result, p)
+	}
+	return result
 }
 
 // IsKnownPeerIP 判断指定 IP 是否属于集群内已知节点（含本机回环）
 // 用于 AuthMiddleware 校验 X-Search-Gin-Remote 请求的来源是否可信
 func IsKnownPeerIP(ip string) bool {
- parsed := net.ParseIP(ip)
- if parsed != nil && parsed.IsLoopback() {
-  return true
- }
+	parsed := net.ParseIP(ip)
+	if parsed != nil && parsed.IsLoopback() {
+		return true
+	}
 
- if lanDiscovery == nil {
-  return false
- }
+	if defaultManager == nil {
+		return false
+	}
 
- lanDiscovery.mu.RLock()
- defer lanDiscovery.mu.RUnlock()
+	defaultManager.mu.RLock()
+	defer defaultManager.mu.RUnlock()
 
- for _, p := range lanDiscovery.peers {
-  if p.Disabled {
-   continue
-  }
-  if p.IP == ip {
-   return true
-  }
- }
- return false
+	for _, p := range defaultManager.peers {
+		if p.Disabled {
+			continue
+		}
+		if p.IP == ip {
+			return true
+		}
+	}
+	return false
 }
 
 // TryVerifyAndAddPeer 向指定 IP 发起反向心跳验证，通过则自动加入集群
 // 用于 AuthMiddleware 首次遇到未知 IP 时自动发现
 func TryVerifyAndAddPeer(ip string) bool {
-	if lanDiscovery == nil {
+	if defaultManager == nil {
 		return false
 	}
 	port := strings.TrimPrefix(consts.PortNo, ":")
@@ -420,16 +223,15 @@ func TryVerifyAndAddPeer(ip string) bool {
 
 // GetPeerStats 获取指定节点的文件总数和总大小
 func GetPeerStats(nodeID string) (totalCnt int, totalSize string, nodeName string) {
-	if lanDiscovery == nil {
+	if defaultManager == nil {
 		return 0, "", ""
 	}
-	lanDiscovery.mu.RLock()
-	p, ok := lanDiscovery.peers[nodeID]
-	lanDiscovery.mu.RUnlock()
+	defaultManager.mu.RLock()
+	p, ok := defaultManager.peers[nodeID]
+	defaultManager.mu.RUnlock()
 	if !ok {
 		return 0, "", ""
 	}
-	// 搜索空关键词用 pageSize=1，仅获取统计信息不返回全部数据
 	param := model.SearchParam{Keyword: "", Page: 1, PageSize: 1}
 	result, err := SearchRemotePeer(p, param)
 	if err != nil {
@@ -440,7 +242,7 @@ func GetPeerStats(nodeID string) (totalCnt int, totalSize string, nodeName strin
 
 // AddPeer 动态添加节点（手动添加）
 func AddPeer(ip, port, filePort string) bool {
-	if lanDiscovery == nil {
+	if defaultManager == nil {
 		return false
 	}
 	if port == "" {
@@ -450,11 +252,11 @@ func AddPeer(ip, port, filePort string) bool {
 		filePort = "10082"
 	}
 	// TCP 验证可连通性
-	if !lanDiscovery.verifyPeer(ip, port) {
+	if !defaultManager.verifyPeer(ip, port) {
 		return false
 	}
 	id := fmt.Sprintf("%s:%s", ip, port)
-	lanDiscovery.upsertPeer(&Peer{
+	defaultManager.upsertPeer(&Peer{
 		ID:       id,
 		Hostname: ip,
 		Port:     port,
@@ -488,16 +290,16 @@ func AddPeer(ip, port, filePort string) bool {
 
 // RemovePeer 删除节点（从内存和配置文件中移除）
 func RemovePeer(id string) bool {
-	if lanDiscovery == nil {
+	if defaultManager == nil {
 		return false
 	}
-	lanDiscovery.mu.Lock()
-	if _, ok := lanDiscovery.peers[id]; !ok {
-		lanDiscovery.mu.Unlock()
+	defaultManager.mu.Lock()
+	if _, ok := defaultManager.peers[id]; !ok {
+		defaultManager.mu.Unlock()
 		return false
 	}
-	delete(lanDiscovery.peers, id)
-	lanDiscovery.mu.Unlock()
+	delete(defaultManager.peers, id)
+	defaultManager.mu.Unlock()
 
 	// 从 setting.json 的 discoveryPeers 中移除
 	consts.UpdateOSSetting(func(s model.Setting) model.Setting {
@@ -523,12 +325,12 @@ func RemovePeer(id string) bool {
 
 // TogglePeerDisabled 启用/禁用节点
 func TogglePeerDisabled(id string, disabled bool) bool {
-	if lanDiscovery == nil {
+	if defaultManager == nil {
 		return false
 	}
-	lanDiscovery.mu.Lock()
-	defer lanDiscovery.mu.Unlock()
-	if p, ok := lanDiscovery.peers[id]; ok {
+	defaultManager.mu.Lock()
+	defer defaultManager.mu.Unlock()
+	if p, ok := defaultManager.peers[id]; ok {
 		p.Disabled = disabled
 		utils.InfoFormat("节点 %s 状态: %v", id, map[bool]string{false: "启用", true: "禁用"}[disabled])
 		return true
@@ -546,9 +348,12 @@ func ResolvePeerIP(nodeHost string) string {
 
 // GetPeer 从 NodeHost 获取完整 Peer 信息
 func GetPeer(nodeHost string) *Peer {
-	lanDiscovery.mu.RLock()
-	defer lanDiscovery.mu.RUnlock()
-	if p, ok := lanDiscovery.peers[nodeHost]; ok {
+	if defaultManager == nil {
+		return nil
+	}
+	defaultManager.mu.RLock()
+	defer defaultManager.mu.RUnlock()
+	if p, ok := defaultManager.peers[nodeHost]; ok {
 		return p
 	}
 	return nil

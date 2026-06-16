@@ -146,7 +146,7 @@ import { reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useSystemProperty } from 'stores/System';
 import { formatTitle } from 'components/utils';
-import { SearchAPI } from 'components/api/searchAPI';
+import { SearchAPI, DeleteFileByPathUseEncode } from 'components/api/searchAPI';
 import VideoPlayerInPicture from 'pages/file/components/VideoPlayerInPicture.vue';
 
 const $q = useQuasar();

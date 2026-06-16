@@ -110,11 +110,6 @@ func NewFile(dir string, path string, name string, fileType string, size int64, 
 	return result
 }
 
-func (f *FileItem) SetId(id string) FileItem {
-	f.Id = id
-	return *f
-}
-
 func (f FileItem) GetFileInfo() string {
 	info := fmt.Sprintf("name: %v\t code:%v\t fileType:%v\t sizeStr:%v\t author:%v\t path:%v\t",
 		f.Name, f.Code, f.FileType, f.SizeStr, f.Author, f.Path)

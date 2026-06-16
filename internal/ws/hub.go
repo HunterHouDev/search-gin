@@ -10,10 +10,10 @@ import (
 
 // OnlineSession 在线会话
 type OnlineSession struct {
-	Username  string    `json:"username"`
-	Role      string    `json:"role"`
-	IP        string    `json:"ip"`
-	LoginTime time.Time `json:"loginTime"`
+	Username    string   `json:"username"`
+	Role        string   `json:"role"`
+	DeviceCount int      `json:"deviceCount"`          // 同账号设备数
+	IPs         []string `json:"ips,omitempty"`         // 各设备 IP
 }
 
 // ChatMessage 聊天消息
@@ -118,18 +118,21 @@ func (h *Hub) Run() {
 			}
 
 			h.mu.RLock()
+			failedClients := make([]*ClientConn, 0)
 			for client := range h.clients {
-			 client := client
-			 go func() {
-			  client.mu.Lock()
-			  err := client.Conn.WriteMessage(websocket.TextMessage, message)
-			  client.mu.Unlock()
-			  if err != nil {
-			   h.unregister <- client
-			  }
-			 }()
+				client := client
+				client.mu.Lock()
+				err := client.Conn.WriteMessage(websocket.TextMessage, message)
+				client.mu.Unlock()
+				if err != nil {
+					failedClients = append(failedClients, client)
+				}
 			}
 			h.mu.RUnlock()
+
+			for _, client := range failedClients {
+				h.unregister <- client
+			}
 		}
 	}
 }
@@ -149,21 +152,64 @@ func (h *Hub) Broadcast(msg []byte) {
 	h.broadcast <- msg
 }
 
-// GetOnlineUsers 获取在线用户列表
-func (h *Hub) GetOnlineUsers() []OnlineSession {
+// SendToUser 向指定用户的所有设备发送消息
+// 返回发送成功的设备数
+func (h *Hub) SendToUser(username string, msg []byte) int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-
-	users := make([]OnlineSession, 0, len(h.clients))
+	count := 0
 	for client := range h.clients {
-		users = append(users, OnlineSession{
-			Username:  client.Username,
-			Role:      client.Role,
-			IP:        client.IP,
-			LoginTime: client.LoginAt,
-		})
+		if client.Username == username {
+			client.mu.Lock()
+			err := client.Conn.WriteMessage(websocket.TextMessage, msg)
+			client.mu.Unlock()
+			if err == nil {
+				count++
+			}
+		}
 	}
-	return users
+	return count
+}
+
+// GetOnlineUsers 获取在线用户列表（按用户名去重合并）
+func (h *Hub) GetOnlineUsers() []OnlineSession {
+	h.mu.RLock()
+	clients := make([]*ClientConn, 0, len(h.clients))
+	for client := range h.clients {
+		clients = append(clients, client)
+	}
+	h.mu.RUnlock()
+
+	userMap := make(map[string]*OnlineSession)
+	for _, client := range clients {
+		client.mu.Lock()
+		username := client.Username
+		role := client.Role
+		ip := client.IP
+		client.mu.Unlock()
+
+		if entry, ok := userMap[username]; ok {
+			entry.DeviceCount++
+			if ip != "" {
+				entry.IPs = append(entry.IPs, ip)
+			}
+		} else {
+			entry = &OnlineSession{
+				Username:    username,
+				Role:        role,
+				DeviceCount: 1,
+			}
+			if ip != "" {
+				entry.IPs = []string{ip}
+			}
+			userMap[username] = entry
+		}
+	}
+	result := make([]OnlineSession, 0, len(userMap))
+	for _, entry := range userMap {
+		result = append(result, *entry)
+	}
+	return result
 }
 
 // GetChatHistory 获取聊天历史

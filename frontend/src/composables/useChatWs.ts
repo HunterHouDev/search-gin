@@ -4,15 +4,18 @@ import { commonAxios, api } from 'src/boot/axios';
 export interface OnlineUser {
   username: string;
   role: string;
-  ip: string;
-  loginTime: string;
+  deviceCount: number;
+  ips?: string[];
 }
 
 export interface ChatMessage {
-  type: 'online' | 'chat' | 'system';
+  type: 'online' | 'chat' | 'system' | 'signal';
   username?: string;
   role?: string;
   content?: string;
+  from?: string;
+  action?: string;
+  data?: unknown;
   time: string;
   onlineUsers?: OnlineUser[];
 }
@@ -20,19 +23,23 @@ export interface ChatMessage {
 const WS_RECONNECT_BASE = 2000;
 const WS_RECONNECT_MAX = 30000;
 const WS_CONNECT_TIMEOUT = 10000;
-const WS_MAX_RETRY = 5; // 最大重试次数，之后停止并标记失败
+const WS_MAX_RETRY = 5;
 
-// 单例状态，所有 useChatWs() 调用共享同一个 WebSocket 连接
+// 单例状态
 const ws = ref<WebSocket | null>(null);
 const connected = ref(false);
-const connectionFailed = ref(false); // 重试耗尽后标记为 true
+const connectionFailed = ref(false);
 const onlineUsers = ref<OnlineUser[]>([]);
 const messages = ref<ChatMessage[]>([]);
+
+// 信令回调
+type SignalHandler = (msg: ChatMessage) => void;
+const signalHandlers: SignalHandler[] = [];
+
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempt = 0;
 let connectTimer: ReturnType<typeof setTimeout> | null = null;
 
-// 检查 token 是否仍有效，无效则清登录态跳转
 function redirectToLogin() {
   localStorage.removeItem('authToken');
   localStorage.removeItem('isAuthenticated');
@@ -43,7 +50,6 @@ function redirectToLogin() {
 
 function getWsUrl(): string {
   const token = localStorage.getItem('authToken');
-  // 使用 axios baseURL 中的 host，避免前端开发服务器（quasar dev）端口与 API 不一致
   const apiUrl = api.defaults.baseURL || `http://${location.host}`;
   const apiHost = apiUrl.replace(/^https?:\/\//, '');
   const isSecure = apiUrl.startsWith('https:');
@@ -55,9 +61,7 @@ function scheduleReconnect() {
   if (reconnectTimer) return;
   reconnectAttempt++;
   if (reconnectAttempt > WS_MAX_RETRY) {
-    // 重试耗尽，停止重连，标记失败
     connectionFailed.value = true;
-    // 检查 token 是否已失效（仅当服务端返回 401 时跳转登录）
     const token = localStorage.getItem('authToken');
     if (token) {
       commonAxios().get('/api/heartBeat').catch((err) => {
@@ -83,13 +87,11 @@ function connectSingleton() {
     return;
   }
 
-  // 有新的连接尝试时重置失败标记
   connectionFailed.value = false;
 
   const url = getWsUrl();
   ws.value = new WebSocket(url);
 
-  // 连接超时：10 秒内未响应则主动关闭并重连
   if (connectTimer) clearTimeout(connectTimer);
   connectTimer = setTimeout(() => {
     if (ws.value && ws.value.readyState === WebSocket.CONNECTING) {
@@ -108,8 +110,12 @@ function connectSingleton() {
   ws.value.onmessage = (event) => {
     try {
       const msg: ChatMessage = JSON.parse(event.data);
+
       if (msg.type === 'online') {
         onlineUsers.value = msg.onlineUsers || [];
+      } else if (msg.type === 'signal') {
+        // 分发给视频会议的回调
+        signalHandlers.forEach(fn => fn(msg));
       } else {
         messages.value.push(msg);
       }
@@ -122,14 +128,12 @@ function connectSingleton() {
     if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
     connected.value = false;
     ws.value = null;
-    // 仅在未标记失败时继续重连
     if (!connectionFailed.value) {
       scheduleReconnect();
     }
   };
 
-  ws.value.onerror = (event) => {
-    console.error('WebSocket 连接错误:', event);
+  ws.value.onerror = () => {
     // onclose 会接着触发，统一在 onclose 中重连
   };
 }
@@ -155,8 +159,22 @@ export function useChatWs() {
     if (!ws.value || ws.value.readyState !== WebSocket.OPEN) return;
     ws.value.send(JSON.stringify({
       type: 'chat',
-      content: content,
+      content,
     }));
+  };
+
+  const sendJSON = (data: object) => {
+    if (!ws.value || ws.value.readyState !== WebSocket.OPEN) return false;
+    ws.value.send(JSON.stringify(data));
+    return true;
+  };
+
+  const onSignal = (handler: SignalHandler) => {
+    signalHandlers.push(handler);
+    return () => {
+      const idx = signalHandlers.indexOf(handler);
+      if (idx >= 0) signalHandlers.splice(idx, 1);
+    };
   };
 
   const retryConnect = () => {
@@ -173,6 +191,8 @@ export function useChatWs() {
     connect: connectSingleton,
     disconnect: disconnectSingleton,
     sendChat,
+    sendJSON,
+    onSignal,
     retryConnect,
   };
 }

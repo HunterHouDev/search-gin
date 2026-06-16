@@ -150,22 +150,3 @@ func GetLanPeersWithStats(c *gin.Context) {
 		"peers":         result,
 	})
 }
-
-// ToggleLanDiscovery 动态启动/停止局域网发现
-func ToggleLanDiscovery(c *gin.Context) {
-	var req struct {
-		Enable bool `json:"enable"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"fail": true, "msg": "参数错误"})
-		return
-	}
-
-	if req.Enable {
-		service.RestartLanDiscovery()
-		c.JSON(http.StatusOK, gin.H{"success": true, "msg": "集群模式已启动"})
-	} else {
-		service.StopLanDiscovery()
-		c.JSON(http.StatusOK, gin.H{"success": true, "msg": "集群模式已关闭"})
-	}
-}

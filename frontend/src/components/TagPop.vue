@@ -124,8 +124,10 @@ import { useQuasar } from 'quasar';
 import { CloseTag, AddTag } from 'components/api/searchAPI';
 import { useSystemProperty } from 'stores/System';
 import { inject, onMounted, reactive } from 'vue';
+import { useCommonExec } from 'src/composables/useCommonExec';
 
 const systemProperty = useSystemProperty();
+const { exec: commonExec } = useCommonExec();
 
 const view = reactive({
   submitMutiTag: [],
@@ -201,17 +203,6 @@ const submitInput = async () => {
 const refreshDebounceFn = inject('refreshDebounceFn', () => {
   console.log('refreshDebounceFn not found');
 });
-const commonExec = async (exec) => {
-  emmits('doBefore');
-  const file = props.currentData;
-  setTimeout(async () => {
-    const { Code, Message } = (await exec) || {};
-    if (Code !== 200) {
-      $q.notify({ message: `${Message}`, position: 'bottom-left' });
-    }
-    refreshDebounceFn(file);
-  }, props.delay);
-};
 
 onMounted(() => {
   loadTagSize();

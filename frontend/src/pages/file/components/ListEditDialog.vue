@@ -926,6 +926,8 @@ import { useQuasar, date } from 'quasar';
 import { useDialogPluginComponent } from 'quasar';
 import { reactive, ref, watch, computed } from 'vue';
 import { useSystemProperty } from 'stores/System';
+import { useCommonExec } from 'src/composables/useCommonExec';
+import { useBreakpoint } from 'src/composables/useBreakpoint';
 
 import {
   MovieTypeOptions,
@@ -1050,10 +1052,8 @@ watch(
 );
 
 const systemProperty = useSystemProperty();
-
-const isMobile = computed(() => {
-  return $q.platform.is.mobile;
-});
+const { isMobile } = useBreakpoint();
+const { exec: commonExec } = useCommonExec({ notifyOnSuccess: true });
 
 const getColor = (status) => {
   return status == '成功'
@@ -1345,16 +1345,6 @@ const copyPath = async (item) => {
   }
 };
 
-const commonExec = async (exec) => {
-  const { Code, Message } = await exec;
-  console.log(Code, Message);
-  if (Code != 200) {
-    $q.notify({ message: `${Message}`, position: 'bottom-left' });
-  } else {
-    $q.notify({ message: `${Message}`, position: 'bottom-left' });
-  }
-};
-
 const open = (data) => {
   const { queryParam, settingInfo, cb, tabName } = data;
   if (tabName) {
@@ -1375,9 +1365,12 @@ const open = (data) => {
   dialogRef.value.show();
   fetchSearch();
   setTimeout(() => {
-    console.log('sortable');
-    console.log(document.getElementById('listRef'));
-    new Sortable(document.getElementById('listRef'), {
+    const listEl = document.getElementById('listRef');
+    if (!listEl) {
+      console.warn('listRef element not found, skipping Sortable init');
+      return;
+    }
+    new Sortable(listEl, {
       animation: 150,
       onEnd: function (evt) {
         console.log(evt.oldIndex, evt.newIndex);
