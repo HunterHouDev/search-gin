@@ -120,13 +120,12 @@ import { formatTitle } from 'components/utils';
 import { FileModel } from 'src/components/model/File';
 import { useSystemProperty } from 'stores/System';
 import { GetSettingInfo } from 'components/api/settingAPI';
+import { useBreakpoint } from 'src/composables/useBreakpoint';
 const systemProperty = useSystemProperty();
 
 
 const $q = useQuasar();
-const isMobile = computed(() => {
-  return $q?.platform.is.mobile;
-});
+const { isMobile } = useBreakpoint();
 const view = reactive({
   item: null,
   preview: false,

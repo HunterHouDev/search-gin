@@ -206,11 +206,10 @@ import DeleteBtn from 'components/DeleteBtn.vue';
 import SearchPanel from './SearchPanel.vue';
 import FileEdit from 'pages/file/components/FileEditDialog.vue';
 import TagPop from './TagPop.vue';
+import { useBreakpoint } from 'src/composables/useBreakpoint';
 
 const $q = useQuasar();
-const isMobile = computed(() => {
-  return $q.platform.is.mobile;
-});
+const { isMobile } = useBreakpoint()
 
 const props = defineProps({
   closeBtn: { type: Boolean, default: false },

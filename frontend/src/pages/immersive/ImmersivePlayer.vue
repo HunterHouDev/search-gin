@@ -487,6 +487,7 @@ import EditVideoTag from 'components/EditVideoTag.vue';
 import IndexButton from 'components/IndexButton.vue';
 import FileEdit from '../file/components/FileEditDialog.vue';
 import { useTorrentDownload } from 'src/composables/useTorrentDownload';
+import { useBreakpoint } from 'src/composables/useBreakpoint';
 
 
 const $q = useQuasar();
@@ -604,9 +605,8 @@ const bufferedPercent = computed(() => {
   return (bufferedSeconds.value / durationSeconds.value) * 100;
 });
 
-const isSmall = computed(() => {
-  return systemProperty.showStyle === 'sm' || $q.screen.lt.sm || $q.platform.is.mobile;
-});
+const { isSmall: screenIsSmall, isMobile } = useBreakpoint()
+const isSmall = computed(() => systemProperty.showStyle === 'sm' || screenIsSmall.value || isMobile.value)
 
 const sortOptions = computed(() => {
   const options = [];

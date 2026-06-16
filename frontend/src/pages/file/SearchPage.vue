@@ -663,9 +663,8 @@ import { date, format, useQuasar } from 'quasar';
 const { humanStorageSize } = format;
 
 // 卡片大小样式（基于 System store showStyle）
-const isSmall = computed(() => systemProperty.showStyle === 'sm');
-const isLarge = computed(() => systemProperty.showStyle === 'lg');
-const isMedium = computed(() => systemProperty.showStyle === 'md');
+const { fromStyle } = useBreakpoint()
+const { isSmall, isMedium, isLarge } = fromStyle(() => systemProperty.showStyle)
 
 import {
   DeleteFile,
@@ -712,9 +711,12 @@ import InnerVideoPlayer from './components/VideoPlayerInPicture.vue';
 import { onKeyStroke, useClipboard, useDebounceFn } from '@vueuse/core';
 import { getTimeAgoShort as getTimeAgo } from 'src/utils/date';
 import { useSortOptions } from 'src/composables/useSortOptions';
+import { useCommonExec } from 'src/composables/useCommonExec';
+import { useBreakpoint } from 'src/composables/useBreakpoint';
 
 // 变量声明
 const $q = useQuasar();
+const { exec: commonExec } = useCommonExec();
 const fileEditRef = ref(null);
 const fileInfoRef = ref(null);
 const listEditRef = ref(null);
@@ -1081,13 +1083,6 @@ const fetchGetSettingInfo = async () => {
     pageOptions.value = view.settingInfo.Pages.map((item) => {
       return Number(item);
     });
-  }
-};
-
-const commonExec = async (exec) => {
-  const { Code, Message } = (await exec) || {};
-  if (Code !== 200) {
-    $q.notify({ message: `${Message}`, position: 'bottom-left' });
   }
 };
 

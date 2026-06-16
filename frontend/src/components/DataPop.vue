@@ -173,11 +173,9 @@ import { QueryAuthorList } from 'components/api/authorAPI';
 import { computed, onMounted, reactive, ref, inject } from 'vue';
 import { useSystemProperty } from 'stores/System';
 import IndexButton from 'components/IndexButton.vue';
+import { useBreakpoint } from 'src/composables/useBreakpoint';
 const $q = useQuasar();
-
-const isMobile = computed(() => {
-  return $q?.platform.is.mobile;
-});
+const { isMobile } = useBreakpoint();
 
 const tagPanelStyle = computed(() => ({
   padding: isMobile.value ? '6px 4px' : '12px',

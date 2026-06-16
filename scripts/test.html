@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>摄像头直播示例</title>
+  <style>
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      margin: 20px
+    }
+
+    video {
+      width: 100%;
+      max-width: 720px;
+      background: #000
+    }
+
+    .controls {
+      margin-top: 10px
+    }
+  </style>
+</head>
+
+<body>
+  <h3>摄像头直播（本地预览）</h3>
+  <video id="preview" playsinline autoplay muted></video>
+  <div class="controls">
+    <button id="startBtn">开始</button>
+    <button id="stopBtn" disabled>停止</button>
+    <select id="devices"></select>
+  </div>
+
+  <script>
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const preview = document.getElementById('preview');
+    const devicesSelect = document.getElementById('devices');
+    let stream = null;
+
+    async function listCameras() {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        devicesSelect.innerHTML = '';
+        devices.filter(d => d.kind === 'videoinput').forEach(d => {
+          console.log('Found camera:', d.label, d.deviceId);
+          const opt = document.createElement('option');
+          opt.value = d.deviceId;
+          opt.text = d.label || `摄像头 ${devicesSelect.length + 1}`;
+          devicesSelect.appendChild(opt);
+        });
+      } catch (e) { console.error(e) }
+    }
+
+    async function start() {
+      if (stream) { stop(); }
+      const constraints = { video: { deviceId: devicesSelect.value ? { exact: devicesSelect.value } : undefined }, audio: false };
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        preview.srcObject = stream;
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+      } catch (err) {
+        alert('无法访问摄像头: ' + err.message);
+      }
+    }
+
+    function stop() {
+      if (!stream) return;
+      stream.getTracks().forEach(t => t.stop());
+      preview.srcObject = null;
+      stream = null;
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+    }
+
+    startBtn.addEventListener('click', start);
+    stopBtn.addEventListener('click', stop);
+    devicesSelect.addEventListener('change', () => { if (stream) start(); });
+
+    // on load, request permission to enumerate device labels
+    (async () => {
+      try {
+        await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      } catch (e) { }
+      await listCameras();
+    })();
+  </script>
+</body>
+
+</html>

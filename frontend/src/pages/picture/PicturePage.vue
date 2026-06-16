@@ -249,6 +249,7 @@ import { QueryAuthorList } from '../../components/api/authorAPI';
 import { useSystemProperty } from '../../stores/System';
 import { useRouter } from 'vue-router';
 import PictureInfo from './components/PictureInfo.vue';
+import { useBreakpoint } from 'src/composables/useBreakpoint';
 
 const scrollTop = () => {
   const target = document.getElementsByClassName('scroll');
@@ -260,11 +261,8 @@ const scrollTop = () => {
 const isLoading = ref(false);
 
 const { push } = useRouter();
+const { isMobile } = useBreakpoint();
 const fileEditRef = ref(null);
-
-const isMobile = computed(() => {
-  return window.innerWidth < 768;
-});
 
 const systemProperty = useSystemProperty();
 
