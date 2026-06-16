@@ -121,7 +121,7 @@
                 <div class="absolute-top-left q-ma-xs top-row">
                   <span v-if="item.SizeStr" class="chip-tag overlay-chip size-chip">{{ item.SizeStr }}</span>
                   <span v-if="item.MTime" class="chip-tag overlay-chip time-chip">{{ timeAgo(item.MTime) }}</span>
-                  <span v-for="tag in item.Tags.slice(0, 10)" :key="tag" class="chip-tag overlay-chip">#{{ tag }}</span>
+                  <span v-for="tag in (item.Tags || []).slice(0, 10)" :key="tag" class="chip-tag overlay-chip">#{{ tag }}</span>
                   <span v-if="item.Tags && item.Tags.length > 10" class="chip-tag overlay-chip">+{{ item.Tags.length - 10 }}</span>
                 </div>
               </div>
