@@ -105,7 +105,7 @@ function generateQr() {
           dark: '#1a1a2e',
           light: '#ffffff',
         },
-      }, (err) => {
+      }, (err: any) => {
         if (err) {
           console.error('QR 生成失败:', err);
         }
