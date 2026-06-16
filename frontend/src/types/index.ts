@@ -74,8 +74,6 @@ export interface SettingInfo {
   EnableLanDiscovery: boolean | null
   NodeName: string
   DiscoveryPeers: string[]
-  LanDiscoveryInterval: number
-  LanDiscoveryTimeout: number
   HardwareAcceleration: boolean
   HardwareAccelMode: string
   EnableTimeScan: boolean

@@ -85,7 +85,6 @@ func BuildAPIRouter() *gin.Engine {
 	router.POST("/api/removePeer", handler.RemoveLanPeer)
 	router.POST("/api/togglePeer", handler.TogglePeer)
 	router.POST("/api/cleanLanPeers", handler.CleanLanPeers)
-	router.POST("/api/toggleLanDiscovery", handler.ToggleLanDiscovery)
 
 	router.GET("/api/transferTasks", handler.GetTransferTask)
 	router.GET("/api/delTransferTasks/:create", handler.GetDelTransferTask)

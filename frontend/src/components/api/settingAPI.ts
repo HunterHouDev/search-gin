@@ -61,11 +61,6 @@ export const CleanLanPeers = async () => {
   return res && res.data;
 };
 
-export const ToggleLanDiscovery = async (enable: boolean) => {
-  const res = await commonAxios().post('/api/toggleLanDiscovery', { enable });
-  return res && res.data;
-};
-
 export const GetShutDown = async () => {
   const res = await commonAxios().get('/api/shutDown');
   return res as unknown;

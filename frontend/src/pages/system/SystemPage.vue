@@ -41,7 +41,7 @@
                 color="green"
                 label="启用集群"
                 left-label
-                @update:model-value="toggleLanDiscovery"
+                @update:model-value="toggleCluster"
               />
             </div>
             <div class="row q-gutter-xs">
@@ -112,12 +112,11 @@
               <div class="text-caption">
                 <div v-if="!cluster.clusterEnabled" class="text-warning">⚠ 集群模式已关闭，请在「本机信息」中开启</div>
                 <div v-else class="text-info">
-                  集群已启用，通过 UDP 组播 (239.255.255.250:10083) 发现节点<br>
-                  • 确保其他节点也已启用集群<br>
-                  • 检查防火墙是否放行 UDP 10083 端口<br>
-                  • 所有节点需在同一网段<br>
-                  • 可手动「添加」节点
-                </div>
+                    集群已启用，通过反向心跳自动发现节点<br>
+                    • 确保其他节点也已启用集群<br>
+                    • 所有节点需在同一网络可达<br>
+                    • 可手动「添加」节点
+                  </div>
               </div>
             </div>
           </q-card-section>
@@ -303,7 +302,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRoute, useRouter } from 'vue-router';
-import { GetSettingInfo, GetIpAddr, GeMemeryLog, GetLocalLog, GetLanPeers, PostSettingInfo, AddLanPeer, RemoveLanPeer, TogglePeer, GetUsers, AddUser, DeleteUser, PingHost, ToggleLanDiscovery } from '../../components/api/settingAPI';
+import { GetSettingInfo, GetIpAddr, GeMemeryLog, GetLocalLog, GetLanPeers, PostSettingInfo, AddLanPeer, RemoveLanPeer, TogglePeer, GetUsers, AddUser, DeleteUser, PingHost } from '../../components/api/settingAPI';
 import { useSystemProperty } from '../../stores/System';
 
 const systemProperty = useSystemProperty();
@@ -663,12 +662,10 @@ const addManualPeer = async () => {
   }
 };
 
-const toggleLanDiscovery = async (val: boolean) => {
+const toggleCluster = async (val: boolean) => {
   try {
     view.settingInfo.enableLanDiscovery = val;
     await PostSettingInfo(view.settingInfo);
-    // 即时生效，无需重启
-    await ToggleLanDiscovery(val);
     cluster.clusterEnabled = val;
     $q.notify({
       message: val ? '集群模式已开启' : '集群模式已关闭',

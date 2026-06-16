@@ -56,8 +56,8 @@ func main() {
 	service.InitSearchPool()
 	service.StartScanQueue()
 
-	// ── 5.5 启动局域网节点发现 ──
-	service.StartLanDiscovery()
+	// ── 5.5 初始化节点管理器（手动添加 + 反向心跳自动发现） ──
+	service.InitPeerManager()
 
 	// ── 6. 启动 Torrent 清理 ──
 	closeTorrent := service.StartTorrentCleanup(tempDir)

@@ -10,10 +10,10 @@ import (
 
 // OnlineSession 在线会话
 type OnlineSession struct {
-	Username  string    `json:"username"`
-	Role      string    `json:"role"`
-	IP        string    `json:"ip"`
-	LoginTime time.Time `json:"loginTime"`
+	Username    string   `json:"username"`
+	Role        string   `json:"role"`
+	DeviceCount int      `json:"deviceCount"`          // 同账号设备数
+	IPs         []string `json:"ips,omitempty"`         // 各设备 IP
 }
 
 // ChatMessage 聊天消息
@@ -149,21 +149,54 @@ func (h *Hub) Broadcast(msg []byte) {
 	h.broadcast <- msg
 }
 
-// GetOnlineUsers 获取在线用户列表
+// SendToUser 向指定用户的所有设备发送消息
+// 返回发送成功的设备数
+func (h *Hub) SendToUser(username string, msg []byte) int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	count := 0
+	for client := range h.clients {
+		if client.Username == username {
+			client.mu.Lock()
+			err := client.Conn.WriteMessage(websocket.TextMessage, msg)
+			client.mu.Unlock()
+			if err == nil {
+				count++
+			}
+		}
+	}
+	return count
+}
+
+// GetOnlineUsers 获取在线用户列表（按用户名去重合并）
 func (h *Hub) GetOnlineUsers() []OnlineSession {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	users := make([]OnlineSession, 0, len(h.clients))
+	userMap := make(map[string]*OnlineSession)
 	for client := range h.clients {
-		users = append(users, OnlineSession{
-			Username:  client.Username,
-			Role:      client.Role,
-			IP:        client.IP,
-			LoginTime: client.LoginAt,
-		})
+		if entry, ok := userMap[client.Username]; ok {
+			entry.DeviceCount++
+			if client.IP != "" {
+				entry.IPs = append(entry.IPs, client.IP)
+			}
+		} else {
+			entry = &OnlineSession{
+				Username:    client.Username,
+				Role:        client.Role,
+				DeviceCount: 1,
+			}
+			if client.IP != "" {
+				entry.IPs = []string{client.IP}
+			}
+			userMap[client.Username] = entry
+		}
 	}
-	return users
+	result := make([]OnlineSession, 0, len(userMap))
+	for _, entry := range userMap {
+		result = append(result, *entry)
+	}
+	return result
 }
 
 // GetChatHistory 获取聊天历史
