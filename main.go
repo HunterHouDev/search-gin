@@ -100,6 +100,7 @@ func main() {
 	apiRouter.GET("api/restart", func(c *gin.Context) {
 		c.String(200, "正在重启服务器")
 		go func() {
+			defer utils.RecoverPanic()
 			time.Sleep(200 * time.Millisecond)
 			// 先通知旧进程关闭，等待端口释放再启动新进程
 			sigChan <- syscall.SIGTERM

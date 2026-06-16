@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"search-gin/internal/model"
+	"search-gin/pkg/utils"
 	"sort"
 	"strings"
 	"time"
@@ -145,6 +146,7 @@ func (se *searchEngineCore) PageAsync(searchParam model.SearchParam) model.PageR
 	}
 
 	go func() {
+		defer utils.RecoverPanic()
 		se.searchPool.Wait()
 		close(resultChan)
 	}()

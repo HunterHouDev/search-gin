@@ -268,6 +268,7 @@ const open = (item) => {
   const img = new Image(); // 创建一个新的图片对象
   img.crossOrigin = 'anonymous'; // 处理跨域问题
   img.src = view.item.PngUrl; // 设置图片的源地址为base64编码的图片数据
+  img.onerror = () => { console.warn('图片加载失败:', view.item.PngUrl); };
   canvasData.image = img;
 
   img.onload = function () {

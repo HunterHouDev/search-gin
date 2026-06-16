@@ -100,6 +100,7 @@ func (fs *fileService) Walks(baseDir []string, types []string) []model.FileItem 
 	for i := 0; i < dirSize; i++ {
 		go func(dir string) {
 			defer wg.Done()
+			defer utils.RecoverPanic()
 			fs.goWalkWithResult(dir, types, resultChan)
 		}(baseDir[i])
 	}

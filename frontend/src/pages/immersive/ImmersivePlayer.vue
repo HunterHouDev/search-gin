@@ -1242,11 +1242,14 @@ watch(searchDialog, (val) => {
   if (val && searchResults.Data.length === 0) fetchSearch();
 });
 
+// ── 全屏变化处理 ──────────────────────────────────────────────────────────────
+const onFullscreenChange = () => {
+  isFullscreen.value = !!document.fullscreenElement;
+};
+
 // ── 生命周期 ──────────────────────────────────────────────────────────────────
 onMounted(() => {
-  document.addEventListener('fullscreenchange', () => {
-    isFullscreen.value = !!document.fullscreenElement;
-  });
+  document.addEventListener('fullscreenchange', onFullscreenChange);
   document.addEventListener('keydown', handleKeydown);
   document.addEventListener('contextmenu', onContextMenu);
 });
@@ -1255,6 +1258,7 @@ onUnmounted(() => {
   endSeek();
   if (audioContext) audioContext.close();
   torrentCleanup();
+  document.removeEventListener('fullscreenchange', onFullscreenChange);
   document.removeEventListener('keydown', handleKeydown);
   document.removeEventListener('contextmenu', onContextMenu);
 });

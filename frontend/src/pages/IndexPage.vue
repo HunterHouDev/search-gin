@@ -235,7 +235,7 @@
 
 <script setup>
 import { useQuasar } from 'quasar';
-import { onMounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import SkeletonLoader from 'components/SkeletonLoader.vue';
 import {
@@ -262,6 +262,7 @@ const seriesData = ref([]);
 const scanTime = ref([]);
 const currentDiv = ref('tagDiv');
 const isLoading = ref(true);
+let inter;
 
 onKeyStroke(['`'], () => {
   refreshIndex();
@@ -342,13 +343,16 @@ const loadScanTime = async () => {
   });
 };
 onMounted(() => {
-  const inter = setInterval(() => {
+  inter = setInterval(() => {
     if (!tableData.value || tableData.value.length === 0) {
       loadTypeSize();
     } else {
       clearInterval(inter);
     }
   }, 5000);
+});
+onUnmounted(() => {
+  if (inter) clearInterval(inter);
 });
 
 const openThis = async (data) => {

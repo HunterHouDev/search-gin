@@ -1366,7 +1366,7 @@ const pullNextPage = async (n) => {
     try {
       const data = await SearchAPI(view.queryParam, signal);
       if (signal?.aborted) return;
-      view.resultData.Data.push(...data.Data);
+      view.resultData.Data.push(...(data?.Data || []));
     } catch (e) {
       if (e?.name === 'CanceledError' || e?.name === 'AbortError') return;
       console.error('分页请求异常:', e);
