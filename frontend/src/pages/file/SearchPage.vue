@@ -424,6 +424,9 @@
                           e.returnValue = false;
                         }
                       " title="画中画" />
+                    <!-- 扫码下载按钮 -->
+                    <q-btn round flat ripple glossy color="teal" :size="btnSize('footer')" icon="qr_code_scanner"
+                      @click="qrDownloadRef.open(item)" title="扫码" v-if="showButton('扫码')" />
                   </div>
                   <div class="btn-row">
                     <!-- 编辑按钮 -->
@@ -447,6 +450,9 @@
                     <!-- 删除按钮 -->
                     <q-btn round ripple glossy :size="btnSize('footer')" color="negative" icon="delete" title="删除"
                       @click="confirmDelete(item)" />
+                    <!-- 扫码按钮 -->
+                    <q-btn round ripple glossy :size="btnSize('footer')" color="teal" icon="qr_code_scanner" title="扫码"
+                      @click="openQrDownload(item)" v-if="showButton('扫码')" />
                   </div>
                 </div>
 
@@ -519,6 +525,10 @@
               </div>
             </q-card>
           </div>
+
+          <!-- 扫码下载弹窗 -->
+          <QrDownloadDialog v-model="qrDownloadRef" :item="qrDownloadItem" />
+
           <!-- 页面滚动器 -->
           <q-page-scroller position="bottom-right" :scroll-offset="150" :offset="[18, 100]">
             <q-btn fab icon="keyboard_arrow_up" color="accent" />
@@ -707,6 +717,7 @@ import FileInfo from './components/FileInfoDialog.vue';
 import ListEdit from './components/ListEditDialog.vue';
 import Screenshot from './components/ScreenshotDialog.vue';
 import InnerVideoPlayer from './components/VideoPlayerInPicture.vue';
+import QrDownloadDialog from 'components/QrDownloadDialog.vue';
 
 import { onKeyStroke, useClipboard, useDebounceFn } from '@vueuse/core';
 import { getTimeAgoShort as getTimeAgo } from 'src/utils/date';
@@ -723,6 +734,7 @@ const listEditRef = ref(null);
 const videoRef = ref(null);
 const indexButton = ref(null);
 const fileCutImageRef = ref(null);
+const qrDownloadRef = ref(null);
 const isMoreLoading = ref(false);
 const isFetching = ref(false);
 const pageOptions = ref([10, 12, 20, 30, 50, 200]);
@@ -1073,6 +1085,13 @@ const confirmDelete = (item) => {
       refreshDebounceFn(item);
     });
   });
+};
+
+const qrDownloadItem = ref(null);
+
+const openQrDownload = (item) => {
+  qrDownloadItem.value = item;
+  qrDownloadRef.value = true;
 };
 
 const fetchGetSettingInfo = async () => {
