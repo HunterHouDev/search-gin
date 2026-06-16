@@ -1376,8 +1376,13 @@ const open = (data) => {
   fetchSearch();
   setTimeout(() => {
     console.log('sortable');
-    console.log(document.getElementById('listRef'));
-    new Sortable(document.getElementById('listRef'), {
+    const listEl = document.getElementById('listRef');
+    if (!listEl) {
+      console.warn('listRef element not found, skipping Sortable init');
+      return;
+    }
+    console.log(listEl);
+    new Sortable(listEl, {
       animation: 150,
       onEnd: function (evt) {
         console.log(evt.oldIndex, evt.newIndex);

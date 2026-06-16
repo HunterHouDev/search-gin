@@ -447,6 +447,7 @@ const drawCanvas = () => {
 
 const scalePng = () => {
   const mycanvas = document.getElementById('mycanvas'); // 获取canvas元素的引用
+  if (!mycanvas) return;
   mycanvas.removeEventListener('mousemove', mouseMove);
   mycanvas.removeEventListener('mouseup', finishedPosition);
   mycanvas.removeEventListener('mousedown', startPosition);

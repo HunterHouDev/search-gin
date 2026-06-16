@@ -657,7 +657,7 @@ function switchToItem(index) {
   loadVideo(
     src,
     item.Title || item.Name || item.Code || `#${index + 1}`,
-    item.jpgUrl,
+    item.JpgUrl,
     item
   );
   searchDialog.value = false;
