@@ -17,7 +17,7 @@
 .card-media {
   position: relative;
   overflow: hidden;
-  background: var(--card-bg, #F1F5F9);
+  background: var(--card-bg, #F6F7F9);
 }
 
 /* 顶部标签栏（MovieType + Code） */
@@ -292,14 +292,14 @@
 /* ── 暗色模式适配 ────────────────────────────────── */
 
 .body--dark .card-search {
-  background: #1B2336;
-  border-color: #272F42;
+  background: #181B27;
+  border-color: #1E2130;
 }
 .body--dark .card-search:hover {
   border-color: var(--accent-color, #22C55E);
 }
 .body--dark .card-media {
-  background: #0F172A;
+  background: #0F1117;
 }
 .body--dark .card-author {
   color: #64748B;

@@ -712,6 +712,7 @@ import DataPop from 'components/DataPop.vue';
 import IndexButton from 'components/IndexButton.vue';
 import TagPop from 'components/TagPop.vue';
 import { useSystemProperty } from 'stores/System';
+import { useAppStore } from 'stores/app';
 import FileEdit from './components/FileEditDialog.vue';
 import FileInfo from './components/FileInfoDialog.vue';
 import ListEdit from './components/ListEditDialog.vue';
@@ -908,7 +909,8 @@ const currentThemeLabel = computed(() => {
 });
 
 const setTheme = (theme) => {
-  systemProperty.theme = theme;
+  const appStore = useAppStore();
+  appStore.setTheme(theme);
   const html = document.documentElement;
   if (theme === 'natural') {
     html.classList.add('theme-natural');

@@ -8,9 +8,9 @@
 <script setup lang="ts">
 import { onMounted, watch } from 'vue';
 import ParticleBackground from 'components/ParticleBackground.vue';
-import { useSystemProperty } from './stores/System';
+import { useAppStore } from './stores/app';
 
-const systemProperty = useSystemProperty();
+const appStore = useAppStore();
 
 // 设置主题类
 const applyTheme = (theme: string) => {
@@ -24,13 +24,27 @@ const applyTheme = (theme: string) => {
 
 // 监听主题变化
 watch(
-  () => systemProperty.theme,
+  () => appStore.theme,
   (newTheme) => applyTheme(newTheme),
   { immediate: true }
 );
 
 onMounted(() => {
-  applyTheme(systemProperty.theme);
+  // 迁移旧主题设置：如果 useAppStore 是默认值但旧 systemProperty localStorage 有主题记录
+  if (appStore.theme === 'star') {
+    const raw = localStorage.getItem('systemProperty');
+    if (raw) {
+      try {
+        const old = JSON.parse(raw);
+        if (old.theme && old.theme !== 'star') {
+          appStore.setTheme(old.theme);
+          document.body.classList.add('app-ready');
+          return;
+        }
+      } catch { /* ignore */ }
+    }
+  }
+  applyTheme(appStore.theme);
   // 移除加载完成标识
   document.body.classList.add('app-ready');
 });

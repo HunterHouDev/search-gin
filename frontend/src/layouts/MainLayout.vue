@@ -134,15 +134,15 @@ const view = reactive({
 // 动态 header 样式 — Design System
 const headerStyle = computed(() => {
   return systemProperty.theme === 'natural'
-    ? 'background: #1B4336 !important; color: #F8FAFC; border-bottom: 1px solid #272F42;'
-    : 'background: #121316 !important; color: #F8FAFC; border-bottom: 1px solid #272F42;';
+    ? 'background: #F6F7F9 !important; color: #1A1D29; border-bottom: 1px solid rgba(90,95,122,0.06);'
+    : 'background: #181B27 !important; color: #E8EAF2; border-bottom: 1px solid rgba(139,143,168,0.1);';
 });
 
 // 动态抽屉样式 — Design System: bg-shift, no borders
 const drawerStyle = computed(() => {
   return systemProperty.theme === 'natural'
-    ? 'background-color: #F1F5F9; color: #0F172A;'
-    : 'background-color: #0F172A; color: #F8FAFC;';
+    ? 'background-color: #F6F7F9; color: #1A1D29;'
+    : 'background-color: #181B27; color: #E8EAF2;';
 });
 
 // 响应式抽屉宽度
@@ -324,22 +324,22 @@ const essentialLinks = [
 
 // 自然模式下抽屉背景色
 .drawer-natural {
-  background-color: #F1F5F9 !important;
+  background-color: #F6F7F9 !important;
 }
 
 // 自然模式下抽屉 item 文字色
 .drawer-natural ::deep(.q-item) {
-  color: #0F172A !important;
+  color: #1A1D29 !important;
 }
 
 // 自然模式下抽屉中按钮颜色覆盖
 .drawer-natural ::deep(.q-btn) {
-  color: #0F172A !important;
+  color: #1A1D29 !important;
 }
 
 // 自然模式下 header 中 EssentialLink 按钮文字颜色
 .theme-natural .q-header ::deep(.q-btn) {
-  color: #0F172A !important;
+  color: #1A1D29 !important;
 }
 
 // 自然模式下 header 中当前页面的 EssentialLink 按钮保持红色

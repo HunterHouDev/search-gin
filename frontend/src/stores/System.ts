@@ -3,6 +3,7 @@ import { FileModel, FileQuery } from 'components/model/File';
 import { SettingInfo } from 'components/model/Setting';
 import { defaultVideoOffset, defaultVideoWidth } from 'components/utils';
 import recordWrapper from 'components/model/RecordWrapper';
+import { useAppStore } from './app';
 
 export const useSystemProperty = defineStore({
   id: 'system',
@@ -38,7 +39,6 @@ export const useSystemProperty = defineStore({
     pictureInPictureVideoWidth: defaultVideoWidth,
     pictureInPictureVideoWidthFullBefore: defaultVideoWidth,
     isFullscreen: false,
-    theme: 'star', // 'star' 星空主题, 'natural' 自然主题
     isElectron: false,
     addPlayingTagGoNext: true,
     goAuthorNewWidow: false,
@@ -95,6 +95,8 @@ export const useSystemProperty = defineStore({
     videoPlayTimes: {} as Record<string, number>,
   }),
   getters: {
+    // 主题状态委托给 useAppStore（单一数据源）
+    theme: () => useAppStore().theme,
     getSettingInfo(this) {
       return this.SettingInfo;
     },

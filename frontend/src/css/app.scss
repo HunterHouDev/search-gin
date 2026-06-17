@@ -10,7 +10,7 @@
   --font-mono: 'JetBrains Mono', monospace;
 }
 
-// ============== Design System — Dark Mode (默认) ==============
+// ============== Design System — Dark Mode (默认) 星空 ==============
 // Minimalism & Swiss Style · Developer Tool / IDE
 :root {
   --theme: 'star';
@@ -21,16 +21,29 @@
   --q-primary-lighter: #475569;
   --q-primary-dark: #0F172A;
 
-  // Surface / Background
-  --q-bg-dark: #0F172A;
-  --q-bg-darker: #0F172A;
-  --q-bg-card: #1B2336;
-  --q-bg-input: #1B2336;
+  // Surface / Background — 画布精确还原
+  --q-bg-page: #0F1117;
+  --q-bg-dark: #0F1117;
+  --q-bg-darker: #0F1117;
+  --q-bg-card: #181B27;
+  --q-bg-input: #1E2130;
+  --q-bg-hover: #2A2F45;
+  --q-bg-panel: rgba(24, 27, 39, 0.85);
+
+  // 星点纹理背景 (纯 CSS，零图片体积)
+  --q-bg-stars: radial-gradient(0.5px 0.5px at 10% 20%, rgba(200, 210, 255, 0.18), transparent),
+                radial-gradient(0.5px 0.5px at 30% 60%, rgba(190, 200, 250, 0.12), transparent),
+                radial-gradient(0.5px 0.5px at 55% 15%, rgba(210, 220, 255, 0.15), transparent),
+                radial-gradient(0.5px 0.5px at 75% 45%, rgba(180, 195, 245, 0.1), transparent),
+                radial-gradient(0.5px 0.5px at 90% 8%, rgba(200, 210, 255, 0.16), transparent),
+                radial-gradient(0.5px 0.5px at 15% 85%, rgba(195, 205, 250, 0.1), transparent),
+                radial-gradient(0.5px 0.5px at 65% 80%, rgba(210, 220, 255, 0.12), transparent),
+                radial-gradient(0.5px 0.5px at 85% 70%, rgba(185, 195, 245, 0.09), transparent);
 
   // Text
   --q-text-primary: rgba(255, 255, 255, 0.9);
   --q-text-secondary: #0F172A;
-  --q-text-muted: #64748B;
+  --q-text-muted: #8B8FA8;
 
   // Border
   --q-border: #475569;
@@ -53,7 +66,7 @@
   --q-focus-ring: rgba(34, 197, 94, 0.5);
 }
 
-// ============== Design System — Light Mode ==============
+// ============== Design System — Light Mode 自然 ==============
 :root.theme-natural {
   --theme: 'natural';
   
@@ -63,11 +76,17 @@
   --q-primary-lighter: #475569;
   --q-primary-dark: #0F172A;
 
-  // Surface
+  // Surface — 画布精确还原
+  --q-bg-page: #FFFFFF;
   --q-bg-dark: #FFFFFF;
-  --q-bg-darker: #F1F5F9;
-  --q-bg-card: #F1F5F9;
-  --q-bg-input: #F1F5F9;
+  --q-bg-darker: #F8F9FB;
+  --q-bg-card: #F6F7F9;
+  --q-bg-input: #FFFFFF;
+  --q-bg-hover: #EDEEF2;
+  --q-bg-panel: rgba(246, 247, 249, 0.92);
+
+  // 微渐变背景 (纯 CSS)
+  --q-bg-gradient: linear-gradient(165deg, #FFFFFF 0%, #F8F9FB 50%, #FFFFFF 100%);
 
   // Text — inverted from dark
   --q-text-primary: #0F172A;
@@ -101,10 +120,15 @@
 }
 
 body {
-  background-color: var(--q-bg-darker);
+  background-color: var(--q-bg-page);
+  background-image: var(--q-bg-stars);
   color: var(--q-text-primary);
   font-family: var(--font-body);
   transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+.theme-natural body {
+  background-image: var(--q-bg-gradient);
 }
 
 // Typography: headings use JetBrains Mono
