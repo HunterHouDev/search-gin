@@ -448,7 +448,7 @@
                     <q-btn round ripple glossy :size="btnSize('footer')" color="negative" icon="delete" title="删除"
                       @click="confirmDelete(item)" />
                     <!-- 扫码按钮 -->
-                    <q-btn round ripple glossy :size="btnSize('footer')" color="teal" icon="qr_code_scanner" title="扫码"
+                    <q-btn round ripple glossy :size="btnSize('footer')" color="teal" icon="qr_code_scanner" title="扫码" v-if="!isSmall"
                       @click="openQrDownload(item)" />
                     <!-- 更多按钮 -->
                     <q-btn round ripple glossy :size="btnSize('footer')" color="grey-7" icon="more_vert" title="更多">
@@ -466,7 +466,7 @@
                             <q-item-section avatar><q-icon name="edit" color="grey-8" /></q-item-section>
                             <q-item-section>编辑</q-item-section>
                           </q-item>
-                          <q-item clickable v-close-popup @click="openFolder(item)" v-if="isSmall">
+                          <q-item clickable v-close-popup @click="openFolder(item)" v-if="!isSmall">
                             <q-item-section avatar><q-icon name="open_in_new" color="primary" /></q-item-section>
                             <q-item-section>文件夹</q-item-section>
                           </q-item>
@@ -485,7 +485,7 @@
                             <q-item-section avatar><q-icon name="delete" color="negative" /></q-item-section>
                             <q-item-section>删除</q-item-section>
                           </q-item>
-                          <q-item clickable v-close-popup @click="openQrDownload(item)">
+                          <q-item clickable v-close-popup @click="openQrDownload(item)" v-if="!isSmall">
                             <q-item-section avatar><q-icon name="qr_code_scanner" color="teal" /></q-item-section>
                             <q-item-section>扫码</q-item-section>
                           </q-item>
