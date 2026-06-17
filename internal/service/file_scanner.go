@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"search-gin/internal/model"
+	"search-gin/internal/sse"
 	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 	"sync"
@@ -78,6 +79,10 @@ func (fs *fileService) ScanAll() int {
 	consts.Sp.CompletedDirs = consts.Sp.TotalDirs
 	consts.Sp.CurrentPhase = "扫描完成"
 	consts.SpMu.Unlock()
+
+	sse.BroadcastEvent("scan_complete", map[string]interface{}{
+		"dirCount": dirCount,
+	})
 
 	return dirCount
 }

@@ -764,6 +764,15 @@ import { getTimeAgoShort as getTimeAgo } from 'src/utils/date';
 import { useSortOptions } from 'src/composables/useSortOptions';
 import { useCommonExec } from 'src/composables/useCommonExec';
 import { useBreakpoint } from 'src/composables/useBreakpoint';
+import { useSSE } from 'src/composables/useSSE';
+
+// SSE 实时更新
+const handleSSEEvent = (event) => {
+  if (event.Type === 'file_changed') {
+    fetchSearch();
+  }
+};
+useSSE(handleSSEEvent);
 
 // 变量声明
 const $q = useQuasar();
@@ -774,7 +783,6 @@ const listEditRef = ref(null);
 const videoRef = ref(null);
 const indexButton = ref(null);
 const fileCutImageRef = ref(null);
-const qrDownloadRef = ref(null);
 const isMoreLoading = ref(false);
 const isFetching = ref(false);
 const pageOptions = ref([10, 12, 20, 30, 50, 200]);

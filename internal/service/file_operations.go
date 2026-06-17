@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"search-gin/internal/model"
+	"search-gin/internal/sse"
 	"search-gin/pkg/utils"
 	"strings"
 )
@@ -48,6 +49,11 @@ func (fs *searchService) SetMovieType(movie model.FileItem, movieType string) ut
 		updated := replaceIndexAfterRename(movie.Id, newPaths[0], movie.BaseDir)
 		res := utils.NewSuccessByMsg("执行成功")
 		res.Data = updated
+		sse.BroadcastEvent("file_changed", map[string]interface{}{
+			"action": "type_change",
+			"id":     movie.Id,
+			"path":   newPaths[0],
+		})
 		return res
 	}
 
@@ -74,6 +80,11 @@ func (fs *searchService) SetMovieType(movie model.FileItem, movieType string) ut
 	updated := replaceIndexAfterRename(movie.Id, newFilePath, movie.BaseDir)
 	res := utils.NewSuccessByMsg("执行成功")
 	res.Data = updated
+	sse.BroadcastEvent("file_changed", map[string]interface{}{
+		"action": "type_change",
+		"id":     movie.Id,
+		"path":   newFilePath,
+	})
 	return res
 }
 
@@ -109,6 +120,11 @@ func (fs *searchService) AddTag(id string, tag string) utils.Result {
 		updated := replaceIndexAfterRename(movie.Id, newTagPath, movie.BaseDir)
 		res := utils.NewSuccessByMsg("执行成功")
 		res.Data = updated
+		sse.BroadcastEvent("file_changed", map[string]interface{}{
+			"action": "tag_change",
+			"id":     movie.Id,
+			"path":   newTagPath,
+		})
 		return res
 	}
 
@@ -130,6 +146,11 @@ func (fs *searchService) AddTag(id string, tag string) utils.Result {
 	updated := replaceIndexAfterRename(movie.Id, newFilePath, movie.BaseDir)
 	res := utils.NewSuccessByMsg("执行成功")
 	res.Data = updated
+	sse.BroadcastEvent("file_changed", map[string]interface{}{
+		"action": "tag_change",
+		"id":     movie.Id,
+		"path":   newFilePath,
+	})
 	return res
 }
 
@@ -245,6 +266,14 @@ func (fs *searchService) Rename(movie model.FileEdit) utils.Result {
 	}
 	updated := replaceIndexAfterRename(movieLib.Id, newPath, movieLib.BaseDir)
 	res.Data = updated
+
+	sse.BroadcastEvent("file_changed", map[string]interface{}{
+		"action": "rename",
+		"id":     movie.Id,
+		"old":    oldPath,
+		"new":    newPath,
+	})
+
 	return res
 }
 
@@ -274,6 +303,12 @@ func (fs *searchService) Move(id string, newDir string, title string) utils.Resu
 	renameCompanionFiles(movieLib, newDir+utils.PathSeparator+title)
 	updated := replaceIndexAfterRename(id, newPath, movieLib.BaseDir)
 	res.Data = updated
+	sse.BroadcastEvent("file_changed", map[string]interface{}{
+		"action": "move",
+		"id":     id,
+		"old":    oldPath,
+		"new":    newPath,
+	})
 	return res
 }
 
@@ -281,6 +316,11 @@ func (fs *searchService) Move(id string, newDir string, title string) utils.Resu
 func (fs *searchService) Delete(id string) {
 	file := fs.FindOne(id)
 	FileApp.DeleteOne(file.DirPath, file.Title)
+	sse.BroadcastEvent("file_changed", map[string]interface{}{
+		"action": "delete",
+		"id":     id,
+		"path":   file.Path,
+	})
 }
 
 // ── 私有辅助函数 ──────────────────────────────────────────────────

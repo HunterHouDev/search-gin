@@ -133,6 +133,9 @@ func BuildAPIRouter() *gin.Engine {
 	router.GET("/api/localLog", handler.GetLocalLog)
 	router.GET("/api/indexHealth", handler.GetIndexHealthCheck)
 	router.GET("/api/ws", handler.HandleWebSocket)
+	router.GET("/api/events", func(c *gin.Context) {
+		handler.HandleSSE(c.Writer, c.Request)
+	})
 
 	router.GET("/api/cutImage/:id/:typeImage/:downFlag/:start", handler.GetCutImage)
 
