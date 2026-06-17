@@ -1336,11 +1336,13 @@ const pictureRightClick = async (item, e) => {
 };
 
 const refreshDebounceFn = async (item, delayMs = 1000) => {
-  await indexButton.value.refreshIndex(item);
-  const timer = setTimeout(async () => {
-    await fetchSearch();
-    clearTimeout(timer);
-  }, delayMs);
+  // handleSSEEvent等待消息自动更新,当前功能暂时关闭
+  console.log('refreshDebounceFn', item);
+  // await indexButton.value.refreshIndex(item);
+  // const timer = setTimeout(async () => {
+  //   await fetchSearch();
+  //   clearTimeout(timer);
+  // }, delayMs);
 };
 
 const searchKeyword = async (keyword) => {
