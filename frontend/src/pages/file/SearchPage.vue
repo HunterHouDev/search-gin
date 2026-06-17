@@ -408,8 +408,8 @@
                 <div>
                   <div class="btn-row">
                     <!-- 播放按钮 -->
-                    <q-btn round ripple flat glossy color="white  " :size="btnSize('footer')" icon="play_circle_outline"
-                      @click="playBySystem(item)" title="播放" v-if="showButton('播放') && !isSmall" />
+                    <q-btn round ripple flat glossy color="white" :size="btnSize('footer')" icon="play_circle_outline"
+                      @click="playBySystem(item)" title="播放" v-if="!isSmall" />
                     <!-- 单页播放按钮 -->
                     <q-btn round flat ripple glossy color="yellow" :size="btnSize('footer')" icon="fullscreen"
                       title="单页播放" @click="playByPage(item)" />
@@ -424,19 +424,16 @@
                           e.returnValue = false;
                         }
                       " title="画中画" />
-                    <!-- 扫码下载按钮 -->
-                    <q-btn round flat ripple glossy color="teal" :size="btnSize('footer')" icon="qr_code_scanner"
-                      @click="qrDownloadRef.open(item)" title="扫码" v-if="showButton('扫码')" />
                   </div>
-                  <div class="btn-row">
+                  <div class="btn-row btn-row-responsive">
                     <!-- 编辑按钮 -->
                     <q-btn round ripple glossy :size="btnSize('footer')" color="grey-8" icon="edit" @click="
                       view.currentDataInEditor = item;
                     fileEditRef.open(item);
-                    " v-if="showButton('编辑')" title="编辑" style="box-shadow: 0 2px 6px rgba(128, 128, 128, 0.2)" />
+                    " title="编辑" style="box-shadow: 0 2px 6px rgba(128, 128, 128, 0.2)" />
                     <!-- 文件夹按钮 -->
                     <q-btn round ripple glossy :size="btnSize('footer')" color="primary" icon="open_in_new"
-                      @click="openFolder(item)" v-if="showButton('文件夹') && !isSmall" title="文件夹" />
+                      @click="openFolder(item)" v-if="!isSmall" title="文件夹" />
                     <!-- 网搜按钮 -->
                     <q-btn round ripple glossy :size="btnSize('footer')" color="brown-5" icon="ti-search" title="网搜"
                       @click="searchCode(item)" />
@@ -452,7 +449,49 @@
                       @click="confirmDelete(item)" />
                     <!-- 扫码按钮 -->
                     <q-btn round ripple glossy :size="btnSize('footer')" color="teal" icon="qr_code_scanner" title="扫码"
-                      @click="openQrDownload(item)" v-if="showButton('扫码')" />
+                      @click="openQrDownload(item)" />
+                    <!-- 更多按钮 -->
+                    <q-btn round ripple glossy :size="btnSize('footer')" color="grey-7" icon="more_vert" title="更多">
+                      <q-menu
+                        anchor="top left"
+                        self="bottom left"
+                        transition-show="jump-down"
+                        transition-hide="jump-up"
+                      >
+                        <q-list style="min-width: 120px">
+                          <q-item clickable v-close-popup @click="
+                            view.currentDataInEditor = item;
+                          fileEditRef.open(item);
+                          ">
+                            <q-item-section avatar><q-icon name="edit" color="grey-8" /></q-item-section>
+                            <q-item-section>编辑</q-item-section>
+                          </q-item>
+                          <q-item clickable v-close-popup @click="openFolder(item)" v-if="isSmall">
+                            <q-item-section avatar><q-icon name="open_in_new" color="primary" /></q-item-section>
+                            <q-item-section>文件夹</q-item-section>
+                          </q-item>
+                          <q-item clickable v-close-popup @click="searchCode(item)">
+                            <q-item-section avatar><q-icon name="ti-search" color="brown-5" /></q-item-section>
+                            <q-item-section>网搜</q-item-section>
+                          </q-item>
+                          <q-item clickable v-close-popup @click="
+                            view.currentDataInEditor = item;
+                          fileCutImageRef.open(item);
+                          ">
+                            <q-item-section avatar><q-icon name="ti-cut" color="black" /></q-item-section>
+                            <q-item-section>截图</q-item-section>
+                          </q-item>
+                          <q-item clickable v-close-popup @click="confirmDelete(item)">
+                            <q-item-section avatar><q-icon name="delete" color="negative" /></q-item-section>
+                            <q-item-section>删除</q-item-section>
+                          </q-item>
+                          <q-item clickable v-close-popup @click="openQrDownload(item)">
+                            <q-item-section avatar><q-icon name="qr_code_scanner" color="teal" /></q-item-section>
+                            <q-item-section>扫码</q-item-section>
+                          </q-item>
+                        </q-list>
+                      </q-menu>
+                    </q-btn>
                   </div>
                 </div>
 
@@ -873,10 +912,6 @@ const suggestions = computed(() => {
   return systemProperty.getSuggestions;
 });
 
-const listButtons = computed(() => {
-  return view.settingInfo.Buttons;
-});
-
 const reg = /\w+[-_]\d+/;
 
 const scrollTop = () => {
@@ -996,13 +1031,6 @@ const listEditCallback = (data) => {
   if (settingInfo) {
     view.settingInfo = settingInfo;
   }
-};
-
-const showButton = (name) => {
-  if (!listButtons.value || listButtons.value.length === 0) {
-    return true;
-  }
-  return listButtons.value.indexOf(name) >= 0;
 };
 
 const simgleWindow = computed(() => {
@@ -1766,6 +1794,15 @@ onUnmounted(() => {
     justify-content: space-between;
     scrollbar-width: 1px;
     scrollbar-color: transparent transparent;
+  }
+
+  .btn-row-responsive {
+    overflow: hidden;
+    gap: 2px;
+
+    .q-btn:last-child {
+      flex-shrink: 0;
+    }
   }
 
   .content-row {

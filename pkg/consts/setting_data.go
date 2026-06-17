@@ -117,9 +117,7 @@ func init() {
 		FileHost:             ":10082",
 		BaseUrl:              "https://www.busjav.blog/",
 		ImageUrl:             "",
-		OMUrl:                "https://www.busjav.blog/",
 		Remark:               "",
-		SystemHtml:           "",
 		Dirs: []string{
 			"e://emby",
 			"e://code",

@@ -13,7 +13,6 @@ class FileModel {
   Title = '';
   Path = '';
   originName = '';
-  listButton: Array<string> | undefined;
 
   fromObject(data: object) {
     Object.assign(this, data);

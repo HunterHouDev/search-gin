@@ -15,12 +15,6 @@
 
     <q-tab-panels v-model="tab" animated>
       <q-tab-panel name="info" class="q-pa-xs">
-        <q-card class="q-mb-sm ">
-          <q-card-section class="q-pa-sm">
-            <div class="text-subtitle2 q-mb-xs">功能介绍</div>
-            <div class="SystemHtml" v-html="view.settingInfo.SystemHtml"></div>
-          </q-card-section>
-        </q-card>
         <q-card class="">
           <q-card-section class="q-pa-sm">
             <div class="text-caption">网络访问：<a :href="view.ipAddr" class="text-primary">{{ view.ipAddr }}</a></div>
@@ -72,7 +66,7 @@
               :columns="peerColumns"
               row-key="id"
               flat
-              
+
               :pagination="{ rowsPerPage: 20 }"
               hide-pagination
               :rows-per-page-options="[0]"
@@ -98,7 +92,7 @@
                 <q-td key="actions" :props="props" class="q-pa-xs">
                   <q-btn flat  icon="wifi_find"  color="primary"
                     :loading="props.row._checking" @click="checkPeer(props.row)" class="q-mr-xs">检测连通</q-btn>
-                  <q-btn flat  :icon="props.row.disabled ? 'play_arrow' : 'pause'" 
+                  <q-btn flat  :icon="props.row.disabled ? 'play_arrow' : 'pause'"
                     :color="props.row.disabled ? 'positive' : 'warning'"
                     @click="togglePeer(props.row)" class="q-mr-xs">{{ props.row.disabled ? '启用' : '禁用' }}</q-btn>
                   <q-btn flat  icon="delete"  color="negative"
@@ -271,7 +265,7 @@
             <q-input v-model="newPeer.filePort" label="文件端口" placeholder="10082"  outlined style="max-width: 130px" />
           </div>
           <div class="row items-center q-gutter-xs">
-            <q-btn  outline 
+            <q-btn  outline
               :color="ipTestResult === true ? 'positive' : (ipTestResult === false ? 'negative' : 'grey')"
               :icon="peerTestStatus === 'testing' ? 'sync' : (ipTestResult === true ? 'check_circle' : (ipTestResult === false ? 'cancel' : 'computer'))"
               :loading="peerTestStatus === 'testing' && !portTestDone"
@@ -279,7 +273,7 @@
               @click="testIPConnection">
               {{ peerTestStatus === 'testing' && !portTestDone ? 'IP检测中...' : (ipTestResult === true ? 'IP可达' : (ipTestResult === false ? 'IP不可达' : '检测IP')) }}
             </q-btn>
-            <q-btn  outline 
+            <q-btn  outline
               :color="portTestResult === true ? 'positive' : (portTestResult === false ? 'negative' : 'grey')"
               :icon="peerTestStatus === 'testing' && portTestDone ? 'sync' : (portTestResult === true ? 'check_circle' : (portTestResult === false ? 'cancel' : 'router'))"
               :loading="peerTestStatus === 'testing' && portTestDone"
@@ -752,12 +746,6 @@ onUnmounted(() => {
 
 .text-wrap {
   word-break: break-all;
-}
-
-.SystemHtml {
-  padding: 0;
-  margin: 0;
-  color: var(--q-text-primary);
 }
 
 .log-list {

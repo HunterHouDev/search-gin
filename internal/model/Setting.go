@@ -15,10 +15,8 @@ type Setting struct {
 	CutThenDelete  bool
 	SelfPath       string
 	BaseUrl        string
-	OMUrl          string
 	ImageUrl       string
 	Remark         string
-	SystemHtml     string
 
 	SystemPlayerVolumn string
 	SystemPlayerWidth  string
@@ -42,10 +40,10 @@ type Setting struct {
 	FileHost       string
 
 	// 多节点配置
-	NodeName             string   `json:"nodeName"`             // 本机节点别名，用于多节点下标识机器
-	EnableLanDiscovery   *bool    `json:"enableLanDiscovery"`   // 是否启用集群发现，nil 表示未配置（默认启用）
-	DiscoveryPeers       []string `json:"discoveryPeers"`       // 手动指定节点列表 "ip:port"
+	NodeName           string   `json:"nodeName"`           // 本机节点别名，用于多节点下标识机器
+	EnableLanDiscovery *bool    `json:"enableLanDiscovery"` // 是否启用集群发现，nil 表示未配置（默认启用）
+	DiscoveryPeers     []string `json:"discoveryPeers"`     // 手动指定节点列表 "ip:port"
 
 	// 普通用户列表（超管已代码写死，不在配置中）
-	Users          []User `json:"users"`
+	Users []User `json:"users"`
 }

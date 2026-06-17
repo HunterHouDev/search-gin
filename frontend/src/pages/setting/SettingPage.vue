@@ -1,378 +1,406 @@
 <template>
-  <q-layout
-    view="lHh lpr lFf"
-    container
-    style="height: 93vh"
-    class="shadow-2 rounded-borders"
-  >
-    <!-- 头部 -->
-    <q-header
-      elevated
-      class="q-gutter-xs flex justify-center bg-gray"
-      style="
-        backdrop-filter: blur(10px);
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        border-bottom: 1px solid var(--q-border);
-      "
+  <div class="setting-page">
+    <!-- 顶部 Tab -->
+    <q-tabs
+      v-model="mainTab"
+      class="main-tabs bg-black text-white"
+      align="justify"
+      :active-color="systemProperty.theme === 'natural' ? 'green' : 'white'"
+      :indicator-color="systemProperty.theme === 'natural' ? 'green' : 'white'"
     >
-      <q-tabs
-        v-model="tab"
-         class="q-mb-xs bg-black text-white w100"
-        align="justify"
-        :active-color="systemProperty.theme === 'natural' ? 'green' : 'white'"
-        :indicator-color="systemProperty.theme === 'natural' ? 'green' : 'white'"
-      >
-        <q-tab name="search" label="搜索设置" />
-        <q-tab name="base" label="基础设置" />
-        <q-tab name="note" label="网络设置" />
-        <q-tab name="system" label="系统设置" />
-      </q-tabs>
-    </q-header>
-    <q-page-container class="scroll" style="margin-top: 2.5rem">
-      
-      <q-tab-panels v-model="tab" animated class="compact-panels">
-        <q-tab-panel name="search" class="q-pa-xs">
-          <q-field color="primary" label="定时扫描" stack-label dense>
-            <template v-slot:control>
-              <div class="row q-gutter-md">
-                <q-radio
-                  v-model="view.settingInfo.EnableTimeScan"
-                  checked-icon="task_alt"
-                  unchecked-icon="panorama_fish_eye"
-                  :val="true"
-                  label="开启"
-                />
-                <q-radio
-                  v-model="view.settingInfo.EnableTimeScan"
-                  checked-icon="task_alt"
-                  unchecked-icon="panorama_fish_eye"
-                  :val="false"
-                  label="关闭"
+      <q-tab name="search" label="搜索设置" />
+      <q-tab name="dict" label="数据管理" />
+      <q-tab name="network" label="网络配置" />
+    </q-tabs>
+
+    <div class="setting-layout">
+      <!-- 左侧分类导航 -->
+      <div class="setting-sidebar">
+        <div class="sidebar-tree">
+          <div
+            v-for="group in currentNavGroups"
+            :key="group.name"
+            class="tree-group"
+          >
+            <div
+              class="tree-group-header"
+              @click="toggleGroup(group.name)"
+            >
+              <q-icon
+                :name="expandedGroups[group.name] ? 'expand_more' : 'chevron_right'"
+                size="16px"
+                class="tree-arrow"
+              />
+              <span class="group-label">{{ group.label }}</span>
+            </div>
+            <transition name="expand">
+              <div v-show="expandedGroups[group.name]" class="tree-group-items">
+                <div
+                  v-for="item in group.items"
+                  :key="item.id"
+                  class="tree-item"
+                  :class="{ active: activeSection === item.id }"
+                  @click="scrollToSection(item.id)"
+                >
+                  <span class="item-label">{{ item.label }}</span>
+                </div>
+              </div>
+            </transition>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右侧内容区域 -->
+      <div class="setting-content" ref="contentRef" @scroll="onScroll">
+        <!-- ========== 搜索设置 ========== -->
+        <template v-if="mainTab === 'search'">
+          <!-- 搜索配置 -->
+          <section id="section-search" class="setting-section">
+            <h3 class="section-title">搜索配置</h3>
+
+            <div class="setting-item">
+              <div class="item-info">
+                <div class="item-label">定时扫描</div>
+                <div class="item-hint">开启后将定时扫描文件夹</div>
+              </div>
+              <div class="item-control">
+                <q-toggle v-model="view.settingInfo.EnableTimeScan" color="primary" />
+              </div>
+            </div>
+
+            <div class="setting-item">
+              <div class="item-info">
+                <div class="item-label">扫描目录</div>
+                <div class="item-hint">选择要扫描的文件夹</div>
+              </div>
+              <div class="item-control full-width">
+                <MutiSelector
+                  v-bind:model-value="view.settingInfo.Dirs"
+                  :options="view.settingInfo.DirsLib"
+                  @onchange="(arr) => (view.settingInfo.Dirs = arr)"
                 />
               </div>
-            </template>
-          </q-field>
-          <q-field color="primary" label="转码删除原文件" stack-label dense>
-            <template v-slot:control>
-              <div class="row q-gutter-md">
-                <q-radio
-                  v-model="view.settingInfo.CutThenDelete"
-                  checked-icon="task_alt"
-                  unchecked-icon="panorama_fish_eye"
-                  :val="true"
-                  label="是"
-                />
-                <q-radio
-                  v-model="view.settingInfo.CutThenDelete"
-                  checked-icon="task_alt"
-                  unchecked-icon="panorama_fish_eye"
-                  :val="false"
-                  label="否"
+            </div>
+
+            <div class="setting-item">
+              <div class="item-info">
+                <div class="item-label">视频类型</div>
+                <div class="item-hint">支持的视频文件扩展名</div>
+              </div>
+              <div class="item-control full-width">
+                <MutiSelector
+                  v-bind:model-value="view.settingInfo.VideoTypes"
+                  :options="view.settingInfo.Types"
+                  @onchange="(arr) => (view.settingInfo.VideoTypes = arr)"
                 />
               </div>
-            </template>
-          </q-field>
-          
-          <q-field color="primary" label="系统播放" stack-label dense>
-            <template v-slot:control>
-              <div class="row q-gutter-md">
-                <q-radio
+            </div>
+
+            <div class="setting-item">
+              <div class="item-info">
+                <div class="item-label">图片类型</div>
+                <div class="item-hint">支持的图片文件扩展名</div>
+              </div>
+              <div class="item-control full-width">
+                <MutiSelector
+                  v-bind:model-value="view.settingInfo.ImageTypes"
+                  :options="view.settingInfo.Types"
+                  @onchange="(arr) => (view.settingInfo.ImageTypes = arr)"
+                />
+              </div>
+            </div>
+
+            <div class="setting-item">
+              <div class="item-info">
+                <div class="item-label">文档类型</div>
+                <div class="item-hint">支持的文档文件扩展名</div>
+              </div>
+              <div class="item-control full-width">
+                <MutiSelector
+                  v-bind:model-value="view.settingInfo.DocsTypes"
+                  :options="view.settingInfo.Types"
+                  @onchange="(arr) => (view.settingInfo.DocsTypes = arr)"
+                />
+              </div>
+            </div>
+          </section>
+
+          <!-- 播放器设置 -->
+          <section id="section-player" class="setting-section">
+            <h3 class="section-title">播放器设置</h3>
+
+            <div class="setting-item">
+              <div class="item-info">
+                <div class="item-label">系统播放器</div>
+                <div class="item-hint">选择视频播放方式</div>
+              </div>
+              <div class="item-control">
+                <q-select
                   v-model="view.settingInfo.SystemPlayer"
-                  checked-icon="task_alt"
-                  unchecked-icon="panorama_fish_eye"
-                  val="ffplay"
-                  label="ffplay"
-                />
-                <q-radio
-                  v-model="view.settingInfo.SystemPlayer"
-                  checked-icon="task_alt"
-                  unchecked-icon="panorama_fish_eye"
-                  val="system"
-                  label="system"
+                  :options="[
+                    { label: 'ffplay (内置)', value: 'ffplay' },
+                    { label: 'system (系统默认)', value: 'system' }
+                  ]"
+                  emit-value
+                  map-options
+                  dense
+                  outlined
+                  class="select-control"
                 />
               </div>
-            </template>
-          </q-field>
-          
-          <q-field color="primary" label="硬件加速编码" stack-label  hint="开启后H264/H265转码将调用GPU硬件加速">
-            <template v-slot:control>
-              <div class="row q-gutter-md items-center">
-                <q-radio
-                  v-model="view.settingInfo.HardwareAcceleration"
-                  checked-icon="task_alt"
-                  unchecked-icon="panorama_fish_eye"
-                  :val="true"
-                  label="开启"
-                />
-                <q-radio
-                  v-model="view.settingInfo.HardwareAcceleration"
-                  checked-icon="task_alt"
-                  unchecked-icon="panorama_fish_eye"
-                  :val="false"
-                  label="关闭"
-                />
-                <span v-if="view.settingInfo.HardwareAcceleration && view.settingInfo.HardwareAccelMode" class="text-caption text-positive" style="margin-left: 8px;">
-                  当前: {{ view.settingInfo.HardwareAccelMode }}
-                </span>
-                <span v-else-if="view.settingInfo.HardwareAcceleration" class="text-caption text-warning" style="margin-left: 8px;">
-                  首次转码时自动检测
-                </span>
+            </div>
+
+            <div class="setting-item">
+              <div class="item-info">
+                <div class="item-label">播放器音量</div>
+                <div class="item-hint">系统播放器默认音量 (0-100)</div>
               </div>
-            </template>
-          </q-field>
+              <div class="item-control">
+                <q-input
+                  v-model="view.settingInfo.SystemPlayerVolumn"
+                  type="number"
+                  :min="0"
+                  :max="100"
+                  dense
+                  outlined
+                  class="number-input"
+                />
+              </div>
+            </div>
 
-          <q-field color="primary" label="Buttons" stack-label >
-            <template v-slot:control>
-              <MutiSelector
-                v-bind:model-value="view.settingInfo.Buttons"
-                :options="buttonEnum"
-                @onchange="(arr) => (view.settingInfo.Buttons = arr)"
-              />
-            </template>
-          </q-field>
+            <div class="setting-item">
+              <div class="item-info">
+                <div class="item-label">播放器宽度</div>
+                <div class="item-hint">系统播放器窗口宽度 (像素)</div>
+              </div>
+              <div class="item-control">
+                <q-input
+                  v-model="view.settingInfo.SystemPlayerWidth"
+                  type="number"
+                  dense
+                  outlined
+                  class="number-input"
+                />
+              </div>
+            </div>
 
-          <q-field color="primary" label="Dirs" stack-label >
-            <template v-slot:control>
-              <MutiSelector
-                v-bind:model-value="view.settingInfo.Dirs"
-                :options="view.settingInfo.DirsLib"
-                @onchange="(arr) => (view.settingInfo.Dirs = arr)"
-              />
-            </template>
-          </q-field>
-          <q-field color="primary" label="MovieTypes" stack-label >
-            <template v-slot:control>
-              <MutiInput
-                v-model="view.settingInfo.MovieTypes"
-                @onchange="(arr) => (view.settingInfo.MovieTypes = arr)"
-              />
-            </template>
-          </q-field>
-          <q-field color="primary" label="VideoTypes" stack-label >
-            <template v-slot:control>
-              <MutiSelector
-                v-bind:model-value="view.settingInfo.VideoTypes"
-                :options="view.settingInfo.Types"
-                @onchange="(arr) => (view.settingInfo.VideoTypes = arr)"
-              />
-            </template>
-          </q-field>
-          <q-field color="primary" label="ImageTypes" stack-label >
-            <template v-slot:control>
-              <MutiSelector
-                v-bind:model-value="view.settingInfo.ImageTypes"
-                :options="view.settingInfo.Types"
-                @onchange="(arr) => (view.settingInfo.ImageTypes = arr)"
-              />
-            </template>
-          </q-field>
-          <q-field color="primary" label="DocsTypes" stack-label >
-            <template v-slot:control>
-              <MutiSelector
-                v-bind:model-value="view.settingInfo.DocsTypes"
-                :options="view.settingInfo.Types"
-                @onchange="(arr) => (view.settingInfo.DocsTypes = arr)"
-              />
-            </template>
-          </q-field>
-          <q-field color="primary" label="Tags" stack-label >
-            <template v-slot:control>
-              <MutiSelector
-                v-bind:model-value="view.settingInfo.Tags"
-                :options="view.settingInfo.TagsLib"
-                @onchange="(arr) => (view.settingInfo.Tags = arr)"
-              />
-            </template>
-          </q-field>
-        </q-tab-panel>
+            <div class="setting-item">
+              <div class="item-info">
+                <div class="item-label">转码删除原文件</div>
+                <div class="item-hint">转码完成后是否删除原始文件</div>
+              </div>
+              <div class="item-control">
+                <q-toggle v-model="view.settingInfo.CutThenDelete" color="primary" />
+              </div>
+            </div>
 
-        <q-tab-panel name="base" class="q-pa-xs">
-          <q-input
-            v-model="view.settingInfo.SystemPlayerVolumn"
-            :max="100"
-            :min="0"
-            type="number"
-            label="系统播放器音量"
-            
-          />
-          <q-input
-            v-model="view.settingInfo.SystemPlayerWidth"
-            label="系统播放器宽度"
-            
-          />
-          <q-input
-            v-model="view.settingInfo.ControllerHost"
-            label="ControllerHost"
-            
-          />
-          <q-input
-            v-model="view.settingInfo.FileHost"
-            label="FileHost"
-            placeholder=":10081"
-            
-          />
-          <q-field color="primary" label="DirsLib" stack-label >
-            <template v-slot:control>
-              <MutiInput
-                v-model="view.settingInfo.DirsLib"
-                @onchange="(arr) => (view.settingInfo.DirsLib = arr)"
-              />
-            </template>
-          </q-field>
-          <q-field color="primary" label="TagsLib" stack-label >
-            <template v-slot:control>
-              <MutiInput
-                v-model="view.settingInfo.TagsLib"
-                @onchange="(arr) => (view.settingInfo.TagsLib = arr)"
-              />
-            </template>
-          </q-field>
-          <q-field color="primary" label="Types" stack-label >
-            <template v-slot:control>
-              <MutiInput
-                v-model="view.settingInfo.Types"
-                @onchange="(arr) => (view.settingInfo.Types = arr)"
-              />
-            </template>
-          </q-field>
-          <q-field color="primary" label="Pages" stack-label >
-            <template v-slot:control>
-              <MutiInput
-                v-model="view.settingInfo.Pages"
-                @onchange="(arr) => (view.settingInfo.Pages = arr)"
-              />
-            </template>
-          </q-field>
-        </q-tab-panel>
-        <q-tab-panel name="note" class="q-pa-xs">
-          <q-input v-model="view.settingInfo.BaseUrl" label="BaseUrl"  />
-          <q-input v-model="view.settingInfo.ImageUrl" label="ImageUrl"  />
-          <q-input v-model="view.settingInfo.OMUrl" label="OMUrl"  />
-          <q-input
-            type="textarea"
-            autogrow
-            v-model="view.settingInfo.Remark"
-            label="Remark"
-            
-          />
-        </q-tab-panel>
+            <div class="setting-item">
+              <div class="item-info">
+                <div class="item-label">硬件加速编码</div>
+                <div class="item-hint">开启后H264/H265转码将调用GPU硬件加速</div>
+              </div>
+              <div class="item-control">
+                <q-toggle v-model="view.settingInfo.HardwareAcceleration" color="primary" />
+              </div>
+            </div>
 
-        <q-tab-panel name="system" class="q-pa-xs">
-          <q-editor
-            v-model="view.settingInfo.SystemHtml"
-            :toolbar="[
-              [
-                {
-                  label: $q.lang.editor.align,
-                  icon: $q.iconSet.editor.align,
-                  fixedLabel: true,
-                  list: 'only-icons',
-                  options: ['left', 'center', 'right', 'justify'],
-                },
-                {
-                  label: $q.lang.editor.align,
-                  icon: $q.iconSet.editor.align,
-                  fixedLabel: true,
-                  options: ['left', 'center', 'right', 'justify'],
-                },
-              ],
-              [
-                'bold',
-                'italic',
-                'strike',
-                'underline',
-                'subscript',
-                'superscript',
-              ],
-              ['token', 'hr', 'link', 'custom_btn'],
-              ['print', 'fullscreen'],
-              [
-                {
-                  label: $q.lang.editor.formatting,
-                  icon: $q.iconSet.editor.formatting,
-                  list: 'no-icons',
-                  options: ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'code'],
-                },
-                {
-                  label: $q.lang.editor.fontSize,
-                  icon: $q.iconSet.editor.fontSize,
-                  fixedLabel: true,
-                  fixedIcon: true,
-                  list: 'no-icons',
-                  options: [
-                    'size-1',
-                    'size-2',
-                    'size-3',
-                    'size-4',
-                    'size-5',
-                    'size-6',
-                    'size-7',
-                  ],
-                },
-                {
-                  label: $q.lang.editor.defaultFont,
-                  icon: $q.iconSet.editor.font,
-                  fixedIcon: true,
-                  list: 'no-icons',
-                  options: [
-                    'default_font',
-                    'arial',
-                    'arial_black',
-                    'comic_sans',
-                    'courier_new',
-                    'impact',
-                    'lucida_grande',
-                    'times_new_roman',
-                    'verdana',
-                  ],
-                },
-                'removeFormat',
-              ],
-              ['quote', 'unordered', 'ordered', 'outdent', 'indent'],
+            <div v-if="view.settingInfo.HardwareAcceleration" class="setting-item sub-item">
+              <div class="item-info">
+                <div class="item-label">硬件加速模式</div>
+                <div class="item-hint">
+                  <span v-if="view.settingInfo.HardwareAccelMode" class="text-positive">
+                    当前: {{ view.settingInfo.HardwareAccelMode }}
+                  </span>
+                  <span v-else class="text-warning">首次转码时自动检测</span>
+                </div>
+              </div>
+            </div>
+          </section>
+        </template>
+        <template v-if="mainTab === 'dict'">
+          <!-- 启用配置 -->
+          <section id="section-enable" class="setting-section">
+            <h3 class="section-title">启用配置</h3>
 
-              ['undo', 'redo'],
-              ['viewsource'],
-            ]"
-            :fonts="{
-              arial: 'Arial',
-              arial_black: 'Arial Black',
-              comic_sans: 'Comic Sans MS',
-              courier_new: 'Courier New',
-              impact: 'Impact',
-              lucida_grande: 'Lucida Grande',
-              times_new_roman: 'Times New Roman',
-              verdana: 'Verdana',
-            }"
-          />
-        </q-tab-panel>
+            <div class="setting-item">
+              <div class="item-info">
+                <div class="item-label">启用标签</div>
+                <div class="item-hint">选择要启用的标签分类</div>
+              </div>
+              <div class="item-control full-width">
+                <MutiSelector
+                  v-bind:model-value="view.settingInfo.Tags"
+                  :options="view.settingInfo.TagsLib"
+                  @onchange="(arr) => (view.settingInfo.Tags = arr)"
+                />
+              </div>
+            </div>
+          </section>
 
+          <!-- 系统配置 -->
+          <section id="section-system" class="setting-section">
+            <h3 class="section-title">系统配置</h3>
 
-      </q-tab-panels>
-    </q-page-container>
-    <q-footer elevated class="glossy">
-      <q-btn
-        align="evenly"
-        :color="systemProperty.theme === 'star' ? 'black' : 'primary'"
-        glossy
-        ripple
-        rounded
-        class="w100"
-        style="height: 100%"
-        @click="submitForm"
-        >提...交</q-btn
-      >
-    </q-footer>
-  </q-layout>
+            <div class="setting-item">
+              <div class="item-info">
+                <div class="item-label">文件类型库</div>
+                <div class="item-hint">可选的文件类型列表</div>
+              </div>
+              <div class="item-control full-width">
+                <MutiInput
+                  v-model="view.settingInfo.Types"
+                  @onchange="(arr) => (view.settingInfo.Types = arr)"
+                />
+              </div>
+            </div>
 
-  <!-- <q-page-sticky position="bottom" :offset="[20, 20]">
-    
-  </q-page-sticky> -->
+            <div class="setting-item">
+              <div class="item-info">
+                <div class="item-label">目录库</div>
+                <div class="item-hint">可选的目录列表</div>
+              </div>
+              <div class="item-control full-width">
+                <MutiInput
+                  v-model="view.settingInfo.DirsLib"
+                  @onchange="(arr) => (view.settingInfo.DirsLib = arr)"
+                />
+              </div>
+            </div>
+
+            <div class="setting-item">
+              <div class="item-info">
+                <div class="item-label">标签库</div>
+                <div class="item-hint">可选的标签列表</div>
+              </div>
+              <div class="item-control full-width">
+                <MutiInput
+                  v-model="view.settingInfo.TagsLib"
+                  @onchange="(arr) => (view.settingInfo.TagsLib = arr)"
+                />
+              </div>
+            </div>
+
+            <div class="setting-item">
+              <div class="item-info">
+                <div class="item-label">页面配置</div>
+                <div class="item-hint">分页显示的配置项</div>
+              </div>
+              <div class="item-control full-width">
+                <MutiInput
+                  v-model="view.settingInfo.Pages"
+                  @onchange="(arr) => (view.settingInfo.Pages = arr)"
+                />
+              </div>
+            </div>
+          </section>
+        </template>
+
+        <!-- ========== 网络配置 ========== -->
+        <template v-if="mainTab === 'network'">
+          <section id="section-network" class="setting-section">
+            <h3 class="section-title">网络配置</h3>
+
+            <div class="setting-item">
+              <div class="item-info">
+                <div class="item-label">Controller 端口</div>
+                <div class="item-hint">API 服务监听端口</div>
+              </div>
+              <div class="item-control">
+                <q-input
+                  v-model="view.settingInfo.ControllerHost"
+                  dense
+                  outlined
+                  class="port-input"
+                  placeholder=":10081"
+                />
+              </div>
+            </div>
+
+            <div class="setting-item">
+              <div class="item-info">
+                <div class="item-label">File 端口</div>
+                <div class="item-hint">文件服务监听端口</div>
+              </div>
+              <div class="item-control">
+                <q-input
+                  v-model="view.settingInfo.FileHost"
+                  dense
+                  outlined
+                  class="port-input"
+                  placeholder=":10082"
+                />
+              </div>
+            </div>
+
+            <div class="setting-item">
+              <div class="item-info">
+                <div class="item-label">BaseUrl</div>
+                <div class="item-hint">外部访问的基础 URL</div>
+              </div>
+              <div class="item-control">
+                <q-input
+                  v-model="view.settingInfo.BaseUrl"
+                  dense
+                  outlined
+                  class="url-input"
+                />
+              </div>
+            </div>
+
+            <div class="setting-item">
+              <div class="item-info">
+                <div class="item-label">ImageUrl</div>
+                <div class="item-hint">图片资源的基础 URL</div>
+              </div>
+              <div class="item-control">
+                <q-input
+                  v-model="view.settingInfo.ImageUrl"
+                  dense
+                  outlined
+                  class="url-input"
+                />
+              </div>
+            </div>
+
+            <div class="setting-item">
+              <div class="item-info">
+                <div class="item-label">备注</div>
+                <div class="item-hint">关于网络配置的备注信息</div>
+              </div>
+              <div class="item-control full-width">
+                <q-input
+                  v-model="view.settingInfo.Remark"
+                  type="textarea"
+                  autogrow
+                  dense
+                  outlined
+                />
+              </div>
+            </div>
+          </section>
+        </template>
+
+        <!-- 底部提交按钮 -->
+        <div class="submit-bar">
+          <q-btn
+            :color="systemProperty.theme === 'star' ? 'black' : 'primary'"
+            glossy
+            rounded
+            class="submit-btn"
+            @click="submitForm"
+          >
+            <q-icon name="save" class="q-mr-sm" />
+            保存设置
+          </q-btn>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup>
 import { useQuasar } from 'quasar';
-
-import { onMounted, reactive, ref, computed } from 'vue';
+import { onMounted, reactive, ref, computed, watch } from 'vue';
 import {
   GetSettingInfo,
   PostSettingInfo,
@@ -381,11 +409,118 @@ import {
 } from '../../components/api/settingAPI';
 import MutiSelector from '../../components/MutiSelector.vue';
 import MutiInput from '../../components/MutiInput.vue';
-import { buttonEnum } from '../../components/model/Setting';
 import { useSystemProperty } from '../../stores/System';
 
 const $q = useQuasar();
-const tab = ref('search');
+const contentRef = ref(null);
+const mainTab = ref('search');
+const activeSection = ref('');
+
+const expandedGroups = reactive({
+  search: true,
+  player: true,
+  enable: true,
+  system: true,
+  network: true,
+});
+
+// 搜索设置的导航
+const searchNavGroups = [
+  {
+    name: 'search',
+    label: '搜索配置',
+    items: [{ id: 'section-search', label: '搜索选项' }],
+  },
+  {
+    name: 'player',
+    label: '播放器设置',
+    items: [{ id: 'section-player', label: '播放器选项' }],
+  },
+];
+
+// 数据管理的导航
+const dictNavGroups = [
+  {
+    name: 'enable',
+    label: '界面控制',
+    items: [{ id: 'section-enable', label: '启用选项' }],
+  },
+  {
+    name: 'system',
+    label: '系统配置',
+    items: [{ id: 'section-system', label: '配置选项' }],
+  },
+];
+
+// 网络配置的导航
+const networkNavGroups = [
+  {
+    name: 'network',
+    label: '网络配置',
+    items: [{ id: 'section-network', label: '网络选项' }],
+  },
+];
+
+const currentNavGroups = computed(() => {
+  switch (mainTab.value) {
+    case 'search': return searchNavGroups;
+    case 'dict': return dictNavGroups;
+    case 'network': return networkNavGroups;
+    default: return searchNavGroups;
+  }
+});
+
+const allSectionIds = computed(() => {
+  const groups = currentNavGroups.value;
+  return groups.flatMap(g => g.items.map(i => i.id));
+});
+
+const toggleGroup = (name) => {
+  expandedGroups[name] = !expandedGroups[name];
+};
+
+const scrollToSection = (id) => {
+  const el = document.getElementById(id);
+  if (el && contentRef.value) {
+    const container = contentRef.value;
+    const offsetTop = el.offsetTop - container.offsetTop;
+    container.scrollTo({
+      top: offsetTop,
+      behavior: 'smooth',
+    });
+  }
+};
+
+const onScroll = () => {
+  if (!contentRef.value) return;
+  const container = contentRef.value;
+  const scrollTop = container.scrollTop;
+  const offset = 80;
+
+  for (let i = allSectionIds.value.length - 1; i >= 0; i--) {
+    const el = document.getElementById(allSectionIds.value[i]);
+    if (el && el.offsetTop - container.offsetTop <= scrollTop + offset) {
+      activeSection.value = allSectionIds.value[i];
+
+      for (const group of currentNavGroups.value) {
+        const item = group.items.find(it => it.id === activeSection.value);
+        if (item) {
+          expandedGroups[group.name] = true;
+        }
+      }
+      break;
+    }
+  }
+};
+
+// 切换 tab 时重置滚动位置和激活项
+watch(mainTab, () => {
+  activeSection.value = '';
+  if (contentRef.value) {
+    contentRef.value.scrollTop = 0;
+  }
+});
+
 const view = reactive({
   settingInfo: {
     Dirs: [],
@@ -394,10 +529,8 @@ const view = reactive({
     VideoTypes: [],
     Tags: [],
     TagsLib: [],
-    Buttons: [],
     MovieTypes: [],
     Pages: [],
-    SystemHtml: '',
     EnableTimeScan: true,
     CutThenDelete: false,
     SystemPlayer: 'ffplay',
@@ -411,20 +544,13 @@ const view = reactive({
 });
 const systemProperty = useSystemProperty();
 
-const themeStyle = computed(() => {
-  return {
-    color: 'var(--q-text-primary)',
- 
-  };
-});
-
 const submitForm = async () => {
   const oldControllerHost = view.settingInfo.ControllerHost;
   view.settingInfo.Dirs = view.settingInfo.Dirs.sort();
   view.settingInfo.DirsLib = view.settingInfo.DirsLib.sort();
   view.settingInfo.Types = view.settingInfo.Types.sort();
   view.settingInfo.VideoTypes = view.settingInfo.VideoTypes.sort();
-  
+
   const tagsLib = view.settingInfo.TagsLib || [];
   const dirsLib = view.settingInfo.DirsLib || [];
   const types = view.settingInfo.Types || [];
@@ -445,7 +571,6 @@ const submitForm = async () => {
     return types.includes(item);
   });
   const { Code, Message } = await PostSettingInfo(view.settingInfo);
-  console.log(Code, Message);
   if (Code != 200) {
     $q.notify({ message: `${Message}` });
   } else {
@@ -467,7 +592,6 @@ const submitForm = async () => {
 
 const fetchSearch = async () => {
   const { data } = await GetSettingInfo();
-  console.log(data);
   view.settingInfo = {
     Dirs: [],
     DirsLib: [],
@@ -475,10 +599,8 @@ const fetchSearch = async () => {
     VideoTypes: [],
     Tags: [],
     TagsLib: [],
-    Buttons: [],
     MovieTypes: [],
     Pages: [],
-    SystemHtml: '',
     EnableTimeScan: true,
     CutThenDelete: false,
     SystemPlayer: 'ffplay',
@@ -504,42 +626,207 @@ onMounted(() => {
   queryIpAddr();
 });
 </script>
-<style lang="scss" scoped>
 
-:deep(.compact-panels .q-tab-panel) {
-  padding: 4px;
+<style lang="scss" scoped>
+.setting-page {
+  height: 93vh;
+  display: flex;
+  flex-direction: column;
 }
 
+.main-tabs {
+  flex-shrink: 0;
+}
 
-:deep(.q-editor) {
-  min-height: 200px;
-  background: var(--q-bg-input);
-  border: 1px solid var(--q-border);
-  border-radius: 6px;
+.setting-layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  background: var(--q-bg-card);
+}
 
-  .q-editor__toolbar {
-    background: var(--q-bg-card);
-    border-bottom: 1px solid var(--q-border);
-    padding: 2px;
+.setting-sidebar {
+  width: 180px;
+  border-right: 1px solid var(--q-border);
+  display: flex;
+  flex-direction: column;
+  background: var(--q-bg-darker);
+  flex-shrink: 0;
+}
+
+.sidebar-tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.tree-group {
+  margin-bottom: 4px;
+}
+
+.tree-group-header {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  cursor: pointer;
+  color: var(--q-text-primary);
+  font-weight: 500;
+  font-size: 0.9rem;
+  user-select: none;
+  transition: background 0.15s;
+
+  &:hover {
+    background: var(--q-bg-hover);
   }
+}
 
-  .q-editor__content {
+.tree-arrow {
+  margin-right: 4px;
+  color: var(--q-text-muted);
+  transition: transform 0.2s;
+}
+
+.group-label {
+  flex: 1;
+}
+
+.tree-group-items {
+  overflow: hidden;
+}
+
+.tree-item {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px 6px 36px;
+  cursor: pointer;
+  color: var(--q-text-muted);
+  font-size: 0.85rem;
+  transition: all 0.15s;
+  border-left: 2px solid transparent;
+
+  &:hover {
+    background: var(--q-bg-hover);
     color: var(--q-text-primary);
   }
+
+  &.active {
+    color: var(--q-primary);
+    background: var(--q-bg-hover);
+    border-left-color: var(--q-primary);
+  }
 }
 
-:deep(.q-tab-panels) {
-  background: transparent;
+.expand-enter-active,
+.expand-leave-active {
+  transition: all 0.2s ease;
+  max-height: 200px;
 }
 
-:deep(.q-footer) {
-  background: var(--q-bg-card);
+.expand-enter-from,
+.expand-leave-to {
+  max-height: 0;
+  opacity: 0;
+}
+
+.setting-content {
+  flex: 1;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+
+.setting-section {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--q-border-light);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.section-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--q-text-primary);
+  margin: 0 0 16px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--q-border-light);
+}
+
+.setting-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--q-border-light);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &.sub-item {
+    padding-left: 24px;
+    opacity: 0.9;
+  }
+
+  &.vertical {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+}
+
+.item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.item-label {
+  font-size: 0.95rem;
+  color: var(--q-text-primary);
+  margin-bottom: 2px;
+}
+
+.item-hint {
+  font-size: 0.8rem;
+  color: var(--q-text-muted);
+}
+
+.item-control {
+  flex-shrink: 0;
+  margin-left: 24px;
+
+  &.full-width {
+    width: 100%;
+    margin-left: 0;
+    margin-top: 8px;
+  }
+}
+
+.select-control {
+  min-width: 180px;
+}
+
+.number-input {
+  width: 100px;
+}
+
+.port-input {
+  width: 120px;
+}
+
+.url-input {
+  width: 240px;
+}
+
+.submit-bar {
+  padding: 16px 24px;
   border-top: 1px solid var(--q-border);
+  background: var(--q-bg-card);
+  display: flex;
+  justify-content: flex-end;
+}
 
-		.q-btn {
-			min-height: 32px;
-			font-size: 0.85rem;
-		}
-	}
-
+.submit-btn {
+  min-width: 120px;
+}
 </style>

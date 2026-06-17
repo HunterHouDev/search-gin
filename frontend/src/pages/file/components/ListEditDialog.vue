@@ -622,19 +622,6 @@
                   />
                 </template>
               </q-field>
-              <q-field color="purple-12" label="Buttons（最佳5）" stack-label>
-                <template v-slot:control>
-                  <q-checkbox
-                    v-model="view.settingInfo.Buttons"
-                    v-for="item in buttonEnum"
-                    :key="item"
-                    :val="item"
-                    :label="item"
-                    color="teal"
-                    @update:model-value="updateButtons"
-                  />
-                </template>
-              </q-field>
             </q-tab-panel>
 
             <q-tab-panel name="tasking" style="padding: 6px; height: 100%">
@@ -931,7 +918,6 @@ import {
   FieldEnum,
   defaultVideoOffset,
 } from 'components/utils';
-import { buttonEnum } from 'components/model/Setting';
 import {
   parseTimeZH,
   getLabelByValue,
@@ -1402,13 +1388,6 @@ const dialogHide = async () => {
 
 const { dialogRef, onDialogHide, onDialogOK, onDialogCancel } =
   useDialogPluginComponent();
-
-const updateButtons = () => {
-  if (view.callback) {
-    PostSettingInfo(view.settingInfo);
-    view.callback({ settingInfo: view.settingInfo });
-  }
-};
 
 const beforeShow = () => {
   console.log('beforeShow');

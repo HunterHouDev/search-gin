@@ -77,16 +77,6 @@ export const useSystemProperty = defineStore({
       Keyword: '',
       OnlyRepeat: false,
       showStyle: 'post',
-      listButton: [
-        '播放',
-        '编辑',
-        '移动',
-        '文件夹',
-        '转换',
-        '删除',
-        '剪切',
-        '详情',
-      ],
     } as FileQuery,
     SettingInfo: {
       ControllerHost: ':10081',
