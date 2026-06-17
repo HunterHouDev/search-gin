@@ -1,7 +1,6 @@
 package service
 
 import (
-	"fmt"
 	"math/rand"
 	"net/http"
 	"os"
@@ -67,18 +66,6 @@ var browsers = []string{
 // httpGet 发起 HTTP GET 请求
 func httpGet(url string) (*resty.Response, error) {
 	return httpClient.R().EnableTrace().Get(url)
-}
-
-// downloadFile 将指定 URL 的内容下载到文件
-func downloadFile(f *os.File, url string) error {
-	resp, err := httpGet(url)
-	if err != nil {
-		return err
-	}
-	if _, err = f.Write(resp.Body()); err != nil {
-		return fmt.Errorf("读取 response 失败: %w", err)
-	}
-	return nil
 }
 
 // ── 图片下载 ──────────────────────────────────────────────────────

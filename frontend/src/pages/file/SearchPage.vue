@@ -1440,34 +1440,25 @@ const fetchSearch = async (replace = false) => {
 const moveThis = async () => {
   console.log('moveThis', moveView);
   moveView.targetPathDialog = false;
-  const res = await MoveFile({
-    Id: moveView.targetId,
-    Path: moveView.targetPath,
-    Title: moveView.targetName,
-  });
-  if (res.Code === 200) {
-    $q.notify({
-      type: 'positive',
-      message: res.Message,
-      position: 'bottom-left',
-    });
-  } else {
-    $q.notify({
-      type: 'negative',
-      message: res.Message,
-      position: 'bottom-left',
-    });
+  const updated = await commonExec(() =>
+    MoveFile({
+      Id: moveView.targetId,
+      Path: moveView.targetPath,
+      Title: moveView.targetName,
+    })
+  );
+  if (updated) {
+    const item = view.resultData.Data?.find((f) => f.Id === moveView.targetId);
+    if (item) Object.assign(item, updated);
   }
 };
 
 const setMovieType = async (Id, Type) => {
-  const { Code, Message } = await ResetMovieType(Id, Type);
-  if (Code === 200) {
-    $q.notify({ type: 'positive', message: Message, position: 'bottom-left' });
-  } else {
-    $q.notify({ type: 'warning', message: Message, position: 'bottom-left' });
+  const updated = await commonExec(() => ResetMovieType(Id, Type));
+  if (updated) {
+    const item = view.resultData.Data?.find((f) => f.Id === Id);
+    if (item) Object.assign(item, updated);
   }
-  // 后端已直接更新索引，无需额外刷新
 };
 
 const fetchTasking = async () => {

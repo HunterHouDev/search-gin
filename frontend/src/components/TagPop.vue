@@ -51,7 +51,7 @@
           :key="tag"
           :label="tag"
           :val="tag"
-          @click="commonExec(() => CloseTag(props.currentData.Id, tag))"
+          @click="doCloseTag(tag)"
         />
       </div>
       <div v-if="!systemProperty.submitMutiTag">
@@ -66,7 +66,7 @@
           :key="tag.Name"
           :label="tag.Name"
           :val="tag.Name"
-          @click="commonExec(() => AddTag(props.currentData.Id, tag.Name))"
+          @click="doAddTag(tag.Name)"
           :disable="props.currentTag?.indexOf(tag.Name) >= 0"
         />
       </div>
@@ -119,11 +119,10 @@
 </template>
 
 <script setup>
-import { useQuasar } from 'quasar';
 
 import { CloseTag, AddTag } from 'components/api/searchAPI';
 import { useSystemProperty } from 'stores/System';
-import { inject, onMounted, reactive } from 'vue';
+import { onMounted, reactive } from 'vue';
 import { useCommonExec } from 'src/composables/useCommonExec';
 
 const systemProperty = useSystemProperty();
@@ -172,14 +171,32 @@ const loadTagSize = async () => {
   }
 };
 
-const emmits = defineEmits(['doBefore']);
+const emmits = defineEmits(['doBefore', 'updateTag']);
 
-const $q = useQuasar();
+const doCloseTag = async (tag) => {
+  const updated = await commonExec(() => CloseTag(props.currentData.Id, tag));
+  if (updated) {
+    Object.assign(props.currentData, updated);
+    emmits('updateTag', updated.Tags);
+  }
+};
+
+const doAddTag = async (tag) => {
+  const updated = await commonExec(() => AddTag(props.currentData.Id, tag));
+  if (updated) {
+    Object.assign(props.currentData, updated);
+    emmits('updateTag', updated.Tags);
+  }
+};
 
 const addPlayingMutiTag = async () => {
   if (view.submitMutiTag.length > 0) {
     const tags = view.submitMutiTag.join(',');
-    commonExec(() => AddTag(props.currentData.Id, tags));
+    const updated = await commonExec(() => AddTag(props.currentData.Id, tags));
+    if (updated) {
+      Object.assign(props.currentData, updated);
+      emmits('updateTag', updated.Tags);
+    }
     view.submitMutiTag = [];
   }
 };
@@ -195,14 +212,14 @@ const chooseInput = () => {
 
 const submitInput = async () => {
   if (view.input) {
-    commonExec(() => AddTag(props.currentData.Id, view.input));
+    const updated = await commonExec(() => AddTag(props.currentData.Id, view.input));
+    if (updated) {
+      Object.assign(props.currentData, updated);
+      emmits('updateTag', updated.Tags);
+    }
     view.input = '';
   }
 };
-
-const refreshDebounceFn = inject('refreshDebounceFn', () => {
-  console.log('refreshDebounceFn not found');
-});
 
 onMounted(() => {
   loadTagSize();

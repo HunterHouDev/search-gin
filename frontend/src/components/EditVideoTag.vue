@@ -196,7 +196,10 @@ const addPlayingTag = async (id, tag) => {
   }
 
   setTimeout(async () => {
-    await AddTag(id, tag);
+    const res = await AddTag(id, tag);
+    if (res?.Data) {
+      Object.assign(props.currentData, res.Data);
+    }
     refreshDebounceFn(props.currentData);
   }, 1000);
 };
@@ -209,7 +212,10 @@ const removePlayingTag = async (id, tag) => {
   }
 
   setTimeout(async () => {
-    await CloseTag(id, tag);
+    const res = await CloseTag(id, tag);
+    if (res?.Data) {
+      Object.assign(props.currentData, res.Data);
+    }
     refreshDebounceFn(props.currentData);
   }, 1000);
 };

@@ -283,9 +283,10 @@ function pageNoGoto() {
 
 async function setMovieType(item, type) {
   try {
-    await ResetMovieType( item.Id,  type );
-    item.MovieType = type;
-    // 后端已直接更新索引，无需额外刷新
+    const res = await ResetMovieType(item.Id, type);
+    if (res?.Data) {
+      Object.assign(item, res.Data);
+    }
   } catch (e) {
     console.error('ResetMovieType failed:', e);
   }

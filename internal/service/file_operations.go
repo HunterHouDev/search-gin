@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"search-gin/internal/model"
-	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 	"strings"
 )
@@ -16,7 +15,9 @@ func (fs *searchService) SetMovieType(movie model.FileItem, movieType string) ut
 	if movie.MovieType != "" && movie.MovieType != "无" {
 		originVideoType := utils.GetMovieType(movie.Path)
 		if originVideoType == movieType {
-			return utils.NewSuccessByMsg("执行成功")
+			res := utils.NewSuccessByMsg("执行成功")
+			res.Data = movie
+			return res
 		}
 
 		originalPaths := []string{movie.Path, movie.Jpg, movie.Png, movie.Gif}
@@ -44,7 +45,10 @@ func (fs *searchService) SetMovieType(movie model.FileItem, movieType string) ut
 			}
 			successCount++
 		}
-		return utils.NewSuccessByMsg("执行成功")
+		updated := replaceIndexAfterRename(movie.Id, newPaths[0], movie.BaseDir)
+		res := utils.NewSuccessByMsg("执行成功")
+		res.Data = updated
+		return res
 	}
 
 	suffix := "." + utils.GetSuffix(movie.Path)
@@ -67,8 +71,10 @@ func (fs *searchService) SetMovieType(movie model.FileItem, movieType string) ut
 			}
 		}
 	}
-	replaceIndexAfterRename(movie.Path, newFilePath, movie.BaseDir)
-	return utils.NewSuccessByMsg("执行成功")
+	updated := replaceIndexAfterRename(movie.Id, newFilePath, movie.BaseDir)
+	res := utils.NewSuccessByMsg("执行成功")
+	res.Data = updated
+	return res
 }
 
 // AddTag 添加标签
@@ -79,7 +85,9 @@ func (fs *searchService) AddTag(id string, tag string) utils.Result {
 	if len(movie.Tags) > 0 {
 		originTagStr := utils.GetTagStr(movie.Path)
 		if originTagStr == tag || strings.Contains(originTagStr, tag) {
-			return utils.NewSuccessByMsg("已添加")
+			res := utils.NewSuccessByMsg("已添加")
+			res.Data = movie
+			return res
 		}
 
 		newTagStr := originTagStr
@@ -97,10 +105,11 @@ func (fs *searchService) AddTag(id string, tag string) utils.Result {
 				utils.InfoFormat("rename %s failed: %v", file, err)
 			}
 		}
-		replaceIndexAfterRename(movie.Path,
-			strings.ReplaceAll(movie.Path, "《"+utils.GetTagStr(movie.Path)+"》", "《"+newTagStr+"》"),
-			movie.BaseDir)
-		return utils.NewSuccessByMsg("执行成功")
+		newTagPath := strings.ReplaceAll(movie.Path, "《"+utils.GetTagStr(movie.Path)+"》", "《"+newTagStr+"》")
+		updated := replaceIndexAfterRename(movie.Id, newTagPath, movie.BaseDir)
+		res := utils.NewSuccessByMsg("执行成功")
+		res.Data = updated
+		return res
 	}
 
 	suffix := "." + utils.GetSuffix(movie.Path)
@@ -118,15 +127,19 @@ func (fs *searchService) AddTag(id string, tag string) utils.Result {
 			os.Rename(file, newName+ext)
 		}
 	}
-	replaceIndexAfterRename(movie.Path, newFilePath, movie.BaseDir)
-	return utils.NewSuccessByMsg("执行成功")
+	updated := replaceIndexAfterRename(movie.Id, newFilePath, movie.BaseDir)
+	res := utils.NewSuccessByMsg("执行成功")
+	res.Data = updated
+	return res
 }
 
 // ClearTag 清除标签
 func (fs *searchService) ClearTag(id string, tag string) utils.Result {
 	movie := fs.FindOne(id)
 	if len(movie.Tags) == 0 {
-		return utils.NewSuccessByMsg("执行成功")
+		res := utils.NewSuccessByMsg("执行成功")
+		res.Data = movie
+		return res
 	}
 
 	originTagStr := utils.GetTagStr(movie.Path)
@@ -145,92 +158,10 @@ func (fs *searchService) ClearTag(id string, tag string) utils.Result {
 	for _, f := range []string{movie.Jpg, movie.Png, movie.Gif} {
 		os.Rename(f, newName+"."+utils.GetSuffix(f))
 	}
-	replaceIndexAfterRename(movie.Path, path, movie.BaseDir)
-	return utils.NewSuccessByMsg("执行成功")
-}
-
-// MoveCut 移动并整理文件（创建目录、下载封面）
-func (fs *searchService) MoveCut(srcFile model.FileItem, toFile model.FileItem) utils.Result {
-	result := utils.Result{}
-
-	if toFile.Author == "" && toFile.Code == "" {
-		result.Message = "信息不全"
-		return result
-	}
-
-	// 构建目标路径
-	title := sanitizeTitle(toFile.Title)
-	dirname := "[" + toFile.Author + "] " + toFile.Code + " " + title
-	path := srcFile.DirPath + utils.PathSeparator + toFile.Author
-	if toFile.Studio != "" {
-		path += utils.PathSeparator + toFile.Studio
-	}
-	dirpath := path + utils.PathSeparator + dirname
-	os.MkdirAll(dirpath, os.ModePerm)
-
-	filename := dirname + "." + utils.GetSuffix(srcFile.Path)
-	finalPath := dirpath + utils.PathSeparator + filename
-	jpgPath := utils.ConcatSuffix(finalPath, "jpg")
-	pngPath := utils.ConcatSuffix(finalPath, "png")
-
-	// 创建 JPG 文件（失败时用简化路径重试）
-	jpgOut, createErr := os.Create(jpgPath)
-	if createErr != nil {
-		dirname = "[" + toFile.Author + "]" + toFile.Code
-		dirpath = path + utils.PathSeparator + dirname
-		os.MkdirAll(dirpath, os.ModePerm)
-		filename = dirname + "." + utils.GetSuffix(srcFile.Path)
-		finalPath = dirpath + utils.PathSeparator + filename
-		jpgPath = utils.ConcatSuffix(finalPath, "jpg")
-		if jpgOut, createErr = os.Create(jpgPath); createErr != nil {
-			result.Fail()
-			result.Message = "文件创建失败：" + jpgPath
-			os.Rename(finalPath, srcFile.Path)
-			return result
-		}
-	}
-
-	// 下载 JPG
-	url := toFile.Jpg
-	if !strings.Contains(url, consts.GetOSSetting().BaseUrl) {
-		url = consts.GetOSSetting().BaseUrl + url
-	}
-	if err := downloadFile(jpgOut, url); err != nil {
-		result.Fail()
-		result.Message = "文件下载失败：" + toFile.Jpg
-		os.Rename(finalPath, srcFile.Path)
-		return result
-	}
-	jpgOut.Close()
-
-	// 生成或下载 PNG
-	if toFile.Png == "" {
-		if err := utils.ImageToPng(jpgPath); err != nil {
-			result.Fail()
-			result.Message = "png生成失败"
-			os.Rename(finalPath, srcFile.Path)
-			return result
-		}
-	} else {
-		pngOut, err := os.Create(pngPath)
-		if err != nil {
-			result.Fail()
-			result.Message = "png文件下载失败：" + toFile.Png
-			os.Rename(finalPath, srcFile.Path)
-			return result
-		}
-		if err := downloadFile(pngOut, toFile.Png); err != nil {
-			result.Fail()
-			result.Message = "png下载失败"
-			os.Rename(finalPath, srcFile.Path)
-			return result
-		}
-		pngOut.Close()
-	}
-
-	result.Success()
-	result.Message = "【" + dirname + "】" + result.Message
-	return result
+	updated := replaceIndexAfterRename(movie.Id, path, movie.BaseDir)
+	res := utils.NewSuccessByMsg("执行成功")
+	res.Data = updated
+	return res
 }
 
 // Rename 重命名文件
@@ -312,7 +243,8 @@ func (fs *searchService) Rename(movie model.FileEdit) utils.Result {
 			return res
 		}
 	}
-	replaceIndexAfterRename(oldPath, newPath, movieLib.BaseDir)
+	updated := replaceIndexAfterRename(movieLib.Id, newPath, movieLib.BaseDir)
+	res.Data = updated
 	return res
 }
 
@@ -332,14 +264,16 @@ func (fs *searchService) Move(id string, newDir string, title string) utils.Resu
 	if !utils.ExistsFiles(newDir) {
 		os.MkdirAll(newDir, os.ModePerm)
 	}
-	newPath := newDir + utils.PathSeparator + title
-	if err := os.Rename(oldPath, newPath+"."+movieLib.FileType); err != nil {
+	newPath := newDir + utils.PathSeparator + title + "." + movieLib.FileType
+	if err := os.Rename(oldPath, newPath); err != nil {
 		res.FailByMsg("执行失败")
 		res.Data = err
 		return res
 	}
 
-	renameCompanionFiles(movieLib, newPath)
+	renameCompanionFiles(movieLib, newDir+utils.PathSeparator+title)
+	updated := replaceIndexAfterRename(id, newPath, movieLib.BaseDir)
+	res.Data = updated
 	return res
 }
 
@@ -367,14 +301,8 @@ func renameCompanionFiles(movie model.FileItem, newBaseName string) {
 
 var (
 	// 预编译的 replacer，避免热路径上多次分配
-	titleReplacer = strings.NewReplacer(":", "~", ".", "~", "!", "~")
-	pathReplacer  = strings.NewReplacer("《", "", "》", "", "{{", "", "}}", "")
+	pathReplacer = strings.NewReplacer("《", "", "》", "", "{{", "", "}}", "")
 )
-
-// sanitizeTitle 清理标题中的非法字符
-func sanitizeTitle(title string) string {
-	return titleReplacer.Replace(title)
-}
 
 // cleanPath 清理文件名中的标记符号
 func cleanPath(name string) string {
@@ -402,20 +330,21 @@ func renameFile(oldSuffix, newSuffix, newPath string, movieLib model.FileItem) b
 	return true
 }
 
-// replaceIndexAfterRename 重命名文件后更新搜索引擎索引（无需全量扫描）
-func replaceIndexAfterRename(oldPath, newPath, baseDir string) {
+// replaceIndexAfterRename 重命名文件后更新搜索引擎索引（无需全量扫描），返回更新后的 FileItem
+// oldId: 旧文件 ID（由调用方从旧路径计算），同时赋给新文件
+func replaceIndexAfterRename(oldId, newPath, baseDir string) model.FileItem {
 	info, err := os.Stat(newPath)
 	if err != nil {
-		return
+		return model.FileItem{}
 	}
 	suffix := utils.GetSuffix(newPath)
 	name := filepath.Base(newPath)
 	newFile := model.EasyFile(filepath.Dir(newPath), newPath, name, suffix,
 		info.Size(), info.ModTime(), baseDir)
+	newFile.Id = oldId
 
-	// 用旧路径构造旧文件的 Id
-	oldId, _ := utils.DirpathForId(oldPath)
 	oldFile := model.FileItem{Id: oldId, BaseDir: baseDir}
 
 	SearchEngine.ReplaceFile(oldFile, newFile)
+	return newFile
 }

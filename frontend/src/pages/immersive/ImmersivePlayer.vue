@@ -756,10 +756,10 @@ async function setMovieType(item, Type) {
     const res = await ResetMovieType(item.Id, Type);
     if (res?.Code === 200) {
       $q.notify({ type: 'positive', message: res.Message, position: 'bottom-left' });
+      if (res.Data) Object.assign(item, res.Data);
     } else {
       $q.notify({ type: 'warning', message: res?.Message || '设置失败', position: 'bottom-left' });
     }
-    // 后端已直接更新索引，无需额外刷新
   });
 }
 

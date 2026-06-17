@@ -342,11 +342,7 @@
                             >
                               <q-item-section>
                                 <q-item-label
-                                  @click="
-                                    commonExec(() =>
-                                      ResetMovieType(item.Id, mt.value)
-                                    )
-                                  "
+                                  @click="doSetMovieType(item, mt.value)"
                                   >{{ mt.label }}
                                 </q-item-label>
                               </q-item-section>
@@ -434,7 +430,7 @@
                             v-for="ta in item.Tags"
                             :key="ta"
                             removable
-                            @remove="commonExec(() => CloseTag(item.Id, ta), true)"
+                            @remove="doCloseTag(item, ta)"
                           >
                             {{ `${ta}` }}
                           </q-chip>
@@ -1069,6 +1065,21 @@ const removeTask = async (name) => {
   commonExec(() => DelTransferTasksInfo(name));
 };
 
+const doSetMovieType = async (item, type) => {
+  const updated = await commonExec(() => ResetMovieType(item.Id, type));
+  if (updated) Object.assign(item, updated);
+};
+
+const doCloseTag = async (item, tag) => {
+  const updated = await commonExec(() => CloseTag(item.Id, tag));
+  if (updated) Object.assign(item, updated);
+};
+
+const doAddTag = async (item, tag) => {
+  const updated = await commonExec(() => AddTag(item, tag));
+  if (updated) Object.assign(item, updated);
+};
+
 const emmits = defineEmits([
   // REQUIRED; 需要明确指出
   // 组件通过 useDialogPluginComponent() 暴露哪些事件
@@ -1174,11 +1185,13 @@ const selectAll = () => {
   }
 };
 
-const setTypeBySelector = (value) => {
+const setTypeBySelector = async (value) => {
   if (view.selector && view.selector.length > 0) {
-    view.selector.forEach((item) => {
-      commonExec(() => ResetMovieType(item, value));
-    });
+    for (const id of view.selector) {
+      const item = view.resultData.Data?.find((f) => f.Id === id);
+      const updated = await commonExec(() => ResetMovieType(id, value));
+      if (item && updated) Object.assign(item, updated);
+    }
   }
   resetSelector();
 };
@@ -1302,11 +1315,13 @@ const addPlayingMutiTag = async () => {
   }
 };
 
-const addTagBySelector = (value) => {
+const addTagBySelector = async (value) => {
   if (view.selector && view.selector.length > 0) {
-    view.selector.forEach((item) => {
-      commonExec(() => AddTag(item, value));
-    });
+    for (const id of view.selector) {
+      const item = view.resultData.Data?.find((f) => f.Id === id);
+      const updated = await commonExec(() => AddTag(id, value));
+      if (item && updated) Object.assign(item, updated);
+    }
   }
   resetSelector();
 };

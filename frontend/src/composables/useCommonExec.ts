@@ -6,6 +6,7 @@ import { useQuasar } from 'quasar'
 interface ExecResult {
   Code?: number
   Message?: string
+  Data?: unknown
 }
 
 interface CommonExecOptions {
@@ -23,23 +24,24 @@ interface CommonExecOptions {
  * 统一的操作结果处理器
  * @example
  * const { exec } = useCommonExec()
- * await exec(() => api.renameFile(params))
+ * const data = await exec(() => api.renameFile(params))
  */
 export function useCommonExec(options: CommonExecOptions = {}) {
   const $q = useQuasar()
   const { position = 'bottom-left', notifyOnSuccess = false, delay = 0, onBefore } = options
 
-  async function exec(fn: () => Promise<ExecResult>) {
+  async function exec<T = unknown>(fn: () => Promise<ExecResult>): Promise<T | undefined> {
     onBefore?.()
 
     if (delay > 0) {
       await new Promise((resolve) => setTimeout(resolve, delay))
     }
 
-    const { Code, Message } = (await fn()) || {}
+    const { Code, Message, Data } = (await fn()) || {}
     if (Code !== 200 || notifyOnSuccess) {
       $q.notify({ message: Message || (Code === 200 ? '操作成功' : '操作失败'), position })
     }
+    return Data as T
   }
 
   return { exec }
