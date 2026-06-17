@@ -19,3 +19,8 @@ export const SeriesCount = async () => {
   const res = await commonAxios().get('/api/seriesCount');
   return res && res.data;
 };
+
+export const DiskUsage = async () => {
+  const res = await commonAxios().get('/api/diskUsage');
+  return res && res.data;
+};

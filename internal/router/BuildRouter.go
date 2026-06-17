@@ -126,6 +126,7 @@ func BuildAPIRouter() *gin.Engine {
 	router.GET("/api/tagSizeMap", handler.GetTagSize)
 	router.GET("/api/seriesCount", handler.GetSeriesSize)
 	router.GET("/api/scanTime", handler.GetScanTime)
+	router.GET("/api/diskUsage", handler.GetDiskUsage)
 	router.GET("/api/heartBeat", handler.GetHeartBeat)
 	router.GET("/api/pingHost", handler.PingHost)
 	router.GET("/api/logMemory", handler.GetLogMemory)

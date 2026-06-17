@@ -36,7 +36,8 @@
             { value: 'tagDiv', label: '标签', icon: 'label' },
             { value: 'seriesDiv', label: '系列', icon: 'movie' },
             { value: 'typeDiv', label: '类型', icon: 'category' },
-            { value: 'diskDiv', label: '磁盘', icon: 'storage' },
+            { value: 'diskDiv', label: '容量', icon: 'hard_drive' },
+            { value: 'scanTimeDiv', label: '耗时', icon: 'timer' },
           ]"
         />
       </div>
@@ -169,11 +170,49 @@
         </div>
       </q-card>
 
-      <!-- 磁盘分析卡片 -->
-      <q-card class="cardcard">
+      <!-- 磁盘容量卡片 -->
+      <q-card class="cardcard" v-if="diskUsage.length > 0">
         <q-toolbar class="bg-gradient-primary text-white" id="diskDiv">
-          <q-icon name="storage" class="q-mr-sm" />
-          磁盘分析
+          <q-icon name="hard_drive" class="q-mr-sm" />
+          磁盘容量
+          <q-space />
+          <q-badge color="orange" text-color="white">
+            {{ diskUsage.length }} 个磁盘
+          </q-badge>
+        </q-toolbar>
+        <div class="q-pa-md">
+          <div class="q-gutter-md">
+            <div v-for="item in diskUsage" :key="item.Path" class="disk-item">
+              <div class="row items-center justify-between q-mb-xs">
+                <div class="text-subtitle2">
+                  <q-icon name="folder" color="primary" class="q-mr-xs" />
+                  {{ item.Path }}
+                </div>
+                <div class="text-caption text-grey">
+                  {{ formatSize(item.Used) }} / {{ formatSize(item.All) }}
+                </div>
+              </div>
+              <q-linear-progress
+                :value="item.Percent / 100"
+                :color="getProgressColor(item.Percent)"
+                size="12px"
+                rounded
+                stripe
+              >
+                <div class="absolute-full flex flex-center">
+                  <q-badge color="white" text-color="dark" :label="item.Percent.toFixed(1) + '%'" />
+                </div>
+              </q-linear-progress>
+            </div>
+          </div>
+        </div>
+      </q-card>
+
+      <!-- 扫描耗时卡片 -->
+      <q-card class="cardcard">
+        <q-toolbar class="bg-gradient-primary text-white" id="scanTimeDiv">
+          <q-icon name="timer" class="q-mr-sm" />
+          扫描耗时
           <q-space />
           <q-badge color="orange" text-color="white">
             {{ scanTime.length }} 个目录
@@ -247,6 +286,7 @@ import {
   TagSizeMap,
   TypeSizeMap,
   SeriesCount,
+  DiskUsage,
 } from '../components/api/homeAPI';
 import { onKeyStroke } from '@vueuse/core';
 import { useSystemProperty } from '../stores/System';
@@ -260,6 +300,7 @@ const tableData = ref([]);
 const tagData = ref([]);
 const seriesData = ref([]);
 const scanTime = ref([]);
+const diskUsage = ref([]);
 const currentDiv = ref('tagDiv');
 const isLoading = ref(true);
 let inter;
@@ -297,25 +338,36 @@ const loadTypeSize = async () => {
   if (res) {
     tableData.value = res;
   }
-  loadTagSize();
-  loadScanTime();
-  loadSeriesCount();
+  await Promise.all([
+    loadTagSize(),
+    loadScanTime(),
+    loadSeriesCount(),
+    loadDiskUsage(),
+  ]);
   isLoading.value = false;
 };
 
 const loadTagSize = async () => {
   const res = await TagSizeMap();
   if (res) {
-    tagData.value = res.length > 80 ? res.splice(0, 80) : res;
+    tagData.value = res.length > 80 ? res.slice(0, 80) : res;
   }
 };
 
 const loadSeriesCount = async () => {
   const res = await SeriesCount();
   if (res) {
-    seriesData.value = res.length > 80 ? res.splice(0, 80) : res;
+    seriesData.value = res.length > 80 ? res.slice(0, 80) : res;
   }
 };
+
+const loadDiskUsage = async () => {
+  const res = await DiskUsage();
+  if (res) {
+    diskUsage.value = res;
+  }
+};
+
 const loadScanTime = async () => {
   scanTime.value = await ScanTime();
   scanTime.value = scanTime.value.sort((a, b) => {
@@ -375,6 +427,20 @@ const deleteThis = async (data) => {
     $q.notify({ type: 'warning', message: '执行失败' });
   }
 };
+
+const formatSize = (bytes) => {
+  if (!bytes || bytes <= 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+const getProgressColor = (percent) => {
+  if (percent >= 90) return 'negative';
+  if (percent >= 70) return 'warning';
+  return 'positive';
+};
 const refreshIndex = async () => {
   indexButton.value.refreshIndex();
 };
@@ -419,6 +485,13 @@ const f5 = () => {
 .disk-card:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   transform: translateY(-2px);
+}
+
+.disk-item {
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--q-bg-card);
+  border: 1px solid var(--q-border);
 }
 
 .bg-gradient-primary {

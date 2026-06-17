@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"search-gin/internal/model"
 	"search-gin/internal/service"
 	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
@@ -102,6 +103,19 @@ func GetScanTime(c *gin.Context) {
 }
 func GetHeartBeat(c *gin.Context) {
 	c.JSON(http.StatusOK, consts.IndexNumber)
+}
+
+func GetDiskUsage(c *gin.Context) {
+	var res []model.DiskStatus
+	dirs := consts.GetOSSetting().Dirs
+	for _, dir := range dirs {
+		usage, err := model.GetDiskUsage(dir)
+		if err != nil {
+			continue
+		}
+		res = append(res, *usage)
+	}
+	c.JSON(http.StatusOK, res)
 }
 
 func mapToSlice(m *sync.Map) []consts.MenuSize {
