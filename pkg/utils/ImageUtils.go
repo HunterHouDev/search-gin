@@ -29,10 +29,10 @@ func ImageToPng(src string) error {
 		return err
 	}
 	defer func(fin *os.File) {
-	 err := fin.Close()
-	 if err != nil {
+		err := fin.Close()
+		if err != nil {
 
-	 }
+		}
 	}(fin)
 	fout, createErr := os.Create(des)
 	if createErr != nil {

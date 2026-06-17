@@ -948,7 +948,6 @@ import {
   DelTransferTasksInfo,
   AddTag,
   FileRename,
-  MoveFile,
 } from 'components/api/searchAPI';
 
 import Sortable from 'sortablejs';
@@ -1075,11 +1074,6 @@ const doCloseTag = async (item, tag) => {
   if (updated) Object.assign(item, updated);
 };
 
-const doAddTag = async (item, tag) => {
-  const updated = await commonExec(() => AddTag(item, tag));
-  if (updated) Object.assign(item, updated);
-};
-
 const emmits = defineEmits([
   // REQUIRED; 需要明确指出
   // 组件通过 useDialogPluginComponent() 暴露哪些事件
@@ -1192,14 +1186,6 @@ const setTypeBySelector = async (value) => {
       const updated = await commonExec(() => ResetMovieType(id, value));
       if (item && updated) Object.assign(item, updated);
     }
-  }
-  resetSelector();
-};
-const deleteBySelector = () => {
-  if (view.selector && view.selector.length > 0) {
-    view.selector.forEach((item) => {
-      commonExec(() => DeleteFile(item));
-    });
   }
   resetSelector();
 };

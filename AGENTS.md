@@ -17,7 +17,7 @@
 | `:10082` | 文件/图片/视频流 | 注册在 `BuildFileRouter()`，无需认证 |
 | `:6060` | pprof（仅开发环境） | 开发调试用 |
 
-端口在 `pkg/consts/base_param.go:63-64` 硬编码（`PortNo=:10081`，`FilePortNo=:10082`）。
+端口在 `pkg/consts/base_param.go:60-61` 硬编码（`PortNo=:10081`，`FilePortNo=:10082`）。
 
 ## 前端构建 / 嵌入流程
 
@@ -43,7 +43,7 @@
 - Token 存储在内存中（`TokenStore` map），通过 `Authorization: Bearer <token>` 发送
 - WebSocket 使用 `?token=` 查询参数传递（无法设置自定义 Header）
 - **集群节点间转发**使用 `X-Search-Gin-Remote: true` header 跳过 Token 认证，但来源 IP 必须为集群内已知 peer（`middleware/common.go`），详见下方多节点集群认证机制
-- 中间件跳过认证的路径（API 路由 10081）：`/api/login`、`/`、`/index.html`、`/api/ws`、`/api/lanPeers`、`/api/heartBeat`
+- 中间件跳过认证的路径（API 路由 10081）：`/api/login`、`/login`、`/`、`/index.html`、`/api/ws`、`/api/lanPeers`、`/api/heartBeat`
   - ⚠️ skip path 检查必须在 `X-Search-Gin-Remote` 校验**之前**，否则 `verifyPeer` 反向心跳请求会形成递归死锁
 - 文件流路由统一走端口 10082（`BuildFileRouter`，无认证），前端通过 `setFileBaseUrl` 自动指向 `:10082`
 - `StreamUrl`（视频）→ `GetFileByPathUseEncode/:path`，`PngUrl`/`JpgUrl`（缩略图）→ `png/:id`/`jpg/:id`
@@ -93,8 +93,8 @@ go run main.go
 # 前端开发服务器（代理 /api → localhost:10081）
 cd frontend && quasar dev
 
-# 运行唯一的 Go 测试套件
-go test ./internal/model/
+# 运行 Go 测试套件
+go test ./...
 
 # 前端 lint / format
 cd frontend && yarn lint

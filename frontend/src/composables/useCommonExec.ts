@@ -1,4 +1,4 @@
-import { useQuasar } from 'quasar'
+import { useQuasar, type QNotifyCreateOptions } from 'quasar'
 
 // 统一异步操作结果处理
 // 替代 SearchPage/EditVideoTag/TagPop/ListEditDialog 中重复的 commonExec
@@ -11,7 +11,7 @@ interface ExecResult {
 
 interface CommonExecOptions {
   /** 通知位置 */
-  position?: Parameters<ReturnType<typeof useQuasar>['notify']>[0]['position']
+  position?: QNotifyCreateOptions['position']
   /** 成功时是否通知（默认 false，仅错误通知） */
   notifyOnSuccess?: boolean
   /** 延迟执行（毫秒） */

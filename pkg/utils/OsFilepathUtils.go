@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"unicode"
 )
 
 // ValidatePath 验证路径是否在允许的目录内，防止路径遍历攻击
@@ -42,18 +41,6 @@ func ValidatePath(userPath string, allowedDirs []string) (string, error) {
 	}
 
 	return "", fmt.Errorf("路径访问被拒绝: 不在允许的目录范围内")
-}
-
-// SanitizeFilename 清理文件名，防止命令注入
-// 移除可能导致命令注入的字符
-func SanitizeFilename(filename string) string {
-	// 移除危险的shell元字符
-	dangerous := []string{";", "|", "`", "$", "(", ")", "<", ">", "&", "!", "\n", "\r"}
-	cleaned := filename
-	for _, char := range dangerous {
-		cleaned = strings.ReplaceAll(cleaned, char, "")
-	}
-	return cleaned
 }
 
 // DirpathForId 根据文件路径生成唯一 ID（FNV-1a 哈希，确定性、零分配）
@@ -253,29 +240,6 @@ func GetSizeStr(fSize int64) string {
 	}
 	return result
 }
-
-// Camel2Case 驼峰式写法转为下划线写法
-func Camel2Case(name string) string {
-	buffer := NewBuffer()
-	for i, r := range name {
-		if unicode.IsUpper(r) {
-			if i != 0 {
-				buffer.Append('_')
-			}
-			buffer.Append(unicode.ToLower(r))
-		} else {
-			buffer.Append(r)
-		}
-	}
-	return buffer.String()
-}
-
-// 下划线写法转为驼峰写法
-//func Case2Camel(name string) string {
-//	name = strings.Replace(name, "_", " ", -1)
-//	name = strings.Title(name)
-//	return strings.Replace(name, " ", "", -1)
-//}
 
 // Buffer 内嵌bytes.Buffer，支持连写
 type Buffer struct {

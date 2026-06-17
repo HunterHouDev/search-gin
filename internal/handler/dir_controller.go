@@ -28,7 +28,7 @@ func GetOpenFolder(c *gin.Context) {
  }
 
  utils.InfoFormat("open folder:[%v]", file.DirPath)
-	utils.ExecCmdExplorer(file.DirPath)
+	utils.ExecCmdStart(file.DirPath)
 	res := utils.NewSuccessByMsg("打开成功")
 	c.JSON(http.StatusOK, res)
 }
@@ -49,7 +49,7 @@ func PostOpenFolderByPath(c *gin.Context) {
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("路径不在允许范围内"))
 		return
 	}
-	utils.ExecCmdExplorer(validatedPath)
+	utils.ExecCmdStart(validatedPath)
 	res := utils.NewSuccessByMsg("打开成功")
 	c.JSON(http.StatusOK, res)
 }

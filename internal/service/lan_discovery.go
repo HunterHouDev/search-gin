@@ -70,10 +70,7 @@ func initNodeInfo() {
 		hostname = "unknown"
 	}
 
-	port := consts.PortNo
-	if strings.HasPrefix(port, ":") {
-		port = port[1:]
-	}
+	port := strings.TrimPrefix(consts.PortNo, ":")
 	LocalNodeHost = fmt.Sprintf("%s:%s", hostname, port)
 
 	setting := consts.GetOSSetting()
@@ -158,16 +155,6 @@ func (m *peerManager) upsertPeer(p *Peer) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.peers[p.ID] = p
-}
-
-// updateLastSeen 更新已有节点的 LastSeen 和 IP（线程安全）
-func (m *peerManager) updateLastSeen(id, ip string, lastSeen int64) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if p, ok := m.peers[id]; ok {
-		p.LastSeen = lastSeen
-		p.IP = ip
-	}
 }
 
 // GetOnlinePeers 获取在线节点列表
@@ -363,12 +350,4 @@ func GetPeer(nodeHost string) *Peer {
 func SetMovieNode(m *model.FileItem) {
 	m.NodeHost = LocalNodeHost
 	m.NodeName = LocalNodeName
-}
-
-func getHostname() string {
-	h, err := os.Hostname()
-	if err != nil {
-		return "unknown"
-	}
-	return h
 }

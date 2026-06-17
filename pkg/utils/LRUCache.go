@@ -35,7 +35,7 @@ func NewLRUCache(capacity int) *LRUCache {
 // Get 获取缓存值（读锁查找 + 写锁移动双检，降低锁竞争）
 func (c *LRUCache) Get(key string) (interface{}, bool) {
  c.mu.RLock()
- element, ok := c.cache[key]
+ _, ok := c.cache[key]
  if !ok {
   c.mu.RUnlock()
   return nil, false
@@ -45,7 +45,7 @@ func (c *LRUCache) Get(key string) (interface{}, bool) {
  // 写锁下再次确认 + 移到链表头部
  c.mu.Lock()
  // double-check：在获取写锁后重新确认元素仍有效
- element, ok = c.cache[key]
+ element, ok := c.cache[key]
  if !ok {
   c.mu.Unlock()
   return nil, false

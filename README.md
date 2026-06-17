@@ -13,7 +13,9 @@
 - **图片浏览**：缩略图网格、在线预览
 - **文件管理**：重命名、移动、删除、标签管理
 - **用户系统**：登录认证、多用户管理（管理员 + 普通用户）、运行时可配置
-- **多节点集群**：局域网内 UDP 组播自动发现、跨节点搜索、跨节点文件操作（删除/重命名/转码等）、文件流直连 `:10082`
+- **多节点集群**：HTTP 信令节点发现、跨节点搜索、跨节点文件操作（删除/重命名/转码等）、文件流直连 `:10082`
+- **视频会议**：WebRTC 点对点视频通话
+- **聊天系统**：WebSocket 实时聊天 + AI 集成
 
 ## 技术栈
 
@@ -64,22 +66,33 @@ bash bpc_build.sh
 
 ```
 search-gin/
-├── main.go              # 入口，HTTP 服务
+├── main.go              # 入口，信号处理、优雅关闭
+├── server.go            # HTTP 服务创建、端口解析
+├── assets.go            # 资源解压、静态文件加载
 ├── assets_dev.go        # 开发环境（不嵌入资源）
 ├── assets_prod.go       # 生产环境 //go:embed
 ├── internal/
-│   ├── handler/         # HTTP 处理器
-│   ├── model/           # 数据模型
-│   ├── router/          # 路由注册
-│   ├── service/         # 业务逻辑（索引、搜索、文件扫描、多节点集群）
-│   │   ├── lan_discovery.go      # UDP 组播节点发现
-│   │   ├── remote_search.go      # 跨节点搜索 + 合并去重
-│   │   ├── remote_operation.go   # 跨节点文件操作转发
-│   │   └── index_engine_cache.go # 快照磁盘缓存（gob 序列化）
+│   ├── handler/         # HTTP 处理器（文件、搜索、设置、种子、WS 等）
+│   ├── model/           # 数据模型（FileItem、搜索参数、任务模型）
+│   ├── router/          # 路由注册（API 路由 + 文件流路由）
+│   ├── service/         # 业务逻辑
+│   │   ├── index_builder.go        # 索引构建（全量/增量/替换/删除）
+│   │   ├── search_executor.go      # 异步分页搜索
+│   │   ├── file_operations.go      # 文件操作（重命名、移动、标签、类型）
+│   │   ├── file_scanner.go         # 文件系统扫描
+│   │   ├── lan_discovery.go        # 集群节点管理（HTTP 信令 + 反向心跳）
+│   │   ├── remote_search.go        # 跨节点搜索 + 合并去重
+│   │   ├── remote_operation.go     # 跨节点文件操作转发
+│   │   ├── torrent_service.go      # 磁力链/BT 下载管理
+│   │   ├── media_streamer.go       # 图片/视频流服务
+│   │   ├── video_processor.go      # FFmpeg 转码、剪切、截图
+│   │   ├── snapshot_manager.go     # 快照生命周期、原子切换
+│   │   └── index_engine_cache.go   # 快照磁盘缓存（gob 序列化）
+│   ├── ws/              # WebSocket Hub（聊天/视频会议信令）
 │   └── env/             # 环境配置（prod/dev build tag）
 ├── pkg/
 │   ├── consts/          # 常量、配置、Token 管理
-│   └── utils/           # 日志、LRU 缓存、文件工具、协程池
+│   └── utils/           # 日志、LRU 缓存、FNV 哈希、文件工具、协程池
 ├── middleware/           # Gin 中间件（认证、recovery）
 ├── frontend/            # Vue 3 + Quasar 前端源码
 ├── dist/                # 前端构建产物（被 embed 嵌入）
@@ -136,10 +149,9 @@ func DirpathForId(path string) string {
 - **端口分配**：
   - `:10081` — API + 前端（需认证）
   - `:10082` — 文件/图片/视频流（无需认证，跨节点直连使用）
-  - `:10083` — UDP 组播（多节点自动发现）
 - **认证**：默认管理员 `admin` / `qwer`，Token 存储在内存中
 - **无数据库**：所有数据为内存存储，通过文件系统扫描填充。索引快照自动持久化到 `search_cache.gob`（gob 序列化），重启后优先加载缓存，用户无空白等待期；后台继续扫描以同步最新文件变更
-- **多节点**：`setting.json` 中配置 `enableLanDiscovery: true` 开启 UDP 组播发现，节点间通过 `:10082` 直连传输文件流
+- **多节点**：`setting.json` 中配置 `enableLanDiscovery: true` 并在 `discoveryPeers` 中添加对端地址，节点间通过 HTTP 信令 + 反向心跳自动发现，文件流通过 `:10082` 直连传输
 - **集群安全认证**：跨节点 API 请求携带 `X-Search-Gin-Remote: true` header 绕过 Token 认证，但来源 IP 必须为集群内已知 peer。首次遇到未知 IP 时自动反向心跳验证（GET 该 IP 的 `/api/heartBeat`），通过后自动加入集群并持久化到 `setting.json`，后续请求直达免验证
 
 ## 主要依赖
