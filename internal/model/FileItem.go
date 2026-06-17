@@ -18,7 +18,7 @@ type FileItem struct {
 	Srt       string `json:"Srt,omitempty"`
 	Jpg       string
 	Gif       string
-	Author   string
+	Author    string
 	FileType  string
 	DirPath   string
 	Size      int64
@@ -29,10 +29,10 @@ type FileItem struct {
 	PathUpper string
 	Tags      []string
 
-	Studio   string `json:"Studio,omitempty"`
-	Title    string
-	PngUrl   string `json:"PngUrl,omitempty"`
-	JpgUrl   string `json:"JpgUrl,omitempty"`
+	Studio string `json:"Studio,omitempty"`
+	Title  string
+	PngUrl string `json:"PngUrl,omitempty"`
+	JpgUrl string `json:"JpgUrl,omitempty"`
 
 	// 多节点字段
 	NodeHost  string `json:"NodeHost,omitempty"`  // "PC-A:10081" 文件所属节点
@@ -51,7 +51,7 @@ type FileEdit struct {
 
 // EasyFile 快速创建文件条目（无指定类型，自动推断）
 func EasyFile(dir string, path string, name string, fileType string, size int64, modTime time.Time, baseDir string) FileItem {
-	fileKey, _ := utils.DirpathForId(path)
+	fileKey := utils.DirpathForId(path)
 	movieType := utils.GetMovieType(name)
 	author := utils.GetAuthor(name)
 	code := utils.GetCode(name)
@@ -66,7 +66,7 @@ func EasyFile(dir string, path string, name string, fileType string, size int64,
 		Srt:       utils.ConcatSuffix(path, "srt"),
 		Gif:       utils.ConcatSuffix(path, "gif"),
 		Tags:      utils.GetTags(path, ""),
-		Author:   author,
+		Author:    author,
 		FileType:  fileType,
 		DirPath:   dir,
 		Size:      size,
@@ -82,7 +82,7 @@ func EasyFile(dir string, path string, name string, fileType string, size int64,
 
 // NewFile 创建文件条目（完整参数）
 func NewFile(dir string, path string, name string, fileType string, size int64, modTime time.Time, movieType string, baseDir string) FileItem {
-	generateId, _ := utils.DirpathForId(path)
+	generateId := utils.DirpathForId(path)
 	code := utils.GetCode(name)
 	author := utils.GetAuthor(name)
 	result := FileItem{
@@ -96,7 +96,7 @@ func NewFile(dir string, path string, name string, fileType string, size int64, 
 		Srt:       utils.ConcatSuffix(path, "srt"),
 		Gif:       utils.ConcatSuffix(path, "gif"),
 		Tags:      utils.GetTags(path, ""),
-		Author:   author,
+		Author:    author,
 		FileType:  fileType,
 		DirPath:   dir,
 		Size:      size,

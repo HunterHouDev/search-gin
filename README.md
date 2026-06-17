@@ -87,6 +87,48 @@ search-gin/
 └── ffmpeg.exe ffplay.exe  # 媒体处理工具
 ```
 
+## ID 生成
+
+文件 ID 由 `pkg/utils/OsFilepathUtils.go` 中的 `DirpathForId` 函数生成，基于 **FNV-1a** 哈希算法。
+
+### 算法
+
+```go
+// pkg/utils/OsFilepathUtils.go
+func DirpathForId(path string) string {
+    h := fnv.New64a()
+    h.Write([]byte(path))
+    id := fmt.Sprintf("%x", h.Sum64())
+    return id
+}
+```
+
+### 特性
+
+- **确定性**：相同路径始终生成相同 ID
+- **零分配**：无内存分配，单次调用 ~10ns
+- **非加密**：FNV-1a 是快速散列，不适合安全场景
+
+### 碰撞概率与实际容量
+
+哈希冲突遵循[生日悖论](https://en.wikipedia.org/wiki/Birthday_problem)——约 `sqrt(πN/2)` 个条目后预期出现首次碰撞（N = 2ⁿ）。
+
+| 位数 | 首次碰撞约在 | 对媒体库的结论 |
+|------|-------------|---------------|
+| 32-bit | ~7.7 万 | 大型媒体库有风险 |
+| **64-bit（当前）** | **~50 亿** | 远超任何实际场景 |
+| 128-bit | ~2×10¹⁹ | 宇宙级冗余 |
+
+实际媒体库文件数通常在 1 万 ~ 50 万之间，64-bit FNV-1a 碰撞概率远低于硬件误码率，无需担心。
+
+### 修改指南
+
+如需调整 ID 生成方式，修改 `pkg/utils/OsFilepathUtils.go` 中的 `DirpathForId` 函数即可。注意：
+
+- **修改哈希算法会导致旧缓存 `search_cache.gob` 失效**，首次启动会全量重建索引
+- 确保新算法是**确定性的**（同输入同输出）
+- 64-bit 已满足绝大多数场景，无需升级到 128-bit
+
 ## 部署说明
 
 - **Windows 平台**：主要目标平台，使用 `ffmpeg.exe`、`-H=windowsgui` 等 Windows 特性

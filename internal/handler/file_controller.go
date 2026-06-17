@@ -289,7 +289,7 @@ func GetDeleteFileByPathUseEncode(c *gin.Context) {
 	}
 
 	// 先从索引中移除
-	id, _ := utils.DirpathForId(validatedPath)
+	id := utils.DirpathForId(validatedPath)
 	file := service.SearchApp.FindOne(id)
 	if !file.IsNull() {
 		service.SearchEngine.DeleteFile(file)

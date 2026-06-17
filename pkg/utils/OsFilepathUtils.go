@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"fmt"
+	"hash/fnv"
 	"os"
 	"path"
 	"path/filepath"
@@ -18,13 +19,13 @@ import (
 func ValidatePath(userPath string, allowedDirs []string) (string, error) {
 	// 清理路径（移除 .. 等）
 	cleanPath := filepath.Clean(userPath)
-	
+
 	// 获取绝对路径
 	absPath, err := filepath.Abs(cleanPath)
 	if err != nil {
 		return "", fmt.Errorf("无效的路径: %v", err)
 	}
-	
+
 	// 检查路径是否以允许的目录开头
 	for _, allowedDir := range allowedDirs {
 		// 清理允许的目录路径
@@ -33,13 +34,13 @@ func ValidatePath(userPath string, allowedDirs []string) (string, error) {
 		if err != nil {
 			continue
 		}
-		
+
 		// 检查路径是否在允许的目录内
 		if absPath == absAllowed || strings.HasPrefix(absPath, absAllowed+string(filepath.Separator)) {
 			return absPath, nil
 		}
 	}
-	
+
 	return "", fmt.Errorf("路径访问被拒绝: 不在允许的目录范围内")
 }
 
@@ -55,42 +56,12 @@ func SanitizeFilename(filename string) string {
 	return cleaned
 }
 
-func DirpathForId(path string) (string, string) {
-	//res, _ := url.QueryUnescape(path)
-	//res = strings.ReplaceAll(res, PathSeparator+PathSeparator, PathSeparator)
-	//res = strings.ReplaceAll(res, PathSeparator, "~")
-	//res = strings.ReplaceAll(res, PathSeparator, "~")
-	//res = strings.ReplaceAll(res, ":", "1")
-	//res = strings.ReplaceAll(res, ".", "2")
-	//res = strings.ReplaceAll(res, ",", "3")
-	//res = strings.ReplaceAll(res, "!", "4")
-	//res = strings.ReplaceAll(res, "》", "5")
-	//res = strings.ReplaceAll(res, "《", "6")
-	//arr := strings.Split(res, "~")
-	newpath, _ := Encrypt(path)
-	//for i := 0; i < len(arr); i++ {
-	//	curArr := arr[i]
-	//	length := len(curArr)
-	//	if i != 0 {
-	//		newpath += "~"
-	//	}
-	//	if length > 30 {
-	//		// newpath += curArr[0:100]
-	//		// newpath += fmt.Sprintf("%d", (length))
-	//		// newpath += curArr[length-100 : length]
-	//		j := 0
-	//		for _, value := range curArr {
-	//			if j%4 == 0 {
-	//				newpath += string(value)
-	//			}
-	//			j++
-	//		}
-	//	} else {
-	//		newpath += curArr
-	//	}
-	//
-	//}
-	return newpath, newpath
+// DirpathForId 根据文件路径生成唯一 ID（FNV-1a 哈希，确定性、零分配）
+func DirpathForId(path string) string {
+	h := fnv.New64a()
+	h.Write([]byte(path))
+	id := fmt.Sprintf("%x", h.Sum64())
+	return id
 }
 
 func ConcatSuffix(path string, suffix string) string {

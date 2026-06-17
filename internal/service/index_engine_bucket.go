@@ -90,8 +90,8 @@ func (fs *bucketFile) get(id string) model.FileItem {
 	return model.FileItem{}
 }
 
-func (fs *bucketFile) searchBucket(searchParam model.SearchParam) model.SearchResultWrapper {
-	resultWrapper := model.NewSearchWrapper()
+func (fs *bucketFile) searchBucket(searchParam model.SearchParam) model.PageResultWrapper {
+	resultWrapper := model.NewPageWrapper()
 	keyWord := searchParam.Keyword
 	movieType := searchParam.MovieType
 

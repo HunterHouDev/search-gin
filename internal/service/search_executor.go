@@ -129,7 +129,7 @@ func (se *searchEngineCore) PageAsync(searchParam model.SearchParam) model.PageR
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resultChan := make(chan model.SearchResultWrapper, bucketCount*2)
+	resultChan := make(chan model.PageResultWrapper, bucketCount*2)
 
 	for _, bucket := range snap.buckets {
 		if bucket.isEmpty() {
