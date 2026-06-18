@@ -4,10 +4,21 @@ import (
 	"search-gin/internal/model"
 	"search-gin/pkg/utils"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
-var LastScanTime time.Time
+var lastScanTime atomic.Int64
+
+// SetLastScanTime 设置最近扫描时间（并发安全）
+func SetLastScanTime(t time.Time) {
+	lastScanTime.Store(t.UnixNano())
+}
+
+// GetLastScanTime 获取最近扫描时间（并发安全）
+func GetLastScanTime() time.Time {
+	return time.Unix(0, lastScanTime.Load())
+}
 
 var QueryTypes []string
 
@@ -23,8 +34,8 @@ var StaticFs = map[string]string{
 	"/assets": "./dist/assets",
 }
 
-// IndexNumber 索引构建中得目录数量
-var IndexNumber = int32(0)
+// IndexNumber 索引构建中的目录数量（并发安全）
+var IndexNumber atomic.Int32
 
 // ScanProgress 索引扫描/构建进度
 type ScanProgress struct {

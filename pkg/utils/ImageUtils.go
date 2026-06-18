@@ -55,8 +55,16 @@ func ImageToPng(src string) error {
 	left := int(0.53 * float64(width))
 	switch fm {
 	case "jpeg":
-		rgbImg := srcImage.(*image.YCbCr)
-		subImg := rgbImg.SubImage(image.Rect(left, 0, width, height)).(*image.YCbCr)
+		rgbImg, ok := srcImage.(*image.YCbCr)
+		if !ok {
+			InfoFormat("ImageToPng: jpeg 类型断言失败")
+			return nil
+		}
+		subImg, ok := rgbImg.SubImage(image.Rect(left, 0, width, height)).(*image.YCbCr)
+		if !ok {
+			InfoFormat("ImageToPng: jpeg SubImage 类型断言失败")
+			return nil
+		}
 		err := png.Encode(fout, subImg)
 		if err != nil {
 			return err
@@ -65,11 +73,17 @@ func ImageToPng(src string) error {
 		switch srcImage.(type) {
 		case *image.NRGBA:
 			img := srcImage.(*image.NRGBA)
-			subImg := img.SubImage(image.Rect(left, 0, width, height)).(*image.NRGBA)
+			subImg, ok := img.SubImage(image.Rect(left, 0, width, height)).(*image.NRGBA)
+			if !ok {
+				return nil
+			}
 			return png.Encode(fout, subImg)
 		case *image.RGBA:
 			img := srcImage.(*image.RGBA)
-			subImg := img.SubImage(image.Rect(left, 0, width, height)).(*image.RGBA)
+			subImg, ok := img.SubImage(image.Rect(left, 0, width, height)).(*image.RGBA)
+			if !ok {
+				return nil
+			}
 			return png.Encode(fout, subImg)
 		}
 	}

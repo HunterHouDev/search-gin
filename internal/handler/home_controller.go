@@ -23,14 +23,14 @@ func GetTypeSize(c *gin.Context) {
 		service.SearchApp.ScanAll()
 	}
 	res := mapToSlice(&consts.TypeMenu)
-	smallCount := len(consts.SmallDir)
-	if smallCount > 0 {
-		smallSize := consts.NewMenuSize("小文件数量", int64(smallCount))
+	smallDirs := consts.GetSmallDir()
+	if len(smallDirs) > 0 {
+		smallSize := consts.NewMenuSize("小文件数量", int64(len(smallDirs)))
 		smallSize.SizeStr = utils.GetSizeStr(smallSize.Size)
 		res = append(res, smallSize)
-		for i := 0; i < len(consts.SmallDir); i++ {
-			consts.SmallDir[i].SizeStr = utils.GetSizeStr(consts.SmallDir[i].Size)
-			res = append(res, consts.SmallDir[i])
+		for i := range smallDirs {
+			smallDirs[i].SizeStr = utils.GetSizeStr(smallDirs[i].Size)
+			res = append(res, smallDirs[i])
 		}
 	}
 
@@ -92,7 +92,9 @@ func splitLines(s string) []string {
 func GetScanTime(c *gin.Context) {
 	var res []consts.MenuSize
 	consts.FolderTime.Range(func(_, value interface{}) bool {
-		res = append(res, value.(consts.MenuSize))
+		if ms, ok := value.(consts.MenuSize); ok {
+			res = append(res, ms)
+		}
 		return true
 	})
 
@@ -102,7 +104,7 @@ func GetScanTime(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 func GetHeartBeat(c *gin.Context) {
-	c.JSON(http.StatusOK, consts.IndexNumber)
+	c.JSON(http.StatusOK, consts.IndexNumber.Load())
 }
 
 func GetDiskUsage(c *gin.Context) {
@@ -121,7 +123,9 @@ func GetDiskUsage(c *gin.Context) {
 func mapToSlice(m *sync.Map) []consts.MenuSize {
 	var res []consts.MenuSize
 	m.Range(func(_, value interface{}) bool {
-		res = append(res, value.(consts.MenuSize))
+		if ms, ok := value.(consts.MenuSize); ok {
+			res = append(res, ms)
+		}
 		return true
 	})
 	for i := 0; i < len(res); i++ {

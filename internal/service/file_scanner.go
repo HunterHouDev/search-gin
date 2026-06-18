@@ -8,7 +8,6 @@ import (
 	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -53,13 +52,13 @@ func (s *searchService) ScanAll() int {
 
 	// 一致性检查：验证 bucket 数量和目录数量
 	bucketCount := SearchEngine.BucketCount()
-	indexNumber := atomic.LoadInt32(&consts.IndexNumber)
+	indexNumber := consts.IndexNumber.Load()
 	consts.LogMem.Add("ScanAll 一致性检查: BucketCount=%d, IndexNumber=%d, Expected=%d", bucketCount, indexNumber, dirCount)
 	if bucketCount != int32(dirCount) {
 		consts.LogMem.Add("警告: BucketCount(%d) != Expected(%d)，可能存在并发问题", bucketCount, dirCount)
 	}
 
-	consts.LastScanTime = time.Now()
+	consts.SetLastScanTime(time.Now())
 
 	// 扫描完成
 	consts.Sp.Complete()
@@ -161,7 +160,7 @@ func (s *searchService) goWalkWithResult(baseDir string, types []string, resultC
 		Size:    int64(len(files)),
 		SizeStr: utils.GetSizeStr(size),
 	}
-	consts.LogMem.Add("扫描目录:[%s] 耗时:[%d] 大小:[%s],剩余目录数:%d", baseDir, ti.Milliseconds(), utils.GetSizeStr(size), atomic.LoadInt32(&consts.IndexNumber))
+	consts.LogMem.Add("扫描目录:[%s] 耗时:[%d] 大小:[%s],剩余目录数:%d", baseDir, ti.Milliseconds(), utils.GetSizeStr(size), consts.IndexNumber.Load())
 	consts.AddFolderTime(thisTime)
 
 	resultChan <- scanResult{dir: baseDir, bucket: bucket}

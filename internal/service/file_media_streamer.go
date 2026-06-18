@@ -7,6 +7,7 @@ import (
 	"image/png"
 	"io"
 	"net/http"
+	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 
 	"github.com/gin-gonic/gin"
@@ -31,15 +32,23 @@ func (sm *searchService) GetPng(c *gin.Context) {
 	id := c.Param("path")
 	file := SearchEngine.FindById(id)
 	if !file.IsNull() {
-		if utils.ExistsFiles(file.Png) {
-			c.File(file.Png)
-			return
-		} else if utils.ExistsFiles(file.Jpg) {
-			c.File(file.Jpg)
-			return
-		} else if utils.ExistsFiles(file.Gif) {
-			c.File(file.Gif)
-			return
+		if file.Png != "" {
+			if validated, err := utils.ValidatePath(file.Png, consts.GetOSSetting().Dirs); err == nil {
+				c.File(validated)
+				return
+			}
+		}
+		if file.Jpg != "" {
+			if validated, err := utils.ValidatePath(file.Jpg, consts.GetOSSetting().Dirs); err == nil {
+				c.File(validated)
+				return
+			}
+		}
+		if file.Gif != "" {
+			if validated, err := utils.ValidatePath(file.Gif, consts.GetOSSetting().Dirs); err == nil {
+				c.File(validated)
+				return
+			}
 		}
 	}
 	sm.writeNoPic(c)
@@ -50,20 +59,42 @@ func (sm *searchService) GetJpg(c *gin.Context) {
 	id := c.Param("path")
 	file := SearchEngine.FindById(id)
 	if !file.IsNull() {
-		// 按优先级检查图片文件
 		jpeg := utils.ConcatSuffix(file.Path, "jpeg")
-		if utils.ExistsFiles(file.Jpg) {
-			c.File(file.Jpg)
-			return
-		} else if utils.ExistsFiles(jpeg) {
-			c.File(jpeg)
-			return
-		} else if utils.ExistsFiles(file.Png) {
-			c.File(file.Png)
-			return
-		} else if utils.ExistsFiles(file.Gif) {
-			c.File(file.Gif)
-			return
+		if file.Jpg != "" {
+			if validated, err := utils.ValidatePath(file.Jpg, consts.GetOSSetting().Dirs); err == nil {
+				b, err := utils.CompressPngIfNeed(validated)
+				if err != nil {
+					c.Data(http.StatusOK, contentType, b)
+				}
+				c.File(validated)
+				return
+			}
+		}
+		if jpeg != "" {
+			if validated, err := utils.ValidatePath(jpeg, consts.GetOSSetting().Dirs); err == nil {
+				b, err := utils.CompressPngIfNeed(validated)
+				if err != nil {
+					c.Data(http.StatusOK, contentType, b)
+				}
+				c.File(validated)
+				return
+			}
+		}
+		if file.Png != "" {
+			if validated, err := utils.ValidatePath(file.Png, consts.GetOSSetting().Dirs); err == nil {
+				b, err := utils.CompressPngIfNeed(validated)
+				if err != nil {
+					c.Data(http.StatusOK, contentType, b)
+				}
+				c.File(validated)
+				return
+			}
+		}
+		if file.Gif != "" {
+			if validated, err := utils.ValidatePath(file.Gif, consts.GetOSSetting().Dirs); err == nil {
+				c.File(validated)
+				return
+			}
 		}
 	}
 	sm.writeNoPic(c)
@@ -73,8 +104,12 @@ func (sm *searchService) GetJpg(c *gin.Context) {
 func (sm *searchService) GetFile(c *gin.Context) {
 	id := c.Param("id")
 	file := SearchEngine.FindById(id)
-	if utils.ExistsFiles(file.Path) {
-		c.File(file.Path)
+	if file.Path != "" {
+		if validated, err := utils.ValidatePath(file.Path, consts.GetOSSetting().Dirs); err == nil {
+			c.File(validated)
+		} else {
+			c.Status(http.StatusForbidden)
+		}
 	} else {
 		c.Status(http.StatusNotFound)
 	}

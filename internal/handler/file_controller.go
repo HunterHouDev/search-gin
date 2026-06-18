@@ -343,9 +343,11 @@ func GetAuthorImage(c *gin.Context) {
 	author := service.SearchEngine.FindAuthorByName(path)
 	if author.IsNotEmpty() {
 		for _, v := range author.Images {
-			if utils.ExistsFiles(v) {
-				c.File(v)
-				return
+			if v != "" {
+				if validated, err := utils.ValidatePath(v, consts.GetOSSetting().Dirs); err == nil {
+					c.File(validated)
+					return
+				}
 			}
 		}
 	}
@@ -366,6 +368,10 @@ func PostMerge(c *gin.Context) {
 	var dir = ""
 	for _, file := range searchParam.Files {
 		curFile := service.SearchEngine.FindById(file)
+		if curFile.IsNull() {
+			c.JSON(http.StatusBadRequest, utils.NewFailByMsg("文件不存在: "+file))
+			return
+		}
 		dir = curFile.DirPath
 		paths = append(paths, curFile.Path)
 	}

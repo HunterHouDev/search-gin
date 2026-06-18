@@ -27,7 +27,7 @@ func (fs *searchService) HeartBeat() {
 		case <-TaskCtx.Done():
 			return
 		case <-ticker.C:
-			if !consts.GetOSSetting().EnableTimeScan || time.Since(consts.LastScanTime).Seconds() <= 180 {
+			if !consts.GetOSSetting().EnableTimeScan || time.Since(consts.GetLastScanTime()).Seconds() <= 180 {
 				continue
 			}
 			for _, dir := range consts.GetOSSetting().Dirs {
@@ -151,8 +151,8 @@ func (q *taskQueue) executeTask(task *scanTask) {
 	}
 
 	// 设置索引构建状态
-	atomic.AddInt32(&consts.IndexNumber, 1)
-	defer atomic.AddInt32(&consts.IndexNumber, -1)
+	consts.IndexNumber.Add(1)
+	defer consts.IndexNumber.Add(-1)
 
 	consts.LogMem.Add("开始扫描文件夹: %s", task.baseDir)
 

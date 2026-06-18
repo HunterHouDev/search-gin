@@ -162,11 +162,15 @@ func TypeSizePlus(targetType string, targetSize int64) {
 		Size: targetSize,
 	})
 	if ok {
-		TypeMenu.Store(targetType, target.(MenuSize).Plus(targetSize))
+		if t, ok2 := target.(MenuSize); ok2 {
+			TypeMenu.Store(targetType, t.Plus(targetSize))
+		}
 	}
 	all, okAll := TypeMenu.Load("全部")
 	if okAll {
-		TypeMenu.Store("全部", all.(MenuSize).Plus(targetSize))
+		if a, ok2 := all.(MenuSize); ok2 {
+			TypeMenu.Store("全部", a.Plus(targetSize))
+		}
 	}
 }
 
@@ -179,7 +183,9 @@ func TagSizePlus(targetType string, targetSize int64) {
 		Size:  targetSize,
 	})
 	if ok {
-		TagMenu.Store(targetType, target.(MenuSize).Plus(targetSize))
+		if t, ok2 := target.(MenuSize); ok2 {
+			TagMenu.Store(targetType, t.Plus(targetSize))
+		}
 	}
 }
 
@@ -194,6 +200,8 @@ func SeriesPlus(targetType string, targetSize int64) {
 		Size:  targetSize,
 	})
 	if ok {
-		SeriesCount.Store(targetType, target.(MenuSize).Plus(targetSize))
+		if t, ok2 := target.(MenuSize); ok2 {
+			SeriesCount.Store(targetType, t.Plus(targetSize))
+		}
 	}
 }

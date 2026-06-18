@@ -168,7 +168,10 @@ func GetIpAddr() string {
 		return "127.0.0.1"
 	}
 	defer conn.Close()
-	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	localAddr, ok := conn.LocalAddr().(*net.UDPAddr)
+	if !ok {
+		return "127.0.0.1"
+	}
 	ip := strings.Split(localAddr.String(), ":")[0]
 	return ip
 }

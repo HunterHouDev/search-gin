@@ -34,7 +34,7 @@ func (se *searchEngineCore) Page(searchParam model.SearchParam) utils.Page {
 		files[i].PageNo = searchParam.Page
 	}
 	result.Data = files
-	result.SetProgress(consts.IndexNumber)
+	result.SetProgress(consts.IndexNumber.Load())
 	return result
 }
 

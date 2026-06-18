@@ -101,7 +101,7 @@ func (se *searchEngineCore) syncIndex(index *searchIndex) {
 	for k, v := range index.seriesCount {
 		consts.SeriesCount.Store(k, v)
 	}
-	consts.LastScanTime = time.Now()
+	consts.SetLastScanTime(time.Now())
 }
 
 // IsEmpty 检查是否有 bucket 数据

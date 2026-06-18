@@ -15,6 +15,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// requireAdmin 检查当前用户是否为超管，不是则返回 403
+func requireAdmin(c *gin.Context) bool {
+	role, _ := c.Get("role")
+	if r, ok := role.(string); !ok || r != consts.AdminRole {
+		c.JSON(http.StatusForbidden, utils.NewFailByMsg("无权限执行此操作"))
+		return false
+	}
+	return true
+}
+
 // LoginRequest 登录请求
 type LoginRequest struct {
 	Username string `json:"username"`
@@ -83,6 +93,9 @@ func GetSettingInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, safeSetting)
 }
 func PostSetting(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
 	setInfo := model.Setting{}
 	err := c.ShouldBindJSON(&setInfo)
 	if err != nil {
@@ -100,8 +113,11 @@ func PostSetting(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 
-// AddUser 添加普通用户
+// AddUser 添加普通用户（仅超管）
 func AddUser(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
 	type AddUserRequest struct {
 		Username   string `json:"username"`
 		Password   string `json:"password"`
@@ -152,8 +168,11 @@ func AddUser(c *gin.Context) {
 	c.JSON(http.StatusOK, utils.NewSuccess())
 }
 
-// DeleteUser 删除普通用户
+// DeleteUser 删除普通用户（仅超管）
 func DeleteUser(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
 	type DeleteUserRequest struct {
 		Username string `json:"username"`
 	}
@@ -238,9 +257,7 @@ func GetServerPort(c *gin.Context) {
 
 // GetShutdown 系统关机（仅超管可执行）
 func GetShutdown(c *gin.Context) {
-	role, _ := c.Get("role")
-	if role != consts.AdminRole {
-		c.JSON(http.StatusForbidden, utils.NewFailByMsg("无权限执行此操作"))
+	if !requireAdmin(c) {
 		return
 	}
 	res := utils.NewSuccess()
