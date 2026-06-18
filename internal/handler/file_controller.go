@@ -202,7 +202,7 @@ func GetDirInfo(c *gin.Context) {
 	id := c.Param("id")
 	sort := c.Param("sort")
 	file := service.SearchApp.FindOne(id)
-	files := service.FileApp.Walk(file.DirPath, consts.Images, false)
+	files := service.SearchApp.Walk(file.DirPath, consts.Images, false)
 	model.SortFileItems(files, "MTime", sort)
 	c.JSON(http.StatusOK, files)
 }
@@ -224,7 +224,7 @@ func GetDelete(c *gin.Context) {
 
 	// 本地存在：先更新索引，再删除物理文件
 	service.SearchEngine.DeleteFile(file)
-	service.FileApp.DeleteOne(file.DirPath, file.Title)
+	service.SearchApp.DeleteOne(file.DirPath, file.Title)
 	c.JSON(http.StatusOK, utils.NewSuccessByMsg("删除成功"))
 }
 
@@ -233,13 +233,13 @@ func GetRefreshTargetIndex(c *gin.Context) {
 	dir := c.Param("dir")
 	baseDir, _ := url.QueryUnescape(dir)
 
-	service.FileApp.ScanTarget(baseDir)
+	service.SearchApp.ScanTarget(baseDir)
 	res := utils.NewSuccessByMsg("扫描任务执行中")
 	c.JSON(http.StatusOK, res)
 }
 
 func GetRefreshIndex(c *gin.Context) {
-	cnt := service.FileApp.ScanAll()
+	cnt := service.SearchApp.ScanAll()
 	res := utils.NewSuccessByMsg("计划扫描：" + fmt.Sprint(cnt))
 	c.JSON(http.StatusOK, res)
 }
@@ -323,17 +323,17 @@ func GetDeleteFileByPathUseEncode(c *gin.Context) {
 
 // GetFile 获取文件流
 func GetFile(c *gin.Context) {
-	service.FileApp.GetFile(c)
+	service.SearchApp.GetFile(c)
 }
 
 // GetPng 获取Png流
 func GetPng(c *gin.Context) {
-	service.FileApp.GetPng(c)
+	service.SearchApp.GetPng(c)
 }
 
 // GetJpg 获取jpg流
 func GetJpg(c *gin.Context) {
-	service.FileApp.GetJpg(c)
+	service.SearchApp.GetJpg(c)
 
 }
 
@@ -476,7 +476,7 @@ func GetCutImage(c *gin.Context) {
 		c.JSON(http.StatusOK, r)
 		return
 	}
-	res := service.FileApp.CutImage(movieFile.Path, typeImage, start)
+	res := service.VideoEncoder.CutImage(movieFile.Path, typeImage, start)
 	c.JSON(http.StatusOK, res)
 }
 

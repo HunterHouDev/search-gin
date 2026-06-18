@@ -35,7 +35,7 @@ func InitSetting() {
 
 	// 如果启用硬件加速，主动检测并同步模式名称
 	if dict.HardwareAcceleration {
-		FileApp.detectHwAccel()
+		VideoEncoder.detectHwAccel()
 		dict.HardwareAccelMode = GetHwAccelModeName()
 	}
 

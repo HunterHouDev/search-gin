@@ -19,7 +19,7 @@ type scanResult struct {
 }
 
 // ScanAll 全局扫描
-func (fs *fileService) ScanAll() int {
+func (s *searchService) ScanAll() int {
 	setting := consts.GetOSSetting()
 	dirCount := len(setting.Dirs)
 	dirList := make([]string, dirCount)
@@ -43,7 +43,7 @@ func (fs *fileService) ScanAll() int {
 	queryTypes = utils.ExtendsItems(queryTypes, setting.ImageTypes)
 
 	// 扫描阶段：并发扫描目录，收集文件
-	buckets := fs.ScanDirs(dirList, queryTypes)
+	buckets := s.ScanDirs(dirList, queryTypes)
 
 	// 切换到索引构建阶段
 	consts.Sp.SetPhase("building", "正在构建索引...")
@@ -72,12 +72,12 @@ func (fs *fileService) ScanAll() int {
 }
 
 // ScanTarget 扫描指定文件夹
-func (fs *fileService) ScanTarget(baseDir string) {
+func (s *searchService) ScanTarget(baseDir string) {
 	scanQueue.AddTask(baseDir)
 }
 
 // ScanDirs 并发扫描多文件夹，收集 bucket 结果（不重建索引）
-func (fs *fileService) ScanDirs(baseDir []string, types []string) map[string]*bucketFile {
+func (s *searchService) ScanDirs(baseDir []string, types []string) map[string]*bucketFile {
 	var wg sync.WaitGroup
 	dirSize := len(baseDir)
 
@@ -92,7 +92,7 @@ func (fs *fileService) ScanDirs(baseDir []string, types []string) map[string]*bu
 		go func(dir string) {
 			defer wg.Done()
 			defer utils.RecoverPanic()
-			fs.goWalkWithResult(dir, types, resultChan)
+			s.goWalkWithResult(dir, types, resultChan)
 		}(baseDir[i])
 	}
 
@@ -112,14 +112,14 @@ func (fs *fileService) ScanDirs(baseDir []string, types []string) map[string]*bu
 }
 
 // Walks 并发扫描多文件夹并返回所有文件（扫描 + 重建索引）
-func (fs *fileService) Walks(baseDir []string, types []string) []model.FileItem {
+func (s *searchService) Walks(baseDir []string, types []string) []model.FileItem {
 	dirSize := len(baseDir)
 
 	if dirSize == 0 {
 		return nil
 	}
 
-	buckets := fs.ScanDirs(baseDir, types)
+	buckets := s.ScanDirs(baseDir, types)
 
 	var result []model.FileItem
 	for _, b := range buckets {
@@ -136,7 +136,7 @@ func (fs *fileService) Walks(baseDir []string, types []string) []model.FileItem 
 }
 
 // goWalkWithResult 协程方法扫描单个文件夹并返回结果
-func (fs *fileService) goWalkWithResult(baseDir string, types []string, resultChan chan<- scanResult) {
+func (s *searchService) goWalkWithResult(baseDir string, types []string, resultChan chan<- scanResult) {
 	defer func() {
 		consts.Sp.IncrementCompletedDirs()
 	}()
@@ -146,7 +146,7 @@ func (fs *fileService) goWalkWithResult(baseDir string, types []string, resultCh
 
 	consts.LogMem.Add("goWalkWithResult: 开始扫描目录 %s", baseDir)
 	start := time.Now()
-	files, size := fs.WalkInner(baseDir, types, true, baseDir)
+	files, size := s.WalkInner(baseDir, types, true, baseDir)
 
 	consts.LogMem.Add("goWalkWithResult: 扫描完成 %s, 发现 %d 个文件", baseDir, len(files))
 	// 更新已扫描文件计数
@@ -168,13 +168,13 @@ func (fs *fileService) goWalkWithResult(baseDir string, types []string, resultCh
 }
 
 // Walk 遍历目录，获取指定类型文件列表（轻量版，不建索引）
-func (fs *fileService) Walk(dirPath string, types []string, deep bool) []model.FileItem {
-	files, _ := fs.WalkInner(dirPath, types, deep, dirPath)
+func (s *searchService) Walk(dirPath string, types []string, deep bool) []model.FileItem {
+	files, _ := s.WalkInner(dirPath, types, deep, dirPath)
 	return files
 }
 
 // WalkInner 递归遍历目录获取文件列表
-func (fs *fileService) WalkInner(currentDir string, types []string, queryChild bool, basePath string) ([]model.FileItem, int64) {
+func (s *searchService) WalkInner(currentDir string, types []string, queryChild bool, basePath string) ([]model.FileItem, int64) {
 	typeSet := utils.ToSet(types)
 
 	dirStack := []stackItem{{path: currentDir, queryChild: queryChild, visited: false}}

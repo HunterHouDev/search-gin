@@ -12,20 +12,23 @@ import (
 	"time"
 )
 
+// encoder 视频转码/处理服务
+type videoEncoder struct{}
+
 // TransferFormatter 视频转码格式化
-func (fs *fileService) TransferFormatter(task model.TransferTaskModel) utils.Result {
+func (e *videoEncoder) TransferFormatter(task model.TransferTaskModel) utils.Result {
 	switch task.VCode {
 	case "h264":
-		return fs.transferWithEncoder(task, fs.getH264Encoder(), "23")
+		return e.transferWithEncoder(task, e.getH264Encoder(), "23")
 	case "h265":
-		return fs.transferWithEncoder(task, fs.getH265Encoder(), "28")
+		return e.transferWithEncoder(task, e.getH265Encoder(), "28")
 	default:
-		return fs.transferFormatWithCopy(task)
+		return e.transferFormatWithCopy(task)
 	}
 }
 
 // transferWithEncoder 通用转码函数（合并原来的 TransferFormatter264/265）
-func (fs *fileService) transferWithEncoder(task model.TransferTaskModel, encoder, crf string) utils.Result {
+func (e *videoEncoder) transferWithEncoder(task model.TransferTaskModel, encoder, crf string) utils.Result {
 	from := task.Path
 	suffix := utils.GetSuffix(task.Path)
 
@@ -38,8 +41,8 @@ func (fs *fileService) transferWithEncoder(task model.TransferTaskModel, encoder
 	}
 
 	dest := strings.ReplaceAll(task.Path, "."+suffix, "."+task.To)
-	decodeParams := fs.getHwDecodeParams()
-	qualityParam := fs.getHwQualityParam()
+	decodeParams := e.getHwDecodeParams()
+	qualityParam := e.getHwQualityParam()
 
 	args := make([]string, 0, 10)
 	if decodeParams != "" {
@@ -47,17 +50,17 @@ func (fs *fileService) transferWithEncoder(task model.TransferTaskModel, encoder
 	}
 	args = append(args, "-i", from, "-c:v", encoder, qualityParam, crf, dest)
 
-	res := fs.ffmpegExec(args, task.CreateTime)
+	res := e.ffmpegExec(args, task.CreateTime)
 
 	if res.IsSuccess() {
-		fs.cleanupSourceIfNeeded(task.Path)
+		e.cleanupSourceIfNeeded(task.Path)
 	}
 
 	return res
 }
 
 // cleanupSourceIfNeeded 如果配置了转码后删除源文件，则执行删除
-func (fs *fileService) cleanupSourceIfNeeded(path string) {
+func (e *videoEncoder) cleanupSourceIfNeeded(path string) {
 	if consts.GetOSSetting().CutThenDelete {
 		if err := os.Remove(path); err != nil {
 			utils.InfoFormat("删除源文件失败: %s, 错误: %v", path, err)
@@ -66,7 +69,7 @@ func (fs *fileService) cleanupSourceIfNeeded(path string) {
 }
 
 // transferFormatWithCopy 以 copy 方式转码（不重新编码）
-func (fs *fileService) transferFormatWithCopy(task model.TransferTaskModel) utils.Result {
+func (e *videoEncoder) transferFormatWithCopy(task model.TransferTaskModel) utils.Result {
 	from := task.Path
 	suffix := utils.GetSuffix(task.Path)
 
@@ -80,29 +83,29 @@ func (fs *fileService) transferFormatWithCopy(task model.TransferTaskModel) util
 
 	dest := strings.ReplaceAll(task.Path, "."+suffix, "."+task.To)
 	args := []string{"-i", from, "-vcodec", "copy", dest}
-	res := fs.ffmpegExec(args, task.CreateTime)
+	res := e.ffmpegExec(args, task.CreateTime)
 
 	if res.IsSuccess() {
-		fs.cleanupSourceIfNeeded(task.Path)
+		e.cleanupSourceIfNeeded(task.Path)
 	}
 
 	return res
 }
 
 // MergeFiles 合并文件
-func (fs *fileService) MergeFiles(task model.TransferTaskModel) utils.Result {
+func (e *videoEncoder) MergeFiles(task model.TransferTaskModel) utils.Result {
 	args := []string{"-f", "concat", "-safe", "0", "-i", task.ConcatFile, "-vcodec", "copy", task.Dest}
-	res := fs.ffmpegExec(args, task.CreateTime)
+	res := e.ffmpegExec(args, task.CreateTime)
 
 	if res.IsSuccess() && task.DeleteSource {
-		fs.cleanupSourceIfNeeded(task.Path)
+		e.cleanupSourceIfNeeded(task.Path)
 	}
 
 	return res
 }
 
 // CutFormatter 视频剪辑格式化
-func (fs *fileService) CutFormatter(task model.TransferTaskModel) utils.Result {
+func (e *videoEncoder) CutFormatter(task model.TransferTaskModel) utils.Result {
 	from := task.Path
 	suffix := utils.GetSuffix(task.Path)
 
@@ -113,17 +116,17 @@ func (fs *fileService) CutFormatter(task model.TransferTaskModel) utils.Result {
 
 	dest := strings.ReplaceAll(task.Path, "."+suffix, "."+toSuffix)
 	args := []string{"-i", from, "-ss", task.Start, "-t", task.End, "-c", "copy", dest}
-	res := fs.ffmpegExec(args, task.CreateTime)
+	res := e.ffmpegExec(args, task.CreateTime)
 
 	if res.IsSuccess() && consts.GetOSSetting().CutThenDelete {
-		fs.cleanupSourceIfNeeded(task.Path)
+		e.cleanupSourceIfNeeded(task.Path)
 	}
 
 	return res
 }
 
 // CutImage 视频截图
-func (fs *fileService) CutImage(path string, typeImage string, start string) utils.Result {
+func (e *videoEncoder) CutImage(path string, typeImage string, start string) utils.Result {
 	res := utils.NewSuccess()
 
 	isSnapshot := false
@@ -140,7 +143,7 @@ func (fs *fileService) CutImage(path string, typeImage string, start string) uti
 
 	args := []string{"-y", "-ss", start}
 
-	decodeParams := fs.getHwDecodeParams()
+	decodeParams := e.getHwDecodeParams()
 	if decodeParams != "" {
 		args = append(args, strings.Fields(decodeParams)...)
 	}
@@ -153,7 +156,7 @@ func (fs *fileService) CutImage(path string, typeImage string, start string) uti
 		dest,
 	)
 
-	ffmpegPath := fs.ffmpegBinPath()
+	ffmpegPath := e.ffmpegBinPath()
 	cmd := exec.Command(ffmpegPath, args...)
 	if runtime.GOOS == "windows" {
 		utils.FixOnWin(cmd)
@@ -175,7 +178,7 @@ func (fs *fileService) CutImage(path string, typeImage string, start string) uti
 }
 
 // ffmpegBinPath 获取 ffmpeg 二进制路径
-func (fs *fileService) ffmpegBinPath() string {
+func (e *videoEncoder) ffmpegBinPath() string {
 	if WorkDir != "" {
 		return filepath.Join(WorkDir, "ffmpeg.exe")
 	}
@@ -183,7 +186,7 @@ func (fs *fileService) ffmpegBinPath() string {
 }
 
 // ffmpegExec 执行ffmpeg命令
-func (fs *fileService) ffmpegExec(args []string, thisNow time.Time) utils.Result {
+func (e *videoEncoder) ffmpegExec(args []string, thisNow time.Time) utils.Result {
 	consts.TransferTaskMutex.Lock()
 	task, exists := consts.TransferTask[thisNow]
 	if !exists {
@@ -191,7 +194,7 @@ func (fs *fileService) ffmpegExec(args []string, thisNow time.Time) utils.Result
 		return utils.NewFailByMsg("任务不存在")
 	}
 
-	ffmpegPath := fs.ffmpegBinPath()
+	ffmpegPath := e.ffmpegBinPath()
 
 	task.SetStatus("执行中")
 	task.CreateTime = time.Now()

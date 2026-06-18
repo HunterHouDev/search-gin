@@ -28,11 +28,11 @@ func StartPprof() {
 func StartBackgroundTasks() {
 	go func() {
 		defer utils.RecoverPanic()
-		FileApp.HeartBeat()
+		SearchApp.HeartBeat()
 	}()
 	go func() {
 		defer utils.RecoverPanic()
-		FileApp.TaskExecuting()
+		SearchApp.TaskExecuting()
 	}()
 }
 

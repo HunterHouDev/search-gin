@@ -70,7 +70,7 @@ func PostDeleteFolderByPath(c *gin.Context) {
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("路径不在允许范围内"))
 		return
 	}
-	service.FileApp.DownDeleteDir(validatedPath)
+	service.SearchApp.DownDeleteDir(validatedPath)
 	res := utils.NewSuccessByMsg("删除成功")
 	c.JSON(http.StatusOK, res)
 }

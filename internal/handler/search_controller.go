@@ -24,7 +24,7 @@ func PostMovies(c *gin.Context) {
 	isRemote := c.GetHeader("X-Search-Gin-Remote") == "true"
 
 	if service.SearchEngine.IsEmpty() {
-		service.FileApp.ScanAll()
+		service.SearchApp.ScanAll()
 	}
 
 	searchParam := model.SearchParam{}
@@ -91,7 +91,7 @@ func PostAuthor(c *gin.Context) {
 			return
 		}
 		if service.SearchEngine.IsEmpty() {
-			service.FileApp.ScanAll()
+			service.SearchApp.ScanAll()
 		}
 		pageAuthorResultWrapper := service.SearchEngine.PageAuthor(param)
 		result := utils.NewPage()
@@ -115,7 +115,7 @@ func PostAuthor(c *gin.Context) {
 
 	// 检查搜索引擎索引是否为空，如果为空则执行扫描
 	if service.SearchEngine.IsEmpty() {
-		service.FileApp.ScanAll()
+		service.SearchApp.ScanAll()
 	}
 
 	// 调用搜索引擎获取演员分页搜索结果

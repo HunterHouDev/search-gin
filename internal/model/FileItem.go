@@ -2,6 +2,8 @@ package model
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"search-gin/pkg/utils"
 	"sort"
 	"time"
@@ -176,4 +178,53 @@ func GetPageOfFiles(files []FileItem, pageNo int, pageSize int) ([]FileItem, int
 		data = append(data, curFile)
 	}
 	return data, volume
+}
+
+// RenameAll 重命名主文件 + 附属图片文件（jpg/png/gif），含回滚
+// newMainPath: 主文件新路径
+// newBaseName: 附属文件不含后缀的新基本名（如 "/path/to/newfile"）
+// 返回改名后的新 FileItem（Id 不变），失败返回空 FileItem + error
+func (f FileItem) RenameAll(newMainPath, newBaseName string) (FileItem, error) {
+	originalPaths := []string{f.Path, f.Jpg, f.Png, f.Gif}
+	newPaths := make([]string, 4)
+	newPaths[0] = newMainPath
+	if f.Jpg != "" {
+		newPaths[1] = newBaseName + "." + utils.GetSuffix(f.Jpg)
+	}
+	if f.Png != "" {
+		newPaths[2] = newBaseName + "." + utils.GetSuffix(f.Png)
+	}
+	if f.Gif != "" {
+		newPaths[3] = newBaseName + "." + utils.GetSuffix(f.Gif)
+	}
+
+	successCount := 0
+	for i := range originalPaths {
+		if originalPaths[i] == "" || !utils.ExistsFiles(originalPaths[i]) {
+			continue
+		}
+		if err := os.Rename(originalPaths[i], newPaths[i]); err != nil {
+			utils.InfoFormat("rename failed: %v", err)
+			// 回滚已成功的操作
+			for j := 0; j < successCount; j++ {
+				if originalPaths[j] != "" && utils.ExistsFiles(newPaths[j]) {
+					os.Rename(newPaths[j], originalPaths[j])
+				}
+			}
+			return FileItem{}, err
+		}
+		successCount++
+	}
+
+	// 构建改名后的新 FileItem，Id 保持不变
+	info, err := os.Stat(newMainPath)
+	if err != nil {
+		return FileItem{}, err
+	}
+	suffix := utils.GetSuffix(newMainPath)
+	name := filepath.Base(newMainPath)
+	newFile := EasyFile(filepath.Dir(newMainPath), newMainPath, name, suffix,
+		info.Size(), info.ModTime(), f.BaseDir)
+	newFile.Id = f.Id
+	return newFile, nil
 }

@@ -5,8 +5,6 @@ import (
 	"search-gin/pkg/utils"
 )
 
-type searchService struct{}
-
 // SearchDataSource 搜索数据源
 func (fs *searchService) SearchDataSource(searchParam model.SearchParam) utils.Page {
 	result := utils.NewPage()

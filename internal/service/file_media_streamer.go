@@ -27,7 +27,7 @@ func init() {
 }
 
 // GetPng 获取PNG图片
-func (fs *fileService) GetPng(c *gin.Context) {
+func (sm *searchService) GetPng(c *gin.Context) {
 	id := c.Param("path")
 	file := SearchApp.FindOne(id)
 	if !file.IsNull() {
@@ -42,11 +42,11 @@ func (fs *fileService) GetPng(c *gin.Context) {
 			return
 		}
 	}
-	fs.writeNoPic(c)
+	sm.writeNoPic(c)
 }
 
 // GetJpg 获取JPG图片
-func (fs *fileService) GetJpg(c *gin.Context) {
+func (sm *searchService) GetJpg(c *gin.Context) {
 	id := c.Param("path")
 	file := SearchApp.FindOne(id)
 	if !file.IsNull() {
@@ -66,11 +66,11 @@ func (fs *fileService) GetJpg(c *gin.Context) {
 			return
 		}
 	}
-	fs.writeNoPic(c)
+	sm.writeNoPic(c)
 }
 
 // GetFile 获取文件
-func (fs *fileService) GetFile(c *gin.Context) {
+func (sm *searchService) GetFile(c *gin.Context) {
 	id := c.Param("id")
 	file := SearchApp.FindOne(id)
 	if utils.ExistsFiles(file.Path) {
@@ -81,7 +81,7 @@ func (fs *fileService) GetFile(c *gin.Context) {
 }
 
 // writeNoPic 无图时返回默认图片
-func (fs *fileService) writeNoPic(c *gin.Context) {
+func (sm *searchService) writeNoPic(c *gin.Context) {
 	c.Data(http.StatusOK, contentType, noPic)
 }
 

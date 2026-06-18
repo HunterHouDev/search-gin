@@ -20,7 +20,7 @@ func Index(c *gin.Context) {
 
 func GetTypeSize(c *gin.Context) {
 	if service.SearchEngine.IsEmpty() {
-		service.FileApp.ScanAll()
+		service.SearchApp.ScanAll()
 	}
 	res := mapToSlice(&consts.TypeMenu)
 	smallCount := len(consts.SmallDir)
