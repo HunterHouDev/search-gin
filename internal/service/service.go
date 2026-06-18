@@ -47,19 +47,19 @@ func (q *taskQueue) processTasks() {
 func (q *taskQueue) executeTask(task *scanTask) {
 	// 检查任务是否已被取消（优先检查 canceled 标志，避免在已关闭 channel 上 select）
 	if task.canceled.Load() {
-		AddLogMemory("扫描任务已取消: %s", task.baseDir)
+		consts.LogMem.Add("扫描任务已取消: %s", task.baseDir)
 		return
 	}
 	select {
 	case <-task.cancel:
-		AddLogMemory("扫描任务已取消: %s", task.baseDir)
+		consts.LogMem.Add("扫描任务已取消: %s", task.baseDir)
 		return
 	default:
 	}
 
 	// 全量扫描互斥检查
 	if FullScanInProgress.Load() != 0 {
-		AddLogMemory("全量扫描中，跳过队列任务: %s", task.baseDir)
+		consts.LogMem.Add("全量扫描中，跳过队列任务: %s", task.baseDir)
 		return
 	}
 
@@ -67,7 +67,7 @@ func (q *taskQueue) executeTask(task *scanTask) {
 	atomic.AddInt32(&consts.IndexNumber, 1)
 	defer atomic.AddInt32(&consts.IndexNumber, -1)
 
-	AddLogMemory("开始扫描文件夹: %s", task.baseDir)
+	consts.LogMem.Add("开始扫描文件夹: %s", task.baseDir)
 
 	// 统计初始化
 	consts.TypeMenu.Clear()
@@ -96,7 +96,7 @@ func (q *taskQueue) executeTask(task *scanTask) {
 	delete(q.tasks, task.baseDir)
 	q.mutex.Unlock()
 
-	AddLogMemory("扫描完成: %s", task.baseDir)
+	consts.LogMem.Add("扫描完成: %s", task.baseDir)
 }
 
 // AddTask 添加扫描任务到队列
@@ -110,7 +110,7 @@ func (q *taskQueue) AddTask(baseDir string) {
 		if existingTask.canceled.CompareAndSwap(false, true) {
 			close(existingTask.cancel)
 		}
-		AddLogMemory("取消现有扫描任务，执行新任务: %s", baseDir)
+		consts.LogMem.Add("取消现有扫描任务，执行新任务: %s", baseDir)
 	}
 
 	// 创建新任务
@@ -126,7 +126,7 @@ func (q *taskQueue) AddTask(baseDir string) {
 	// 发送任务到处理队列
 	q.taskChan <- newTask
 
-	AddLogMemory("添加扫描任务到队列: %s", baseDir)
+	consts.LogMem.Add("添加扫描任务到队列: %s", baseDir)
 }
 
 // GetTaskCount 获取队列中的任务数
@@ -136,19 +136,13 @@ func (q *taskQueue) GetTaskCount() int {
 	return len(q.tasks)
 }
 
-// TempDir 临时目录路径
-var TempDir string
+// WorkDir 工作空间路径
+var WorkDir string
 
 var FileApp = new(fileService)
 var SearchApp = new(searchService)
 
 // SearchEngine 搜索引擎
 var SearchEngine = searchEngineCore{
- KeywordHistoryCache: utils.NewLRUCache(500),
-}
-
-func AddLogMemory(format string, msg ...any) {
-	consts.AddLogMemory(format, msg...)
-	utils.InfoFormat(format, msg...)
-
+	KeywordHistoryCache: utils.NewLRUCache(500),
 }

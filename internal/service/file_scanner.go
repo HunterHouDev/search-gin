@@ -24,61 +24,45 @@ func (fs *fileService) ScanAll() int {
 	dirCount := len(setting.Dirs)
 	dirList := make([]string, dirCount)
 	copy(dirList, setting.Dirs)
-	AddLogMemory("Plan to ScanAll dirTotal: %d, dirList: %v", dirCount, dirList)
+	consts.LogMem.Add("Plan to ScanAll dirTotal: %d, dirList: %v", dirCount, dirList)
 	if !FullScanInProgress.CompareAndSwap(0, 1) {
-		AddLogMemory("全量扫描正在进行中")
+		consts.LogMem.Add("全量扫描正在进行中")
 		return dirCount
 	}
 	defer FullScanInProgress.Store(0)
 
 	// 初始化扫描进度
-	consts.SpMu.Lock()
-	consts.Sp = consts.ScanProgress{
-		Phase:            "scanning",
-		TotalDirs:        dirCount,
-		CompletedDirs:    0,
-		CurrentDir:       "",
-		ScannedFiles:     0,
-		TotalBuckets:     dirCount,
-		ProcessedBuckets: 0,
-		CurrentPhase:     "正在扫描目录...",
-	}
-	consts.SpMu.Unlock()
+	consts.Sp.Init(dirCount)
 
-	consts.TypeMenu.Clear()
-	consts.SeriesCount.Clear()
-	consts.TagMenu.Clear()
 	consts.ClearSmallDir()
+	consts.InitFolderTime()
 
 	queryTypes := make([]string, 0)
 	queryTypes = utils.ExtendsItems(queryTypes, setting.VideoTypes)
 	queryTypes = utils.ExtendsItems(queryTypes, setting.DocsTypes)
 	queryTypes = utils.ExtendsItems(queryTypes, setting.ImageTypes)
-	consts.InitFolderTime()
-	fs.Walks(dirList, queryTypes)
+
+	// 扫描阶段：并发扫描目录，收集文件
+	buckets := fs.ScanDirs(dirList, queryTypes)
+
+	// 切换到索引构建阶段
+	consts.Sp.SetPhase("building", "正在构建索引...")
+
+	// 构建阶段：批量重建索引
+	SearchEngine.rebuildWithBuckets(buckets)
 
 	// 一致性检查：验证 bucket 数量和目录数量
 	bucketCount := SearchEngine.BucketCount()
 	indexNumber := atomic.LoadInt32(&consts.IndexNumber)
-	AddLogMemory("ScanAll 一致性检查: BucketCount=%d, IndexNumber=%d, Expected=%d", bucketCount, indexNumber, dirCount)
+	consts.LogMem.Add("ScanAll 一致性检查: BucketCount=%d, IndexNumber=%d, Expected=%d", bucketCount, indexNumber, dirCount)
 	if bucketCount != int32(dirCount) {
-		AddLogMemory("警告: BucketCount(%d) != Expected(%d)，可能存在并发问题", bucketCount, dirCount)
+		consts.LogMem.Add("警告: BucketCount(%d) != Expected(%d)，可能存在并发问题", bucketCount, dirCount)
 	}
-
-	// 切换到索引构建阶段
-	consts.SpMu.Lock()
-	consts.Sp.Phase = "building"
-	consts.Sp.CurrentPhase = "正在构建索引..."
-	consts.SpMu.Unlock()
 
 	consts.LastScanTime = time.Now()
 
 	// 扫描完成
-	consts.SpMu.Lock()
-	consts.Sp.Phase = "done"
-	consts.Sp.CompletedDirs = consts.Sp.TotalDirs
-	consts.Sp.CurrentPhase = "扫描完成"
-	consts.SpMu.Unlock()
+	consts.Sp.Complete()
 
 	sse.BroadcastEvent("scan_complete", map[string]interface{}{
 		"dirCount": dirCount,
@@ -92,13 +76,15 @@ func (fs *fileService) ScanTarget(baseDir string) {
 	scanQueue.AddTask(baseDir)
 }
 
-// Walks 并发扫描多文件夹并返回所有文件
-func (fs *fileService) Walks(baseDir []string, types []string) []model.FileItem {
+// ScanDirs 并发扫描多文件夹，收集 bucket 结果（不重建索引）
+func (fs *fileService) ScanDirs(baseDir []string, types []string) map[string]*bucketFile {
 	var wg sync.WaitGroup
-	var result []model.FileItem
 	dirSize := len(baseDir)
 
-	// 不提前 Reset，旧索引在扫描期间保持可用，避免正在播放的流媒体断连
+	if dirSize == 0 {
+		return make(map[string]*bucketFile)
+	}
+
 	resultChan := make(chan scanResult, dirSize)
 
 	wg.Add(dirSize)
@@ -113,25 +99,38 @@ func (fs *fileService) Walks(baseDir []string, types []string) []model.FileItem 
 	wg.Wait()
 	close(resultChan)
 
-	if dirSize == 0 {
-		return result
-	}
-
-	// 收集所有扫描结果，批量重建索引
+	// 收集所有扫描结果
 	buckets := make(map[string]*bucketFile, dirSize)
 	for r := range resultChan {
 		if r.bucket != nil && !r.bucket.isEmpty() {
 			buckets[r.dir] = r.bucket
-			for _, m := range r.bucket.FileLib {
-				result = append(result, m)
-			}
 		}
 	}
 
-	AddLogMemory("Walks: 扫描完成, 共 %d 个目录, 准备重建索引", len(buckets))
-	// rebuildWithBuckets 内部原子替换快照，无需提前 Reset，零窗口
+	consts.LogMem.Add("ScanDirs: 扫描完成, 共 %d 个目录", len(buckets))
+	return buckets
+}
+
+// Walks 并发扫描多文件夹并返回所有文件（扫描 + 重建索引）
+func (fs *fileService) Walks(baseDir []string, types []string) []model.FileItem {
+	dirSize := len(baseDir)
+
+	if dirSize == 0 {
+		return nil
+	}
+
+	buckets := fs.ScanDirs(baseDir, types)
+
+	var result []model.FileItem
+	for _, b := range buckets {
+		for _, m := range b.FileLib {
+			result = append(result, m)
+		}
+	}
+
+	consts.LogMem.Add("Walks: 准备重建索引")
 	SearchEngine.rebuildWithBuckets(buckets)
-	AddLogMemory("Walks: 索引重建完成")
+	consts.LogMem.Add("Walks: 索引重建完成")
 
 	return result
 }
@@ -139,25 +138,19 @@ func (fs *fileService) Walks(baseDir []string, types []string) []model.FileItem 
 // goWalkWithResult 协程方法扫描单个文件夹并返回结果
 func (fs *fileService) goWalkWithResult(baseDir string, types []string, resultChan chan<- scanResult) {
 	defer func() {
-		consts.SpMu.Lock()
-		consts.Sp.CompletedDirs++
-		consts.SpMu.Unlock()
+		consts.Sp.IncrementCompletedDirs()
 	}()
 
 	// 更新当前正在扫描的目录
-	consts.SpMu.Lock()
-	consts.Sp.CurrentDir = baseDir
-	consts.SpMu.Unlock()
+	consts.Sp.SetCurrentDir(baseDir)
 
-	AddLogMemory("goWalkWithResult: 开始扫描目录 %s", baseDir)
+	consts.LogMem.Add("goWalkWithResult: 开始扫描目录 %s", baseDir)
 	start := time.Now()
 	files, size := fs.WalkInner(baseDir, types, true, baseDir)
 
-	AddLogMemory("goWalkWithResult: 扫描完成 %s, 发现 %d 个文件", baseDir, len(files))
+	consts.LogMem.Add("goWalkWithResult: 扫描完成 %s, 发现 %d 个文件", baseDir, len(files))
 	// 更新已扫描文件计数
-	consts.SpMu.Lock()
-	consts.Sp.ScannedFiles += int64(len(files))
-	consts.SpMu.Unlock()
+	consts.Sp.AddScannedFiles(int64(len(files)))
 
 	bucket := newInstanceWithFiles(baseDir, files)
 
@@ -168,7 +161,7 @@ func (fs *fileService) goWalkWithResult(baseDir string, types []string, resultCh
 		Size:    int64(len(files)),
 		SizeStr: utils.GetSizeStr(size),
 	}
-	AddLogMemory("扫描目录:[%s] 耗时:[%d] 大小:[%s],剩余目录数:%d", baseDir, ti.Milliseconds(), utils.GetSizeStr(size), atomic.LoadInt32(&consts.IndexNumber))
+	consts.LogMem.Add("扫描目录:[%s] 耗时:[%d] 大小:[%s],剩余目录数:%d", baseDir, ti.Milliseconds(), utils.GetSizeStr(size), atomic.LoadInt32(&consts.IndexNumber))
 	consts.AddFolderTime(thisTime)
 
 	resultChan <- scanResult{dir: baseDir, bucket: bucket}

@@ -176,8 +176,8 @@ func (fs *fileService) CutImage(path string, typeImage string, start string) uti
 
 // ffmpegBinPath 获取 ffmpeg 二进制路径
 func (fs *fileService) ffmpegBinPath() string {
-	if TempDir != "" {
-		return filepath.Join(TempDir, "ffmpeg.exe")
+	if WorkDir != "" {
+		return filepath.Join(WorkDir, "ffmpeg.exe")
 	}
 	return "ffmpeg.exe"
 }

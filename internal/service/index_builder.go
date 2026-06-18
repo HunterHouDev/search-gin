@@ -15,37 +15,37 @@ import (
 func (se *searchEngineCore) rebuildWithBuckets(entries map[string]*bucketFile) {
 	defer func() {
 		if r := recover(); r != nil {
-			AddLogMemory("rebuildWithBuckets 异常: %v", r)
-			AddLogMemory("堆栈: %s", string(debug.Stack()))
+			consts.LogMem.Add("rebuildWithBuckets 异常: %v", r)
+			consts.LogMem.Add("堆栈: %s", string(debug.Stack()))
 		}
 	}()
 
 	se.rebuildMu.Lock()
 	defer se.rebuildMu.Unlock()
 
-	AddLogMemory("rebuildWithBuckets: 开始批量重建, %d 个目录", len(entries))
+	consts.LogMem.Add("rebuildWithBuckets: 开始批量重建, %d 个目录", len(entries))
 	start := time.Now()
 
 	newSnap := buildSnapshotFromBuckets(entries)
 	se.installSnapshot(newSnap)
 
 	ti := time.Since(start)
-	AddLogMemory("rebuildWithBuckets: 完成, 耗时 %dms, 文件数 %d", ti.Milliseconds(), newSnap.totalCount)
+	consts.LogMem.Add("rebuildWithBuckets: 完成, 耗时 %dms, 文件数 %d", ti.Milliseconds(), newSnap.totalCount)
 }
 
 // rebuildWithBucket 用指定目录的新 bucket 构造新快照并原子替换
 func (se *searchEngineCore) rebuildWithBucket(baseDir string, newBucket *bucketFile) {
 	defer func() {
 		if r := recover(); r != nil {
-			AddLogMemory("rebuildWithBucket 异常: %v", r)
-			AddLogMemory("堆栈: %s", string(debug.Stack()))
+			consts.LogMem.Add("rebuildWithBucket 异常: %v", r)
+			consts.LogMem.Add("堆栈: %s", string(debug.Stack()))
 		}
 	}()
 
 	se.rebuildMu.Lock()
 	defer se.rebuildMu.Unlock()
 
-	AddLogMemory("rebuildWithBucket: 开始处理目录 %s", baseDir)
+	consts.LogMem.Add("rebuildWithBucket: 开始处理目录 %s", baseDir)
 	start := time.Now()
 
 	dirs := consts.GetOSSetting().Dirs
@@ -69,21 +69,21 @@ func (se *searchEngineCore) rebuildWithBucket(baseDir string, newBucket *bucketF
 		newBuckets[baseDir] = newBucket
 	}
 
-	AddLogMemory("rebuildWithBucket: bucket 数量 %d -> %d", len(old.buckets), len(newBuckets))
+	consts.LogMem.Add("rebuildWithBucket: bucket 数量 %d -> %d", len(old.buckets), len(newBuckets))
 
 	newSnap := buildSnapshotFromBuckets(newBuckets)
 	se.installSnapshot(newSnap)
 
 	ti := time.Since(start)
-	AddLogMemory("rebuildWithBucket: 完成, 耗时 %dms, 文件数 %d", ti.Milliseconds(), newSnap.totalCount)
+	consts.LogMem.Add("rebuildWithBucket: 完成, 耗时 %dms, 文件数 %d", ti.Milliseconds(), newSnap.totalCount)
 }
 
 // rebuildWithBucketIncremental 增量重建：只遍历变化的 bucket（O(变化量)）
 func (se *searchEngineCore) rebuildWithBucketIncremental(baseDir string, newBucket *bucketFile) {
 	defer func() {
 		if r := recover(); r != nil {
-			AddLogMemory("rebuildWithBucketIncremental 异常: %v", r)
-			AddLogMemory("堆栈: %s", string(debug.Stack()))
+			consts.LogMem.Add("rebuildWithBucketIncremental 异常: %v", r)
+			consts.LogMem.Add("堆栈: %s", string(debug.Stack()))
 		}
 	}()
 
@@ -136,7 +136,7 @@ func (se *searchEngineCore) rebuildWithBucketIncremental(baseDir string, newBuck
 	se.installSnapshot(snap)
 
 	ti := time.Since(start)
-	AddLogMemory("rebuildWithBucketIncremental: 完成, 耗时 %dms, bucket %s, 文件数 %d", ti.Milliseconds(), baseDir, snap.totalCount)
+	consts.LogMem.Add("rebuildWithBucketIncremental: 完成, 耗时 %dms, bucket %s, 文件数 %d", ti.Milliseconds(), baseDir, snap.totalCount)
 }
 
 // ── 快照聚合操作 ──────────────────────────────────────────────────

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"search-gin/internal/model"
+	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 	"sort"
 	"strings"
@@ -115,7 +116,7 @@ func (se *searchEngineCore) PageAsync(searchParam model.SearchParam) model.PageR
 	snap := se.loadSnapshot()
 	bucketCount := len(snap.buckets)
 	if bucketCount <= 0 {
-		AddLogMemory("警告: bucketCount=0, 跳过搜索")
+		consts.LogMem.Add("警告: bucketCount=0, 跳过搜索")
 		wrapper.FileList = []model.FileItem{}
 		return wrapper
 	}
@@ -139,7 +140,7 @@ func (se *searchEngineCore) PageAsync(searchParam model.SearchParam) model.PageR
 		se.searchPool.Submit(func() {
 			defer func() {
 				if r := recover(); r != nil {
-					AddLogMemory("搜索 bucket 异常: %v", r)
+					consts.LogMem.Add("搜索 bucket 异常: %v", r)
 				}
 			}()
 			w := b.searchBucket(searchParam)
@@ -170,7 +171,7 @@ loop:
 			wrapper.SearchCount += len(data.FileList)
 			wrapper.SearchSize += data.Size
 		case <-ctx.Done():
-			AddLogMemory("搜索超时，部分结果可能未返回")
+			consts.LogMem.Add("搜索超时，部分结果可能未返回")
 			se.searchPool.Wait()
 			for data := range resultChan {
 				wrapper.FileList = append(wrapper.FileList, data.FileList...)

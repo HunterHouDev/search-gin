@@ -31,18 +31,18 @@ func main() {
 	defer utils.RecoverPanic()
 
 	// ── 1. 初始化工作目录 ──
-	tempDir, err := os.Getwd()
+	workDir, err := os.Getwd()
 	if err != nil {
 		utils.InfoFormat("获取当前工作目录失败: %v，使用默认路径", err)
-		tempDir = "."
+		workDir = "."
 	}
-	service.TempDir = tempDir
+	service.WorkDir = workDir
 
 	// ── 2.1 加载上次扫描的索引缓存（填补启动空窗期） ──
 	service.SearchEngine.LoadCachedSnapshot()
 
 	// ── 2. 解压嵌入式资源 ──
-	assetsExtracted := extractAssets(tempDir)
+	assetsExtracted := extractAssets(workDir)
 
 	// ── 3. 启动 pprof（生产环境通过 env.IsProd 自动禁用） ──
 	service.StartPprof()
@@ -60,7 +60,7 @@ func main() {
 	service.InitPeerManager()
 
 	// ── 6. 启动 Torrent 清理 ──
-	closeTorrent := service.StartTorrentCleanup(tempDir)
+	closeTorrent := service.StartTorrentCleanup(workDir)
 	defer closeTorrent()
 
 	// ── 7. 构建路由（API 路由 + 文件流路由） ──
@@ -68,7 +68,7 @@ func main() {
 	fileRouter := router.BuildFileRouter()
 
 	// ── 8. 加载前端静态文件（等待解压完成） ──
-	go loadStaticFiles(apiRouter, tempDir, assetsExtracted)
+	go loadStaticFiles(apiRouter, workDir, assetsExtracted)
 
 	// ── 9. 启动后台任务 ──
 	service.StartBackgroundTasks()

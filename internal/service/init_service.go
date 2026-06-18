@@ -37,8 +37,8 @@ func StartBackgroundTasks() {
 }
 
 // StartTorrentCleanup 启动 Torrent 清理协程，返回关闭函数
-func StartTorrentCleanup(tempDir string) func() {
-	torrentDir := filepath.Join(tempDir, "torrent_data")
+func StartTorrentCleanup(workDir string) func() {
+	torrentDir := filepath.Join(workDir, "torrent_data")
 	if err := os.MkdirAll(torrentDir, 0755); err != nil {
 		utils.ErrorFormat("创建 torrent 目录失败: %v", err)
 		return func() {}

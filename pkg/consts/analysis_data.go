@@ -2,6 +2,7 @@ package consts
 
 import (
 	"fmt"
+	"search-gin/pkg/utils"
 	"sync"
 	"time"
 )
@@ -16,22 +17,39 @@ var SeriesCount sync.Map
 var TagMenu sync.Map
 var FolderTime sync.Map
 
-var LogMemory = []Log{}
-var logMemoryMutex sync.Mutex
+// ── 内存日志 ──────────────────────────────────────────
 
-// 内存日志上限 1000 行，超出则丢弃最旧的
 const logMemoryMaxLines = 1000
 const logMemoryTrimLines = 800
 
-func AddLogMemory(format string, v ...any) {
- msg := fmt.Sprintf(format, v...)
- log := Log{Time: time.Now().Local().String(), Msg: msg}
- logMemoryMutex.Lock()
- LogMemory = append(LogMemory, log)
- if n := len(LogMemory); n > logMemoryMaxLines {
-  LogMemory = LogMemory[n-logMemoryTrimLines:]
- }
- logMemoryMutex.Unlock()
+// MemoryLog 内存日志存储（内嵌锁，并发安全）
+type MemoryLog struct {
+	mu   *sync.Mutex `json:"-"`
+	logs []Log
+}
+
+var LogMem = MemoryLog{mu: &sync.Mutex{}}
+
+// Add 写入一条日志（写锁）
+func (ml *MemoryLog) Add(format string, v ...any) {
+	msg := fmt.Sprintf(format, v...)
+	entry := Log{Time: time.Now().Local().String(), Msg: msg}
+	ml.mu.Lock()
+	ml.logs = append(ml.logs, entry)
+	if n := len(ml.logs); n > logMemoryMaxLines {
+		ml.logs = ml.logs[n-logMemoryTrimLines:]
+	}
+	ml.mu.Unlock()
+	utils.InfoFormat(format, v...)
+}
+
+// GetAll 读锁安全拷贝，返回全部日志
+func (ml *MemoryLog) GetAll() []Log {
+	ml.mu.Lock()
+	result := make([]Log, len(ml.logs))
+	copy(result, ml.logs)
+	ml.mu.Unlock()
+	return result
 }
 
 type Log struct {

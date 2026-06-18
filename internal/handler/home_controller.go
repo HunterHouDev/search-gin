@@ -48,7 +48,7 @@ func GetSeriesSize(c *gin.Context) {
 }
 
 func GetLogMemory(c *gin.Context) {
-	c.JSON(http.StatusOK, consts.LogMemory)
+	c.JSON(http.StatusOK, consts.LogMem.GetAll())
 }
 
 // LocalLogLine 本地日志行
@@ -57,7 +57,7 @@ type LocalLogLine struct {
 }
 
 func GetLocalLog(c *gin.Context) {
-	logPath := filepath.Join(service.TempDir, "gin.log")
+	logPath := filepath.Join(service.WorkDir, "gin.log")
 	content, err := os.ReadFile(logPath)
 	if err != nil {
 		c.JSON(http.StatusOK, []string{})

@@ -11,13 +11,13 @@ import (
 )
 
 // extractAssets 解压 setting.json（同步）及前端静态文件和二进制工具（异步）
-func extractAssets(tempDir string) chan struct{} {
+func extractAssets(workDir string) chan struct{} {
 	assetsExtracted := make(chan struct{})
 
 	extractIfNotExist := func(path, label string, fn func(string) error) {
-		if _, err := os.Stat(filepath.Join(tempDir, path)); os.IsNotExist(err) {
+		if _, err := os.Stat(filepath.Join(workDir, path)); os.IsNotExist(err) {
 			utils.InfoFormat("开始解压 %s...", label)
-			if err := fn(tempDir); err != nil {
+			if err := fn(workDir); err != nil {
 				utils.InfoFormat("解压 %s 失败: %v", label, err)
 				os.Exit(1)
 			}
@@ -50,10 +50,10 @@ func extractAssets(tempDir string) chan struct{} {
 }
 
 // loadStaticFiles 加载前端静态文件（延迟执行，等待解压完成）
-func loadStaticFiles(app *gin.Engine, tempDir string, extracted <-chan struct{}) {
+func loadStaticFiles(app *gin.Engine, workDir string, extracted <-chan struct{}) {
 	<-extracted
 
-	indexHtml := filepath.Join(tempDir, "dist", "index.html")
+	indexHtml := filepath.Join(workDir, "dist", "index.html")
 	if !utils.ExistsFiles(indexHtml) {
 		utils.InfoFormat("static not exists:%s", indexHtml)
 		return
@@ -62,9 +62,9 @@ func loadStaticFiles(app *gin.Engine, tempDir string, extracted <-chan struct{})
 	app.LoadHTMLFiles(indexHtml)
 
 	staticFs := map[string]string{
-		"/css":    filepath.Join(tempDir, "dist", "css"),
-		"/js":     filepath.Join(tempDir, "dist", "js"),
-		"/assets": filepath.Join(tempDir, "dist", "assets"),
+		"/css":    filepath.Join(workDir, "dist", "css"),
+		"/js":     filepath.Join(workDir, "dist", "js"),
+		"/assets": filepath.Join(workDir, "dist", "assets"),
 	}
 	for k, v := range staticFs {
 		app.StaticFS(k, http.Dir(v))

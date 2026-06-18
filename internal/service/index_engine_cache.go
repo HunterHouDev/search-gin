@@ -36,13 +36,13 @@ const cacheFileName = "search_cache.gob"
 // saveSnapshotToCache 将当前快照异步保存到缓存文件
 // 空快照（无 bucket）不保存，避免 Reset() 等路径清空磁盘缓存
 func saveSnapshotToCache(snap *searchSnapshot) {
-	if TempDir == "" {
+	if WorkDir == "" {
 		return
 	}
 	if len(snap.buckets) == 0 {
 		return
 	}
-	cachePath := filepath.Join(TempDir, cacheFileName)
+	cachePath := filepath.Join(WorkDir, cacheFileName)
 
 	// 转换为可序列化的 cacheData
 	data := cacheData{
@@ -90,16 +90,16 @@ func saveSnapshotToCache(snap *searchSnapshot) {
 			utils.InfoFormat("保存索引缓存失败(重命名): %v", err)
 			return
 		}
-		AddLogMemory("索引缓存已保存: %s (%d buckets, %d files)", cachePath, len(data.Buckets), snap.totalCount)
+		consts.LogMem.Add("索引缓存已保存: %s (%d buckets, %d files)", cachePath, len(data.Buckets), snap.totalCount)
 	}()
 }
 
 // LoadCachedSnapshot 从缓存文件加载快照，成功则安装到搜索引擎并返回 true
 func (se *searchEngineCore) LoadCachedSnapshot() bool {
-	if TempDir == "" {
+	if WorkDir == "" {
 		return false
 	}
-	cachePath := filepath.Join(TempDir, cacheFileName)
+	cachePath := filepath.Join(WorkDir, cacheFileName)
 
 	if _, err := os.Stat(cachePath); os.IsNotExist(err) {
 		return false
@@ -149,6 +149,6 @@ func (se *searchEngineCore) LoadCachedSnapshot() bool {
 	}
 
 	se.installSnapshot(snap)
-	AddLogMemory("索引缓存已加载: %s (%d buckets, %d files)", cachePath, len(data.Buckets), totalCount)
+	consts.LogMem.Add("索引缓存已加载: %s (%d buckets, %d files)", cachePath, len(data.Buckets), totalCount)
 	return true
 }

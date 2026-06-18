@@ -87,7 +87,7 @@ func (fs *searchService) DownJpgMakePng(finalPath string, url string, makePng bo
 	}
 	start := time.Now()
 	resp, downErr := httpGet(url)
-	AddLogMemory("DownJpg  time:%d  %s %d", time.Since(start).Milliseconds(), url, downErr)
+	consts.LogMem.Add("DownJpg  time:%d  %s %d", time.Since(start).Milliseconds(), url, downErr)
 	if downErr != nil {
 		result.Fail()
 		result.Message = "文件下载失败：" + url
@@ -121,7 +121,7 @@ func (fs *searchService) DownJpgAsPng(finalPath string, url string) utils.Result
 	}
 	start := time.Now()
 	resp, downErr := httpGet(url)
-	AddLogMemory("DownPng  time:%d  %s %d", time.Since(start).Milliseconds(), url, downErr)
+	consts.LogMem.Add("DownPng  time:%d  %s %d", time.Since(start).Milliseconds(), url, downErr)
 	if downErr != nil {
 		result.Fail()
 		result.Message = "文件下载失败：" + url

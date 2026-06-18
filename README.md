@@ -302,7 +302,7 @@ installSnapshot(newSnap)
 
 ```
 main()
-  ├─ TempDir = getwd()
+  ├─ WorkDir = getwd()
   ├─ LoadCachedSnapshot()                ← 加载磁盘缓存
   │     └─ installSnapshot(loaded)       ← 用户立刻可搜
   ├─ InitSetting()

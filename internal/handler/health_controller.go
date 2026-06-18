@@ -49,9 +49,7 @@ func GetIndexHealthCheck(c *gin.Context) {
 	health.SeriesCount = consts.GetSyncMapCount(&consts.SeriesCount)
 
 	// 读取扫描进度
-	consts.SpMu.RLock()
-	health.ScanProgress = consts.Sp
-	consts.SpMu.RUnlock()
+	health.ScanProgress = consts.Sp.Get()
 
 	recommendations := []string{}
 

@@ -58,8 +58,8 @@ func GetPlay(c *gin.Context) {
 			}
 
 			ffplayPath := "./ffplay.exe"
-			if service.TempDir != "" {
-				ffplayPath = filepath.Join(service.TempDir, "ffplay.exe")
+			if service.WorkDir != "" {
+				ffplayPath = filepath.Join(service.WorkDir, "ffplay.exe")
 			}
 
 			params = append(params, sanitizePath)
