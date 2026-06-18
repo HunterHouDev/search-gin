@@ -77,6 +77,9 @@ const loading = ref(false);
 const errorMsg = ref('');
 const $q = useQuasar();
 
+// 登录页独立于 MainLayout，需要自己同步主题到 body
+document.body.classList.toggle('theme-natural', systemProperty.theme === 'natural');
+
 const login = async () => {
   if (!username.value || !password.value) {
     errorMsg.value = '请输入用户名和密码';

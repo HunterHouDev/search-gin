@@ -79,11 +79,12 @@ func GetAuthorImage(c *gin.Context) {
 	author := fileHandler.engine.FindAuthorByName(path)
 	if author.IsNotEmpty() {
 		for _, v := range author.Images {
-			if v != "" {
-				if validated, err := utils.ValidatePath(v, service.GetOSSetting().Dirs); err == nil {
-					c.File(validated)
-					return
-				}
+			if v == "" || !utils.ExistsFiles(v) {
+				continue
+			}
+			if validated, err := utils.ValidatePath(v, service.GetOSSetting().Dirs); err == nil {
+				c.File(validated)
+				return
 			}
 		}
 	}

@@ -151,7 +151,8 @@ func BuildAPIRouter() *gin.Engine {
 	return router
 }
 
-// BuildFileRouter 构建文件/图片流路由（端口 10082）：签名 URL 校验
+// BuildFileRouter 构建文件/图片流路由（端口 10082）
+// 该端口只在内网监听，不额外要求签名验证（签名对多节点集群不可用）
 func BuildFileRouter() *gin.Engine {
 	if env.IsProd {
 		gin.SetMode(gin.ReleaseMode)
@@ -161,7 +162,6 @@ func BuildFileRouter() *gin.Engine {
 
 	router := gin.New()
 	buildCommonMiddleware(router)
-	router.Use(middleware.SignAuthMiddleware())
 	buildStreamMiddleware(router)
 
 	return router

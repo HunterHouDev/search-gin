@@ -32,19 +32,19 @@ func (sm *searchService) GetPng(c *gin.Context) {
 	file := SearchEngine.FindById(id)
 	if !file.IsNull() {
 		if file.Png != "" {
-			if validated, err := utils.ValidatePath(file.Png, GetOSSetting().Dirs); err == nil {
+			if validated, err := utils.ValidatePath(file.Png, GetOSSetting().Dirs); err == nil && utils.ExistsFiles(validated) {
 				c.File(validated)
 				return
 			}
 		}
 		if file.Jpg != "" {
-			if validated, err := utils.ValidatePath(file.Jpg, GetOSSetting().Dirs); err == nil {
+			if validated, err := utils.ValidatePath(file.Jpg, GetOSSetting().Dirs); err == nil && utils.ExistsFiles(validated) {
 				c.File(validated)
 				return
 			}
 		}
 		if file.Gif != "" {
-			if validated, err := utils.ValidatePath(file.Gif, GetOSSetting().Dirs); err == nil {
+			if validated, err := utils.ValidatePath(file.Gif, GetOSSetting().Dirs); err == nil && utils.ExistsFiles(validated) {
 				c.File(validated)
 				return
 			}
@@ -60,37 +60,25 @@ func (sm *searchService) GetJpg(c *gin.Context) {
 	if !file.IsNull() {
 		jpeg := utils.ConcatSuffix(file.Path, "jpeg")
 		if file.Jpg != "" {
-			if validated, err := utils.ValidatePath(file.Jpg, GetOSSetting().Dirs); err == nil {
-				b, err := utils.CompressPngIfNeed(validated)
-				if err != nil {
-					c.Data(http.StatusOK, contentType, b)
-				}
+			if validated, err := utils.ValidatePath(file.Jpg, GetOSSetting().Dirs); err == nil && utils.ExistsFiles(validated) {
 				c.File(validated)
 				return
 			}
 		}
 		if jpeg != "" {
-			if validated, err := utils.ValidatePath(jpeg, GetOSSetting().Dirs); err == nil {
-				b, err := utils.CompressPngIfNeed(validated)
-				if err != nil {
-					c.Data(http.StatusOK, contentType, b)
-				}
+			if validated, err := utils.ValidatePath(jpeg, GetOSSetting().Dirs); err == nil && utils.ExistsFiles(validated) {
 				c.File(validated)
 				return
 			}
 		}
 		if file.Png != "" {
-			if validated, err := utils.ValidatePath(file.Png, GetOSSetting().Dirs); err == nil {
-				b, err := utils.CompressPngIfNeed(validated)
-				if err != nil {
-					c.Data(http.StatusOK, contentType, b)
-				}
+			if validated, err := utils.ValidatePath(file.Png, GetOSSetting().Dirs); err == nil && utils.ExistsFiles(validated) {
 				c.File(validated)
 				return
 			}
 		}
 		if file.Gif != "" {
-			if validated, err := utils.ValidatePath(file.Gif, GetOSSetting().Dirs); err == nil {
+			if validated, err := utils.ValidatePath(file.Gif, GetOSSetting().Dirs); err == nil && utils.ExistsFiles(validated) {
 				c.File(validated)
 				return
 			}

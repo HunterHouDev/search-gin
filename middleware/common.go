@@ -14,13 +14,20 @@ func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
 		skipPaths := []string{
-		"/api/login",
-		 "/login",
-		 "/",
-		 "/index.html",
-		 "/api/ws",
-		 "/api/lanPeers",
-		 "/api/heartBeat",
+			"/api/login",
+			"/login",
+			"/index.html",
+			"/api/ws",
+			"/api/events",
+			"/api/lanPeers",
+			"/api/heartBeat",
+			"/api/authorImage/",
+		}
+
+		// 单独处理根路径（不能用前缀匹配，否则所有 /api/* 都会被跳过）
+		if path == "/" {
+			c.Next()
+			return
 		}
 
 		// 免认证路径优先检查（心跳等），防止递归触发 X-Search-Gin-Remote 验证
@@ -81,6 +88,7 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 		tokenInfo, valid := service.ValidateTokenWithInfo(token)
+		utils.InfoFormat("AuthMiddleware: token=%s valid=%v username=%q role=%q", token[:8]+"...", valid, tokenInfo.Username, tokenInfo.Role)
 		if !valid {
 			c.JSON(http.StatusUnauthorized, utils.NewFailByMsg("认证失败"))
 			c.Abort()

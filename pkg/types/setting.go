@@ -32,7 +32,6 @@ type Setting struct {
 	DocsTypes      []string
 	VideoTypes     []string
 	Types          []string
-	Buttons        []string
 	MovieTypes     []string
 	Pages          []string
 	ControllerHost string

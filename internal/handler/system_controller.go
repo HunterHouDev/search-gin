@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"encoding/json"
+	"maps"
 	"net/http"
 	"os/exec"
 	"strings"
@@ -27,14 +29,51 @@ func PostSetting(c *gin.Context) {
 	if !requireAdmin(c) {
 		return
 	}
-	setInfo := model.Setting{}
-	if err := c.ShouldBindJSON(&setInfo); err != nil {
+
+	// 先用 map 接收，只覆盖请求中存在的字段（不丢失现有配置）
+	var body map[string]any
+	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数绑定失败"))
 		return
 	}
-	setInfo.SelfPath = service.GetOSSetting().SelfPath
-	service.SetOSSetting(setInfo)
-	service.FlushDictionary(service.GetOSSetting().SelfPath)
+
+	// 对搜索相关字段做必填检查
+	if dirs, ok := body["Dirs"]; ok {
+		if arr, ok2 := dirs.([]any); ok2 && len(arr) == 0 {
+			c.JSON(http.StatusBadRequest, utils.NewFailByMsg("扫描目录不能为空"))
+			return
+		}
+	}
+	if types, ok := body["Types"]; ok {
+		if arr, ok2 := types.([]any); ok2 && len(arr) == 0 {
+			c.JSON(http.StatusBadRequest, utils.NewFailByMsg("文件类型不能为空"))
+			return
+		}
+	}
+
+	// 将现有配置序列化为 map
+	existing := service.GetOSSetting()
+	existingJSON, _ := json.Marshal(existing)
+	var merged map[string]any
+	if err := json.Unmarshal(existingJSON, &merged); err != nil {
+		c.JSON(http.StatusInternalServerError, utils.NewFailByMsg("合并配置失败"))
+		return
+	}
+
+	// 用请求中的字段覆盖（只覆盖在 body 中存在的字段）
+	maps.Copy(merged, body)
+
+	// 将合并后的 map 反序列化回 Setting
+	mergedJSON, _ := json.Marshal(merged)
+	var updated model.Setting
+	if err := json.Unmarshal(mergedJSON, &updated); err != nil {
+		c.JSON(http.StatusInternalServerError, utils.NewFailByMsg("反序列化配置失败"))
+		return
+	}
+	updated.SelfPath = existing.SelfPath
+
+	service.SetOSSetting(updated)
+	service.FlushDictionary(updated.SelfPath)
 	if service.HwAccelSettingChanged() {
 		service.ForceHwAccelDetect()
 	}

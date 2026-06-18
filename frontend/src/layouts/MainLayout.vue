@@ -106,7 +106,7 @@
 </template>
 
 <script setup>
-import { computed, onUnmounted, reactive, ref } from 'vue';
+import { computed, onUnmounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useSystemProperty } from 'stores/System';
 import { useQuasar } from 'quasar';
@@ -125,6 +125,11 @@ const systemProperty = useSystemProperty();
 const $q = useQuasar();
 const router = useRouter();
 
+// 同步主题到 body，确保弹窗/对话框等 body 级组件也能继承自然模式样式
+watch(() => systemProperty.theme, (theme) => {
+  document.body.classList.toggle('theme-natural', theme === 'natural');
+}, { immediate: true });
+
 const shutdown = ref(null);
 const drawerLeft = ref(false);
 const view = reactive({
@@ -134,14 +139,14 @@ const view = reactive({
 // 动态 header 样式 — Design System
 const headerStyle = computed(() => {
   return systemProperty.theme === 'natural'
-    ? 'background: #DBEAFE !important; color: #1E3A5F; border-bottom: 1px solid #93C5FD;'
+    ? 'background: #1E3A5F !important; color: #FFFFFF; border-bottom: 1px solid #0F2440;'
     : 'background: #181B27 !important; color: #E8EAF2; border-bottom: 1px solid rgba(139,143,168,0.1);';
 });
 
 // 动态抽屉样式 — Design System: bg-shift, no borders
 const drawerStyle = computed(() => {
   return systemProperty.theme === 'natural'
-    ? 'background-color: #DBEAFE; color: #1E3A5F;'
+    ? 'background-color: #1E3A5F; color: #FFFFFF;'
     : 'background-color: #181B27; color: #E8EAF2;';
 });
 
@@ -324,22 +329,22 @@ const essentialLinks = [
 
 // 自然模式下抽屉背景色
 .drawer-natural {
-  background-color: #DBEAFE !important;
+  background-color: #1E3A5F !important;
 }
 
 // 自然模式下抽屉 item 文字色
 .drawer-natural ::deep(.q-item) {
-  color: #1E3A5F !important;
+  color: #FFFFFF !important;
 }
 
 // 自然模式下抽屉中按钮颜色覆盖
 .drawer-natural ::deep(.q-btn) {
-  color: #1E3A5F !important;
+  color: #FFFFFF !important;
 }
 
 // 自然模式下 header 中 EssentialLink 按钮文字颜色
 .theme-natural .q-header ::deep(.q-btn) {
-  color: #1E3A5F !important;
+  color: #FFFFFF !important;
 }
 
 // 自然模式下 header 中当前页面的 EssentialLink 按钮保持红色

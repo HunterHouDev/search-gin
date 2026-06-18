@@ -127,7 +127,7 @@ body {
   transition: background-color 0.4s ease, color 0.4s ease;
 }
 
-.theme-natural body {
+body.theme-natural {
   background-image: var(--q-bg-gradient);
 }
 
@@ -175,19 +175,29 @@ html {
 }
 
 .q-field .q-field__label,
-.q-field .q-field__native {
+.q-field .q-field__native,
+.q-field .q-field__input {
   transition: color 0.3s ease;
 }
 
-// 星空模式输入框文字用白色
+// 星空模式输入框文字用白色（覆盖 Quasar dark field 默认白色）
 body:not(.theme-natural) .q-field .q-field__label,
-body:not(.theme-natural) .q-field .q-field__native {
+body:not(.theme-natural) .q-field .q-field__native,
+body:not(.theme-natural) .q-field .q-field__input {
   color: rgba(255, 255, 255, 0.85) !important;
 }
 
-// 自然模式输入框文字用深色
+// 自然模式输入框文字用深色（覆盖 Quasar dark field 默认白色）
 .theme-natural .q-field .q-field__label,
-.theme-natural .q-field .q-field__native {
+.theme-natural .q-field .q-field__native,
+.theme-natural .q-field .q-field__input {
+  color: var(--q-text-secondary) !important;
+}
+
+// 自然模式下即使使用了 .q-field--dark 也要用深色文字
+.theme-natural .q-field--dark .q-field__label,
+.theme-natural .q-field--dark .q-field__native,
+.theme-natural .q-field--dark .q-field__input {
   color: var(--q-text-secondary) !important;
 }
 

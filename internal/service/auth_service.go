@@ -233,7 +233,6 @@ func defaultSetting() model.Setting {
 		DocsTypes:  []string{"txt", "xlsx"},
 		VideoTypes: []string{"avi", "mkv", "wmv", "mp4"},
 		Types:      []string{"avi", "mkv", "wmv", "mp4", "gif", "png", "jpg", "txt", "xlsx"},
-		Buttons:    []string{"刮图", "删除", "移动", "扫码"},
 		MovieTypes: []string{"骑兵", "步兵", "国产", "漫动"},
 		Pages:      []string{"10", "12", "15", "27", "50", "100"},
 	}
@@ -283,6 +282,7 @@ func ReadDictionaryFromJson(path string) model.Setting {
 	dict := model.Setting{}
 	err = json.Unmarshal(reader, &dict)
 	if err != nil {
+		utils.InfoFormat("解析配置文件失败: %v", err)
 		return model.Setting{}
 	}
 	return dict

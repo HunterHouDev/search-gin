@@ -17,6 +17,9 @@ import (
 func InitSetting() {
 	consts.MovieFields = utils.InterfaceFields(model.FileItem{})
 
+	// 先用默认值填充，确保 SelfPath 等基础字段不为空
+	SetOSSetting(defaultSetting())
+
 	curDir, err := filepath.Abs(".")
 	if err != nil {
 		utils.ErrorFormat("获取当前目录失败: %v", err)

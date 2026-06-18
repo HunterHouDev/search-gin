@@ -67,7 +67,6 @@ export interface SettingInfo {
   ImageTypes: string[]
   DocsTypes: string[]
   Types: string[]
-  Buttons: string[]
   MovieTypes: string[]
   ControllerHost: string
   FileHost: string
