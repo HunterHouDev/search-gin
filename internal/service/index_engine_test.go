@@ -19,7 +19,7 @@ func makeMovie(id, name, path, code, movieType, author string, size int64) model
 		Path:      path,
 		Code:      code,
 		MovieType: movieType,
-		Author:   author,
+		Author:    author,
 		Size:      size,
 		DirPath:   "/test",
 		BaseDir:   "/test",
@@ -107,9 +107,9 @@ func TestBucketFile_TypeIndex(t *testing.T) {
 	assert.False(t, exists, "空类型不应加入 TypeIndex")
 }
 
-// ── buildSnapshotFromBuckets 测试 ──
+// ── buildIndexFromBuckets 测试 ──
 
-func TestBuildSnapshotFromBuckets_AggregatesStats(t *testing.T) {
+func TestBuildIndexFromBuckets_AggregatesStats(t *testing.T) {
 	b1 := makeBucket("dir-a",
 		makeMovie("1", "a.mp4", "/a.mp4", "AAA", "骑兵", "田中", 100),
 		makeMovie("2", "b.mp4", "/b.mp4", "BBB", "骑兵", "佐藤", 200),
@@ -118,21 +118,21 @@ func TestBuildSnapshotFromBuckets_AggregatesStats(t *testing.T) {
 		makeMovie("3", "c.mp4", "/c.mp4", "CCC", "步兵", "田中", 300),
 	)
 
-	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir-a": b1, "dir-b": b2})
+	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir-a": b1, "dir-b": b2})
 
 	assert.Equal(t, int64(600), snap.totalSize)
 	assert.Equal(t, 3, snap.totalCount)
 	assert.Equal(t, int32(2), snap.bucketCount)
 }
 
-func TestBuildSnapshotFromBuckets_AuthorAggregation(t *testing.T) {
+func TestBuildIndexFromBuckets_AuthorAggregation(t *testing.T) {
 	b := makeBucket("dir",
 		makeMovie("1", "a.mp4", "/a.mp4", "", "骑兵", "田中", 100),
 		makeMovie("2", "b.mp4", "/b.mp4", "", "骑兵", "田中", 200),
 		makeMovie("3", "c.mp4", "/c.mp4", "", "步兵", "佐藤", 150),
 	)
 
-	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir": b})
+	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
 
 	assert.Equal(t, 2, len(snap.actorMap))
 	assert.Equal(t, 2, snap.actorMap["田中"].Cnt)
@@ -140,46 +140,46 @@ func TestBuildSnapshotFromBuckets_AuthorAggregation(t *testing.T) {
 	assert.Equal(t, 1, snap.actorMap["佐藤"].Cnt)
 }
 
-func TestBuildSnapshotFromBuckets_TypeMenu(t *testing.T) {
+func TestBuildIndexFromBuckets_TypeMenu(t *testing.T) {
 	b := makeBucket("dir",
 		makeMovie("1", "a.mp4", "/a.mp4", "", "骑兵", "", 100),
 		makeMovie("2", "b.mp4", "/b.mp4", "", "步兵", "", 200),
 		makeMovie("3", "c.mp4", "/c.mp4", "", "骑兵", "", 300),
 	)
 
-	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir": b})
+	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
 
 	assert.Equal(t, int64(600), snap.typeMenu["全部"].Size)
 	assert.Equal(t, int64(400), snap.typeMenu["骑兵"].Size)
 	assert.Equal(t, int64(200), snap.typeMenu["步兵"].Size)
 }
 
-func TestBuildSnapshotFromBuckets_RepeatByCode(t *testing.T) {
+func TestBuildIndexFromBuckets_RepeatByCode(t *testing.T) {
 	b := makeBucket("dir",
 		makeMovie("1", "a.mp4", "/a.mp4", "ABC-123", "", "", 100),
 		makeMovie("2", "b.mp4", "/b.mp4", "ABC-123", "", "", 100), // 同 Code+Size
 	)
 
-	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir": b})
+	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
 	// 两个文件 Size 相同且 Code 相同 → 标记为重复
 	assert.GreaterOrEqual(t, len(snap.repeatFiles), 2, "重复文件应被检测到")
 }
 
-func TestBuildSnapshotFromBuckets_EmptyBucket(t *testing.T) {
+func TestBuildIndexFromBuckets_EmptyBucket(t *testing.T) {
 	b := newInstance("empty-dir")
-	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"empty-dir": b})
+	snap := buildIndexFromBuckets(map[string]*bucketFile{"empty-dir": b})
 
 	assert.Equal(t, int64(0), snap.totalSize)
 	assert.Equal(t, 0, snap.totalCount)
 	assert.Equal(t, int32(0), snap.bucketCount)
 }
 
-func TestBuildSnapshotFromBuckets_NoTypeFallsback(t *testing.T) {
+func TestBuildIndexFromBuckets_NoTypeFallsback(t *testing.T) {
 	m := makeMovie("1", "a.mp4", "/a.mp4", "", "", "", 100)
 	m.MovieType = "" // 确保无类型
 	b := makeBucket("dir", m)
 
-	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir": b})
+	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
 
 	// 空类型应归为"无"
 	assert.Contains(t, snap.typeMenu, "无")
@@ -202,13 +202,13 @@ func TestSearchEngineCore_IsEmpty(t *testing.T) {
 	assert.True(t, core.IsEmpty())
 }
 
-func TestSearchEngineCore_InstallSnapshot(t *testing.T) {
+func TestSearchEngineCore_InstallIndex(t *testing.T) {
 	core := newTestEngine()
 	defer core.Reset()
 
 	b := makeBucket("dir", makeMovie("1", "f.mp4", "/f.mp4", "", "", "", 100))
-	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir": b})
-	core.installSnapshot(snap)
+	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
+	core.installIndex(snap)
 
 	assert.False(t, core.IsEmpty())
 	assert.Equal(t, 1, core.GetTotalCount())
@@ -220,8 +220,8 @@ func TestSearchEngineCore_Reset(t *testing.T) {
 	core := newTestEngine()
 
 	b := makeBucket("dir", makeMovie("1", "f.mp4", "/f.mp4", "", "", "", 100))
-	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir": b})
-	core.installSnapshot(snap)
+	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
+	core.installIndex(snap)
 	core.Reset()
 
 	assert.True(t, core.IsEmpty())
@@ -236,8 +236,8 @@ func TestSearchEngineCore_FindById(t *testing.T) {
 		makeMovie("id-a", "a.mp4", "/a.mp4", "", "", "", 100),
 		makeMovie("id-b", "b.mp4", "/b.mp4", "", "", "", 200),
 	)
-	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir": b})
-	core.installSnapshot(snap)
+	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
+	core.installIndex(snap)
 
 	found := core.FindById("id-a")
 	assert.False(t, found.IsNull())
@@ -255,8 +255,8 @@ func TestSearchEngineCore_GetAuthorCount(t *testing.T) {
 		makeMovie("1", "a.mp4", "/a.mp4", "", "骑兵", "田中", 100),
 		makeMovie("2", "b.mp4", "/b.mp4", "", "步兵", "佐藤", 200),
 	)
-	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir": b})
-	core.installSnapshot(snap)
+	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
+	core.installIndex(snap)
 
 	assert.Equal(t, 2, core.GetAuthorCount())
 }
@@ -268,8 +268,8 @@ func TestSearchEngineCore_FindAuthorByName(t *testing.T) {
 	b := makeBucket("dir",
 		makeMovie("1", "a.mp4", "/a.mp4", "", "骑兵", "田中", 100),
 	)
-	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir": b})
-	core.installSnapshot(snap)
+	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
+	core.installIndex(snap)
 
 	act := core.FindAuthorByName("田中")
 	assert.True(t, act.IsNotEmpty())
@@ -357,8 +357,8 @@ func TestRebuildWithBucket_ReplacesExisting(t *testing.T) {
 
 	// 初始：dir-a 有文件
 	b1 := makeBucket("dir-a", makeMovie("1", "old.mp4", "/old.mp4", "", "", "", 100))
-	snap1 := buildSnapshotFromBuckets(map[string]*bucketFile{"dir-a": b1})
-	core.installSnapshot(snap1)
+	snap1 := buildIndexFromBuckets(map[string]*bucketFile{"dir-a": b1})
+	core.installIndex(snap1)
 	assert.Equal(t, 1, core.GetTotalCount())
 
 	// 替换 dir-a 为新文件
@@ -387,8 +387,8 @@ func TestRebuildWithBucket_KeepsOtherBuckets(t *testing.T) {
 
 	bA := makeBucket("dir-a", makeMovie("1", "a.mp4", "/a.mp4", "", "", "", 100))
 	bB := makeBucket("dir-b", makeMovie("2", "b.mp4", "/b.mp4", "", "", "", 200))
-	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir-a": bA, "dir-b": bB})
-	core.installSnapshot(snap)
+	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir-a": bA, "dir-b": bB})
+	core.installIndex(snap)
 
 	// 只替换 dir-a 不影响 dir-b
 	bA2 := makeBucket("dir-a", makeMovie("3", "a2.mp4", "/a2.mp4", "", "", "", 300))
@@ -399,9 +399,9 @@ func TestRebuildWithBucket_KeepsOtherBuckets(t *testing.T) {
 	_ = bB // dir-b 保持不变
 }
 
-// ── 多 bucket 并发搜索（PageAsync） ──
+// ── 多 bucket 并发搜索（pageAsync） ──
 
-func TestPageAsync_SearchAcrossAllBuckets(t *testing.T) {
+func Test_PageAsync_SearchAcrossAllBuckets(t *testing.T) {
 	engine := newTestEngine()
 	defer engine.Reset()
 
@@ -409,31 +409,31 @@ func TestPageAsync_SearchAcrossAllBuckets(t *testing.T) {
 	b2 := makeBucket("dir-b", makeMovie("2", "beta.mp4", "/b/beta.mp4", "", "", "", 200))
 	b3 := makeBucket("dir-c", makeMovie("3", "alpha-beta.mp4", "/c/alpha-beta.mp4", "", "", "", 300))
 
-	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir-a": b1, "dir-b": b2, "dir-c": b3})
-	engine.installSnapshot(snap)
+	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir-a": b1, "dir-b": b2, "dir-c": b3})
+	engine.installIndex(snap)
 
 	param := model.SearchParam{Keyword: "alpha", Page: 1, PageSize: 10, SortField: "Size", SortType: "desc"}
-	result := engine.PageAsync(param)
+	result := engine.pageAsync(param)
 
 	assert.Equal(t, 2, len(result.FileList), "应找到 2 个含 alpha 的文件")
 	assert.Equal(t, "alpha-beta.mp4", result.FileList[0].Name, "应按 size desc 排序")
 	assert.Equal(t, "alpha.mp4", result.FileList[1].Name)
 }
 
-func TestPageAsync_NoMatchReturnsEmpty(t *testing.T) {
+func Test_PageAsync_NoMatchReturnsEmpty(t *testing.T) {
 	engine := newTestEngine()
 	defer engine.Reset()
 
 	b := makeBucket("dir", makeMovie("1", "cat.mp4", "/cat.mp4", "", "", "", 100))
-	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir": b})
-	engine.installSnapshot(snap)
+	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
+	engine.installIndex(snap)
 
 	param := model.SearchParam{Keyword: "dog", Page: 1, PageSize: 10}
-	result := engine.PageAsync(param)
+	result := engine.pageAsync(param)
 	assert.Equal(t, 0, len(result.FileList))
 }
 
-func TestPageAsync_Pagination(t *testing.T) {
+func Test_PageAsync_Pagination(t *testing.T) {
 	engine := newTestEngine()
 	defer engine.Reset()
 
@@ -448,34 +448,34 @@ func TestPageAsync_Pagination(t *testing.T) {
 		)
 	}
 	b := makeBucket("dir", movies...)
-	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir": b})
-	engine.installSnapshot(snap)
+	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
+	engine.installIndex(snap)
 
 	// 第1页 10条
-	r1 := engine.PageAsync(model.SearchParam{Keyword: "", Page: 1, PageSize: 10})
+	r1 := engine.pageAsync(model.SearchParam{Keyword: "", Page: 1, PageSize: 10})
 	assert.Equal(t, 10, len(r1.FileList))
 
 	// 第2页 10条
-	r2 := engine.PageAsync(model.SearchParam{Keyword: "", Page: 2, PageSize: 10})
+	r2 := engine.pageAsync(model.SearchParam{Keyword: "", Page: 2, PageSize: 10})
 	assert.Equal(t, 10, len(r2.FileList))
 
 	// 第3页 5条
-	r3 := engine.PageAsync(model.SearchParam{Keyword: "", Page: 3, PageSize: 10})
+	r3 := engine.pageAsync(model.SearchParam{Keyword: "", Page: 3, PageSize: 10})
 	assert.Equal(t, 5, len(r3.FileList))
 }
 
-func TestPageAsync_EmptyEngine(t *testing.T) {
+func Test_PageAsync_EmptyEngine(t *testing.T) {
 	engine := newTestEngine()
 	defer engine.Reset()
 
 	param := model.SearchParam{Keyword: "test", Page: 1, PageSize: 10}
-	result := engine.PageAsync(param)
+	result := engine.pageAsync(param)
 	assert.Equal(t, 0, len(result.FileList))
 }
 
 // ── repeat search ──
 
-func TestReturnRepeatSearch(t *testing.T) {
+func Test_returnRepeatSearch(t *testing.T) {
 	engine := newTestEngine()
 	defer engine.Reset()
 
@@ -484,11 +484,11 @@ func TestReturnRepeatSearch(t *testing.T) {
 		makeMovie("1", "a.mp4", "/a.mp4", "ABC", "", "", 100),
 		makeMovie("2", "b.mp4", "/b.mp4", "ABC", "", "", 100), // 重复
 	)
-	snap := buildSnapshotFromBuckets(map[string]*bucketFile{"dir": b})
-	engine.installSnapshot(snap)
+	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
+	engine.installIndex(snap)
 
 	param := model.SearchParam{OnlyRepeat: true}
-	result := engine.PageAsync(param)
+	result := engine.pageAsync(param)
 	assert.Greater(t, len(result.FileList), 0, "应检测到重复文件")
 }
 

@@ -21,7 +21,7 @@ type cacheBucket struct {
 	TypeIndex    map[string]map[string]struct{}
 }
 
-// cacheData — searchSnapshot 的数据副本
+// cacheData — searchIndex 的数据副本
 type cacheData struct {
 	Buckets     []cacheBucket
 	RepeatFiles []model.FileItem
@@ -33,9 +33,9 @@ type cacheData struct {
 
 const cacheFileName = "search_cache.gob"
 
-// saveSnapshotToCache 将当前快照异步保存到缓存文件
+// saveIndexToCache 将当前快照异步保存到缓存文件
 // 空快照（无 bucket）不保存，避免 Reset() 等路径清空磁盘缓存
-func saveSnapshotToCache(snap *searchSnapshot) {
+func saveIndexToCache(snap *searchIndex) {
 	if WorkDir == "" {
 		return
 	}
@@ -94,8 +94,8 @@ func saveSnapshotToCache(snap *searchSnapshot) {
 	}()
 }
 
-// LoadCachedSnapshot 从缓存文件加载快照，成功则安装到搜索引擎并返回 true
-func (se *searchEngineCore) LoadCachedSnapshot() bool {
+// LoadCachedIndex 从缓存文件加载快照，成功则安装到搜索引擎并返回 true
+func (se *searchEngineCore) LoadCachedIndex() bool {
 	if WorkDir == "" {
 		return false
 	}
@@ -119,7 +119,7 @@ func (se *searchEngineCore) LoadCachedSnapshot() bool {
 		return false
 	}
 
-	// 转换为 searchSnapshot
+	// 转换为 searchIndex
 	buckets := make(map[string]*bucketFile, len(data.Buckets))
 	var totalSize int64
 	var totalCount int
@@ -136,7 +136,7 @@ func (se *searchEngineCore) LoadCachedSnapshot() bool {
 		totalCount += cb.TotalCount
 	}
 
-	snap := &searchSnapshot{
+	snap := &searchIndex{
 		buckets:     buckets,
 		bucketCount: int32(len(data.Buckets)),
 		totalSize:   totalSize,
@@ -148,7 +148,7 @@ func (se *searchEngineCore) LoadCachedSnapshot() bool {
 		seriesCount: data.SeriesCount,
 	}
 
-	se.installSnapshot(snap)
+	se.installIndex(snap)
 	consts.LogMem.Add("索引缓存已加载: %s (%d buckets, %d files)", cachePath, len(data.Buckets), totalCount)
 	return true
 }

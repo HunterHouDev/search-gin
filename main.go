@@ -39,7 +39,7 @@ func main() {
 	service.WorkDir = workDir
 
 	// ── 2.1 加载上次扫描的索引缓存（填补启动空窗期） ──
-	service.SearchEngine.LoadCachedSnapshot()
+	service.SearchEngine.LoadCachedIndex()
 
 	// ── 2. 解压嵌入式资源 ──
 	assetsExtracted := extractAssets(workDir)

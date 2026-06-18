@@ -26,8 +26,8 @@ func (se *searchEngineCore) rebuildWithBuckets(entries map[string]*bucketFile) {
 	consts.LogMem.Add("rebuildWithBuckets: 开始批量重建, %d 个目录", len(entries))
 	start := time.Now()
 
-	newSnap := buildSnapshotFromBuckets(entries)
-	se.installSnapshot(newSnap)
+	newSnap := buildIndexFromBuckets(entries)
+	se.installIndex(newSnap)
 
 	ti := time.Since(start)
 	consts.LogMem.Add("rebuildWithBuckets: 完成, 耗时 %dms, 文件数 %d", ti.Milliseconds(), newSnap.totalCount)
@@ -54,7 +54,7 @@ func (se *searchEngineCore) rebuildWithBucket(baseDir string, newBucket *bucketF
 		dirSet[d] = struct{}{}
 	}
 
-	old := se.loadSnapshot()
+	old := se.loadIndex()
 	newBuckets := make(map[string]*bucketFile, len(old.buckets)+1)
 	for k, v := range old.buckets {
 		if k == baseDir {
@@ -71,8 +71,8 @@ func (se *searchEngineCore) rebuildWithBucket(baseDir string, newBucket *bucketF
 
 	consts.LogMem.Add("rebuildWithBucket: bucket 数量 %d -> %d", len(old.buckets), len(newBuckets))
 
-	newSnap := buildSnapshotFromBuckets(newBuckets)
-	se.installSnapshot(newSnap)
+	newSnap := buildIndexFromBuckets(newBuckets)
+	se.installIndex(newSnap)
 
 	ti := time.Since(start)
 	consts.LogMem.Add("rebuildWithBucket: 完成, 耗时 %dms, 文件数 %d", ti.Milliseconds(), newSnap.totalCount)
@@ -91,7 +91,7 @@ func (se *searchEngineCore) rebuildWithBucketIncremental(baseDir string, newBuck
 	defer se.rebuildMu.Unlock()
 
 	start := time.Now()
-	old := se.loadSnapshot()
+	old := se.loadIndex()
 
 	dirs := consts.GetOSSetting().Dirs
 	dirSet := make(map[string]struct{}, len(dirs))
@@ -113,7 +113,7 @@ func (se *searchEngineCore) rebuildWithBucketIncremental(baseDir string, newBuck
 		newBuckets[baseDir] = newBucket
 	}
 
-	snap := &searchSnapshot{
+	snap := &searchIndex{
 		buckets:     newBuckets,
 		bucketCount: int32(len(newBuckets)),
 		totalSize:   old.totalSize,
@@ -126,14 +126,14 @@ func (se *searchEngineCore) rebuildWithBucketIncremental(baseDir string, newBuck
 
 	oldBucket := old.buckets[baseDir]
 	if oldBucket != nil && !oldBucket.isEmpty() {
-		subtractBucketFromSnapshot(snap, oldBucket)
+		subtractBucketFromIndex(snap, oldBucket)
 	}
 	if newBucket != nil && !newBucket.isEmpty() {
-		addBucketToSnapshot(snap, newBucket)
+		addBucketToIndex(snap, newBucket)
 	}
 
 	recomputeRepeats(snap)
-	se.installSnapshot(snap)
+	se.installIndex(snap)
 
 	ti := time.Since(start)
 	consts.LogMem.Add("rebuildWithBucketIncremental: 完成, 耗时 %dms, bucket %s, 文件数 %d", ti.Milliseconds(), baseDir, snap.totalCount)
@@ -141,9 +141,9 @@ func (se *searchEngineCore) rebuildWithBucketIncremental(baseDir string, newBuck
 
 // ── 快照聚合操作 ──────────────────────────────────────────────────
 
-// buildSnapshotFromBuckets 遍历所有 bucket，构造完整的 searchSnapshot
-func buildSnapshotFromBuckets(buckets map[string]*bucketFile) *searchSnapshot {
-	snap := &searchSnapshot{
+// buildIndexFromBuckets 遍历所有 bucket，构造完整的 searchIndex
+func buildIndexFromBuckets(buckets map[string]*bucketFile) *searchIndex {
+	snap := &searchIndex{
 		buckets:     make(map[string]*bucketFile, len(buckets)),
 		actorMap:    make(map[string]model.Author),
 		typeMenu:    make(map[string]consts.MenuSize),
@@ -283,7 +283,7 @@ func cloneMenuMap(src map[string]consts.MenuSize) map[string]consts.MenuSize {
 	return dst
 }
 
-func subtractBucketFromSnapshot(snap *searchSnapshot, bucket *bucketFile) {
+func subtractBucketFromIndex(snap *searchIndex, bucket *bucketFile) {
 	bucket.mu.RLock()
 	defer bucket.mu.RUnlock()
 
@@ -353,7 +353,7 @@ func subtractBucketFromSnapshot(snap *searchSnapshot, bucket *bucketFile) {
 	}
 }
 
-func addBucketToSnapshot(snap *searchSnapshot, bucket *bucketFile) {
+func addBucketToIndex(snap *searchIndex, bucket *bucketFile) {
 	bucket.mu.RLock()
 	defer bucket.mu.RUnlock()
 
@@ -408,7 +408,7 @@ func addBucketToSnapshot(snap *searchSnapshot, bucket *bucketFile) {
 }
 
 // recomputeRepeats 在所有 bucket 上重新计算重复文件
-func recomputeRepeats(snap *searchSnapshot) {
+func recomputeRepeats(snap *searchIndex) {
 	sizeRepeats := make(map[int64]repeatModel, 1000)
 	codeRepeats := make(map[string]repeatModel, 1000)
 	fileRepeats := make(map[string]model.FileItem, 2000)
@@ -462,7 +462,7 @@ func recomputeRepeats(snap *searchSnapshot) {
 
 // ── 单文件操作 ────────────────────────────────────────────────────
 
-func subtractFileFromSnapshot(snap *searchSnapshot, movie model.FileItem) {
+func subtractFileFromIndex(snap *searchIndex, movie model.FileItem) {
 	snap.totalCount--
 	snap.totalSize -= movie.Size
 
@@ -522,7 +522,7 @@ func subtractFileFromSnapshot(snap *searchSnapshot, movie model.FileItem) {
 	}
 }
 
-func addFileToSnapshot(snap *searchSnapshot, movie model.FileItem) {
+func addFileToIndex(snap *searchIndex, movie model.FileItem) {
 	snap.totalCount++
 	snap.totalSize += movie.Size
 
@@ -575,7 +575,7 @@ func (se *searchEngineCore) ReplaceFile(oldFile, newFile model.FileItem) {
 	se.rebuildMu.Lock()
 	defer se.rebuildMu.Unlock()
 
-	snap := se.loadSnapshot()
+	snap := se.loadIndex()
 	bucket := snap.buckets[oldFile.BaseDir]
 	if bucket == nil || bucket.isEmpty() {
 		return
@@ -602,7 +602,7 @@ func (se *searchEngineCore) ReplaceFile(oldFile, newFile model.FileItem) {
 
 	bucket.put(newFile)
 
-	newSnap := &searchSnapshot{
+	newSnap := &searchIndex{
 		buckets:     snap.buckets,
 		bucketCount: snap.bucketCount,
 		totalSize:   snap.totalSize,
@@ -613,11 +613,11 @@ func (se *searchEngineCore) ReplaceFile(oldFile, newFile model.FileItem) {
 		seriesCount: cloneMenuMap(snap.seriesCount),
 	}
 
-	subtractFileFromSnapshot(newSnap, oldEntry)
-	addFileToSnapshot(newSnap, newFile)
+	subtractFileFromIndex(newSnap, oldEntry)
+	addFileToIndex(newSnap, newFile)
 	recomputeRepeats(newSnap)
 
-	se.installSnapshot(newSnap)
+	se.installIndex(newSnap)
 }
 
 // DeleteFile 从索引中删除文件记录（删除文件后同步索引）
@@ -625,7 +625,7 @@ func (se *searchEngineCore) DeleteFile(file model.FileItem) {
 	se.rebuildMu.Lock()
 	defer se.rebuildMu.Unlock()
 
-	snap := se.loadSnapshot()
+	snap := se.loadIndex()
 	bucket := snap.buckets[file.BaseDir]
 	if bucket == nil || bucket.isEmpty() {
 		return
@@ -650,7 +650,7 @@ func (se *searchEngineCore) DeleteFile(file model.FileItem) {
 	}
 	bucket.mu.Unlock()
 
-	newSnap := &searchSnapshot{
+	newSnap := &searchIndex{
 		buckets:     snap.buckets,
 		bucketCount: snap.bucketCount,
 		totalSize:   snap.totalSize,
@@ -661,8 +661,8 @@ func (se *searchEngineCore) DeleteFile(file model.FileItem) {
 		seriesCount: cloneMenuMap(snap.seriesCount),
 	}
 
-	subtractFileFromSnapshot(newSnap, entry)
+	subtractFileFromIndex(newSnap, entry)
 	recomputeRepeats(newSnap)
 
-	se.installSnapshot(newSnap)
+	se.installIndex(newSnap)
 }

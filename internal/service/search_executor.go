@@ -18,48 +18,71 @@ type cachedResult struct {
 	data  model.PageResultWrapper
 }
 
-// PageAsync 异步分页搜索
-func (se *searchEngineCore) PageAsync(searchParam model.SearchParam) model.PageResultWrapper {
-	if searchParam.OnlyRepeat {
-		return se.returnRepeatSearch()
+// Page 搜索并返回 API 分页结果
+func (se *searchEngineCore) Page(searchParam model.SearchParam) utils.Page {
+	sr := se.pageAsync(searchParam)
+	result := utils.NewPage()
+	result.TotalCnt = sr.SearchCount
+	result.TotalSize = utils.GetSizeStr(sr.SearchSize)
+	result.ResultSize = utils.GetSizeStr(sr.SearchSize)
+	result.SetResultCnt(sr.SearchCount, searchParam.Page)
+	result.CurSize = utils.GetSizeStr(sr.ResultSize)
+	result.CurCnt = sr.ResultCount
+	files := make([]model.FileItem, len(sr.FileList))
+	copy(files, sr.FileList)
+	for i := range files {
+		files[i].PageNo = searchParam.Page
 	}
-	wrapper := model.NewPageWrapper()
+	result.Data = files
+	result.SetProgress(consts.IndexNumber)
+	return result
+}
 
-	// 缓存命中
-	cacheKey := searchParam.UniWords()
-	if matchValue, ok := se.KeywordHistoryCache.Get(cacheKey); ok {
-		cr, ok2 := matchValue.(cachedResult)
-		if !ok2 {
-			se.KeywordHistoryCache.Delete(cacheKey)
-		} else if cr.epoch != se.cacheEpoch.Load() {
-			se.KeywordHistoryCache.Delete(cacheKey)
-		} else {
-			wrapper = cr.data
-			wrapper.FileList, wrapper.ResultSize = model.GetPageOfFiles(
-				wrapper.FileList, searchParam.Page, searchParam.PageSize)
-			return wrapper
-		}
+// pageAsync 异步分页搜索：先获取索引快照，再按路径分发
+func (se *searchEngineCore) pageAsync(p model.SearchParam) model.PageResultWrapper {
+	snap := se.loadIndex()
+	if p.OnlyRepeat {
+		return se.returnRepeatSearch(snap)
 	}
+	if cached, ok := se.tryCache(p); ok {
+		return cached
+	}
+	return se.doSearch(snap, p)
+}
 
-	snap := se.loadSnapshot()
+// tryCache 命中缓存则返回已分页的结果，否则返回 false
+func (se *searchEngineCore) tryCache(p model.SearchParam) (model.PageResultWrapper, bool) {
+	cacheKey := p.UniWords()
+	v, ok := se.KeywordHistoryCache.Get(cacheKey)
+	if !ok {
+		return model.PageResultWrapper{}, false
+	}
+	cr, ok2 := v.(cachedResult)
+	if !ok2 || cr.epoch != se.cacheEpoch.Load() {
+		se.KeywordHistoryCache.Delete(cacheKey)
+		return model.PageResultWrapper{}, false
+	}
+	w := cr.data
+	w.FileList, w.ResultSize = model.GetPageOfFiles(w.FileList, p.Page, p.PageSize)
+	return w, true
+}
+
+// doSearch 执行搜索：分发 bucket → 收集结果 → 排序 → 缓存 → 分页
+func (se *searchEngineCore) doSearch(snap *searchIndex, p model.SearchParam) model.PageResultWrapper {
 	bucketCount := len(snap.buckets)
 	if bucketCount <= 0 {
 		consts.LogMem.Add("警告: bucketCount=0, 跳过搜索")
-		wrapper.FileList = []model.FileItem{}
-		return wrapper
+		return model.PageResultWrapper{FileList: []model.FileItem{}}
 	}
 
-	poolSize := se.searchPool.Cap()
-	if bucketCount < poolSize {
-		poolSize = bucketCount
-	}
-
-	wrapper.ResultCount = searchParam.PageSize
+	wrapper := model.NewPageWrapper()
+	wrapper.ResultCount = p.PageSize
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	resultChan := make(chan model.PageResultWrapper, bucketCount*2)
 
+	// 分发搜索
 	for _, bucket := range snap.buckets {
 		if bucket.isEmpty() {
 			continue
@@ -71,7 +94,7 @@ func (se *searchEngineCore) PageAsync(searchParam model.SearchParam) model.PageR
 					consts.LogMem.Add("搜索 bucket 异常: %v", r)
 				}
 			}()
-			w := b.searchBucket(searchParam)
+			w := b.searchBucket(p)
 			if w.IsNotEmpty() {
 				select {
 				case resultChan <- w:
@@ -87,42 +110,46 @@ func (se *searchEngineCore) PageAsync(searchParam model.SearchParam) model.PageR
 		close(resultChan)
 	}()
 
+	// 收集结果
+	se.collectResults(&wrapper, resultChan, ctx)
+
+	model.SortFileItems(wrapper.FileList, p.SortField, p.SortType)
+
+	if p.Keyword != "" && wrapper.SearchCount <= 2000 {
+		se.KeywordHistoryCache.Set(p.UniWords(), cachedResult{epoch: se.cacheEpoch.Load(), data: wrapper})
+	}
+
+	wrapper.FileList, wrapper.ResultSize = model.GetPageOfFiles(wrapper.FileList, p.Page, p.PageSize)
+	return wrapper
+}
+
+// collectResults 从 channel 收集搜索结果，含超时处理
+func (se *searchEngineCore) collectResults(w *model.PageResultWrapper, ch <-chan model.PageResultWrapper, ctx context.Context) {
 loop:
 	for {
 		select {
-		case data, ok := <-resultChan:
+		case data, ok := <-ch:
 			if !ok {
 				break loop
 			}
-			wrapper.FileList = append(wrapper.FileList, data.FileList...)
-			wrapper.SearchCount += len(data.FileList)
-			wrapper.SearchSize += data.Size
+			w.FileList = append(w.FileList, data.FileList...)
+			w.SearchCount += len(data.FileList)
+			w.SearchSize += data.Size
 		case <-ctx.Done():
 			consts.LogMem.Add("搜索超时，部分结果可能未返回")
 			se.searchPool.Wait()
-			for data := range resultChan {
-				wrapper.FileList = append(wrapper.FileList, data.FileList...)
-				wrapper.SearchCount += len(data.FileList)
-				wrapper.SearchSize += data.Size
+			for data := range ch {
+				w.FileList = append(w.FileList, data.FileList...)
+				w.SearchCount += len(data.FileList)
+				w.SearchSize += data.Size
 			}
 			break loop
 		}
 	}
-
-	model.SortFileItems(wrapper.FileList, searchParam.SortField, searchParam.SortType)
-
-	if searchParam.Keyword != "" && wrapper.SearchCount <= 2000 {
-		se.KeywordHistoryCache.Set(cacheKey, cachedResult{epoch: se.cacheEpoch.Load(), data: wrapper})
-	}
-
-	wrapper.FileList, wrapper.ResultSize = model.GetPageOfFiles(
-		wrapper.FileList, searchParam.Page, searchParam.PageSize)
-	return wrapper
 }
 
 // returnRepeatSearch 返回重复文件
-func (se *searchEngineCore) returnRepeatSearch() model.PageResultWrapper {
-	snap := se.loadSnapshot()
+func (se *searchEngineCore) returnRepeatSearch(snap *searchIndex) model.PageResultWrapper {
 	wrapper := model.NewPageWrapper()
 	if len(snap.repeatFiles) > 0 {
 		wrapper.FileList = make([]model.FileItem, len(snap.repeatFiles))
@@ -138,7 +165,7 @@ func (se *searchEngineCore) returnRepeatSearch() model.PageResultWrapper {
 
 // PageAuthor 演员搜索
 func (se *searchEngineCore) PageAuthor(searchParam model.SearchParam) model.PageAuthorResultWrapper {
-	snap := se.loadSnapshot()
+	snap := se.loadIndex()
 
 	if searchParam.Keyword == "" {
 		switch searchParam.SortField {
@@ -198,7 +225,7 @@ func buildAuthorResult(authors []model.Author, param model.SearchParam) model.Pa
 
 // FindById 查找文件
 func (se *searchEngineCore) FindById(id string) model.FileItem {
-	snap := se.loadSnapshot()
+	snap := se.loadIndex()
 	for _, bucket := range snap.buckets {
 		if bucket.isEmpty() {
 			continue
@@ -213,7 +240,7 @@ func (se *searchEngineCore) FindById(id string) model.FileItem {
 
 // FindAuthorByName 按名称查找演员
 func (se *searchEngineCore) FindAuthorByName(name string) model.Author {
-	snap := se.loadSnapshot()
+	snap := se.loadIndex()
 	if a, ok := snap.actorMap[name]; ok {
 		return a
 	}
@@ -222,25 +249,5 @@ func (se *searchEngineCore) FindAuthorByName(name string) model.Author {
 
 // GetAuthorCount 获取演员总数
 func (se *searchEngineCore) GetAuthorCount() int {
-	return len(se.loadSnapshot().actorMap)
-}
-
-// Page 搜索并返回分页结果
-func (se *searchEngineCore) Page(searchParam model.SearchParam) utils.Page {
-	sr := se.PageAsync(searchParam)
-	result := utils.NewPage()
-	result.TotalCnt = sr.SearchCount
-	result.TotalSize = utils.GetSizeStr(sr.SearchSize)
-	result.ResultSize = utils.GetSizeStr(sr.SearchSize)
-	result.SetResultCnt(sr.SearchCount, searchParam.Page)
-	result.CurSize = utils.GetSizeStr(sr.ResultSize)
-	result.CurCnt = sr.ResultCount
-	files := make([]model.FileItem, len(sr.FileList))
-	copy(files, sr.FileList)
-	for i := range files {
-		files[i].PageNo = searchParam.Page
-	}
-	result.Data = files
-	result.SetProgress(consts.IndexNumber)
-	return result
+	return len(se.loadIndex().actorMap)
 }

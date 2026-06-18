@@ -16,8 +16,8 @@ type repeatModel struct {
 	Count int
 }
 
-// searchSnapshot 搜索引擎的快照（不可变，通过 atomic.Value 原子替换）
-type searchSnapshot struct {
+// searchIndex 搜索引擎的快照（不可变，通过 atomic.Value 原子替换）
+type searchIndex struct {
 	buckets     map[string]*bucketFile // baseDir → bucket
 	bucketCount int32
 	totalSize   int64
@@ -33,13 +33,13 @@ type searchSnapshot struct {
 
 // searchEngineCore 搜索引擎：只保留快照指针 + 不变的辅助字段
 type searchEngineCore struct {
-	snapshot            atomic.Value     // *searchSnapshot
-	KeywordHistoryCache *utils.LRUCache  // 搜索结果缓存
+	index               atomic.Value    // *searchIndex
+	KeywordHistoryCache *utils.LRUCache // 搜索结果缓存
 	searchPool          *utils.GoroutinePool
-	rebuildMu           sync.Mutex       // 防止并发 rebuildWithBucket
-	cacheEpoch          atomic.Int64     // 缓存失效纪元，递增触发 cache 清空
-	actorSizeCache      []model.Author   // PageAuthor 空关键词缓存（按Size排序）
-	actorCountCache     []model.Author   // PageAuthor 空关键词缓存（按Cnt排序）
+	rebuildMu           sync.Mutex     // 防止并发 rebuildWithBucket
+	cacheEpoch          atomic.Int64   // 缓存失效纪元，递增触发 cache 清空
+	actorSizeCache      []model.Author // PageAuthor 空关键词缓存（按Size排序）
+	actorCountCache     []model.Author // PageAuthor 空关键词缓存（按Cnt排序）
 }
 
 // InitSearchPool 初始化 goroutine 池，根据配置的目录数量动态调整
@@ -57,19 +57,19 @@ func InitSearchPool() {
 	SearchEngine.KeywordHistoryCache = utils.NewLRUCache(10)
 }
 
-// loadSnapshot 线程安全地获取当前快照
-func (se *searchEngineCore) loadSnapshot() *searchSnapshot {
-	s := se.snapshot.Load()
+// loadIndex 线程安全地获取当前快照
+func (se *searchEngineCore) loadIndex() *searchIndex {
+	s := se.index.Load()
 	if s == nil {
-		return &searchSnapshot{
+		return &searchIndex{
 			buckets:  make(map[string]*bucketFile),
 			actorMap: make(map[string]model.Author),
 		}
 	}
-	snap, ok := s.(*searchSnapshot)
+	snap, ok := s.(*searchIndex)
 	if !ok {
 		// 类型不匹配，返回空快照
-		return &searchSnapshot{
+		return &searchIndex{
 			buckets:  make(map[string]*bucketFile),
 			actorMap: make(map[string]model.Author),
 		}
@@ -77,9 +77,9 @@ func (se *searchEngineCore) loadSnapshot() *searchSnapshot {
 	return snap
 }
 
-// installSnapshot 原子替换搜索引擎快照，并同步全局菜单
-func (se *searchEngineCore) installSnapshot(snap *searchSnapshot) {
-	se.snapshot.Store(snap)
+// installIndex 原子替换搜索引擎快照，并同步全局菜单
+func (se *searchEngineCore) installIndex(snap *searchIndex) {
+	se.index.Store(snap)
 	se.KeywordHistoryCache.Clear()
 	se.cacheEpoch.Add(1)
 	se.actorSizeCache = nil
@@ -101,34 +101,34 @@ func (se *searchEngineCore) installSnapshot(snap *searchSnapshot) {
 	consts.LastScanTime = time.Now()
 
 	// 异步保存缓存快照，保证下次启动时能恢复本次索引状态
-	saveSnapshotToCache(snap)
+	saveIndexToCache(snap)
 }
 
 // Reset 清空搜索引擎全部状态和缓存
 func (se *searchEngineCore) Reset() {
-	empty := &searchSnapshot{
+	empty := &searchIndex{
 		buckets:  make(map[string]*bucketFile),
 		actorMap: make(map[string]model.Author),
 	}
-	se.installSnapshot(empty)
+	se.installIndex(empty)
 }
 
 // IsEmpty 检查是否有 bucket 数据
 func (se *searchEngineCore) IsEmpty() bool {
-	return len(se.loadSnapshot().buckets) == 0
+	return len(se.loadIndex().buckets) == 0
 }
 
 // GetTotalCount 获取文件总数
 func (se *searchEngineCore) GetTotalCount() int {
-	return se.loadSnapshot().totalCount
+	return se.loadIndex().totalCount
 }
 
 // GetTotalSize 获取文件总大小
 func (se *searchEngineCore) GetTotalSize() int64 {
-	return se.loadSnapshot().totalSize
+	return se.loadIndex().totalSize
 }
 
 // BucketCount 返回 bucket 数量
 func (se *searchEngineCore) BucketCount() int32 {
-	return se.loadSnapshot().bucketCount
+	return se.loadIndex().bucketCount
 }
