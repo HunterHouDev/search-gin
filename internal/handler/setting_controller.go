@@ -49,14 +49,14 @@ func Login(c *gin.Context) {
 	}
 
 	// 1. 硬编码超管
-	if req.Username == consts.AdminUsername && req.Password == consts.AdminPassword {
+	if req.Username == consts.AdminUsername && consts.VerifyPassword(req.Password, consts.HashPassword(consts.AdminPassword)) {
 		issueToken(consts.AdminUsername, consts.AdminRole)
 		return
 	}
 
 	// 2. 普通用户（从配置读取）
 	for _, user := range consts.GetOSSettingUsers() {
-		if user.Username == req.Username && user.Password == req.Password {
+		if user.Username == req.Username && consts.VerifyPassword(req.Password, user.Password) {
 			if user.ExpireDate != "" {
 				expireTime, err := time.Parse("2006-01-02", user.ExpireDate)
 				if err == nil && time.Now().After(expireTime) {
@@ -129,7 +129,7 @@ func AddUser(c *gin.Context) {
 
 	newUser := model.User{
 		Username:   req.Username,
-		Password:   req.Password,
+		Password:   consts.HashPassword(req.Password),
 		Role:       "user",
 		ExpireDate: req.ExpireDate,
 	}
@@ -236,8 +236,13 @@ func GetServerPort(c *gin.Context) {
 	})
 }
 
-// GetShutdown 系统关机
+// GetShutdown 系统关机（仅超管可执行）
 func GetShutdown(c *gin.Context) {
+	role, _ := c.Get("role")
+	if role != consts.AdminRole {
+		c.JSON(http.StatusForbidden, utils.NewFailByMsg("无权限执行此操作"))
+		return
+	}
 	res := utils.NewSuccess()
 	err := exec.Command("cmd", "/C", "shutdown -s -t 0").Run()
 	if err != nil {

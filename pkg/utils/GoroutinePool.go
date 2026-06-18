@@ -38,18 +38,22 @@ func NewGoroutinePool(capacity int) *GoroutinePool {
 }
 
 // Submit 提交任务，非阻塞；若池满则在当前 goroutine 直接执行
+// 若池已关闭则直接在当前 goroutine 执行，避免向已关闭 channel 发送 panic
 func (p *GoroutinePool) Submit(job func()) {
- p.wg.Add(1)
- wrapped := func() {
-  defer p.wg.Done()
-  job()
- }
- select {
- case p.jobs <- wrapped:
- default:
-  // 池满，当前 goroutine 直接执行
-  wrapped()
- }
+	p.wg.Add(1)
+	wrapped := func() {
+		defer p.wg.Done()
+		job()
+	}
+	if p.closed.Load() {
+		wrapped()
+		return
+	}
+	select {
+	case p.jobs <- wrapped:
+	default:
+		wrapped()
+	}
 }
 
 // Wait 等待所有已提交的任务完成

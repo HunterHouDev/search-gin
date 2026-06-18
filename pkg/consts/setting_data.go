@@ -1,6 +1,8 @@
 package consts
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"search-gin/internal/model"
 	"sync"
 	"time"
@@ -20,10 +22,20 @@ var (
 	OSSetting    = model.Setting{}
 	settingMutex sync.RWMutex
 
-	// Token存储（简单内存实现）
 	TokenStore = make(map[string]TokenInfo)
 	tokenMutex sync.RWMutex
 )
+
+// HashPassword 使用 MD5 对密码进行哈希
+func HashPassword(password string) string {
+	h := md5.Sum([]byte(password))
+	return hex.EncodeToString(h[:])
+}
+
+// VerifyPassword 验证明文密码是否匹配哈希值
+func VerifyPassword(plainPassword, hashedPassword string) bool {
+	return HashPassword(plainPassword) == hashedPassword
+}
 
 // SetToken 设置token
 func SetToken(token string, expireTime time.Time, username string, role string) {

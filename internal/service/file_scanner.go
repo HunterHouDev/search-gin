@@ -228,9 +228,9 @@ func (s *searchService) WalkInner(currentDir string, types []string, queryChild 
 			if len(files) == 0 {
 				if emptyFile, err := os.Stat(currentPath); err == nil {
 					yesterday := time.Now().AddDate(0, 0, -1)
-					if emptyFile.ModTime().Day() == yesterday.Day() &&
-						emptyFile.ModTime().Month() == yesterday.Month() &&
-						emptyFile.ModTime().Year() == yesterday.Year() {
+					modDate := time.Date(emptyFile.ModTime().Year(), emptyFile.ModTime().Month(), emptyFile.ModTime().Day(), 0, 0, 0, 0, time.Local)
+					yesterdayDate := time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), 0, 0, 0, 0, time.Local)
+					if modDate.Equal(yesterdayDate) {
 						if utils.IndexOf(consts.GetOSSetting().Dirs, currentPath) < 0 {
 							if err := os.RemoveAll(currentPath); err != nil {
 								utils.InfoFormat("删除空目录失败: %s, 错误: %v", currentPath, err)

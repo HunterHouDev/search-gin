@@ -375,7 +375,7 @@ func PostMerge(c *gin.Context) {
 		return
 	}
 
-	listPath := dir + "\\list.txt"
+	listPath := dir + string(filepath.Separator) + "list.txt"
 	file, err := os.Create(listPath)
 	if err != nil {
 		utils.InfoFormat("创建文件 list.txt 时出错: %v", err)
@@ -399,7 +399,7 @@ func PostMerge(c *gin.Context) {
 
 	if searchParam.Dest == "" {
 		suffix := utils.GetSuffix(paths[0])
-		searchParam.Dest = dir + fmt.Sprintf("\\%d.%s", time.Now().UnixMilli(), suffix)
+		searchParam.Dest = dir + string(filepath.Separator) + fmt.Sprintf("%d.%s", time.Now().UnixMilli(), suffix)
 	}
 
 	task := model.NewMergeTask(paths, searchParam.Dest, listPath, searchParam.DeleteSource)

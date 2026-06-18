@@ -41,6 +41,7 @@ type peerManager struct {
 
 var (
 	defaultManager *peerManager
+	peerVerifyClient = &http.Client{Timeout: 2 * time.Second}
 )
 
 const defaultPeerTimeout = 90 * time.Second
@@ -130,8 +131,7 @@ func CleanExpiredPeers() int {
 // verifyPeer HTTP 验证对端搜索服务是否可连通
 func (m *peerManager) verifyPeer(ip string, port string) bool {
 	url := fmt.Sprintf("http://%s:%s/api/heartBeat", ip, port)
-	client := &http.Client{Timeout: 2 * time.Second}
-	resp, err := client.Get(url)
+	resp, err := peerVerifyClient.Get(url)
 	if err != nil {
 		return false
 	}

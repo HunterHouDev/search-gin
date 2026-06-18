@@ -63,7 +63,9 @@ func (se *searchEngineCore) tryCache(p model.SearchParam) (model.PageResultWrapp
 		return model.PageResultWrapper{}, false
 	}
 	w := cr.data
-	w.FileList, w.ResultSize = model.GetPageOfFiles(w.FileList, p.Page, p.PageSize)
+	paged, size := model.GetPageOfFiles(w.FileList, p.Page, p.PageSize)
+	w.FileList = paged
+	w.ResultSize = size
 	return w, true
 }
 

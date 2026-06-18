@@ -94,10 +94,20 @@ func main() {
 
 	// ── 11. 注册 /api/close 和 /api/restart 接口 ──
 	apiRouter.GET("api/close", func(c *gin.Context) {
+		role, _ := c.Get("role")
+		if role != consts.AdminRole {
+			c.JSON(403, utils.NewFailByMsg("无权限执行此操作"))
+			return
+		}
 		c.String(200, "即将关闭服务器")
 		sigChan <- syscall.SIGTERM
 	})
 	apiRouter.GET("api/restart", func(c *gin.Context) {
+		role, _ := c.Get("role")
+		if role != consts.AdminRole {
+			c.JSON(403, utils.NewFailByMsg("无权限执行此操作"))
+			return
+		}
 		c.String(200, "正在重启服务器")
 		go func() {
 			defer utils.RecoverPanic()

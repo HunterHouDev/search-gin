@@ -35,7 +35,12 @@ func PostMovies(c *gin.Context) {
 
 	if isRemote {
 		result := service.SearchEngine.Page(searchParam)
-		service.FillURLs(c, result.Data.([]model.FileItem))
+		if data, ok := result.Data.([]model.FileItem); ok {
+			service.FillURLs(c, data)
+			result.Data = data
+		} else {
+			result.Data = []model.FileItem{}
+		}
 		c.JSON(http.StatusOK, result)
 		return
 	}
@@ -58,7 +63,12 @@ func PostMovies(c *gin.Context) {
 
 	// 搜索本机
 	result := service.SearchEngine.Page(searchParam)
-	service.FillURLs(c, result.Data.([]model.FileItem))
+	if data, ok := result.Data.([]model.FileItem); ok {
+		service.FillURLs(c, data)
+		result.Data = data
+	} else {
+		result.Data = []model.FileItem{}
+	}
 	c.JSON(http.StatusOK, result)
 }
 
