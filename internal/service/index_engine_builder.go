@@ -570,7 +570,7 @@ func addFileToIndex(index *searchIndex, movie model.FileItem) {
 	}
 }
 
-// ReplaceFile 替换索引中的单文件记录（Id 不变，直接覆盖）
+// ReplaceFile 替换索引中的单文件记录（Copy-on-Write：只深拷贝目标 bucket）
 func (se *searchEngineCore) ReplaceFile(oldFile, newFile model.FileItem) {
 	index := se.loadIndex()
 	bucket := index.buckets[oldFile.BaseDir]
@@ -578,14 +578,17 @@ func (se *searchEngineCore) ReplaceFile(oldFile, newFile model.FileItem) {
 		return
 	}
 
-	bucket.mu.Lock()
-	if _, exists := bucket.FileLib[oldFile.Id]; exists {
-		bucket.FileLib[oldFile.Id] = newFile
+	newBucket := bucket.clone()
+	if _, exists := newBucket.FileLib[oldFile.Id]; exists {
+		newBucket.FileLib[oldFile.Id] = newFile
 	}
-	bucket.mu.Unlock()
+
+	newIndex := shallowCopyIndex(index)
+	newIndex.buckets[oldFile.BaseDir] = newBucket
+	se.installIndexNoCache(newIndex)
 }
 
-// DeleteFile 从索引中删除文件记录
+// DeleteFile 从索引中删除文件记录（Copy-on-Write：只深拷贝目标 bucket）
 func (se *searchEngineCore) DeleteFile(file model.FileItem) {
 	index := se.loadIndex()
 	bucket := index.buckets[file.BaseDir]
@@ -593,31 +596,65 @@ func (se *searchEngineCore) DeleteFile(file model.FileItem) {
 		return
 	}
 
-	bucket.mu.Lock()
-	entry, exists := bucket.FileLib[file.Id]
+	newBucket := bucket.clone()
+	entry, exists := newBucket.FileLib[file.Id]
 	if !exists {
-		bucket.mu.Unlock()
 		return
 	}
-	delete(bucket.FileLib, file.Id)
-	bucket.TotalCount--
-	bucket.TotalSize -= entry.Size
+	delete(newBucket.FileLib, file.Id)
+	newBucket.TotalCount--
+	newBucket.TotalSize -= entry.Size
 	if entry.MovieType != "" {
-		if ids, ok := bucket.TypeIndex[entry.MovieType]; ok {
+		if ids, ok := newBucket.TypeIndex[entry.MovieType]; ok {
 			delete(ids, entry.Id)
 			if len(ids) == 0 {
-				delete(bucket.TypeIndex, entry.MovieType)
+				delete(newBucket.TypeIndex, entry.MovieType)
 			}
 		}
 	}
-	bucket.mu.Unlock()
 
-	subtractFileFromIndex(index, entry)
+	newIndex := shallowCopyIndex(index)
+	newIndex.buckets[file.BaseDir] = newBucket
+	subtractFileFromIndex(newIndex, entry)
+	se.installIndexNoCache(newIndex)
+}
 
-	se.KeywordHistoryCache.Clear()
-	se.cacheEpoch.Add(1)
-	se.authorCacheMu.Lock()
-	se.authorSizeCache = nil
-	se.authorCountCache = nil
-	se.authorCacheMu.Unlock()
+// shallowCopyIndex 浅拷贝 searchIndex，共享未修改的 bucket 指针
+func shallowCopyIndex(index *searchIndex) *searchIndex {
+	newBuckets := make(map[string]*bucketFile, len(index.buckets))
+	for k, v := range index.buckets {
+		newBuckets[k] = v
+	}
+
+	newAuthorMap := make(map[string]model.Author, len(index.authorMap))
+	for k, v := range index.authorMap {
+		newAuthorMap[k] = v
+	}
+
+	newTypeMenu := make(map[string]consts.MenuSize, len(index.typeMenu))
+	for k, v := range index.typeMenu {
+		newTypeMenu[k] = v
+	}
+
+	newTagMenu := make(map[string]consts.MenuSize, len(index.tagMenu))
+	for k, v := range index.tagMenu {
+		newTagMenu[k] = v
+	}
+
+	newSeriesCount := make(map[string]consts.MenuSize, len(index.seriesCount))
+	for k, v := range index.seriesCount {
+		newSeriesCount[k] = v
+	}
+
+	return &searchIndex{
+		buckets:     newBuckets,
+		bucketCount: index.bucketCount,
+		totalSize:   index.totalSize,
+		totalCount:  index.totalCount,
+		repeatFiles: index.repeatFiles,
+		authorMap:   newAuthorMap,
+		typeMenu:    newTypeMenu,
+		tagMenu:     newTagMenu,
+		seriesCount: newSeriesCount,
+	}
 }

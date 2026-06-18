@@ -59,7 +59,7 @@ func Login(c *gin.Context) {
 	}
 
 	// 1. 硬编码超管
-	if req.Username == consts.AdminUsername && consts.VerifyPassword(req.Password, consts.HashPassword(consts.AdminPassword)) {
+	if req.Username == consts.AdminUsername && consts.VerifyPassword(req.Password, consts.AdminPasswordHash()) {
 		issueToken(consts.AdminUsername, consts.AdminRole)
 		return
 	}

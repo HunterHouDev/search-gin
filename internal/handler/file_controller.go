@@ -233,7 +233,13 @@ func GetRefreshTargetIndex(c *gin.Context) {
 	dir := c.Param("dir")
 	baseDir, _ := url.QueryUnescape(dir)
 
-	service.SearchApp.ScanTarget(baseDir)
+	validatedDir, err := utils.ValidatePath(baseDir, consts.GetOSSetting().Dirs)
+	if err != nil {
+		c.JSON(http.StatusForbidden, utils.NewFailByMsg("路径不在允许范围内"))
+		return
+	}
+
+	service.SearchApp.ScanTarget(validatedDir)
 	res := utils.NewSuccessByMsg("扫描任务执行中")
 	c.JSON(http.StatusOK, res)
 }

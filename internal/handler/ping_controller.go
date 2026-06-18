@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"net"
 	"net/http"
 	"os/exec"
 	"runtime"
@@ -17,6 +18,11 @@ func PingHost(c *gin.Context) {
 		return
 	}
 
+	if net.ParseIP(ip) == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"fail": true, "msg": "ip 参数格式无效"})
+		return
+	}
+
 	var args []string
 	if runtime.GOOS == "windows" {
 		args = []string{"ping", "-n", "1", "-w", "2000", ip}
@@ -28,7 +34,6 @@ func PingHost(c *gin.Context) {
 	output, err := cmd.CombinedOutput()
 
 	alive := err == nil
-	// 某些语言环境下即使 ping 通也可能有非零退出码，再检查输出
 	if !alive {
 		outStr := strings.ToLower(string(output))
 		if strings.Contains(outStr, "ttl=") || strings.Contains(outStr, "time=") || strings.Contains(outStr, "bytes from") || strings.Contains(outStr, "来自") {

@@ -1,9 +1,11 @@
 package service
 
 import (
+	"context"
 	"encoding/gob"
 	"os"
 	"path/filepath"
+	"time"
 
 	"search-gin/internal/model"
 	"search-gin/pkg/consts"
@@ -65,32 +67,44 @@ func saveIndexToCache(index *searchIndex) {
 		b.mu.RUnlock()
 	}
 
-	// 异步写入，不阻塞扫描流程
+	// 异步写入，带超时保护，不阻塞扫描流程
 	go func() {
 		defer utils.RecoverPanic()
 
-		tmpPath := cachePath + ".tmp"
-		f, err := os.Create(tmpPath)
-		if err != nil {
-			utils.InfoFormat("保存索引缓存失败(创建临时文件): %v", err)
-			return
-		}
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
 
-		enc := gob.NewEncoder(f)
-		if err := enc.Encode(data); err != nil {
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			tmpPath := cachePath + ".tmp"
+			f, err := os.Create(tmpPath)
+			if err != nil {
+				utils.InfoFormat("保存索引缓存失败(创建临时文件): %v", err)
+				return
+			}
+
+			enc := gob.NewEncoder(f)
+			if err := enc.Encode(data); err != nil {
+				f.Close()
+				os.Remove(tmpPath)
+				utils.InfoFormat("保存索引缓存失败(编码): %v", err)
+				return
+			}
 			f.Close()
-			os.Remove(tmpPath)
-			utils.InfoFormat("保存索引缓存失败(编码): %v", err)
-			return
-		}
-		f.Close()
 
-		// 原子替换：先写 .tmp 再 Rename，防止写入中断导致文件损坏
-		if err := os.Rename(tmpPath, cachePath); err != nil {
-			utils.InfoFormat("保存索引缓存失败(重命名): %v", err)
-			return
+			if err := os.Rename(tmpPath, cachePath); err != nil {
+				utils.InfoFormat("保存索引缓存失败(重命名): %v", err)
+				return
+			}
+			consts.LogMem.Add("索引缓存已保存: %s (%d buckets, %d files)", cachePath, len(data.Buckets), index.totalCount)
+		}()
+
+		select {
+		case <-done:
+		case <-ctx.Done():
+			utils.ErrorFormat("保存索引缓存超时(30s): %s", cachePath)
 		}
-		consts.LogMem.Add("索引缓存已保存: %s (%d buckets, %d files)", cachePath, len(data.Buckets), index.totalCount)
 	}()
 }
 

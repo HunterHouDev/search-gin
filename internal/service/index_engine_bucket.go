@@ -16,6 +16,34 @@ type bucketFile struct {
 	mu        sync.RWMutex
 }
 
+// clone 深拷贝 bucket（Copy-on-Write 用）
+func (fs *bucketFile) clone() *bucketFile {
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
+
+	newFileLib := make(map[string]model.FileItem, len(fs.FileLib))
+	for k, v := range fs.FileLib {
+		newFileLib[k] = v
+	}
+
+	newTypeIndex := make(map[string]map[string]struct{}, len(fs.TypeIndex))
+	for typ, ids := range fs.TypeIndex {
+		newIds := make(map[string]struct{}, len(ids))
+		for id := range ids {
+			newIds[id] = struct{}{}
+		}
+		newTypeIndex[typ] = newIds
+	}
+
+	return &bucketFile{
+		InstanceName: fs.InstanceName,
+		TotalSize:    fs.TotalSize,
+		TotalCount:   fs.TotalCount,
+		FileLib:      newFileLib,
+		TypeIndex:    newTypeIndex,
+	}
+}
+
 func newInstance(name string) *bucketFile {
 	return &bucketFile{
 		InstanceName: name,

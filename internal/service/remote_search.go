@@ -195,6 +195,7 @@ func SearchRemotePeer(peer *Peer, searchParam model.SearchParam) (utils.Page, er
 }
 
 // ParseTotalSize 将 "23.53 G" 格式的字符串解析为 int64 字节数
+// 使用整数运算避免浮点精度丢失和溢出
 func ParseTotalSize(s string) int64 {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -218,7 +219,12 @@ func ParseTotalSize(s string) int64 {
 	case "G":
 		return int64(val * 1024 * 1024 * 1024)
 	case "T":
-		return int64(val * 1024 * 1024 * 1024 * 1024)
+		tb := int64(val)
+		result := tb * 1024 * 1024 * 1024 * 1024
+		if result/1024/1024/1024/1024 != tb {
+			return 0
+		}
+		return result
 	default:
 		return 0
 	}
@@ -240,7 +246,9 @@ func dedupKey(m model.FileItem) string {
 	return fmt.Sprintf("name:%s:%d", m.Name, m.Size)
 }
 
-// FillURLs 为搜索结果填充流媒体 URL
+const signedURLTTL = 4 * time.Hour
+
+// FillURLs 为搜索结果填充带签名的流媒体 URL
 // 本机文件使用请求进来的网卡 IP；远程文件指向源节点
 func FillURLs(c *gin.Context, movies []model.FileItem) {
 	clientIP := c.ClientIP()
@@ -255,22 +263,22 @@ func FillURLs(c *gin.Context, movies []model.FileItem) {
 	for i := range movies {
 		m := &movies[i]
 		if m.NodeHost == localNode || m.NodeHost == "" {
-			// 本机文件 → 用请求进来的网卡 IP，指向文件流端口 :10082
-			m.StreamUrl = fmt.Sprintf("http://%s:%s/api/stream/GetFileByPathUseEncode/%s", localIP, filePort, url.QueryEscape(m.Path))
-			m.PngUrl = fmt.Sprintf("http://%s:%s/api/stream/png/%s", localIP, filePort, m.Id)
-			m.JpgUrl = fmt.Sprintf("http://%s:%s/api/stream/jpg/%s", localIP, filePort, m.Id)
+			base := fmt.Sprintf("http://%s:%s", localIP, filePort)
+			m.StreamUrl = utils.SignURL(base, fmt.Sprintf("/api/stream/GetFileByPathUseEncode/%s", url.QueryEscape(m.Path)), signedURLTTL)
+			m.PngUrl = utils.SignURL(base, fmt.Sprintf("/api/stream/png/%s", m.Id), signedURLTTL)
+			m.JpgUrl = utils.SignURL(base, fmt.Sprintf("/api/stream/jpg/%s", m.Id), signedURLTTL)
 			m.NodeHost = localNode
 			m.NodeName = LocalNodeName
 		} else {
-			// 远程文件 → 指向源节点的文件流端口（优先使用对端上报的 filePort）
 			peerFilePort := filePort
 			if p := GetPeer(m.NodeHost); p != nil && p.FilePort != "" {
 				peerFilePort = p.FilePort
 			}
 			if peerIP := ResolvePeerIP(m.NodeHost); peerIP != "" {
-				m.StreamUrl = fmt.Sprintf("http://%s:%s/api/stream/GetFileByPathUseEncode/%s", peerIP, peerFilePort, url.QueryEscape(m.Path))
-				m.PngUrl = fmt.Sprintf("http://%s:%s/api/stream/png/%s", peerIP, peerFilePort, m.Id)
-				m.JpgUrl = fmt.Sprintf("http://%s:%s/api/stream/jpg/%s", peerIP, peerFilePort, m.Id)
+				base := fmt.Sprintf("http://%s:%s", peerIP, peerFilePort)
+				m.StreamUrl = utils.SignURL(base, fmt.Sprintf("/api/stream/GetFileByPathUseEncode/%s", url.QueryEscape(m.Path)), signedURLTTL)
+				m.PngUrl = utils.SignURL(base, fmt.Sprintf("/api/stream/png/%s", m.Id), signedURLTTL)
+				m.JpgUrl = utils.SignURL(base, fmt.Sprintf("/api/stream/jpg/%s", m.Id), signedURLTTL)
 			}
 		}
 	}

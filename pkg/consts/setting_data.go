@@ -1,11 +1,11 @@
 package consts
 
 import (
-	"crypto/md5"
-	"encoding/hex"
 	"search-gin/internal/model"
 	"sync"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 type TokenInfo struct {
@@ -19,6 +19,8 @@ var (
 	AdminPassword = "qwer"
 	AdminRole     = "super_admin"
 
+	adminPasswordHash string
+
 	OSSetting    = model.Setting{}
 	settingMutex sync.RWMutex
 
@@ -26,15 +28,32 @@ var (
 	tokenMutex sync.RWMutex
 )
 
-// HashPassword 使用 MD5 对密码进行哈希
-func HashPassword(password string) string {
-	h := md5.Sum([]byte(password))
-	return hex.EncodeToString(h[:])
+func init() {
+	hash, err := bcrypt.GenerateFromPassword([]byte(AdminPassword), bcrypt.DefaultCost)
+	if err != nil {
+		panic("生成管理员密码哈希失败: " + err.Error())
+	}
+	adminPasswordHash = string(hash)
 }
 
-// VerifyPassword 验证明文密码是否匹配哈希值
+// AdminPasswordHash 返回超管密码的 bcrypt 哈希
+func AdminPasswordHash() string {
+	return adminPasswordHash
+}
+
+// HashPassword 使用 bcrypt 对密码进行哈希（自带盐值）
+func HashPassword(password string) string {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return ""
+	}
+	return string(hash)
+}
+
+// VerifyPassword 验证明文密码是否匹配 bcrypt 哈希值
 func VerifyPassword(plainPassword, hashedPassword string) bool {
-	return HashPassword(plainPassword) == hashedPassword
+	err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(plainPassword))
+	return err == nil
 }
 
 // SetToken 设置token

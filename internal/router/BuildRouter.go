@@ -151,7 +151,7 @@ func BuildAPIRouter() *gin.Engine {
 	return router
 }
 
-// BuildFileRouter 构建文件/图片流路由（端口 10082）：无需认证
+// BuildFileRouter 构建文件/图片流路由（端口 10082）：签名 URL 校验
 func BuildFileRouter() *gin.Engine {
 	if env.IsProd {
 		gin.SetMode(gin.ReleaseMode)
@@ -161,7 +161,7 @@ func BuildFileRouter() *gin.Engine {
 
 	router := gin.New()
 	buildCommonMiddleware(router)
-	// 文件流服务不需要认证中间件
+	router.Use(middleware.SignAuthMiddleware())
 	buildStreamMiddleware(router)
 
 	return router
