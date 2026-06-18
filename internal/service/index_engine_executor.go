@@ -40,14 +40,14 @@ func (se *searchEngineCore) Page(searchParam model.SearchParam) utils.Page {
 
 // pageAsync 异步分页搜索：先获取索引快照，再按路径分发
 func (se *searchEngineCore) pageAsync(p model.SearchParam) model.PageResultWrapper {
-	snap := se.loadIndex()
+	index := se.loadIndex()
 	if p.OnlyRepeat {
-		return se.returnRepeatSearch(snap)
+		return se.returnRepeatSearch(index)
 	}
 	if cached, ok := se.tryCache(p); ok {
 		return cached
 	}
-	return se.doSearch(snap, p)
+	return se.doSearch(index, p)
 }
 
 // tryCache 命中缓存则返回已分页的结果，否则返回 false
@@ -68,8 +68,8 @@ func (se *searchEngineCore) tryCache(p model.SearchParam) (model.PageResultWrapp
 }
 
 // doSearch 执行搜索：分发 bucket → 收集结果 → 排序 → 缓存 → 分页
-func (se *searchEngineCore) doSearch(snap *searchIndex, p model.SearchParam) model.PageResultWrapper {
-	bucketCount := len(snap.buckets)
+func (se *searchEngineCore) doSearch(index *searchIndex, p model.SearchParam) model.PageResultWrapper {
+	bucketCount := len(index.buckets)
 	if bucketCount <= 0 {
 		consts.LogMem.Add("警告: bucketCount=0, 跳过搜索")
 		return model.PageResultWrapper{FileList: []model.FileItem{}}
@@ -83,7 +83,7 @@ func (se *searchEngineCore) doSearch(snap *searchIndex, p model.SearchParam) mod
 	resultChan := make(chan model.PageResultWrapper, bucketCount*2)
 
 	// 分发搜索
-	for _, bucket := range snap.buckets {
+	for _, bucket := range index.buckets {
 		if bucket.isEmpty() {
 			continue
 		}
@@ -149,15 +149,15 @@ loop:
 }
 
 // returnRepeatSearch 返回重复文件
-func (se *searchEngineCore) returnRepeatSearch(snap *searchIndex) model.PageResultWrapper {
+func (se *searchEngineCore) returnRepeatSearch(index *searchIndex) model.PageResultWrapper {
 	wrapper := model.NewPageWrapper()
-	if len(snap.repeatFiles) > 0 {
-		wrapper.FileList = make([]model.FileItem, len(snap.repeatFiles))
-		copy(wrapper.FileList, snap.repeatFiles)
+	if len(index.repeatFiles) > 0 {
+		wrapper.FileList = make([]model.FileItem, len(index.repeatFiles))
+		copy(wrapper.FileList, index.repeatFiles)
 	}
-	wrapper.ResultCount = len(snap.repeatFiles)
-	wrapper.LibCount = len(snap.repeatFiles)
-	wrapper.SearchCount = len(snap.repeatFiles)
+	wrapper.ResultCount = len(index.repeatFiles)
+	wrapper.LibCount = len(index.repeatFiles)
+	wrapper.SearchCount = len(index.repeatFiles)
 	return wrapper
 }
 
@@ -165,7 +165,7 @@ func (se *searchEngineCore) returnRepeatSearch(snap *searchIndex) model.PageResu
 
 // PageAuthor 演员搜索
 func (se *searchEngineCore) PageAuthor(searchParam model.SearchParam) model.PageAuthorResultWrapper {
-	snap := se.loadIndex()
+	index := se.loadIndex()
 
 	if searchParam.Keyword == "" {
 		switch searchParam.SortField {
@@ -182,13 +182,13 @@ func (se *searchEngineCore) PageAuthor(searchParam model.SearchParam) model.Page
 
 	var result []model.Author
 	if searchParam.Keyword == "" {
-		result = make([]model.Author, 0, len(snap.actorMap))
-		for _, author := range snap.actorMap {
+		result = make([]model.Author, 0, len(index.actorMap))
+		for _, author := range index.actorMap {
 			result = append(result, author)
 		}
 	} else {
 		result = make([]model.Author, 0)
-		for _, author := range snap.actorMap {
+		for _, author := range index.actorMap {
 			if strings.Contains(author.Name, searchParam.Keyword) {
 				result = append(result, author)
 			}
@@ -225,8 +225,8 @@ func buildAuthorResult(authors []model.Author, param model.SearchParam) model.Pa
 
 // FindById 查找文件
 func (se *searchEngineCore) FindById(id string) model.FileItem {
-	snap := se.loadIndex()
-	for _, bucket := range snap.buckets {
+	index := se.loadIndex()
+	for _, bucket := range index.buckets {
 		if bucket.isEmpty() {
 			continue
 		}
@@ -240,8 +240,8 @@ func (se *searchEngineCore) FindById(id string) model.FileItem {
 
 // FindAuthorByName 按名称查找演员
 func (se *searchEngineCore) FindAuthorByName(name string) model.Author {
-	snap := se.loadIndex()
-	if a, ok := snap.actorMap[name]; ok {
+	index := se.loadIndex()
+	if a, ok := index.actorMap[name]; ok {
 		return a
 	}
 	return model.Author{}

@@ -35,25 +35,25 @@ const cacheFileName = "search_cache.gob"
 
 // saveIndexToCache 将当前快照异步保存到缓存文件
 // 空快照（无 bucket）不保存，避免 Reset() 等路径清空磁盘缓存
-func saveIndexToCache(snap *searchIndex) {
+func saveIndexToCache(index *searchIndex) {
 	if WorkDir == "" {
 		return
 	}
-	if len(snap.buckets) == 0 {
+	if len(index.buckets) == 0 {
 		return
 	}
 	cachePath := filepath.Join(WorkDir, cacheFileName)
 
 	// 转换为可序列化的 cacheData
 	data := cacheData{
-		RepeatFiles: snap.repeatFiles,
-		ActorMap:    snap.actorMap,
-		TypeMenu:    snap.typeMenu,
-		TagMenu:     snap.tagMenu,
-		SeriesCount: snap.seriesCount,
-		Buckets:     make([]cacheBucket, 0, len(snap.buckets)),
+		RepeatFiles: index.repeatFiles,
+		ActorMap:    index.actorMap,
+		TypeMenu:    index.typeMenu,
+		TagMenu:     index.tagMenu,
+		SeriesCount: index.seriesCount,
+		Buckets:     make([]cacheBucket, 0, len(index.buckets)),
 	}
-	for _, b := range snap.buckets {
+	for _, b := range index.buckets {
 		b.mu.RLock()
 		data.Buckets = append(data.Buckets, cacheBucket{
 			InstanceName: b.InstanceName,
@@ -90,7 +90,7 @@ func saveIndexToCache(snap *searchIndex) {
 			utils.InfoFormat("保存索引缓存失败(重命名): %v", err)
 			return
 		}
-		consts.LogMem.Add("索引缓存已保存: %s (%d buckets, %d files)", cachePath, len(data.Buckets), snap.totalCount)
+		consts.LogMem.Add("索引缓存已保存: %s (%d buckets, %d files)", cachePath, len(data.Buckets), index.totalCount)
 	}()
 }
 
@@ -136,7 +136,7 @@ func (se *searchEngineCore) LoadCachedIndex() bool {
 		totalCount += cb.TotalCount
 	}
 
-	snap := &searchIndex{
+	index := &searchIndex{
 		buckets:     buckets,
 		bucketCount: int32(len(data.Buckets)),
 		totalSize:   totalSize,
@@ -148,7 +148,7 @@ func (se *searchEngineCore) LoadCachedIndex() bool {
 		seriesCount: data.SeriesCount,
 	}
 
-	se.installIndex(snap)
+	se.installIndex(index)
 	consts.LogMem.Add("索引缓存已加载: %s (%d buckets, %d files)", cachePath, len(data.Buckets), totalCount)
 	return true
 }

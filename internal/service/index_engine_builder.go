@@ -26,11 +26,11 @@ func (se *searchEngineCore) rebuildWithBuckets(entries map[string]*bucketFile) {
 	consts.LogMem.Add("rebuildWithBuckets: 开始批量重建, %d 个目录", len(entries))
 	start := time.Now()
 
-	newSnap := buildIndexFromBuckets(entries)
-	se.installIndex(newSnap)
+	newIndex := buildIndexFromBuckets(entries)
+	se.installIndex(newIndex)
 
 	ti := time.Since(start)
-	consts.LogMem.Add("rebuildWithBuckets: 完成, 耗时 %dms, 文件数 %d", ti.Milliseconds(), newSnap.totalCount)
+	consts.LogMem.Add("rebuildWithBuckets: 完成, 耗时 %dms, 文件数 %d", ti.Milliseconds(), newIndex.totalCount)
 }
 
 // rebuildWithBucket 用指定目录的新 bucket 构造新快照并原子替换
@@ -71,11 +71,11 @@ func (se *searchEngineCore) rebuildWithBucket(baseDir string, newBucket *bucketF
 
 	consts.LogMem.Add("rebuildWithBucket: bucket 数量 %d -> %d", len(old.buckets), len(newBuckets))
 
-	newSnap := buildIndexFromBuckets(newBuckets)
-	se.installIndex(newSnap)
+	newIndex := buildIndexFromBuckets(newBuckets)
+	se.installIndex(newIndex)
 
 	ti := time.Since(start)
-	consts.LogMem.Add("rebuildWithBucket: 完成, 耗时 %dms, 文件数 %d", ti.Milliseconds(), newSnap.totalCount)
+	consts.LogMem.Add("rebuildWithBucket: 完成, 耗时 %dms, 文件数 %d", ti.Milliseconds(), newIndex.totalCount)
 }
 
 // rebuildWithBucketIncremental 增量重建：只遍历变化的 bucket（O(变化量)）
@@ -113,7 +113,7 @@ func (se *searchEngineCore) rebuildWithBucketIncremental(baseDir string, newBuck
 		newBuckets[baseDir] = newBucket
 	}
 
-	snap := &searchIndex{
+	index := &searchIndex{
 		buckets:     newBuckets,
 		bucketCount: int32(len(newBuckets)),
 		totalSize:   old.totalSize,
@@ -126,24 +126,24 @@ func (se *searchEngineCore) rebuildWithBucketIncremental(baseDir string, newBuck
 
 	oldBucket := old.buckets[baseDir]
 	if oldBucket != nil && !oldBucket.isEmpty() {
-		subtractBucketFromIndex(snap, oldBucket)
+		subtractBucketFromIndex(index, oldBucket)
 	}
 	if newBucket != nil && !newBucket.isEmpty() {
-		addBucketToIndex(snap, newBucket)
+		addBucketToIndex(index, newBucket)
 	}
 
-	recomputeRepeats(snap)
-	se.installIndex(snap)
+	recomputeRepeats(index)
+	se.installIndex(index)
 
 	ti := time.Since(start)
-	consts.LogMem.Add("rebuildWithBucketIncremental: 完成, 耗时 %dms, bucket %s, 文件数 %d", ti.Milliseconds(), baseDir, snap.totalCount)
+	consts.LogMem.Add("rebuildWithBucketIncremental: 完成, 耗时 %dms, bucket %s, 文件数 %d", ti.Milliseconds(), baseDir, index.totalCount)
 }
 
 // ── 快照聚合操作 ──────────────────────────────────────────────────
 
 // buildIndexFromBuckets 遍历所有 bucket，构造完整的 searchIndex
 func buildIndexFromBuckets(buckets map[string]*bucketFile) *searchIndex {
-	snap := &searchIndex{
+	index := &searchIndex{
 		buckets:     make(map[string]*bucketFile, len(buckets)),
 		actorMap:    make(map[string]model.Author),
 		typeMenu:    make(map[string]consts.MenuSize),
@@ -152,34 +152,34 @@ func buildIndexFromBuckets(buckets map[string]*bucketFile) *searchIndex {
 	}
 
 	for k, v := range buckets {
-		snap.buckets[k] = v
+		index.buckets[k] = v
 	}
 
 	sizeRepeats := make(map[int64]repeatModel, 1000)
 	codeRepeats := make(map[string]repeatModel, 1000)
 	fileRepeats := make(map[string]model.FileItem, 2000)
 
-	for _, bucket := range snap.buckets {
+	for _, bucket := range index.buckets {
 		if bucket.isEmpty() {
 			continue
 		}
 		bucket.mu.RLock()
 
-		snap.totalSize += bucket.TotalSize
-		snap.totalCount += bucket.TotalCount
-		snap.bucketCount++
+		index.totalSize += bucket.TotalSize
+		index.totalCount += bucket.TotalCount
+		index.bucketCount++
 
 		for _, movie := range bucket.FileLib {
 			// 演员聚合
 			if len(movie.Author) > 0 {
-				if cur, ok := snap.actorMap[movie.Author]; ok {
+				if cur, ok := index.actorMap[movie.Author]; ok {
 					cur.PlusCnt()
 					cur.PlusSize(movie.Size)
 					cur.AddImage(movie.Png)
 					cur.AddImage(movie.Jpg)
-					snap.actorMap[movie.Author] = cur
+					index.actorMap[movie.Author] = cur
 				} else {
-					snap.actorMap[movie.Author] = model.NewAuthor(movie.Author, movie.Jpg, movie.Size)
+					index.actorMap[movie.Author] = model.NewAuthor(movie.Author, movie.Jpg, movie.Size)
 				}
 			}
 
@@ -214,29 +214,29 @@ func buildIndexFromBuckets(buckets map[string]*bucketFile) *searchIndex {
 			if mt == "" {
 				mt = "无"
 			}
-			if v, ok := snap.typeMenu[mt]; ok {
-				snap.typeMenu[mt] = v.Plus(movie.Size)
+			if v, ok := index.typeMenu[mt]; ok {
+				index.typeMenu[mt] = v.Plus(movie.Size)
 			} else {
-				snap.typeMenu[mt] = consts.MenuSize{Name: mt, Cnt: 1, Size: movie.Size}
+				index.typeMenu[mt] = consts.MenuSize{Name: mt, Cnt: 1, Size: movie.Size}
 			}
-			if v, ok := snap.typeMenu["全部"]; ok {
-				snap.typeMenu["全部"] = v.Plus(movie.Size)
+			if v, ok := index.typeMenu["全部"]; ok {
+				index.typeMenu["全部"] = v.Plus(movie.Size)
 			} else {
-				snap.typeMenu["全部"] = consts.MenuSize{Name: "全部", Cnt: 1, Size: movie.Size}
+				index.typeMenu["全部"] = consts.MenuSize{Name: "全部", Cnt: 1, Size: movie.Size}
 			}
 
 			for i := range movie.Tags {
-				if v, ok := snap.tagMenu[movie.Tags[i]]; ok {
-					snap.tagMenu[movie.Tags[i]] = v.Plus(movie.Size)
+				if v, ok := index.tagMenu[movie.Tags[i]]; ok {
+					index.tagMenu[movie.Tags[i]] = v.Plus(movie.Size)
 				} else {
-					snap.tagMenu[movie.Tags[i]] = consts.MenuSize{Name: movie.Tags[i], Cnt: 1, Size: movie.Size, IsDir: true}
+					index.tagMenu[movie.Tags[i]] = consts.MenuSize{Name: movie.Tags[i], Cnt: 1, Size: movie.Size, IsDir: true}
 				}
 			}
 			if len(movie.Studio) > 0 {
-				if v, ok := snap.seriesCount[movie.Studio]; ok {
-					snap.seriesCount[movie.Studio] = v.Plus(movie.Size)
+				if v, ok := index.seriesCount[movie.Studio]; ok {
+					index.seriesCount[movie.Studio] = v.Plus(movie.Size)
 				} else {
-					snap.seriesCount[movie.Studio] = consts.MenuSize{Name: movie.Studio, Cnt: 1, Size: movie.Size, IsDir: true}
+					index.seriesCount[movie.Studio] = consts.MenuSize{Name: movie.Studio, Cnt: 1, Size: movie.Size, IsDir: true}
 				}
 			}
 		}
@@ -251,9 +251,9 @@ func buildIndexFromBuckets(buckets map[string]*bucketFile) *searchIndex {
 	sort.Slice(repeatSearch, func(i, j int) bool {
 		return repeatSearch[i].Size > repeatSearch[j].Size
 	})
-	snap.repeatFiles = repeatSearch
+	index.repeatFiles = repeatSearch
 
-	return snap
+	return index
 }
 
 // ── 增量操作辅助函数 ──────────────────────────────────────────────
@@ -283,24 +283,24 @@ func cloneMenuMap(src map[string]consts.MenuSize) map[string]consts.MenuSize {
 	return dst
 }
 
-func subtractBucketFromIndex(snap *searchIndex, bucket *bucketFile) {
+func subtractBucketFromIndex(index *searchIndex, bucket *bucketFile) {
 	bucket.mu.RLock()
 	defer bucket.mu.RUnlock()
 
 	for _, movie := range bucket.FileLib {
 		movie := movie
-		snap.totalCount--
-		snap.totalSize -= movie.Size
+		index.totalCount--
+		index.totalSize -= movie.Size
 
 		// 演员
 		if len(movie.Author) > 0 {
-			if cur, ok := snap.actorMap[movie.Author]; ok {
+			if cur, ok := index.actorMap[movie.Author]; ok {
 				cur.MinusCnt()
 				cur.MinusSize(movie.Size)
 				if cur.Cnt <= 0 {
-					delete(snap.actorMap, movie.Author)
+					delete(index.actorMap, movie.Author)
 				} else {
-					snap.actorMap[movie.Author] = cur
+					index.actorMap[movie.Author] = cur
 				}
 			}
 		}
@@ -310,67 +310,67 @@ func subtractBucketFromIndex(snap *searchIndex, bucket *bucketFile) {
 		if mt == "" {
 			mt = "无"
 		}
-		if v, ok := snap.typeMenu[mt]; ok {
+		if v, ok := index.typeMenu[mt]; ok {
 			updated := v.Minus(movie.Size)
 			if updated.Cnt <= 0 {
-				delete(snap.typeMenu, mt)
+				delete(index.typeMenu, mt)
 			} else {
-				snap.typeMenu[mt] = updated
+				index.typeMenu[mt] = updated
 			}
 		}
-		if v, ok := snap.typeMenu["全部"]; ok {
+		if v, ok := index.typeMenu["全部"]; ok {
 			updated := v.Minus(movie.Size)
 			if updated.Cnt <= 0 {
-				delete(snap.typeMenu, "全部")
+				delete(index.typeMenu, "全部")
 			} else {
-				snap.typeMenu["全部"] = updated
+				index.typeMenu["全部"] = updated
 			}
 		}
 
 		// 标签菜单
 		for i := range movie.Tags {
-			if v, ok := snap.tagMenu[movie.Tags[i]]; ok {
+			if v, ok := index.tagMenu[movie.Tags[i]]; ok {
 				updated := v.Minus(movie.Size)
 				if updated.Cnt <= 0 {
-					delete(snap.tagMenu, movie.Tags[i])
+					delete(index.tagMenu, movie.Tags[i])
 				} else {
-					snap.tagMenu[movie.Tags[i]] = updated
+					index.tagMenu[movie.Tags[i]] = updated
 				}
 			}
 		}
 
 		// 系列菜单
 		if len(movie.Studio) > 0 {
-			if v, ok := snap.seriesCount[movie.Studio]; ok {
+			if v, ok := index.seriesCount[movie.Studio]; ok {
 				updated := v.Minus(movie.Size)
 				if updated.Cnt <= 0 {
-					delete(snap.seriesCount, movie.Studio)
+					delete(index.seriesCount, movie.Studio)
 				} else {
-					snap.seriesCount[movie.Studio] = updated
+					index.seriesCount[movie.Studio] = updated
 				}
 			}
 		}
 	}
 }
 
-func addBucketToIndex(snap *searchIndex, bucket *bucketFile) {
+func addBucketToIndex(index *searchIndex, bucket *bucketFile) {
 	bucket.mu.RLock()
 	defer bucket.mu.RUnlock()
 
 	for _, movie := range bucket.FileLib {
 		movie := movie
-		snap.totalCount++
-		snap.totalSize += movie.Size
+		index.totalCount++
+		index.totalSize += movie.Size
 
 		if len(movie.Author) > 0 {
-			if cur, ok := snap.actorMap[movie.Author]; ok {
+			if cur, ok := index.actorMap[movie.Author]; ok {
 				cur.PlusCnt()
 				cur.PlusSize(movie.Size)
 				cur.AddImage(movie.Png)
 				cur.AddImage(movie.Jpg)
-				snap.actorMap[movie.Author] = cur
+				index.actorMap[movie.Author] = cur
 			} else {
-				snap.actorMap[movie.Author] = model.NewAuthor(movie.Author, movie.Jpg, movie.Size)
+				index.actorMap[movie.Author] = model.NewAuthor(movie.Author, movie.Jpg, movie.Size)
 			}
 		}
 
@@ -378,42 +378,42 @@ func addBucketToIndex(snap *searchIndex, bucket *bucketFile) {
 		if mt == "" {
 			mt = "无"
 		}
-		if v, ok := snap.typeMenu[mt]; ok {
-			snap.typeMenu[mt] = v.Plus(movie.Size)
+		if v, ok := index.typeMenu[mt]; ok {
+			index.typeMenu[mt] = v.Plus(movie.Size)
 		} else {
-			snap.typeMenu[mt] = consts.MenuSize{Name: mt, Cnt: 1, Size: movie.Size}
+			index.typeMenu[mt] = consts.MenuSize{Name: mt, Cnt: 1, Size: movie.Size}
 		}
-		if v, ok := snap.typeMenu["全部"]; ok {
-			snap.typeMenu["全部"] = v.Plus(movie.Size)
+		if v, ok := index.typeMenu["全部"]; ok {
+			index.typeMenu["全部"] = v.Plus(movie.Size)
 		} else {
-			snap.typeMenu["全部"] = consts.MenuSize{Name: "全部", Cnt: 1, Size: movie.Size}
+			index.typeMenu["全部"] = consts.MenuSize{Name: "全部", Cnt: 1, Size: movie.Size}
 		}
 
 		for i := range movie.Tags {
-			if v, ok := snap.tagMenu[movie.Tags[i]]; ok {
-				snap.tagMenu[movie.Tags[i]] = v.Plus(movie.Size)
+			if v, ok := index.tagMenu[movie.Tags[i]]; ok {
+				index.tagMenu[movie.Tags[i]] = v.Plus(movie.Size)
 			} else {
-				snap.tagMenu[movie.Tags[i]] = consts.MenuSize{Name: movie.Tags[i], Cnt: 1, Size: movie.Size, IsDir: true}
+				index.tagMenu[movie.Tags[i]] = consts.MenuSize{Name: movie.Tags[i], Cnt: 1, Size: movie.Size, IsDir: true}
 			}
 		}
 
 		if len(movie.Studio) > 0 {
-			if v, ok := snap.seriesCount[movie.Studio]; ok {
-				snap.seriesCount[movie.Studio] = v.Plus(movie.Size)
+			if v, ok := index.seriesCount[movie.Studio]; ok {
+				index.seriesCount[movie.Studio] = v.Plus(movie.Size)
 			} else {
-				snap.seriesCount[movie.Studio] = consts.MenuSize{Name: movie.Studio, Cnt: 1, Size: movie.Size, IsDir: true}
+				index.seriesCount[movie.Studio] = consts.MenuSize{Name: movie.Studio, Cnt: 1, Size: movie.Size, IsDir: true}
 			}
 		}
 	}
 }
 
 // recomputeRepeats 在所有 bucket 上重新计算重复文件
-func recomputeRepeats(snap *searchIndex) {
+func recomputeRepeats(index *searchIndex) {
 	sizeRepeats := make(map[int64]repeatModel, 1000)
 	codeRepeats := make(map[string]repeatModel, 1000)
 	fileRepeats := make(map[string]model.FileItem, 2000)
 
-	for _, bucket := range snap.buckets {
+	for _, bucket := range index.buckets {
 		if bucket.isEmpty() {
 			continue
 		}
@@ -457,23 +457,23 @@ func recomputeRepeats(snap *searchIndex) {
 	sort.Slice(repeatSearch, func(i, j int) bool {
 		return repeatSearch[i].Size > repeatSearch[j].Size
 	})
-	snap.repeatFiles = repeatSearch
+	index.repeatFiles = repeatSearch
 }
 
 // ── 单文件操作 ────────────────────────────────────────────────────
 
-func subtractFileFromIndex(snap *searchIndex, movie model.FileItem) {
-	snap.totalCount--
-	snap.totalSize -= movie.Size
+func subtractFileFromIndex(index *searchIndex, movie model.FileItem) {
+	index.totalCount--
+	index.totalSize -= movie.Size
 
 	if len(movie.Author) > 0 {
-		if cur, ok := snap.actorMap[movie.Author]; ok {
+		if cur, ok := index.actorMap[movie.Author]; ok {
 			cur.MinusCnt()
 			cur.MinusSize(movie.Size)
 			if cur.Cnt <= 0 {
-				delete(snap.actorMap, movie.Author)
+				delete(index.actorMap, movie.Author)
 			} else {
-				snap.actorMap[movie.Author] = cur
+				index.actorMap[movie.Author] = cur
 			}
 		}
 	}
@@ -482,59 +482,59 @@ func subtractFileFromIndex(snap *searchIndex, movie model.FileItem) {
 	if mt == "" {
 		mt = "无"
 	}
-	if v, ok := snap.typeMenu[mt]; ok {
+	if v, ok := index.typeMenu[mt]; ok {
 		updated := v.Minus(movie.Size)
 		if updated.Cnt <= 0 {
-			delete(snap.typeMenu, mt)
+			delete(index.typeMenu, mt)
 		} else {
-			snap.typeMenu[mt] = updated
+			index.typeMenu[mt] = updated
 		}
 	}
-	if v, ok := snap.typeMenu["全部"]; ok {
+	if v, ok := index.typeMenu["全部"]; ok {
 		updated := v.Minus(movie.Size)
 		if updated.Cnt <= 0 {
-			delete(snap.typeMenu, "全部")
+			delete(index.typeMenu, "全部")
 		} else {
-			snap.typeMenu["全部"] = updated
+			index.typeMenu["全部"] = updated
 		}
 	}
 
 	for i := range movie.Tags {
-		if v, ok := snap.tagMenu[movie.Tags[i]]; ok {
+		if v, ok := index.tagMenu[movie.Tags[i]]; ok {
 			updated := v.Minus(movie.Size)
 			if updated.Cnt <= 0 {
-				delete(snap.tagMenu, movie.Tags[i])
+				delete(index.tagMenu, movie.Tags[i])
 			} else {
-				snap.tagMenu[movie.Tags[i]] = updated
+				index.tagMenu[movie.Tags[i]] = updated
 			}
 		}
 	}
 
 	if len(movie.Studio) > 0 {
-		if v, ok := snap.seriesCount[movie.Studio]; ok {
+		if v, ok := index.seriesCount[movie.Studio]; ok {
 			updated := v.Minus(movie.Size)
 			if updated.Cnt <= 0 {
-				delete(snap.seriesCount, movie.Studio)
+				delete(index.seriesCount, movie.Studio)
 			} else {
-				snap.seriesCount[movie.Studio] = updated
+				index.seriesCount[movie.Studio] = updated
 			}
 		}
 	}
 }
 
-func addFileToIndex(snap *searchIndex, movie model.FileItem) {
-	snap.totalCount++
-	snap.totalSize += movie.Size
+func addFileToIndex(index *searchIndex, movie model.FileItem) {
+	index.totalCount++
+	index.totalSize += movie.Size
 
 	if len(movie.Author) > 0 {
-		if cur, ok := snap.actorMap[movie.Author]; ok {
+		if cur, ok := index.actorMap[movie.Author]; ok {
 			cur.PlusCnt()
 			cur.PlusSize(movie.Size)
 			cur.AddImage(movie.Png)
 			cur.AddImage(movie.Jpg)
-			snap.actorMap[movie.Author] = cur
+			index.actorMap[movie.Author] = cur
 		} else {
-			snap.actorMap[movie.Author] = model.NewAuthor(movie.Author, movie.Jpg, movie.Size)
+			index.actorMap[movie.Author] = model.NewAuthor(movie.Author, movie.Jpg, movie.Size)
 		}
 	}
 
@@ -542,92 +542,54 @@ func addFileToIndex(snap *searchIndex, movie model.FileItem) {
 	if mt == "" {
 		mt = "无"
 	}
-	if v, ok := snap.typeMenu[mt]; ok {
-		snap.typeMenu[mt] = v.Plus(movie.Size)
+	if v, ok := index.typeMenu[mt]; ok {
+		index.typeMenu[mt] = v.Plus(movie.Size)
 	} else {
-		snap.typeMenu[mt] = consts.MenuSize{Name: mt, Cnt: 1, Size: movie.Size}
+		index.typeMenu[mt] = consts.MenuSize{Name: mt, Cnt: 1, Size: movie.Size}
 	}
-	if v, ok := snap.typeMenu["全部"]; ok {
-		snap.typeMenu["全部"] = v.Plus(movie.Size)
+	if v, ok := index.typeMenu["全部"]; ok {
+		index.typeMenu["全部"] = v.Plus(movie.Size)
 	} else {
-		snap.typeMenu["全部"] = consts.MenuSize{Name: "全部", Cnt: 1, Size: movie.Size}
+		index.typeMenu["全部"] = consts.MenuSize{Name: "全部", Cnt: 1, Size: movie.Size}
 	}
 
 	for i := range movie.Tags {
-		if v, ok := snap.tagMenu[movie.Tags[i]]; ok {
-			snap.tagMenu[movie.Tags[i]] = v.Plus(movie.Size)
+		if v, ok := index.tagMenu[movie.Tags[i]]; ok {
+			index.tagMenu[movie.Tags[i]] = v.Plus(movie.Size)
 		} else {
-			snap.tagMenu[movie.Tags[i]] = consts.MenuSize{Name: movie.Tags[i], Cnt: 1, Size: movie.Size, IsDir: true}
+			index.tagMenu[movie.Tags[i]] = consts.MenuSize{Name: movie.Tags[i], Cnt: 1, Size: movie.Size, IsDir: true}
 		}
 	}
 
 	if len(movie.Studio) > 0 {
-		if v, ok := snap.seriesCount[movie.Studio]; ok {
-			snap.seriesCount[movie.Studio] = v.Plus(movie.Size)
+		if v, ok := index.seriesCount[movie.Studio]; ok {
+			index.seriesCount[movie.Studio] = v.Plus(movie.Size)
 		} else {
-			snap.seriesCount[movie.Studio] = consts.MenuSize{Name: movie.Studio, Cnt: 1, Size: movie.Size, IsDir: true}
+			index.seriesCount[movie.Studio] = consts.MenuSize{Name: movie.Studio, Cnt: 1, Size: movie.Size, IsDir: true}
 		}
 	}
 }
 
-// ReplaceFile 替换索引中的单文件记录（重命名/改标签/改类型后同步索引）
+// ReplaceFile 替换索引中的单文件记录（Id 不变，直接覆盖）
 func (se *searchEngineCore) ReplaceFile(oldFile, newFile model.FileItem) {
-	se.rebuildMu.Lock()
-	defer se.rebuildMu.Unlock()
-
-	snap := se.loadIndex()
-	bucket := snap.buckets[oldFile.BaseDir]
-	if bucket == nil || bucket.isEmpty() {
+	index := se.loadIndex()
+	bucket := index.buckets[oldFile.BaseDir]
+	if bucket == nil {
 		return
 	}
 
 	bucket.mu.Lock()
-	oldEntry, exists := bucket.FileLib[oldFile.Id]
-	if !exists {
-		bucket.mu.Unlock()
-		return
-	}
-	delete(bucket.FileLib, oldFile.Id)
-	bucket.TotalCount--
-	bucket.TotalSize -= oldEntry.Size
-	if oldEntry.MovieType != "" {
-		if ids, ok := bucket.TypeIndex[oldEntry.MovieType]; ok {
-			delete(ids, oldEntry.Id)
-			if len(ids) == 0 {
-				delete(bucket.TypeIndex, oldEntry.MovieType)
-			}
-		}
+	if _, exists := bucket.FileLib[oldFile.Id]; exists {
+		bucket.FileLib[oldFile.Id] = newFile
 	}
 	bucket.mu.Unlock()
-
-	bucket.put(newFile)
-
-	newSnap := &searchIndex{
-		buckets:     snap.buckets,
-		bucketCount: snap.bucketCount,
-		totalSize:   snap.totalSize,
-		totalCount:  snap.totalCount,
-		actorMap:    cloneActorMap(snap.actorMap),
-		typeMenu:    cloneMenuMap(snap.typeMenu),
-		tagMenu:     cloneMenuMap(snap.tagMenu),
-		seriesCount: cloneMenuMap(snap.seriesCount),
-	}
-
-	subtractFileFromIndex(newSnap, oldEntry)
-	addFileToIndex(newSnap, newFile)
-	recomputeRepeats(newSnap)
-
-	se.installIndex(newSnap)
 }
 
-// DeleteFile 从索引中删除文件记录（删除文件后同步索引）
+// DeleteFile 从索引中删除文件记录
 func (se *searchEngineCore) DeleteFile(file model.FileItem) {
-	se.rebuildMu.Lock()
-	defer se.rebuildMu.Unlock()
-
-	snap := se.loadIndex()
-	bucket := snap.buckets[file.BaseDir]
-	if bucket == nil || bucket.isEmpty() {
+	index := se.loadIndex()
+	bucket := index.buckets[file.BaseDir]
+	if bucket == nil {
 		return
 	}
 
@@ -650,19 +612,10 @@ func (se *searchEngineCore) DeleteFile(file model.FileItem) {
 	}
 	bucket.mu.Unlock()
 
-	newSnap := &searchIndex{
-		buckets:     snap.buckets,
-		bucketCount: snap.bucketCount,
-		totalSize:   snap.totalSize,
-		totalCount:  snap.totalCount,
-		actorMap:    cloneActorMap(snap.actorMap),
-		typeMenu:    cloneMenuMap(snap.typeMenu),
-		tagMenu:     cloneMenuMap(snap.tagMenu),
-		seriesCount: cloneMenuMap(snap.seriesCount),
-	}
+	subtractFileFromIndex(index, entry)
 
-	subtractFileFromIndex(newSnap, entry)
-	recomputeRepeats(newSnap)
-
-	se.installIndex(newSnap)
+	se.KeywordHistoryCache.Clear()
+	se.cacheEpoch.Add(1)
+	se.actorSizeCache = nil
+	se.actorCountCache = nil
 }

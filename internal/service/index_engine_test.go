@@ -118,11 +118,11 @@ func TestBuildIndexFromBuckets_AggregatesStats(t *testing.T) {
 		makeMovie("3", "c.mp4", "/c.mp4", "CCC", "步兵", "田中", 300),
 	)
 
-	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir-a": b1, "dir-b": b2})
+	index := buildIndexFromBuckets(map[string]*bucketFile{"dir-a": b1, "dir-b": b2})
 
-	assert.Equal(t, int64(600), snap.totalSize)
-	assert.Equal(t, 3, snap.totalCount)
-	assert.Equal(t, int32(2), snap.bucketCount)
+	assert.Equal(t, int64(600), index.totalSize)
+	assert.Equal(t, 3, index.totalCount)
+	assert.Equal(t, int32(2), index.bucketCount)
 }
 
 func TestBuildIndexFromBuckets_AuthorAggregation(t *testing.T) {
@@ -132,12 +132,12 @@ func TestBuildIndexFromBuckets_AuthorAggregation(t *testing.T) {
 		makeMovie("3", "c.mp4", "/c.mp4", "", "步兵", "佐藤", 150),
 	)
 
-	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
+	index := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
 
-	assert.Equal(t, 2, len(snap.actorMap))
-	assert.Equal(t, 2, snap.actorMap["田中"].Cnt)
-	assert.Equal(t, int64(300), snap.actorMap["田中"].Size)
-	assert.Equal(t, 1, snap.actorMap["佐藤"].Cnt)
+	assert.Equal(t, 2, len(index.actorMap))
+	assert.Equal(t, 2, index.actorMap["田中"].Cnt)
+	assert.Equal(t, int64(300), index.actorMap["田中"].Size)
+	assert.Equal(t, 1, index.actorMap["佐藤"].Cnt)
 }
 
 func TestBuildIndexFromBuckets_TypeMenu(t *testing.T) {
@@ -147,11 +147,11 @@ func TestBuildIndexFromBuckets_TypeMenu(t *testing.T) {
 		makeMovie("3", "c.mp4", "/c.mp4", "", "骑兵", "", 300),
 	)
 
-	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
+	index := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
 
-	assert.Equal(t, int64(600), snap.typeMenu["全部"].Size)
-	assert.Equal(t, int64(400), snap.typeMenu["骑兵"].Size)
-	assert.Equal(t, int64(200), snap.typeMenu["步兵"].Size)
+	assert.Equal(t, int64(600), index.typeMenu["全部"].Size)
+	assert.Equal(t, int64(400), index.typeMenu["骑兵"].Size)
+	assert.Equal(t, int64(200), index.typeMenu["步兵"].Size)
 }
 
 func TestBuildIndexFromBuckets_RepeatByCode(t *testing.T) {
@@ -160,18 +160,18 @@ func TestBuildIndexFromBuckets_RepeatByCode(t *testing.T) {
 		makeMovie("2", "b.mp4", "/b.mp4", "ABC-123", "", "", 100), // 同 Code+Size
 	)
 
-	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
+	index := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
 	// 两个文件 Size 相同且 Code 相同 → 标记为重复
-	assert.GreaterOrEqual(t, len(snap.repeatFiles), 2, "重复文件应被检测到")
+	assert.GreaterOrEqual(t, len(index.repeatFiles), 2, "重复文件应被检测到")
 }
 
 func TestBuildIndexFromBuckets_EmptyBucket(t *testing.T) {
 	b := newInstance("empty-dir")
-	snap := buildIndexFromBuckets(map[string]*bucketFile{"empty-dir": b})
+	index := buildIndexFromBuckets(map[string]*bucketFile{"empty-dir": b})
 
-	assert.Equal(t, int64(0), snap.totalSize)
-	assert.Equal(t, 0, snap.totalCount)
-	assert.Equal(t, int32(0), snap.bucketCount)
+	assert.Equal(t, int64(0), index.totalSize)
+	assert.Equal(t, 0, index.totalCount)
+	assert.Equal(t, int32(0), index.bucketCount)
 }
 
 func TestBuildIndexFromBuckets_NoTypeFallsback(t *testing.T) {
@@ -179,11 +179,11 @@ func TestBuildIndexFromBuckets_NoTypeFallsback(t *testing.T) {
 	m.MovieType = "" // 确保无类型
 	b := makeBucket("dir", m)
 
-	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
+	index := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
 
 	// 空类型应归为"无"
-	assert.Contains(t, snap.typeMenu, "无")
-	assert.Equal(t, int64(100), snap.typeMenu["无"].Size)
+	assert.Contains(t, index.typeMenu, "无")
+	assert.Equal(t, int64(100), index.typeMenu["无"].Size)
 }
 
 // ── searchEngineCore 测试 ──
@@ -197,18 +197,18 @@ func newTestEngine() searchEngineCore {
 
 func TestSearchEngineCore_IsEmpty(t *testing.T) {
 	core := newTestEngine()
-	defer core.Reset()
+	defer core.installIndexInPlace(emptySearchIndex())
 
 	assert.True(t, core.IsEmpty())
 }
 
 func TestSearchEngineCore_InstallIndex(t *testing.T) {
 	core := newTestEngine()
-	defer core.Reset()
+	defer core.installIndexInPlace(emptySearchIndex())
 
 	b := makeBucket("dir", makeMovie("1", "f.mp4", "/f.mp4", "", "", "", 100))
-	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
-	core.installIndex(snap)
+	index := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
+	core.installIndex(index)
 
 	assert.False(t, core.IsEmpty())
 	assert.Equal(t, 1, core.GetTotalCount())
@@ -220,9 +220,9 @@ func TestSearchEngineCore_Reset(t *testing.T) {
 	core := newTestEngine()
 
 	b := makeBucket("dir", makeMovie("1", "f.mp4", "/f.mp4", "", "", "", 100))
-	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
-	core.installIndex(snap)
-	core.Reset()
+	index := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
+	core.installIndex(index)
+	core.installIndexInPlace(emptySearchIndex())
 
 	assert.True(t, core.IsEmpty())
 	assert.Equal(t, 0, core.GetTotalCount())
@@ -230,14 +230,14 @@ func TestSearchEngineCore_Reset(t *testing.T) {
 
 func TestSearchEngineCore_FindById(t *testing.T) {
 	core := newTestEngine()
-	defer core.Reset()
+	defer core.installIndexInPlace(emptySearchIndex())
 
 	b := makeBucket("dir",
 		makeMovie("id-a", "a.mp4", "/a.mp4", "", "", "", 100),
 		makeMovie("id-b", "b.mp4", "/b.mp4", "", "", "", 200),
 	)
-	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
-	core.installIndex(snap)
+	index := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
+	core.installIndex(index)
 
 	found := core.FindById("id-a")
 	assert.False(t, found.IsNull())
@@ -249,27 +249,27 @@ func TestSearchEngineCore_FindById(t *testing.T) {
 
 func TestSearchEngineCore_GetAuthorCount(t *testing.T) {
 	core := newTestEngine()
-	defer core.Reset()
+	defer core.installIndexInPlace(emptySearchIndex())
 
 	b := makeBucket("dir",
 		makeMovie("1", "a.mp4", "/a.mp4", "", "骑兵", "田中", 100),
 		makeMovie("2", "b.mp4", "/b.mp4", "", "步兵", "佐藤", 200),
 	)
-	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
-	core.installIndex(snap)
+	index := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
+	core.installIndex(index)
 
 	assert.Equal(t, 2, core.GetAuthorCount())
 }
 
 func TestSearchEngineCore_FindAuthorByName(t *testing.T) {
 	core := newTestEngine()
-	defer core.Reset()
+	defer core.installIndexInPlace(emptySearchIndex())
 
 	b := makeBucket("dir",
 		makeMovie("1", "a.mp4", "/a.mp4", "", "骑兵", "田中", 100),
 	)
-	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
-	core.installIndex(snap)
+	index := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
+	core.installIndex(index)
 
 	act := core.FindAuthorByName("田中")
 	assert.True(t, act.IsNotEmpty())
@@ -346,7 +346,7 @@ func TestBucketFile_SearchKeyword_NoMatch(t *testing.T) {
 
 func TestRebuildWithBucket_ReplacesExisting(t *testing.T) {
 	core := newTestEngine()
-	defer core.Reset()
+	defer core.installIndexInPlace(emptySearchIndex())
 
 	// 设置配置目录使 rebuildWithBucket 不会跳过 bucket
 	orig := consts.GetOSSetting()
@@ -357,8 +357,8 @@ func TestRebuildWithBucket_ReplacesExisting(t *testing.T) {
 
 	// 初始：dir-a 有文件
 	b1 := makeBucket("dir-a", makeMovie("1", "old.mp4", "/old.mp4", "", "", "", 100))
-	snap1 := buildIndexFromBuckets(map[string]*bucketFile{"dir-a": b1})
-	core.installIndex(snap1)
+	index1 := buildIndexFromBuckets(map[string]*bucketFile{"dir-a": b1})
+	core.installIndex(index1)
 	assert.Equal(t, 1, core.GetTotalCount())
 
 	// 替换 dir-a 为新文件
@@ -376,7 +376,7 @@ func TestRebuildWithBucket_ReplacesExisting(t *testing.T) {
 
 func TestRebuildWithBucket_KeepsOtherBuckets(t *testing.T) {
 	core := newTestEngine()
-	defer core.Reset()
+	defer core.installIndexInPlace(emptySearchIndex())
 
 	// 设置配置目录使 rebuildWithBucket 不会跳过这些 bucket
 	orig := consts.GetOSSetting()
@@ -387,8 +387,8 @@ func TestRebuildWithBucket_KeepsOtherBuckets(t *testing.T) {
 
 	bA := makeBucket("dir-a", makeMovie("1", "a.mp4", "/a.mp4", "", "", "", 100))
 	bB := makeBucket("dir-b", makeMovie("2", "b.mp4", "/b.mp4", "", "", "", 200))
-	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir-a": bA, "dir-b": bB})
-	core.installIndex(snap)
+	index := buildIndexFromBuckets(map[string]*bucketFile{"dir-a": bA, "dir-b": bB})
+	core.installIndex(index)
 
 	// 只替换 dir-a 不影响 dir-b
 	bA2 := makeBucket("dir-a", makeMovie("3", "a2.mp4", "/a2.mp4", "", "", "", 300))
@@ -403,14 +403,14 @@ func TestRebuildWithBucket_KeepsOtherBuckets(t *testing.T) {
 
 func Test_PageAsync_SearchAcrossAllBuckets(t *testing.T) {
 	engine := newTestEngine()
-	defer engine.Reset()
+	defer engine.installIndexInPlace(emptySearchIndex())
 
 	b1 := makeBucket("dir-a", makeMovie("1", "alpha.mp4", "/a/alpha.mp4", "", "", "", 100))
 	b2 := makeBucket("dir-b", makeMovie("2", "beta.mp4", "/b/beta.mp4", "", "", "", 200))
 	b3 := makeBucket("dir-c", makeMovie("3", "alpha-beta.mp4", "/c/alpha-beta.mp4", "", "", "", 300))
 
-	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir-a": b1, "dir-b": b2, "dir-c": b3})
-	engine.installIndex(snap)
+	index := buildIndexFromBuckets(map[string]*bucketFile{"dir-a": b1, "dir-b": b2, "dir-c": b3})
+	engine.installIndex(index)
 
 	param := model.SearchParam{Keyword: "alpha", Page: 1, PageSize: 10, SortField: "Size", SortType: "desc"}
 	result := engine.pageAsync(param)
@@ -422,11 +422,11 @@ func Test_PageAsync_SearchAcrossAllBuckets(t *testing.T) {
 
 func Test_PageAsync_NoMatchReturnsEmpty(t *testing.T) {
 	engine := newTestEngine()
-	defer engine.Reset()
+	defer engine.installIndexInPlace(emptySearchIndex())
 
 	b := makeBucket("dir", makeMovie("1", "cat.mp4", "/cat.mp4", "", "", "", 100))
-	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
-	engine.installIndex(snap)
+	index := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
+	engine.installIndex(index)
 
 	param := model.SearchParam{Keyword: "dog", Page: 1, PageSize: 10}
 	result := engine.pageAsync(param)
@@ -435,7 +435,7 @@ func Test_PageAsync_NoMatchReturnsEmpty(t *testing.T) {
 
 func Test_PageAsync_Pagination(t *testing.T) {
 	engine := newTestEngine()
-	defer engine.Reset()
+	defer engine.installIndexInPlace(emptySearchIndex())
 
 	movies := make([]model.FileItem, 25)
 	for i := range movies {
@@ -448,8 +448,8 @@ func Test_PageAsync_Pagination(t *testing.T) {
 		)
 	}
 	b := makeBucket("dir", movies...)
-	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
-	engine.installIndex(snap)
+	index := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
+	engine.installIndex(index)
 
 	// 第1页 10条
 	r1 := engine.pageAsync(model.SearchParam{Keyword: "", Page: 1, PageSize: 10})
@@ -466,7 +466,7 @@ func Test_PageAsync_Pagination(t *testing.T) {
 
 func Test_PageAsync_EmptyEngine(t *testing.T) {
 	engine := newTestEngine()
-	defer engine.Reset()
+	defer engine.installIndexInPlace(emptySearchIndex())
 
 	param := model.SearchParam{Keyword: "test", Page: 1, PageSize: 10}
 	result := engine.pageAsync(param)
@@ -477,15 +477,15 @@ func Test_PageAsync_EmptyEngine(t *testing.T) {
 
 func Test_returnRepeatSearch(t *testing.T) {
 	engine := newTestEngine()
-	defer engine.Reset()
+	defer engine.installIndexInPlace(emptySearchIndex())
 
 	// 创建重复文件：同 Code + 同 Size
 	b := makeBucket("dir",
 		makeMovie("1", "a.mp4", "/a.mp4", "ABC", "", "", 100),
 		makeMovie("2", "b.mp4", "/b.mp4", "ABC", "", "", 100), // 重复
 	)
-	snap := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
-	engine.installIndex(snap)
+	index := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
+	engine.installIndex(index)
 
 	param := model.SearchParam{OnlyRepeat: true}
 	result := engine.pageAsync(param)
@@ -493,6 +493,13 @@ func Test_returnRepeatSearch(t *testing.T) {
 }
 
 // ── 全局状态清理 ──
+
+func emptySearchIndex() *searchIndex {
+	return &searchIndex{
+		buckets:  make(map[string]*bucketFile),
+		actorMap: make(map[string]model.Author),
+	}
+}
 
 func resetGlobalState() {
 	consts.TypeMenu = sync.Map{}

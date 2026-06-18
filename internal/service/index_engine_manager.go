@@ -51,7 +51,7 @@ func (se *searchEngineCore) loadIndex() *searchIndex {
 			actorMap: make(map[string]model.Author),
 		}
 	}
-	snap, ok := s.(*searchIndex)
+	index, ok := s.(*searchIndex)
 	if !ok {
 		// 类型不匹配，返回空快照
 		return &searchIndex{
@@ -59,43 +59,41 @@ func (se *searchEngineCore) loadIndex() *searchIndex {
 			actorMap: make(map[string]model.Author),
 		}
 	}
-	return snap
+	return index
 }
 
-// installIndex 原子替换搜索引擎快照，并同步全局菜单
-func (se *searchEngineCore) installIndex(snap *searchIndex) {
-	se.index.Store(snap)
+// installIndex 原子替换索引 + 同步全局菜单 + 异步持久化磁盘缓存
+func (se *searchEngineCore) installIndex(index *searchIndex) {
+	se.syncIndex(index)
+	saveIndexToCache(index)
+}
+
+// installIndexInPlace 原子替换索引（跳过磁盘缓存持久化，单文件操作用）
+func (se *searchEngineCore) installIndexInPlace(index *searchIndex) {
+	se.syncIndex(index)
+}
+
+// syncIndex 原子替换索引 + 清 LRU 缓存 + 递增 epoch + 刷新全局菜单
+func (se *searchEngineCore) syncIndex(index *searchIndex) {
+	se.index.Store(index)
 	se.KeywordHistoryCache.Clear()
 	se.cacheEpoch.Add(1)
 	se.actorSizeCache = nil
 	se.actorCountCache = nil
 
-	// 同步菜单到全局 consts（首页等模块使用）
 	consts.TypeMenu.Clear()
-	for k, v := range snap.typeMenu {
+	for k, v := range index.typeMenu {
 		consts.TypeMenu.Store(k, v)
 	}
 	consts.TagMenu.Clear()
-	for k, v := range snap.tagMenu {
+	for k, v := range index.tagMenu {
 		consts.TagMenu.Store(k, v)
 	}
 	consts.SeriesCount.Clear()
-	for k, v := range snap.seriesCount {
+	for k, v := range index.seriesCount {
 		consts.SeriesCount.Store(k, v)
 	}
 	consts.LastScanTime = time.Now()
-
-	// 异步保存缓存快照，保证下次启动时能恢复本次索引状态
-	saveIndexToCache(snap)
-}
-
-// Reset 清空搜索引擎全部状态和缓存
-func (se *searchEngineCore) Reset() {
-	empty := &searchIndex{
-		buckets:  make(map[string]*bucketFile),
-		actorMap: make(map[string]model.Author),
-	}
-	se.installIndex(empty)
 }
 
 // IsEmpty 检查是否有 bucket 数据
