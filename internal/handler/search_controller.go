@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"search-gin/internal/model"
 	"search-gin/internal/service"
-	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 
 	"github.com/gin-gonic/gin"
@@ -35,13 +34,8 @@ func PostMovies(c *gin.Context) {
 	}
 
 	if isRemote {
-		result := toPageResult(service.SearchEngine.PageAsync(searchParam), searchParam.Page)
-		movies, ok := result.Data.([]model.FileItem)
-		if ok {
-			service.FillURLs(c, movies)
-			result.Data = movies
-		}
-		result.SetProgress(consts.IndexNumber)
+		result := service.SearchEngine.Page(searchParam)
+		service.FillURLs(c, result.Data.([]model.FileItem))
 		c.JSON(http.StatusOK, result)
 		return
 	}
@@ -63,13 +57,8 @@ func PostMovies(c *gin.Context) {
 	}
 
 	// 搜索本机
-	result := toPageResult(service.SearchEngine.PageAsync(searchParam), searchParam.Page)
-	movies, ok := result.Data.([]model.FileItem)
-	if ok {
-		service.FillURLs(c, movies)
-		result.Data = movies
-	}
-	result.SetProgress(consts.IndexNumber)
+	result := service.SearchEngine.Page(searchParam)
+	service.FillURLs(c, result.Data.([]model.FileItem))
 	c.JSON(http.StatusOK, result)
 }
 
@@ -130,20 +119,4 @@ func PostAuthor(c *gin.Context) {
 
 	// 返回HTTP 200状态码和搜索结果
 	c.JSON(http.StatusOK, result)
-}
-
-// toPageResult 将搜索引擎的 PageResultWrapper 转换为 API 响应 Page
-func toPageResult(sr model.PageResultWrapper, pageNo int) utils.Page {
-	result := utils.NewPage()
-	result.TotalCnt = sr.SearchCount
-	result.TotalSize = utils.GetSizeStr(sr.SearchSize)
-	result.ResultSize = utils.GetSizeStr(sr.SearchSize)
-	result.SetResultCnt(sr.SearchCount, pageNo)
-	result.CurSize = utils.GetSizeStr(sr.ResultSize)
-	result.CurCnt = sr.ResultCount
-	for i := range sr.FileList {
-		sr.FileList[i].PageNo = pageNo
-	}
-	result.Data = sr.FileList
-	return result
 }

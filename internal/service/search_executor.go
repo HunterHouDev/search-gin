@@ -224,3 +224,23 @@ func (se *searchEngineCore) FindAuthorByName(name string) model.Author {
 func (se *searchEngineCore) GetAuthorCount() int {
 	return len(se.loadSnapshot().actorMap)
 }
+
+// Page 搜索并返回分页结果
+func (se *searchEngineCore) Page(searchParam model.SearchParam) utils.Page {
+	sr := se.PageAsync(searchParam)
+	result := utils.NewPage()
+	result.TotalCnt = sr.SearchCount
+	result.TotalSize = utils.GetSizeStr(sr.SearchSize)
+	result.ResultSize = utils.GetSizeStr(sr.SearchSize)
+	result.SetResultCnt(sr.SearchCount, searchParam.Page)
+	result.CurSize = utils.GetSizeStr(sr.ResultSize)
+	result.CurCnt = sr.ResultCount
+	files := make([]model.FileItem, len(sr.FileList))
+	copy(files, sr.FileList)
+	for i := range files {
+		files[i].PageNo = searchParam.Page
+	}
+	result.Data = files
+	result.SetProgress(consts.IndexNumber)
+	return result
+}
