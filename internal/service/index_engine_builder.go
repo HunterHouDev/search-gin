@@ -165,25 +165,11 @@ func buildIndexFromBuckets(buckets map[string]*bucketFile) *searchIndex {
 		}
 		bucket.mu.RLock()
 
-		index.totalSize += bucket.TotalSize
-		index.totalCount += bucket.TotalCount
 		index.bucketCount++
 
 		for _, movie := range bucket.FileLib {
-			// 作者聚合
-			if len(movie.Author) > 0 {
-				if cur, ok := index.authorMap[movie.Author]; ok {
-					cur.PlusCnt()
-					cur.PlusSize(movie.Size)
-					cur.AddImage(movie.Png)
-					cur.AddImage(movie.Jpg)
-					index.authorMap[movie.Author] = cur
-				} else {
-					index.authorMap[movie.Author] = model.NewAuthor(movie.Author, movie.Jpg, movie.Size)
-				}
-			}
+			addFileToIndex(index, movie)
 
-			// 重复检测
 			if !movie.IsNull() {
 				pkSize := movie.Size
 				rs, ok := sizeRepeats[pkSize]
@@ -206,37 +192,6 @@ func buildIndexFromBuckets(buckets map[string]*bucketFile) *searchIndex {
 					codeRepeats[pkCode] = rc
 				} else {
 					codeRepeats[pkCode] = repeatModel{Code: movie.Code, Files: movie, Count: 1}
-				}
-			}
-
-			// 类型/标签/系列菜单
-			mt := movie.MovieType
-			if mt == "" {
-				mt = "无"
-			}
-			if v, ok := index.typeMenu[mt]; ok {
-				index.typeMenu[mt] = v.Plus(movie.Size)
-			} else {
-				index.typeMenu[mt] = consts.MenuSize{Name: mt, Cnt: 1, Size: movie.Size}
-			}
-			if v, ok := index.typeMenu["全部"]; ok {
-				index.typeMenu["全部"] = v.Plus(movie.Size)
-			} else {
-				index.typeMenu["全部"] = consts.MenuSize{Name: "全部", Cnt: 1, Size: movie.Size}
-			}
-
-			for i := range movie.Tags {
-				if v, ok := index.tagMenu[movie.Tags[i]]; ok {
-					index.tagMenu[movie.Tags[i]] = v.Plus(movie.Size)
-				} else {
-					index.tagMenu[movie.Tags[i]] = consts.MenuSize{Name: movie.Tags[i], Cnt: 1, Size: movie.Size, IsDir: true}
-				}
-			}
-			if len(movie.Studio) > 0 {
-				if v, ok := index.seriesCount[movie.Studio]; ok {
-					index.seriesCount[movie.Studio] = v.Plus(movie.Size)
-				} else {
-					index.seriesCount[movie.Studio] = consts.MenuSize{Name: movie.Studio, Cnt: 1, Size: movie.Size, IsDir: true}
 				}
 			}
 		}
@@ -286,124 +241,16 @@ func cloneMenuMap(src map[string]consts.MenuSize) map[string]consts.MenuSize {
 func subtractBucketFromIndex(index *searchIndex, bucket *bucketFile) {
 	bucket.mu.RLock()
 	defer bucket.mu.RUnlock()
-
 	for _, movie := range bucket.FileLib {
-		movie := movie
-		index.totalCount--
-		index.totalSize -= movie.Size
-
-		// 作者
-		if len(movie.Author) > 0 {
-			if cur, ok := index.authorMap[movie.Author]; ok {
-				cur.MinusCnt()
-				cur.MinusSize(movie.Size)
-				if cur.Cnt <= 0 {
-					delete(index.authorMap, movie.Author)
-				} else {
-					index.authorMap[movie.Author] = cur
-				}
-			}
-		}
-
-		// 类型菜单
-		mt := movie.MovieType
-		if mt == "" {
-			mt = "无"
-		}
-		if v, ok := index.typeMenu[mt]; ok {
-			updated := v.Minus(movie.Size)
-			if updated.Cnt <= 0 {
-				delete(index.typeMenu, mt)
-			} else {
-				index.typeMenu[mt] = updated
-			}
-		}
-		if v, ok := index.typeMenu["全部"]; ok {
-			updated := v.Minus(movie.Size)
-			if updated.Cnt <= 0 {
-				delete(index.typeMenu, "全部")
-			} else {
-				index.typeMenu["全部"] = updated
-			}
-		}
-
-		// 标签菜单
-		for i := range movie.Tags {
-			if v, ok := index.tagMenu[movie.Tags[i]]; ok {
-				updated := v.Minus(movie.Size)
-				if updated.Cnt <= 0 {
-					delete(index.tagMenu, movie.Tags[i])
-				} else {
-					index.tagMenu[movie.Tags[i]] = updated
-				}
-			}
-		}
-
-		// 系列菜单
-		if len(movie.Studio) > 0 {
-			if v, ok := index.seriesCount[movie.Studio]; ok {
-				updated := v.Minus(movie.Size)
-				if updated.Cnt <= 0 {
-					delete(index.seriesCount, movie.Studio)
-				} else {
-					index.seriesCount[movie.Studio] = updated
-				}
-			}
-		}
+		subtractFileFromIndex(index, movie)
 	}
 }
 
 func addBucketToIndex(index *searchIndex, bucket *bucketFile) {
 	bucket.mu.RLock()
 	defer bucket.mu.RUnlock()
-
 	for _, movie := range bucket.FileLib {
-		movie := movie
-		index.totalCount++
-		index.totalSize += movie.Size
-
-		if len(movie.Author) > 0 {
-			if cur, ok := index.authorMap[movie.Author]; ok {
-				cur.PlusCnt()
-				cur.PlusSize(movie.Size)
-				cur.AddImage(movie.Png)
-				cur.AddImage(movie.Jpg)
-				index.authorMap[movie.Author] = cur
-			} else {
-				index.authorMap[movie.Author] = model.NewAuthor(movie.Author, movie.Jpg, movie.Size)
-			}
-		}
-
-		mt := movie.MovieType
-		if mt == "" {
-			mt = "无"
-		}
-		if v, ok := index.typeMenu[mt]; ok {
-			index.typeMenu[mt] = v.Plus(movie.Size)
-		} else {
-			index.typeMenu[mt] = consts.MenuSize{Name: mt, Cnt: 1, Size: movie.Size}
-		}
-		if v, ok := index.typeMenu["全部"]; ok {
-			index.typeMenu["全部"] = v.Plus(movie.Size)
-		} else {
-			index.typeMenu["全部"] = consts.MenuSize{Name: "全部", Cnt: 1, Size: movie.Size}
-		}
-
-		for i := range movie.Tags {
-			if v, ok := index.tagMenu[movie.Tags[i]]; ok {
-				index.tagMenu[movie.Tags[i]] = v.Plus(movie.Size)
-			} else {
-				index.tagMenu[movie.Tags[i]] = consts.MenuSize{Name: movie.Tags[i], Cnt: 1, Size: movie.Size, IsDir: true}
-			}
-		}
-
-		if len(movie.Studio) > 0 {
-			if v, ok := index.seriesCount[movie.Studio]; ok {
-				index.seriesCount[movie.Studio] = v.Plus(movie.Size)
-			} else {
-				index.seriesCount[movie.Studio] = consts.MenuSize{Name: movie.Studio, Cnt: 1, Size: movie.Size, IsDir: true}
-			}
-		}
+		addFileToIndex(index, movie)
 	}
 }
 

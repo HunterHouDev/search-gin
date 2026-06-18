@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"search-gin/internal/env"
 	"search-gin/internal/router"
 	"search-gin/internal/service"
 	"search-gin/pkg/consts"
@@ -31,6 +32,7 @@ func main() {
 	defer utils.RecoverPanic()
 
 	// ── 1. 初始化工作目录 ──
+	utils.SetLogLevel(env.IsProd)
 	workDir, err := os.Getwd()
 	if err != nil {
 		utils.InfoFormat("获取当前工作目录失败: %v，使用默认路径", err)

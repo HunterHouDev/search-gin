@@ -1,8 +1,7 @@
 package consts
 
 import (
-	"search-gin/internal/model"
-	"search-gin/pkg/utils"
+	"search-gin/pkg/types"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -22,7 +21,7 @@ func GetLastScanTime() time.Time {
 
 var QueryTypes []string
 
-var MovieFields = utils.InterfaceFields(model.FileItem{})
+var MovieFields []string
 
 var Types = []string{PNG, JPG, GIF, XLSX, TXT, MP4, WMV, MKV, AVI, JAVA, XML}
 var Images = []string{PNG, JPG, GIF}
@@ -127,7 +126,7 @@ func (sp *ScanProgress) AddScannedFiles(count int64) {
 	sp.mu.Unlock()
 }
 
-var TransferTask = map[time.Time]model.TransferTaskModel{}
+var TransferTask = map[time.Time]types.TransferTaskModel{}
 var TransferTaskMutex sync.RWMutex // 保护TransferTask的并发访问
 
 // PNG Base Dictory

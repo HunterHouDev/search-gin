@@ -1,7 +1,7 @@
 package consts
 
 import (
-	"search-gin/internal/model"
+	"search-gin/pkg/types"
 	"sync"
 	"time"
 
@@ -21,7 +21,7 @@ var (
 
 	adminPasswordHash string
 
-	OSSetting    = model.Setting{}
+	OSSetting    = types.Setting{}
 	settingMutex sync.RWMutex
 
 	TokenStore = make(map[string]TokenInfo)
@@ -135,7 +135,7 @@ func init() {
 		}
 	}()
 
-	OSSetting = model.Setting{
+	OSSetting = types.Setting{
 		IsDb:                 true,
 		IsJavBus:             false,
 		EnableTimeScan:       true,
@@ -167,31 +167,31 @@ func init() {
 }
 
 // GetOSSetting 获取系统配置（线程安全）
-func GetOSSetting() model.Setting {
+func GetOSSetting() types.Setting {
 	settingMutex.RLock()
 	defer settingMutex.RUnlock()
 	return OSSetting
 }
 
 // SetOSSetting 设置系统配置（线程安全）
-func SetOSSetting(setting model.Setting) {
+func SetOSSetting(setting types.Setting) {
 	settingMutex.Lock()
 	defer settingMutex.Unlock()
 	OSSetting = setting
 }
 
 // UpdateOSSetting 原子地读取-修改-写入系统配置
-func UpdateOSSetting(fn func(s model.Setting) model.Setting) {
+func UpdateOSSetting(fn func(s types.Setting) types.Setting) {
 	settingMutex.Lock()
 	defer settingMutex.Unlock()
 	OSSetting = fn(OSSetting)
 }
 
 // GetOSSettingUsers 获取用户列表（线程安全），避免拷贝整个 Setting 结构体
-func GetOSSettingUsers() []model.User {
+func GetOSSettingUsers() []types.User {
 	settingMutex.RLock()
 	defer settingMutex.RUnlock()
-	users := make([]model.User, len(OSSetting.Users))
+	users := make([]types.User, len(OSSetting.Users))
 	copy(users, OSSetting.Users)
 	return users
 }

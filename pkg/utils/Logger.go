@@ -4,12 +4,25 @@ import (
 	"io"
 	"os"
 	"runtime/debug"
-	"search-gin/internal/env"
 
 	"github.com/sirupsen/logrus"
 )
 
 var logger *logrus.Logger
+
+var isProd bool
+
+func SetLogLevel(prod bool) {
+	isProd = prod
+	if logger == nil {
+		return
+	}
+	if prod {
+		logger.SetLevel(logrus.ErrorLevel)
+	} else {
+		logger.SetLevel(logrus.InfoLevel)
+	}
+}
 
 // 日志文件大小上限：超 5MB 时保留尾部 3MB
 const logFileMaxSize = 5 * 1024 * 1024
@@ -98,7 +111,7 @@ func init() {
 			logrus.FieldKeyMsg:  "message",
 		},
 	})
-	if env.IsProd {
+	if isProd {
 		logger.SetLevel(logrus.ErrorLevel)
 	} else {
 		logger.SetLevel(logrus.InfoLevel)

@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"search-gin/internal/model"
@@ -281,7 +280,6 @@ func GetDeleteFileByPathUseEncode(c *gin.Context) {
 		return
 	}
 
-	// 验证路径是否在允许的目录内
 	validatedPath, err := utils.ValidatePath(decodedPath, consts.GetOSSetting().Dirs)
 	if err != nil {
 		utils.ErrorFormat("路径遍历攻击尝试: %s, 错误: %v", decodedPath, err)
@@ -294,37 +292,8 @@ func GetDeleteFileByPathUseEncode(c *gin.Context) {
 		return
 	}
 
-	// 先从索引中移除
-	id := utils.DirpathForId(validatedPath)
-	file := service.SearchEngine.FindById(id)
-	if !file.IsNull() {
-		service.SearchEngine.DeleteFile(file)
-		utils.InfoFormat("已从索引中删除: %s", file.Path)
-	}
-
-	// 删除物理文件
-	dir := filepath.Dir(validatedPath)
-	if err = os.Remove(validatedPath); err != nil {
-		utils.InfoFormat("删除文件失败: %s, 错误: %v", validatedPath, err)
-		c.JSON(http.StatusInternalServerError, utils.NewFailByMsg("删除失败"))
-		return
-	}
-
-	// 删除附属图片文件
-	for _, companion := range []string{file.Jpg, file.Png, file.Gif} {
-		if companion != "" && utils.ExistsFiles(companion) {
-			if e := os.Remove(companion); e != nil {
-				utils.InfoFormat("删除附属文件失败: %s, 错误: %v", companion, e)
-			}
-		}
-	}
-
-	// 清理空目录
-	if entries, e := os.ReadDir(dir); e == nil && len(entries) == 0 {
-		os.Remove(dir)
-	}
-
-	c.JSON(http.StatusOK, utils.NewSuccessByMsg("删除成功"))
+	res := service.DeleteFileByPath(validatedPath)
+	c.JSON(http.StatusOK, res)
 }
 
 // GetFile 获取文件流
@@ -370,105 +339,22 @@ func PostMerge(c *gin.Context) {
 	}
 	utils.InfoFormat("PostMerge： [%v]", searchParam)
 
-	var paths = []string{}
-	var dir = ""
-	for _, file := range searchParam.Files {
-		curFile := service.SearchEngine.FindById(file)
-		if curFile.IsNull() {
-			c.JSON(http.StatusBadRequest, utils.NewFailByMsg("文件不存在: "+file))
-			return
-		}
-		dir = curFile.DirPath
-		paths = append(paths, curFile.Path)
-	}
-
-	if len(paths) == 0 {
-		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("没有找到要合并的文件"))
-		return
-	}
-
-	listPath := dir + string(filepath.Separator) + "list.txt"
-	file, err := os.Create(listPath)
-	if err != nil {
-		utils.InfoFormat("创建文件 list.txt 时出错: %v", err)
-		c.JSON(http.StatusInternalServerError, utils.NewFailByMsg("创建合并列表文件失败"))
-		return
-	}
-	defer func() {
-		if closeErr := file.Close(); closeErr != nil {
-			utils.InfoFormat("关闭文件 list.txt 时出错: %v", closeErr)
-		}
-	}()
-
-	for _, filePath := range paths {
-		_, err := file.WriteString("file '" + filePath + "'\n")
-		if err != nil {
-			utils.InfoFormat("写入文件 list.txt 时出错: %v", err)
-			c.JSON(http.StatusInternalServerError, utils.NewFailByMsg("写入合并列表失败"))
-			return
-		}
-	}
-
-	if searchParam.Dest == "" {
-		suffix := utils.GetSuffix(paths[0])
-		searchParam.Dest = dir + string(filepath.Separator) + fmt.Sprintf("%d.%s", time.Now().UnixMilli(), suffix)
-	}
-
-	task := model.NewMergeTask(paths, searchParam.Dest, listPath, searchParam.DeleteSource)
-	task.SetStatus(model.StatusPending)
-	consts.TransferTaskMutex.Lock()
-	consts.TransferTask[task.CreateTime] = task
-	consts.TransferTaskMutex.Unlock()
-	c.JSON(http.StatusOK, utils.NewSuccessByMsg("任务创建成功"))
-
+	res := service.CreateMergeTask(searchParam.Files, searchParam.Dest, searchParam.DeleteSource)
+	c.JSON(http.StatusOK, res)
 }
 
 func GetTransferToMp4(c *gin.Context) {
 	id := c.Param("id")
 
-	// 远程转发
 	if service.HandleRemoteByID(c, id, "transferToMp4") {
 		return
 	}
 
-	to := "mp4"
 	xcode := c.Param("xcode")
-	utils.InfoFormat("GetTransferToMp4 newFile [%v][%v] ", id, to)
+	utils.InfoFormat("GetTransferToMp4 newFile [%v][%v] ", id, xcode)
 
-	movieFile := service.SearchEngine.FindById(id)
-	if !utils.ExistsFiles(movieFile.Path) {
-		c.JSON(http.StatusOK, utils.NewFailByMsg("文件不存在"))
-		return
-	}
-	from := utils.GetSuffix(movieFile.Path)
-	if to == "" {
-		to = "mp4"
-	}
-
-	exists := false
-	consts.TransferTaskMutex.RLock()
-	for _, taskModel := range consts.TransferTask {
-		if taskModel.Path == movieFile.Path && taskModel.Status != "执行失败" {
-			exists = true
-			break
-		}
-	}
-	consts.TransferTaskMutex.RUnlock()
-
-	if exists {
-		c.JSON(http.StatusOK, utils.NewFailByMsg("任务不可重复"))
-		return
-	} else {
-		task := model.NewTask(movieFile.Path, movieFile.Name, from, to)
-		task.SetStatus(model.StatusPending)
-		if xcode != "" {
-			task.VCode = xcode
-		}
-		consts.TransferTaskMutex.Lock()
-		consts.TransferTask[task.CreateTime] = task
-		consts.TransferTaskMutex.Unlock()
-		c.JSON(http.StatusOK, utils.NewSuccessByMsg("任务创建成功"))
-	}
+	res := service.CreateTransferTask(id, xcode)
+	c.JSON(http.StatusOK, res)
 }
 
 func GetCutImage(c *gin.Context) {
@@ -495,7 +381,6 @@ func GetCutImage(c *gin.Context) {
 func GetCutMovie(c *gin.Context) {
 	id := c.Param("id")
 
-	// 远程转发
 	if service.HandleRemoteByID(c, id, "cutMovie") {
 		return
 	}
@@ -504,19 +389,8 @@ func GetCutMovie(c *gin.Context) {
 	end := c.Param("end")
 	utils.InfoFormat("GetCutMovie [%v][%v][%v] ", id, start, end)
 
-	movieFile := service.SearchEngine.FindById(id)
-	if !utils.ExistsFiles(movieFile.Path) {
-		c.JSON(http.StatusOK, utils.NewFailByMsg("文件不存在"))
-		return
-	}
-	from := utils.GetSuffix(movieFile.Path)
-	task := model.NewCutTask(movieFile.Path, movieFile.Name, start, end, from)
-	task.SetStatus(model.StatusPending)
-	consts.TransferTaskMutex.Lock()
-	consts.TransferTask[task.CreateTime] = task
-	consts.TransferTaskMutex.Unlock()
-	c.JSON(http.StatusOK, utils.NewSuccessByMsg("任务创建成功"))
-
+	res := service.CreateCutTask(id, start, end)
+	c.JSON(http.StatusOK, res)
 }
 
 func GetTransferTask(c *gin.Context) {

@@ -8,12 +8,15 @@ import (
 	"path/filepath"
 
 	"search-gin/internal/env"
+	"search-gin/internal/model"
 	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 )
 
 // InitSetting 读取配置文件并初始化全局设置
 func InitSetting() {
+	consts.MovieFields = utils.InterfaceFields(model.FileItem{})
+
 	curDir, err := filepath.Abs(".")
 	if err != nil {
 		utils.ErrorFormat("获取当前目录失败: %v", err)
