@@ -114,6 +114,56 @@ bash ball_build.sh
 - ESLint：`@typescript-eslint/recommended` + `vue3-essential` + prettier
 - TypeScript 4.5+，target ES2020，moduleResolution: Node
 
+## 后端架构
+
+### 服务层（`internal/service/`）
+
+采用"空 struct + 方法"模式，全局单例在 `service.go` 注册：
+
+| 单例 | 类型 | 职责 |
+|------|------|------|
+| `SearchApp` | `searchService`（空 struct） | 文件操作 / 扫描 / 流媒体 / 目录清理 |
+| `SearchEngine` | `searchEngineCore` | 搜索引擎：索引加载、分页搜索、缓存、并发 searchPool |
+| `Downloader` | `downloader` | HTTP 下载 |
+| `VideoEncoder` | `videoEncoder` | 视频转码 / 缩略图截取 |
+| `scanQueue` | `taskQueue` | 扫描任务队列（容量 100 channel） |
+
+**核心文件说明：**
+
+| 文件 | 内容 |
+|------|------|
+| `service.go` | 全局单例 + `searchService` 类型定义（~400B） |
+| `search_executor.go` | `Page()`（导出）/ `pageAsync()`（内部）/ `tryCache()` / `doSearch()` / `collectResults()` / `returnRepeatSearch()` / `PageAuthor()` / `FindById()` |
+| `search_index_manager.go` | `searchEngineCore` struct 定义 + `loadIndex()` / `installIndex()` / `rebuildWithBucket` |
+| `index_builder.go` | 索引构建：`newInstanceWithFiles()` / `buildIndexFromBuckets()`（668行） |
+| `index_engine_bucket.go` | `bucketFile` — 单目录下的文件桶，支持 `searchBucket()` |
+| `index_engine_cache.go` | `cacheBucket` / `cacheData` — 缓存结构 |
+| `file_operations.go` | `SetMovieType` / `AddTag` / `ClearTag` / `Rename` / `Move` / `Delete` — receiver 为 `*searchService` |
+| `file_scanner.go` | `ScanAll` / `ScanTarget` / `Walk` / `WalkInner` |
+| `file_media_streamer.go` | `GetPng` / `GetJpg` / `GetFile` |
+| `file_video_processor.go` | `TransferFormatter` / `CutImage` / `MergeFiles` |
+| `file_downloader.go` | `DownJpgMakePng` / `DownJpgAsPng` |
+| `directory_cleaner.go` | `DeleteOne` / `DownDeleteDir` / `removeWalk()` |
+| `hw_accel.go` | `detectHwAccel` / `getH264Encoder` / `getH265Encoder` — receiver 为 `*videoEncoder` |
+| `task_scheduler.go` | `TaskExecuting()` / `HeartBeat()` + 扫描任务队列（`scanTask` / `taskQueue`） |
+| `init_service.go` | 初始化：`StartScanQueue()` 后启动扫描队列，`TaskExecuting()` 和 `HeartBeat()` 循环 |
+| `torrent_service.go` | BT 下载（独立 `TorrentService` struct） |
+
+### 搜索流程
+
+```
+handler: SearchEngine.Page(param)
+  → pageAsync(param)
+    → loadIndex()               // atomic.Value 读取当前索引
+    → OnlyRepeat? → returnRepeatSearch(snap)
+    → tryCache(param)           // LRU + epoch 校验
+    → doSearch(snap, param)     // 分发 bucket 并发搜索
+      → collectResults()        // channel 合并 + 超时处理
+      → SortFileItems()
+      → 写入缓存 (KeywordHistoryCache)
+      → GetPageOfFiles()
+```
+
 ## Go 约定
 
 - 2 空格缩进（`.editorconfig`），LF 换行
@@ -123,7 +173,9 @@ bash ball_build.sh
 - HTTP 错误响应使用 `utils.NewFailByMsg(msg)` 返回 JSON `{fail: true, msg: "..."}`，成功响应使用 `gin.H` 或 model 结构体
 - `pkg/utils/Os.go` 导出 `PathSeparator`——请使用此常量而非直接使用 `os.PathSeparator`
 - 文件存在判断：`utils.ExistsFiles(path)`（定义在 `OsFilepathUtils.go`）
-- 搜索结果缓存（`KeywordHistoryCache`）使用 epoch 机制：`cacheEpoch` 在每次 `installSnapshot` 时递增，缓存读写时校验 epoch，防止索引重建后返回过时结果（`search_executor.go:cachedResult`）
+- 搜索结果缓存（`KeywordHistoryCache`）使用 epoch 机制：`cacheEpoch` 在每次 `installIndex` 时递增，缓存读写时校验 epoch，防止索引重建后返回过时结果（`search_executor.go:cachedResult`）
+- 搜索入口：`SearchEngine.Page(param) utils.Page`（导出）；内部 `pageAsync()` 三步：`loadIndex` → `tryCache`/`OnlyRepeat` → `doSearch`
+- 文件操作用 `notifyFileChanged(oldFile, updated, action)` 统一更新索引 + SSE 通知
 
 ## CI（已废弃）
 

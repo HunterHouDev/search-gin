@@ -75,19 +75,26 @@ search-gin/
 │   ├── handler/         # HTTP 处理器（文件、搜索、设置、种子、WS 等）
 │   ├── model/           # 数据模型（FileItem、搜索参数、任务模型）
 │   ├── router/          # 路由注册（API 路由 + 文件流路由）
-│   ├── service/         # 业务逻辑
-│   │   ├── index_builder.go        # 索引构建（全量/增量/替换/删除）
-│   │   ├── search_executor.go      # 异步分页搜索
-│   │   ├── file_operations.go      # 文件操作（重命名、移动、标签、类型）
-│   │   ├── file_scanner.go         # 文件系统扫描
-│   │   ├── lan_discovery.go        # 集群节点管理（HTTP 信令 + 反向心跳）
-│   │   ├── remote_search.go        # 跨节点搜索 + 合并去重
-│   │   ├── remote_operation.go     # 跨节点文件操作转发
-│   │   ├── torrent_service.go      # 磁力链/BT 下载管理
-│   │   ├── media_streamer.go       # 图片/视频流服务
-│   │   ├── video_processor.go      # FFmpeg 转码、剪切、截图
-│   │   ├── snapshot_manager.go     # 快照生命周期、原子切换
-│   │   └── index_engine_cache.go   # 快照磁盘缓存（gob 序列化）
+│   ├── service/         # 业务逻辑（空 struct + 方法 + 全局单例）
+│   │   ├── service.go               # 全局单例注册（SearchApp, SearchEngine, Downloader, VideoEncoder）
+│   │   ├── index_builder.go         # 索引构建（全量/增量/替换/删除）
+│   │   ├── search_executor.go       # Page() 搜索入口 / pageAsync() 引擎搜索 / tryCache()
+│   │   ├── search_snapshot_manager.go # searchEngineCore struct + loadIndex() / installIndex()
+│   │   ├── index_engine_bucket.go   # bucketFile 文件桶 + searchBucket()
+│   │   ├── index_engine_cache.go    # 快照磁盘缓存（gob 序列化）
+│   │   ├── file_operations.go       # SetMovieType / AddTag / Rename / Move / Delete
+│   │   ├── file_scanner.go          # ScanAll / Walk / WalkInner
+│   │   ├── file_media_streamer.go   # GetPng / GetJpg / GetFile（图片视频流）
+│   │   ├── file_video_processor.go  # TransferFormatter / CutImage / MergeFiles
+│   │   ├── file_downloader.go       # DownJpgMakePng / DownJpgAsPng
+│   │   ├── directory_cleaner.go     # DeleteOne / DownDeleteDir / removeWalk
+│   │   ├── hw_accel.go              # 硬件加速检测 / 编码器选择
+│   │   ├── task_scheduler.go        # TaskExecuting / HeartBeat + 扫描任务队列
+│   │   ├── init_service.go          # 初始化启动（扫描队列/心跳/任务调度）
+│   │   ├── lan_discovery.go         # 集群节点管理（HTTP 信令 + 反向心跳）
+│   │   ├── remote_search.go         # 跨节点搜索 + 合并去重
+│   │   ├── remote_operation.go      # 跨节点文件操作转发
+│   │   └── torrent_service.go       # 磁力链/BT 下载管理
 │   ├── ws/              # WebSocket Hub（聊天/视频会议信令）
 │   └── env/             # 环境配置（prod/dev build tag）
 ├── pkg/
@@ -180,7 +187,7 @@ func DirpathForId(path string) string {
 ┌──────────────────────────────────────────────────────────┐
 │                     searchEngineCore                     │
 │  ┌────────────────────────────────────────────────────┐  │
-│  │  snapshot (atomic.Value) → *searchSnapshot        │  │
+│  │  index (atomic.Value) → *searchIndex             │  │
 │  │  ┌─────────┐ ┌─────────┐ ┌─────────┐              │  │
 │  │  │bucket   │ │bucket   │ │bucket   │  ...          │  │
 │  │  │ dir A   │ │ dir B   │ │ dir C   │              │  │
@@ -206,53 +213,50 @@ func DirpathForId(path string) string {
 
 每个 bucket 有自有的 `RWMutex`，写入时只锁单个 bucket，不影响其他 bucket 并发读。
 
-#### 2. searchSnapshot — 只读快照
+#### 2. searchIndex — 只读索引
 
-`searchSnapshot` 是一个不可变结构体，包含：
+`searchIndex` 是一个不可变结构体，包含：
 
 - **buckets**：所有 bucket 的引用（非拷贝，pointer 共享）
 - **预聚合数据**：`actorMap`、`typeMenu`、`tagMenu`、`seriesCount`、`repeatFiles`
 - **统计**：`totalSize`、`totalCount`、`bucketCount`
 
-预聚合数据在快照构建时一次性算好，搜索时零计算开销。
+预聚合数据在索引构建时一次性算好，搜索时零计算开销。
 
 #### 3. searchEngineCore — 引擎门面
 
-核心使用 `atomic.Value` 存储当前快照指针：
+核心使用 `atomic.Value` 存储当前索引指针：
 
 ```go
 type searchEngineCore struct {
-    snapshot            atomic.Value    // *searchSnapshot
+    index               atomic.Value    // *searchIndex
     KeywordHistoryCache *utils.LRUCache // 搜索结果 LRU 缓存
     searchPool          *utils.GoroutinePool
     rebuildMu           sync.Mutex      // 防止并发重建
-    cacheEpoch          atomic.Int64    // 缓存失效纪元（installSnapshot 时递增，读写时校验）
+    cacheEpoch          atomic.Int64    // 缓存失效纪元（installIndex 时递增，读写时校验）
 }
 ```
 
 ### 搜索流程
 
 ```
-PageAsync(keyword, type, page)
-  │
-  ├─ LRU 缓存命中？
-  │   ├─ epoch 匹配？ → 直接分页返回
-  │   └─ epoch 过期？ → 删除缓存，继续搜索
-  │
-  ├─ 加载快照 (atomic.Value.Load → 无锁)
-  │
-  ├─ 遍历 buckets → 每个 bucket 提交到 goroutine 池
-  │     │
-  │     ├─ searchBucket():
-  │     │   ├─ 空关键词 + 类型筛选 → 走 TypeIndex 倒排
-  │     │   └─ 有关键词 → 遍历 FileLib + strings.Contains
-  │     │       (关键词空格分隔，AND 匹配)
-  │     │
-  │     └─ 结果 → resultChan
-  │
-  ├─ 汇集结果 → 排序 → 分页
-  │
-  └─ 写入 LRU 缓存 → 返回
+Page(keyword, type, page)        ← handler 调用的 API 入口
+  └─ pageAsync(param)            ← 内部引擎方法
+       │
+       ├─ loadIndex()            ← atomic.Value.Load（无锁）
+       ├─ OnlyRepeat？ → returnRepeatSearch(index)
+       ├─ tryCache(param)        ← LRU + epoch 校验
+       │     └─ 命中 & epoch 匹配 → 直接分页返回
+       │
+       └─ doSearch(index, param)
+             ├─ 遍历 buckets → 提交 goroutine 池
+             │     ├─ searchBucket():
+             │     │   ├─ 空关键词 + 类型筛选 → TypeIndex 倒排
+             │     │   └─ 有关键词 → strings.Contains (AND 匹配)
+             │     └─ 结果 → resultChan
+             ├─ collectResults() ← channel 合并 + 超时处理
+             ├─ 排序 → 写入 LRU 缓存 → 分页返回
+             └─ GetPageOfFiles()
 ```
 
 ### 索引构建流程（影子索引）
@@ -266,10 +270,10 @@ ScanAll()
   ├─ buildSnapshotFromBuckets()
   │   ├─ 复制 bucket 指针
   │   ├─ 遍历所有文件 → 聚合演员/类型/标签/系列/重复检测
-  │   └─ 返回完整 searchSnapshot
+  │   └─ 返回完整 searchIndex
   │
-  └─ installSnapshot()
-      ├─ snapshot.Store(newSnap)    ← 原子切换
+  └─ installIndex()
+      ├─ index.Store(newSnap)       ← 原子切换
       ├─ 清空 LRU 缓存
       ├─ cacheEpoch.Add(1)          ← 递增纪元，旧缓存自动失效
       ├─ 清空演员缓存
@@ -281,18 +285,18 @@ ScanAll()
 2. 复制除目标目录外的所有 bucket 引用
 3. 放入新 bucket
 4. 在新集合上运行 `buildSnapshotFromBuckets`
-5. `installSnapshot` 原子替换
+5. `installIndex` 原子替换
 
 ### 快照磁盘缓存（填补启动空窗期）
 
-`installSnapshot` 每次执行时异步将当前快照序列化（`encoding/gob`）写入工作目录的 `search_cache.gob`：
+`installIndex` 每次执行时异步将当前索引序列化（`encoding/gob`）写入工作目录的 `search_cache.gob`：
 
 ```
-installSnapshot(newSnap)
-  ├─ snapshot.Store(newSnap)
+installIndex(newSnap)
+  ├─ index.Store(newSnap)
   ├─ 同步菜单到 consts.**
   ├─ 清空 LRU 缓存
-  └─ saveSnapshotToCache(newSnap)    ← 异步 goroutine
+  └─ saveIndexToCache(newSnap)         ← 异步 goroutine
        ├─ 遍历 buckets，持有 RLock 复制数据
        ├─ gob.Encode → .tmp 文件
        └─ os.Rename → search_cache.gob   ← 原子替换，防碎裂
@@ -303,8 +307,8 @@ installSnapshot(newSnap)
 ```
 main()
   ├─ WorkDir = getwd()
-  ├─ LoadCachedSnapshot()                ← 加载磁盘缓存
-  │     └─ installSnapshot(loaded)       ← 用户立刻可搜
+  ├─ LoadCachedIndex()                    ← 加载磁盘缓存
+  │     └─ installIndex(loaded)           ← 用户立刻可搜
   ├─ InitSetting()
   ├─ StartScanQueue() / ScanAll()        ← 后台扫描, 完成后原子替换
   └─ server.ListenAndServe()
@@ -314,7 +318,7 @@ main()
 
 | 决策 | 理由 |
 |------|------|
-| 每次 `installSnapshot` 都保存 | 保证缓存与内存状态一致，无不一致窗口 |
+| 每次 `installIndex` 都保存 | 保证缓存与内存状态一致，无不一致窗口 |
 | 空快照跳过（`len(buckets)==0`） | 防止 `Reset()` 清空磁盘缓存 |
 | 异步写入 goroutine | 不阻塞搜索/扫描路径 |
 | `encoding/gob` 而非 JSON | 二进制紧凑、支持 Go 原生类型、无需 tag |
@@ -325,8 +329,8 @@ main()
 
 | 场景 | 机制 | 级别 |
 |------|------|------|
-| 搜索读 | `atomic.Value.Load` | **完全无锁** |
-| 索引重建写 | `rebuildMu` + 影子快照 | 写时排他，读不受影响 |
+| 搜索读 | `atomic.Value.Load` (`loadIndex()`) | **完全无锁** |
+| 索引重建写 | `rebuildMu` + 影子索引 | 写时排他，读不受影响 |
 | Bucket 内部写入 | `bucketFile.mu` (RWMutex) | 细粒度，不影响其他 bucket |
 | 全局菜单同步 | `sync.Map` | 原子读写 |
 | LRU 缓存 | `sync.RWMutex` + epoch 校验 | 高并发读优化，索引更新后自动失效 |
@@ -357,7 +361,7 @@ main()
 | searchEngineCore | 6 | 生命周期/查找/重置 |
 | searchBucket | 5 | 关键词/多词/类型过滤/无匹配 |
 | rebuildWithBucket | 2 | 替换/保留其他 |
-| PageAsync | 4 | 跨 bucket/分页/空引擎/重复搜索 |
+| pageAsync | 4 | 跨 bucket/分页/空引擎/重复搜索 |
 
 ```bash
 go test ./internal/service/ -run "Test" -v
