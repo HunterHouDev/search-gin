@@ -15,7 +15,7 @@ var (
 	TaskCtx, TaskCancel = context.WithCancel(context.Background())
 )
 
-var FullScanInProgress atomic.Int32
+var FullScanInProgress atomic.Bool
 
 // HeartBeat 心跳定时扫描
 func (fs *searchService) HeartBeat() {
@@ -145,7 +145,7 @@ func (q *taskQueue) executeTask(task *scanTask) {
 	}
 
 	// 全量扫描互斥检查
-	if FullScanInProgress.Load() != 0 {
+	if FullScanInProgress.Load() {
 		consts.LogMem.Add("全量扫描中，跳过队列任务: %s", task.baseDir)
 		return
 	}
@@ -155,12 +155,6 @@ func (q *taskQueue) executeTask(task *scanTask) {
 	defer atomic.AddInt32(&consts.IndexNumber, -1)
 
 	consts.LogMem.Add("开始扫描文件夹: %s", task.baseDir)
-
-	// 统计初始化
-	consts.TypeMenu.Clear()
-	consts.SeriesCount.Clear()
-	consts.TagMenu.Clear()
-	consts.ClearSmallDir()
 
 	setting := consts.GetOSSetting()
 	queryTypes := make([]string, 0)
@@ -172,8 +166,6 @@ func (q *taskQueue) executeTask(task *scanTask) {
 	files, _ := SearchApp.WalkInner(task.baseDir, queryTypes, true, task.baseDir)
 	newBucket := newInstanceWithFiles(task.baseDir, files)
 	SearchEngine.rebuildWithBucketIncremental(task.baseDir, newBucket)
-
-	clear(queryTypes)
 
 	q.mutex.Lock()
 	delete(q.tasks, task.baseDir)

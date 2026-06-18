@@ -20,7 +20,7 @@ func InitSetting() {
 		curDir = "."
 	}
 	osSetting := consts.GetOSSetting()
-	settingPath := curDir + utils.PathSeparator + osSetting.SelfPath
+	settingPath := filepath.Join(curDir, osSetting.SelfPath)
 	dict := ReadDictionaryFromJson(settingPath)
 	dict.SelfPath = osSetting.SelfPath
 	if dict.ControllerHost == "" {
@@ -77,12 +77,12 @@ func StartScanQueue() {
 // StartPprof 开发环境下启动 pprof 调试接口
 func StartPprof() {
 	if env.IsProd {
-		log.Println("生产环境已禁用 pprof 调试接口")
+		utils.InfoFormat("生产环境已禁用 pprof 调试接口")
 		return
 	}
 	go func() {
 		defer utils.RecoverPanic()
-		log.Println("pprof 调试接口启动在 localhost:6060")
+		utils.InfoFormat("pprof 调试接口启动在 localhost:6060")
 		log.Println(http.ListenAndServe("localhost:6060", nil))
 	}()
 }
@@ -108,7 +108,7 @@ func StartTorrentCleanup(workDir string) func() {
 	}
 
 	if err := NewTorrentService(torrentDir); err != nil {
-		utils.InfoFormat("Torrent 服务启动失败: %v", err)
+		utils.ErrorFormat("Torrent 服务启动失败: %v", err)
 		return func() {}
 	}
 

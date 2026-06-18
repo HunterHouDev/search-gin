@@ -137,7 +137,15 @@ loop:
 			w.SearchSize += data.Size
 		case <-ctx.Done():
 			consts.LogMem.Add("搜索超时，部分结果可能未返回")
-			se.searchPool.Wait()
+			drainDone := make(chan struct{})
+			go func() {
+				se.searchPool.Wait()
+				close(drainDone)
+			}()
+			select {
+			case <-drainDone:
+			case <-time.After(5 * time.Second):
+			}
 			for data := range ch {
 				w.FileList = append(w.FileList, data.FileList...)
 				w.SearchCount += len(data.FileList)
@@ -170,25 +178,31 @@ func (se *searchEngineCore) PageAuthor(searchParam model.SearchParam) model.Page
 	if searchParam.Keyword == "" {
 		switch searchParam.SortField {
 		case "Size":
-			if se.actorSizeCache != nil {
-				return buildAuthorResult(se.actorSizeCache, searchParam)
+			se.authorCacheMu.RLock()
+			cache := se.authorSizeCache
+			se.authorCacheMu.RUnlock()
+			if cache != nil {
+				return buildAuthorResult(cache, searchParam)
 			}
 		case "Cnt":
-			if se.actorCountCache != nil {
-				return buildAuthorResult(se.actorCountCache, searchParam)
+			se.authorCacheMu.RLock()
+			cache := se.authorCountCache
+			se.authorCacheMu.RUnlock()
+			if cache != nil {
+				return buildAuthorResult(cache, searchParam)
 			}
 		}
 	}
 
 	var result []model.Author
 	if searchParam.Keyword == "" {
-		result = make([]model.Author, 0, len(index.actorMap))
-		for _, author := range index.actorMap {
+		result = make([]model.Author, 0, len(index.authorMap))
+		for _, author := range index.authorMap {
 			result = append(result, author)
 		}
 	} else {
 		result = make([]model.Author, 0)
-		for _, author := range index.actorMap {
+		for _, author := range index.authorMap {
 			if strings.Contains(author.Name, searchParam.Keyword) {
 				result = append(result, author)
 			}
@@ -199,12 +213,16 @@ func (se *searchEngineCore) PageAuthor(searchParam model.SearchParam) model.Page
 	case "Size":
 		sort.Slice(result, func(i, j int) bool { return result[i].Size > result[j].Size })
 		if searchParam.Keyword == "" {
-			se.actorSizeCache = result
+			se.authorCacheMu.Lock()
+			se.authorSizeCache = result
+			se.authorCacheMu.Unlock()
 		}
 	case "Cnt":
 		sort.Slice(result, func(i, j int) bool { return result[i].Cnt > result[j].Cnt })
 		if searchParam.Keyword == "" {
-			se.actorCountCache = result
+			se.authorCacheMu.Lock()
+			se.authorCountCache = result
+			se.authorCacheMu.Unlock()
 		}
 	}
 
@@ -241,7 +259,7 @@ func (se *searchEngineCore) FindById(id string) model.FileItem {
 // FindAuthorByName 按名称查找作者
 func (se *searchEngineCore) FindAuthorByName(name string) model.Author {
 	index := se.loadIndex()
-	if a, ok := index.actorMap[name]; ok {
+	if a, ok := index.authorMap[name]; ok {
 		return a
 	}
 	return model.Author{}
@@ -249,5 +267,5 @@ func (se *searchEngineCore) FindAuthorByName(name string) model.Author {
 
 // GetAuthorCount 获取作者总数
 func (se *searchEngineCore) GetAuthorCount() int {
-	return len(se.loadIndex().actorMap)
+	return len(se.loadIndex().authorMap)
 }

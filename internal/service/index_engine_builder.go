@@ -118,7 +118,7 @@ func (se *searchEngineCore) rebuildWithBucketIncremental(baseDir string, newBuck
 		bucketCount: int32(len(newBuckets)),
 		totalSize:   old.totalSize,
 		totalCount:  old.totalCount,
-		actorMap:    cloneActorMap(old.actorMap),
+		authorMap:    cloneActorMap(old.authorMap),
 		typeMenu:    cloneMenuMap(old.typeMenu),
 		tagMenu:     cloneMenuMap(old.tagMenu),
 		seriesCount: cloneMenuMap(old.seriesCount),
@@ -145,7 +145,7 @@ func (se *searchEngineCore) rebuildWithBucketIncremental(baseDir string, newBuck
 func buildIndexFromBuckets(buckets map[string]*bucketFile) *searchIndex {
 	index := &searchIndex{
 		buckets:     make(map[string]*bucketFile, len(buckets)),
-		actorMap:    make(map[string]model.Author),
+		authorMap:    make(map[string]model.Author),
 		typeMenu:    make(map[string]consts.MenuSize),
 		tagMenu:     make(map[string]consts.MenuSize),
 		seriesCount: make(map[string]consts.MenuSize),
@@ -172,14 +172,14 @@ func buildIndexFromBuckets(buckets map[string]*bucketFile) *searchIndex {
 		for _, movie := range bucket.FileLib {
 			// 作者聚合
 			if len(movie.Author) > 0 {
-				if cur, ok := index.actorMap[movie.Author]; ok {
+				if cur, ok := index.authorMap[movie.Author]; ok {
 					cur.PlusCnt()
 					cur.PlusSize(movie.Size)
 					cur.AddImage(movie.Png)
 					cur.AddImage(movie.Jpg)
-					index.actorMap[movie.Author] = cur
+					index.authorMap[movie.Author] = cur
 				} else {
-					index.actorMap[movie.Author] = model.NewAuthor(movie.Author, movie.Jpg, movie.Size)
+					index.authorMap[movie.Author] = model.NewAuthor(movie.Author, movie.Jpg, movie.Size)
 				}
 			}
 
@@ -294,13 +294,13 @@ func subtractBucketFromIndex(index *searchIndex, bucket *bucketFile) {
 
 		// 作者
 		if len(movie.Author) > 0 {
-			if cur, ok := index.actorMap[movie.Author]; ok {
+			if cur, ok := index.authorMap[movie.Author]; ok {
 				cur.MinusCnt()
 				cur.MinusSize(movie.Size)
 				if cur.Cnt <= 0 {
-					delete(index.actorMap, movie.Author)
+					delete(index.authorMap, movie.Author)
 				} else {
-					index.actorMap[movie.Author] = cur
+					index.authorMap[movie.Author] = cur
 				}
 			}
 		}
@@ -363,14 +363,14 @@ func addBucketToIndex(index *searchIndex, bucket *bucketFile) {
 		index.totalSize += movie.Size
 
 		if len(movie.Author) > 0 {
-			if cur, ok := index.actorMap[movie.Author]; ok {
+			if cur, ok := index.authorMap[movie.Author]; ok {
 				cur.PlusCnt()
 				cur.PlusSize(movie.Size)
 				cur.AddImage(movie.Png)
 				cur.AddImage(movie.Jpg)
-				index.actorMap[movie.Author] = cur
+				index.authorMap[movie.Author] = cur
 			} else {
-				index.actorMap[movie.Author] = model.NewAuthor(movie.Author, movie.Jpg, movie.Size)
+				index.authorMap[movie.Author] = model.NewAuthor(movie.Author, movie.Jpg, movie.Size)
 			}
 		}
 
@@ -467,13 +467,13 @@ func subtractFileFromIndex(index *searchIndex, movie model.FileItem) {
 	index.totalSize -= movie.Size
 
 	if len(movie.Author) > 0 {
-		if cur, ok := index.actorMap[movie.Author]; ok {
+		if cur, ok := index.authorMap[movie.Author]; ok {
 			cur.MinusCnt()
 			cur.MinusSize(movie.Size)
 			if cur.Cnt <= 0 {
-				delete(index.actorMap, movie.Author)
+				delete(index.authorMap, movie.Author)
 			} else {
-				index.actorMap[movie.Author] = cur
+				index.authorMap[movie.Author] = cur
 			}
 		}
 	}
@@ -527,14 +527,14 @@ func addFileToIndex(index *searchIndex, movie model.FileItem) {
 	index.totalSize += movie.Size
 
 	if len(movie.Author) > 0 {
-		if cur, ok := index.actorMap[movie.Author]; ok {
+		if cur, ok := index.authorMap[movie.Author]; ok {
 			cur.PlusCnt()
 			cur.PlusSize(movie.Size)
 			cur.AddImage(movie.Png)
 			cur.AddImage(movie.Jpg)
-			index.actorMap[movie.Author] = cur
+			index.authorMap[movie.Author] = cur
 		} else {
-			index.actorMap[movie.Author] = model.NewAuthor(movie.Author, movie.Jpg, movie.Size)
+			index.authorMap[movie.Author] = model.NewAuthor(movie.Author, movie.Jpg, movie.Size)
 		}
 	}
 
@@ -616,6 +616,8 @@ func (se *searchEngineCore) DeleteFile(file model.FileItem) {
 
 	se.KeywordHistoryCache.Clear()
 	se.cacheEpoch.Add(1)
-	se.actorSizeCache = nil
-	se.actorCountCache = nil
+	se.authorCacheMu.Lock()
+	se.authorSizeCache = nil
+	se.authorCountCache = nil
+	se.authorCacheMu.Unlock()
 }

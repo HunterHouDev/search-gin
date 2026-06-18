@@ -25,11 +25,11 @@ func (s *searchService) ScanAll() int {
 	dirList := make([]string, dirCount)
 	copy(dirList, setting.Dirs)
 	consts.LogMem.Add("Plan to ScanAll dirTotal: %d, dirList: %v", dirCount, dirList)
-	if !FullScanInProgress.CompareAndSwap(0, 1) {
+	if !FullScanInProgress.CompareAndSwap(false, true) {
 		consts.LogMem.Add("全量扫描正在进行中")
 		return dirCount
 	}
-	defer FullScanInProgress.Store(0)
+	defer FullScanInProgress.Store(false)
 
 	// 初始化扫描进度
 	consts.Sp.Init(dirCount)

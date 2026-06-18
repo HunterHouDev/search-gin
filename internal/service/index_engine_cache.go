@@ -25,7 +25,7 @@ type cacheBucket struct {
 type cacheData struct {
 	Buckets     []cacheBucket
 	RepeatFiles []model.FileItem
-	ActorMap    map[string]model.Author
+	AuthorMap    map[string]model.Author
 	TypeMenu    map[string]consts.MenuSize
 	TagMenu     map[string]consts.MenuSize
 	SeriesCount map[string]consts.MenuSize
@@ -47,7 +47,7 @@ func saveIndexToCache(index *searchIndex) {
 	// 转换为可序列化的 cacheData
 	data := cacheData{
 		RepeatFiles: index.repeatFiles,
-		ActorMap:    index.actorMap,
+		AuthorMap:    index.authorMap,
 		TypeMenu:    index.typeMenu,
 		TagMenu:     index.tagMenu,
 		SeriesCount: index.seriesCount,
@@ -142,7 +142,7 @@ func (se *searchEngineCore) LoadCachedIndex() bool {
 		totalSize:   totalSize,
 		totalCount:  totalCount,
 		repeatFiles: data.RepeatFiles,
-		actorMap:    data.ActorMap,
+		authorMap:    data.AuthorMap,
 		typeMenu:    data.TypeMenu,
 		tagMenu:     data.TagMenu,
 		seriesCount: data.SeriesCount,

@@ -6,6 +6,7 @@ import (
 	"search-gin/internal/model"
 	"search-gin/internal/sse"
 	"search-gin/pkg/utils"
+	"slices"
 	"strings"
 )
 
@@ -21,7 +22,7 @@ func (fo *searchService) SetMovieType(movie model.FileItem, movieType string) ut
 			return res
 		}
 
-		newFilePath := filepath.Join(filepath.Dir(movie.Path), strings.ReplaceAll(filepath.Base(movie.Path), originVideoType, movieType))
+		newFilePath := filepath.Join(filepath.Dir(movie.Path), strings.Replace(filepath.Base(movie.Path), originVideoType, movieType, 1))
 		newName := strings.TrimSuffix(newFilePath, "."+utils.GetSuffix(movie.Path))
 
 		updated, err := movie.RenameAll(newFilePath, newName)
@@ -33,7 +34,7 @@ func (fo *searchService) SetMovieType(movie model.FileItem, movieType string) ut
 
 	suffix := "." + utils.GetSuffix(movie.Path)
 	newSuffix := newMovieType + suffix
-	newFilePath := strings.ReplaceAll(movie.Path, suffix, newSuffix)
+	newFilePath := strings.Replace(movie.Path, suffix, newSuffix, 1)
 	newName := strings.TrimSuffix(newFilePath, suffix)
 
 	updated, err := movie.RenameAll(newFilePath, newName)
@@ -50,15 +51,17 @@ func (fo *searchService) AddTag(id string, tag string) utils.Result {
 
 	if len(movie.Tags) > 0 {
 		originTagStr := utils.GetTagStr(movie.Path)
-		if originTagStr == tag || strings.Contains(originTagStr, tag) {
-			res := utils.NewSuccessByMsg("已添加")
-			res.Data = movie
-			return res
+		for _, t := range movie.Tags {
+			if t == tag {
+				res := utils.NewSuccessByMsg("已添加")
+				res.Data = movie
+				return res
+			}
 		}
 
 		newTagStr := originTagStr
 		for _, str := range newTags {
-			if !strings.Contains(originTagStr, str) {
+			if !slices.Contains(movie.Tags, str) {
 				newTagStr += "," + str
 			}
 		}
@@ -101,7 +104,14 @@ func (fo *searchService) ClearTag(id string, tag string) utils.Result {
 		newTagStr = ""
 	}
 	newTagStr = strings.TrimSuffix(newTagStr, ",")
-	path := strings.ReplaceAll(movie.Path, "《"+originTagStr+"》", "《"+newTagStr+"》")
+	newTagStr = strings.TrimPrefix(newTagStr, ",")
+	var path string
+	if newTagStr == "" {
+		suffix := "." + utils.GetSuffix(movie.Path)
+		path = strings.ReplaceAll(movie.Path, "《"+originTagStr+"》"+suffix, suffix)
+	} else {
+		path = strings.ReplaceAll(movie.Path, "《"+originTagStr+"》", "《"+newTagStr+"》")
+	}
 
 	newName := strings.TrimSuffix(path, "."+movie.FileType)
 	updated, err := movie.RenameAll(path, newName)
@@ -153,7 +163,7 @@ func (fo *searchService) Rename(movie model.FileEdit) utils.Result {
 			}
 			newDir += " " + cleanPath(newTitleStart)
 		}
-		if err := os.MkdirAll(newDir, os.ModePerm); err != nil {
+		if err := os.MkdirAll(newDir, 0755); err != nil {
 			res.FailByMsg("执行失败")
 			res.Data = err
 			return res
@@ -205,7 +215,7 @@ func (fo *searchService) Move(id string, newDir string, title string) utils.Resu
 		return res
 	}
 	if !utils.ExistsFiles(newDir) {
-		os.MkdirAll(newDir, os.ModePerm)
+		os.MkdirAll(newDir, 0755)
 	}
 	newPath := newDir + utils.PathSeparator + title + "." + movieLib.FileType
 	newBaseName := newDir + utils.PathSeparator + title
@@ -221,6 +231,9 @@ func (fo *searchService) Move(id string, newDir string, title string) utils.Resu
 // Delete 删除文件
 func (fo *searchService) Delete(id string) {
 	file := SearchEngine.FindById(id)
+	if file.IsNull() {
+		return
+	}
 	SearchApp.DeleteOne(file.DirPath, file.Title)
 	sse.BroadcastEvent("file_changed", map[string]interface{}{
 		"action": "delete",

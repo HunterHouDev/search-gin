@@ -198,22 +198,23 @@ func (f FileItem) RenameAll(newMainPath, newBaseName string) (FileItem, error) {
 		newPaths[3] = newBaseName + "." + utils.GetSuffix(f.Gif)
 	}
 
-	successCount := 0
+	successIndices := make([]int, 0, 4)
 	for i := range originalPaths {
 		if originalPaths[i] == "" || !utils.ExistsFiles(originalPaths[i]) {
 			continue
 		}
 		if err := os.Rename(originalPaths[i], newPaths[i]); err != nil {
 			utils.InfoFormat("rename failed: %v", err)
-			// 回滚已成功的操作
-			for j := 0; j < successCount; j++ {
-				if originalPaths[j] != "" && utils.ExistsFiles(newPaths[j]) {
-					os.Rename(newPaths[j], originalPaths[j])
+			for _, j := range successIndices {
+				if utils.ExistsFiles(newPaths[j]) {
+					if rerr := os.Rename(newPaths[j], originalPaths[j]); rerr != nil {
+						utils.InfoFormat("rollback rename failed: %v", rerr)
+					}
 				}
 			}
 			return FileItem{}, err
 		}
-		successCount++
+		successIndices = append(successIndices, i)
 	}
 
 	// 构建改名后的新 FileItem，Id 保持不变

@@ -23,7 +23,7 @@ type searchIndex struct {
 	totalSize   int64
 	totalCount  int
 	repeatFiles []model.FileItem
-	actorMap    map[string]model.Author
+	authorMap    map[string]model.Author
 
 	// 预聚合的菜单数据（写入 consts.* 前暂存）
 	typeMenu    map[string]consts.MenuSize
@@ -38,8 +38,9 @@ type searchEngineCore struct {
 	searchPool          *utils.GoroutinePool
 	rebuildMu           sync.Mutex     // 防止并发 rebuildWithBucket
 	cacheEpoch          atomic.Int64   // 缓存失效纪元，递增触发 cache 清空
-	actorSizeCache      []model.Author // PageAuthor 空关键词缓存（按Size排序）
-	actorCountCache     []model.Author // PageAuthor 空关键词缓存（按Cnt排序）
+	authorCacheMu       sync.RWMutex   // 保护 authorSizeCache/authorCountCache
+	authorSizeCache     []model.Author // PageAuthor 空关键词缓存（按Size排序）
+	authorCountCache    []model.Author // PageAuthor 空关键词缓存（按Cnt排序）
 }
 
 // loadIndex 线程安全地获取当前快照
@@ -47,16 +48,21 @@ func (se *searchEngineCore) loadIndex() *searchIndex {
 	s := se.index.Load()
 	if s == nil {
 		return &searchIndex{
-			buckets:  make(map[string]*bucketFile),
-			actorMap: make(map[string]model.Author),
+			buckets:     make(map[string]*bucketFile),
+			authorMap:   make(map[string]model.Author),
+			typeMenu:    make(map[string]consts.MenuSize),
+			tagMenu:     make(map[string]consts.MenuSize),
+			seriesCount: make(map[string]consts.MenuSize),
 		}
 	}
 	index, ok := s.(*searchIndex)
 	if !ok {
-		// 类型不匹配，返回空快照
 		return &searchIndex{
-			buckets:  make(map[string]*bucketFile),
-			actorMap: make(map[string]model.Author),
+			buckets:     make(map[string]*bucketFile),
+			authorMap:   make(map[string]model.Author),
+			typeMenu:    make(map[string]consts.MenuSize),
+			tagMenu:     make(map[string]consts.MenuSize),
+			seriesCount: make(map[string]consts.MenuSize),
 		}
 	}
 	return index
@@ -68,8 +74,8 @@ func (se *searchEngineCore) installIndex(index *searchIndex) {
 	saveIndexToCache(index)
 }
 
-// installIndexInPlace 原子替换索引（跳过磁盘缓存持久化，单文件操作用）
-func (se *searchEngineCore) installIndexInPlace(index *searchIndex) {
+// installIndexNoCache 原子替换索引（跳过磁盘缓存持久化，单文件操作用）
+func (se *searchEngineCore) installIndexNoCache(index *searchIndex) {
 	se.syncIndex(index)
 }
 
@@ -78,21 +84,26 @@ func (se *searchEngineCore) syncIndex(index *searchIndex) {
 	se.index.Store(index)
 	se.KeywordHistoryCache.Clear()
 	se.cacheEpoch.Add(1)
-	se.actorSizeCache = nil
-	se.actorCountCache = nil
+	se.authorCacheMu.Lock()
+	se.authorSizeCache = nil
+	se.authorCountCache = nil
+	se.authorCacheMu.Unlock()
 
-	consts.TypeMenu.Clear()
+	newTypeMenu := &sync.Map{}
 	for k, v := range index.typeMenu {
-		consts.TypeMenu.Store(k, v)
+		newTypeMenu.Store(k, v)
 	}
-	consts.TagMenu.Clear()
+	newTagMenu := &sync.Map{}
 	for k, v := range index.tagMenu {
-		consts.TagMenu.Store(k, v)
+		newTagMenu.Store(k, v)
 	}
-	consts.SeriesCount.Clear()
+	newSeriesCount := &sync.Map{}
 	for k, v := range index.seriesCount {
-		consts.SeriesCount.Store(k, v)
+		newSeriesCount.Store(k, v)
 	}
+	consts.TypeMenu = *newTypeMenu
+	consts.TagMenu = *newTagMenu
+	consts.SeriesCount = *newSeriesCount
 	consts.LastScanTime = time.Now()
 }
 

@@ -14,7 +14,7 @@ import (
 type IndexHealth struct {
 	BucketCount      int32               `json:"bucketCount"`
 	IndexNumber      int32               `json:"indexNumber"`
-	FullScanInProgress int32             `json:"fullScanInProgress"`
+	FullScanInProgress bool               `json:"fullScanInProgress"`
 	ExpectedDirs    int                 `json:"expectedDirs"`
 	TotalCount      int                 `json:"totalCount"`
 	TotalSize       int64               `json:"totalSize"`
@@ -54,7 +54,7 @@ func GetIndexHealthCheck(c *gin.Context) {
 	recommendations := []string{}
 
 	// 根据 FullScanInProgress 原子锁状态补充判断（比 ScanProgress.Phase 更实时）
-	if health.FullScanInProgress != 0 {
+	if health.FullScanInProgress {
 		health.Status = "scanning"
 		if health.ScanProgress.Phase == "scanning" {
 			recommendations = append(recommendations,
