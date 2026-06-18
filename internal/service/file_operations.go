@@ -45,7 +45,7 @@ func (fo *searchService) SetMovieType(movie model.FileItem, movieType string) ut
 
 // AddTag 添加标签
 func (fo *searchService) AddTag(id string, tag string) utils.Result {
-	movie := SearchApp.FindOne(id)
+	movie := SearchEngine.FindById(id)
 	newTags := strings.Split(tag, ",")
 
 	if len(movie.Tags) > 0 {
@@ -88,7 +88,7 @@ func (fo *searchService) AddTag(id string, tag string) utils.Result {
 
 // ClearTag 清除标签
 func (fo *searchService) ClearTag(id string, tag string) utils.Result {
-	movie := SearchApp.FindOne(id)
+	movie := SearchEngine.FindById(id)
 	if len(movie.Tags) == 0 {
 		res := utils.NewSuccessByMsg("执行成功")
 		res.Data = movie
@@ -114,7 +114,7 @@ func (fo *searchService) ClearTag(id string, tag string) utils.Result {
 // Rename 重命名文件
 func (fo *searchService) Rename(movie model.FileEdit) utils.Result {
 	res := utils.NewSuccess()
-	movieLib := SearchApp.FindOne(movie.Id)
+	movieLib := SearchEngine.FindById(movie.Id)
 	if movieLib.IsNull() {
 		res.FailByMsg("数据不存在")
 		return res
@@ -194,7 +194,7 @@ func (fo *searchService) Rename(movie model.FileEdit) utils.Result {
 // Move 移动文件到新目录
 func (fo *searchService) Move(id string, newDir string, title string) utils.Result {
 	res := utils.NewSuccess()
-	movieLib := SearchApp.FindOne(id)
+	movieLib := SearchEngine.FindById(id)
 	if movieLib.IsNull() {
 		res.FailByMsg("数据不存在")
 		return res
@@ -220,7 +220,7 @@ func (fo *searchService) Move(id string, newDir string, title string) utils.Resu
 
 // Delete 删除文件
 func (fo *searchService) Delete(id string) {
-	file := SearchApp.FindOne(id)
+	file := SearchEngine.FindById(id)
 	SearchApp.DeleteOne(file.DirPath, file.Title)
 	sse.BroadcastEvent("file_changed", map[string]interface{}{
 		"action": "delete",

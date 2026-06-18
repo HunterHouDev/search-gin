@@ -50,13 +50,13 @@ func HandleRemote(c *gin.Context, movie model.FileItem, action string) bool {
 
 // HandleRemoteByID 根据 id 查找 Movie，若远程则转发
 func HandleRemoteByID(c *gin.Context, id string, action string) bool {
-	movie := SearchApp.FindOne(id)
+	movie := SearchEngine.FindById(id)
 	return HandleRemote(c, movie, action)
 }
 
 // HandleRemoteByMovieEdit 从 MovieEdit 提取 id 查找 Movie，若远程则转发
 func HandleRemoteByMovieEdit(c *gin.Context, edit model.FileEdit, action string) bool {
-	movie := SearchApp.FindOne(edit.Id)
+	movie := SearchEngine.FindById(edit.Id)
 	return HandleRemote(c, movie, action)
 }
 

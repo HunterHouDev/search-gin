@@ -13,7 +13,7 @@ import (
 // GetOpenFolder 本地打开文件夹
 func GetOpenFolder(c *gin.Context) {
  id := c.Param("id")
- file := service.SearchApp.FindOne(id)
+ file := service.SearchEngine.FindById(id)
 
  // 检查文件是否存在
  if file.IsNull() {

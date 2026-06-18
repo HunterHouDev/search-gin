@@ -29,7 +29,7 @@ func init() {
 // GetPng 获取PNG图片
 func (sm *searchService) GetPng(c *gin.Context) {
 	id := c.Param("path")
-	file := SearchApp.FindOne(id)
+	file := SearchEngine.FindById(id)
 	if !file.IsNull() {
 		if utils.ExistsFiles(file.Png) {
 			c.File(file.Png)
@@ -48,7 +48,7 @@ func (sm *searchService) GetPng(c *gin.Context) {
 // GetJpg 获取JPG图片
 func (sm *searchService) GetJpg(c *gin.Context) {
 	id := c.Param("path")
-	file := SearchApp.FindOne(id)
+	file := SearchEngine.FindById(id)
 	if !file.IsNull() {
 		// 按优先级检查图片文件
 		jpeg := utils.ConcatSuffix(file.Path, "jpeg")
@@ -72,7 +72,7 @@ func (sm *searchService) GetJpg(c *gin.Context) {
 // GetFile 获取文件
 func (sm *searchService) GetFile(c *gin.Context) {
 	id := c.Param("id")
-	file := SearchApp.FindOne(id)
+	file := SearchEngine.FindById(id)
 	if utils.ExistsFiles(file.Path) {
 		c.File(file.Path)
 	} else {

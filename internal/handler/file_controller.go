@@ -22,7 +22,7 @@ import (
 // GetPlay 本地打开文件
 func GetPlay(c *gin.Context) {
 	id := c.Param("id")
-	file := service.SearchApp.FindOne(id)
+	file := service.SearchEngine.FindById(id)
 	if file.IsNull() {
 		c.JSON(http.StatusNotFound, utils.NewFailByMsg("文件不存在"))
 		return
@@ -81,7 +81,7 @@ func GetPlay(c *gin.Context) {
 func SetMovieType(c *gin.Context) {
 	id := c.Param("id")
 	movieType := c.Param("movieType")
-	file := service.SearchApp.FindOne(id)
+	file := service.SearchEngine.FindById(id)
 	res := service.SearchApp.SetMovieType(file, movieType)
 	c.JSON(http.StatusOK, res)
 }
@@ -95,7 +95,7 @@ func GetInfo(c *gin.Context) {
 		return
 	}
 
-	file := service.SearchApp.FindOne(id)
+	file := service.SearchEngine.FindById(id)
 	c.JSON(http.StatusOK, file)
 }
 
@@ -164,7 +164,7 @@ func GetAddTag(c *gin.Context) {
 	tag := c.Param("tag")
 
 	// 先在本地查询是否存在
-	file := service.SearchApp.FindOne(id)
+	file := service.SearchEngine.FindById(id)
 	if file.IsNull() {
 		if service.HandleRemote(c, file, "addTag") {
 			return
@@ -184,7 +184,7 @@ func GetClearTag(c *gin.Context) {
 	tag := c.Param("tag")
 
 	// 先在本地查询是否存在
-	file := service.SearchApp.FindOne(id)
+	file := service.SearchEngine.FindById(id)
 	if file.IsNull() {
 		if service.HandleRemote(c, file, "clearTag") {
 			return
@@ -201,7 +201,7 @@ func GetClearTag(c *gin.Context) {
 func GetDirInfo(c *gin.Context) {
 	id := c.Param("id")
 	sort := c.Param("sort")
-	file := service.SearchApp.FindOne(id)
+	file := service.SearchEngine.FindById(id)
 	files := service.SearchApp.Walk(file.DirPath, consts.Images, false)
 	model.SortFileItems(files, "MTime", sort)
 	c.JSON(http.StatusOK, files)
@@ -212,7 +212,7 @@ func GetDelete(c *gin.Context) {
 	id := c.Param("id")
 
 	// 先在本地查询是否存在
-	file := service.SearchApp.FindOne(id)
+	file := service.SearchEngine.FindById(id)
 	if file.IsNull() {
 		// 本地不存在 → 转发到远端节点
 		if service.HandleRemote(c, file, "delete") {
@@ -290,7 +290,7 @@ func GetDeleteFileByPathUseEncode(c *gin.Context) {
 
 	// 先从索引中移除
 	id := utils.DirpathForId(validatedPath)
-	file := service.SearchApp.FindOne(id)
+	file := service.SearchEngine.FindById(id)
 	if !file.IsNull() {
 		service.SearchEngine.DeleteFile(file)
 		utils.InfoFormat("已从索引中删除: %s", file.Path)
@@ -365,7 +365,7 @@ func PostMerge(c *gin.Context) {
 	var paths = []string{}
 	var dir = ""
 	for _, file := range searchParam.Files {
-		curFile := service.SearchApp.FindOne(file)
+		curFile := service.SearchEngine.FindById(file)
 		dir = curFile.DirPath
 		paths = append(paths, curFile.Path)
 	}
@@ -423,7 +423,7 @@ func GetTransferToMp4(c *gin.Context) {
 	xcode := c.Param("xcode")
 	utils.InfoFormat("GetTransferToMp4 newFile [%v][%v] ", id, to)
 
-	movieFile := service.SearchApp.FindOne(id)
+	movieFile := service.SearchEngine.FindById(id)
 	if !utils.ExistsFiles(movieFile.Path) {
 		c.JSON(http.StatusOK, utils.NewFailByMsg("文件不存在"))
 		return
@@ -469,7 +469,7 @@ func GetCutImage(c *gin.Context) {
 		return
 	}
 
-	movieFile := service.SearchApp.FindOne(idInt)
+	movieFile := service.SearchEngine.FindById(idInt)
 	if movieFile.IsNull() {
 		r := utils.Fail()
 		r.Message = "文件不存在"
@@ -492,7 +492,7 @@ func GetCutMovie(c *gin.Context) {
 	end := c.Param("end")
 	utils.InfoFormat("GetCutMovie [%v][%v][%v] ", id, start, end)
 
-	movieFile := service.SearchApp.FindOne(id)
+	movieFile := service.SearchEngine.FindById(id)
 	if !utils.ExistsFiles(movieFile.Path) {
 		c.JSON(http.StatusOK, utils.NewFailByMsg("文件不存在"))
 		return

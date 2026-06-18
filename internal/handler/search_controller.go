@@ -35,8 +35,7 @@ func PostMovies(c *gin.Context) {
 	}
 
 	if isRemote {
-		// 远程转发：只返回本地结果，不递归搜索其他节点
-		result := service.SearchApp.SearchDataSource(searchParam)
+		result := toPageResult(service.SearchEngine.PageAsync(searchParam), searchParam.Page)
 		movies, ok := result.Data.([]model.FileItem)
 		if ok {
 			service.FillURLs(c, movies)
@@ -49,7 +48,6 @@ func PostMovies(c *gin.Context) {
 
 	// 前端请求
 	if searchParam.SearchNode != "" {
-		// 搜索指定远程节点
 		peer := service.GetPeer(searchParam.SearchNode)
 		if peer == nil {
 			c.JSON(http.StatusBadRequest, utils.NewFailByMsg("节点不存在"))
@@ -65,7 +63,7 @@ func PostMovies(c *gin.Context) {
 	}
 
 	// 搜索本机
-	result := service.SearchApp.SearchDataSource(searchParam)
+	result := toPageResult(service.SearchEngine.PageAsync(searchParam), searchParam.Page)
 	movies, ok := result.Data.([]model.FileItem)
 	if ok {
 		service.FillURLs(c, movies)
@@ -132,4 +130,20 @@ func PostAuthor(c *gin.Context) {
 
 	// 返回HTTP 200状态码和搜索结果
 	c.JSON(http.StatusOK, result)
+}
+
+// toPageResult 将搜索引擎的 PageResultWrapper 转换为 API 响应 Page
+func toPageResult(sr model.PageResultWrapper, pageNo int) utils.Page {
+	result := utils.NewPage()
+	result.TotalCnt = sr.SearchCount
+	result.TotalSize = utils.GetSizeStr(sr.SearchSize)
+	result.ResultSize = utils.GetSizeStr(sr.SearchSize)
+	result.SetResultCnt(sr.SearchCount, pageNo)
+	result.CurSize = utils.GetSizeStr(sr.ResultSize)
+	result.CurCnt = sr.ResultCount
+	for i := range sr.FileList {
+		sr.FileList[i].PageNo = pageNo
+	}
+	result.Data = sr.FileList
+	return result
 }
