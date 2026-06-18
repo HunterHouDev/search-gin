@@ -1,13 +1,9 @@
 <template>
   <div class="setting-page">
     <!-- 顶部 Tab -->
-    <q-tabs
-      v-model="mainTab"
-      class="main-tabs bg-black text-white"
-      align="justify"
+    <q-tabs v-model="mainTab" class="main-tabs bg-black text-white" align="justify"
       :active-color="systemProperty.theme === 'natural' ? 'green' : 'white'"
-      :indicator-color="systemProperty.theme === 'natural' ? 'green' : 'white'"
-    >
+      :indicator-color="systemProperty.theme === 'natural' ? 'green' : 'white'">
       <q-tab name="search" label="搜索设置" />
       <q-tab name="network" label="网络配置" />
       <q-tab name="dict" label="数据管理" />
@@ -17,31 +13,16 @@
       <!-- 左侧分类导航 -->
       <div class="setting-sidebar">
         <div class="sidebar-tree">
-          <div
-            v-for="group in currentNavGroups"
-            :key="group.name"
-            class="tree-group"
-          >
-            <div
-              class="tree-group-header"
-              @click="toggleGroup(group.name)"
-            >
-              <q-icon
-                :name="expandedGroups[group.name] ? 'expand_more' : 'chevron_right'"
-                size="16px"
-                class="tree-arrow"
-              />
+          <div v-for="group in currentNavGroups" :key="group.name" class="tree-group">
+            <div class="tree-group-header" @click="toggleGroup(group.name)">
+              <q-icon :name="expandedGroups[group.name] ? 'expand_more' : 'chevron_right'" size="16px"
+                class="tree-arrow" />
               <span class="group-label">{{ group.label }}</span>
             </div>
             <transition name="expand">
               <div v-show="expandedGroups[group.name]" class="tree-group-items">
-                <div
-                  v-for="item in group.items"
-                  :key="item.id"
-                  class="tree-item"
-                  :class="{ active: activeSection === item.id }"
-                  @click="scrollToSection(item.id)"
-                >
+                <div v-for="item in group.items" :key="item.id" class="tree-item"
+                  :class="{ active: activeSection === item.id }" @click="scrollToSection(item.id)">
                   <span class="item-label">{{ item.label }}</span>
                 </div>
               </div>
@@ -74,12 +55,8 @@
                 <div class="item-hint">选择要扫描的文件夹</div>
               </div>
               <div class="item-control">
-                <MutiSelector
-                  v-bind:model-value="view.settingInfo.Dirs"
-                  :options="view.settingInfo.DirsLib"
-                  :style="{ width: '80%',marginTop:'40px' }"
-                  @onchange="(arr) => (view.settingInfo.Dirs = arr)"
-                />
+                <MutiSelector v-bind:model-value="view.settingInfo.Dirs" :options="view.settingInfo.DirsLib"
+                 :style="{ maxWidth: '80%' }" @onchange="(arr) => (view.settingInfo.Dirs = arr)" />
               </div>
             </div>
 
@@ -89,12 +66,9 @@
                 <div class="item-hint">支持的视频文件扩展名</div>
               </div>
               <div class="item-control ">
-                <MutiSelector
-                  v-bind:model-value="view.settingInfo.VideoTypes"
-                  :style="{ width: '80%',marginTop:'40px' }"
-                  :options="view.settingInfo.Types"
-                  @onchange="(arr) => (view.settingInfo.VideoTypes = arr)"
-                />
+                <MutiSelector v-bind:model-value="view.settingInfo.VideoTypes"
+                  :style="{ maxWidth: '80%' }" :options="view.settingInfo.Types"
+                  @onchange="(arr) => (view.settingInfo.VideoTypes = arr)" />
               </div>
             </div>
 
@@ -104,12 +78,9 @@
                 <div class="item-hint">支持的图片文件扩展名</div>
               </div>
               <div class="item-control ">
-                <MutiSelector
-                  v-bind:model-value="view.settingInfo.ImageTypes"
-                  :options="view.settingInfo.Types"
-                  :style="{ width: '80%',marginTop:'40px' }"
-                  @onchange="(arr) => (view.settingInfo.ImageTypes = arr)"
-                />
+                <MutiSelector v-bind:model-value="view.settingInfo.ImageTypes" :options="view.settingInfo.Types"
+                  :style="{ maxWidth: '80%' }"
+                  @onchange="(arr) => (view.settingInfo.ImageTypes = arr)" />
               </div>
             </div>
 
@@ -119,12 +90,9 @@
                 <div class="item-hint">支持的文档文件扩展名</div>
               </div>
               <div class="item-control ">
-                <MutiSelector
-                  v-bind:model-value="view.settingInfo.DocsTypes"
-                  :options="view.settingInfo.Types"
-                  :style="{ width: '80%',marginTop:'40px' }"
-                  @onchange="(arr) => (view.settingInfo.DocsTypes = arr)"
-                />
+                <MutiSelector v-bind:model-value="view.settingInfo.DocsTypes" :options="view.settingInfo.Types"
+                  :style="{ maxWidth: '80%' }"
+                  @onchange="(arr) => (view.settingInfo.DocsTypes = arr)" />
               </div>
             </div>
           </section>
@@ -139,18 +107,10 @@
                 <div class="item-hint">选择视频播放方式</div>
               </div>
               <div class="item-control">
-                <q-select
-                  v-model="view.settingInfo.SystemPlayer"
-                  :options="[
-                    { label: 'ffplay (内置)', value: 'ffplay' },
-                    { label: 'system (系统默认)', value: 'system' }
-                  ]"
-                  emit-value
-                  map-options
-                  dense
-                  outlined
-                  class="select-control"
-                />
+                <q-select v-model="view.settingInfo.SystemPlayer" :options="[
+                  { label: 'ffplay (内置)', value: 'ffplay' },
+                  { label: 'system (系统默认)', value: 'system' }
+                ]" emit-value map-options dense outlined class="select-control" />
               </div>
             </div>
 
@@ -160,15 +120,8 @@
                 <div class="item-hint">系统播放器默认音量 (0-100)</div>
               </div>
               <div class="item-control">
-                <q-input
-                  v-model="view.settingInfo.SystemPlayerVolumn"
-                  type="number"
-                  :min="0"
-                  :max="100"
-                  dense
-                  outlined
-                  class="number-input"
-                />
+                <q-input v-model="view.settingInfo.SystemPlayerVolumn" type="number" :min="0" :max="100" dense outlined
+                  class="number-input" />
               </div>
             </div>
 
@@ -178,13 +131,8 @@
                 <div class="item-hint">系统播放器窗口宽度 (像素)</div>
               </div>
               <div class="item-control">
-                <q-input
-                  v-model="view.settingInfo.SystemPlayerWidth"
-                  type="number"
-                  dense
-                  outlined
-                  class="number-input"
-                />
+                <q-input v-model="view.settingInfo.SystemPlayerWidth" type="number" dense outlined
+                  class="number-input" />
               </div>
             </div>
 
@@ -232,12 +180,8 @@
                 <div class="item-hint">选择要启用的标签分类</div>
               </div>
               <div class="item-control ">
-                <MutiSelector
-                  v-bind:model-value="view.settingInfo.Tags"
-                  :options="view.settingInfo.TagsLib"
-                  :style="{ width: '80%',marginTop:'40px' }"
-                  @onchange="(arr) => (view.settingInfo.Tags = arr)"
-                />
+                <MutiSelector v-bind:model-value="view.settingInfo.Tags" :options="view.settingInfo.TagsLib"
+                  :style="{ maxWidth: '80%' }" @onchange="(arr) => (view.settingInfo.Tags = arr)" />
               </div>
             </div>
           </section>
@@ -252,11 +196,8 @@
                 <div class="item-hint">可选的文件类型列表</div>
               </div>
               <div class="item-control ">
-                <MutiInput
-                  v-model="view.settingInfo.Types"
-                  :style="{ width: '80%',marginTop:'40px' }"
-                  @onchange="(arr) => (view.settingInfo.Types = arr)"
-                />
+                <MutiInput v-model="view.settingInfo.Types" :style="{ maxWidth: '80%' }"
+                  @onchange="(arr) => (view.settingInfo.Types = arr)" />
               </div>
             </div>
 
@@ -266,11 +207,8 @@
                 <div class="item-hint">可选的目录列表</div>
               </div>
               <div class="item-control ">
-                <MutiInput
-                  v-model="view.settingInfo.DirsLib"
-                  :style="{ width: '80%',marginTop:'40px' }"
-                  @onchange="(arr) => (view.settingInfo.DirsLib = arr)"
-                />
+                <MutiInput v-model="view.settingInfo.DirsLib" :style="{ maxWidth: '80%' }"
+                  @onchange="(arr) => (view.settingInfo.DirsLib = arr)" />
               </div>
             </div>
 
@@ -280,25 +218,18 @@
                 <div class="item-hint">可选的标签列表</div>
               </div>
               <div class="item-control ">
-                <MutiInput
-                  v-model="view.settingInfo.TagsLib"
-                  :style="{ width: '80%',marginTop:'40px' }"
-                  @onchange="(arr) => (view.settingInfo.TagsLib = arr)"
-                />
+                <MutiInput v-model="view.settingInfo.TagsLib" :style="{ maxWidth: '80%' }"
+                  @onchange="(arr) => (view.settingInfo.TagsLib = arr)" />
               </div>
             </div>
 
             <div class="setting-item">
               <div class="item-info">
                 <div class="item-label">页面配置</div>
-                <div class="item-hint">分页显示的配置项</div>
+                <div class="item-hint">分页配置项</div>
               </div>
               <div class="item-control ">
-                <MutiInput
-                  v-model="view.settingInfo.Pages"
-                  :style="{ width: '80%',marginTop:'40px' }"
-                  @onchange="(arr) => (view.settingInfo.Pages = arr)"
-                />
+                <MutiInput v-model="view.settingInfo.Pages" @onchange="(arr) => (view.settingInfo.Pages = arr)" />
               </div>
             </div>
           </section>
@@ -315,13 +246,8 @@
                 <div class="item-hint">API 服务监听端口</div>
               </div>
               <div class="item-control">
-                <q-input
-                  v-model="view.settingInfo.ControllerHost"
-                  dense
-                  outlined
-                  class="port-input"
-                  placeholder=":10081"
-                />
+                <q-input v-model="view.settingInfo.ControllerHost" dense outlined class="port-input"
+                  placeholder=":10081" />
               </div>
             </div>
 
@@ -331,13 +257,7 @@
                 <div class="item-hint">文件服务监听端口</div>
               </div>
               <div class="item-control">
-                <q-input
-                  v-model="view.settingInfo.FileHost"
-                  dense
-                  outlined
-                  class="port-input"
-                  placeholder=":10082"
-                />
+                <q-input v-model="view.settingInfo.FileHost" dense outlined class="port-input" placeholder=":10082" />
               </div>
             </div>
 
@@ -347,12 +267,7 @@
                 <div class="item-hint">外部访问的基础 URL</div>
               </div>
               <div class="item-control">
-                <q-input
-                  v-model="view.settingInfo.BaseUrl"
-                  dense
-                  outlined
-                  class="url-input"
-                />
+                <q-input v-model="view.settingInfo.BaseUrl" dense outlined class="url-input" />
               </div>
             </div>
 
@@ -362,12 +277,7 @@
                 <div class="item-hint">图片资源的基础 URL</div>
               </div>
               <div class="item-control">
-                <q-input
-                  v-model="view.settingInfo.ImageUrl"
-                  dense
-                  outlined
-                  class="url-input"
-                />
+                <q-input v-model="view.settingInfo.ImageUrl" dense outlined class="url-input" />
               </div>
             </div>
 
@@ -377,14 +287,7 @@
                 <div class="item-hint">关于网络配置的备注信息</div>
               </div>
               <div class="item-control textarea">
-                <q-input
-                  v-model="view.settingInfo.Remark"
-                  type="textarea"
-                  autogrow
-                  :rows="3"
-                  dense
-                  outlined
-                />
+                <q-input v-model="view.settingInfo.Remark" type="textarea" autogrow :rows="3" dense outlined />
               </div>
             </div>
           </section>
@@ -392,14 +295,8 @@
 
         <!-- 底部提交按钮 -->
         <div class="submit-bar">
-          <q-btn
-            :color="systemProperty.theme === 'star' ? 'black' : 'primary'"
-            glossy
-            rounded
-            align="evenly"
-            class="submit-btn"
-            @click="submitForm"
-          >
+          <q-btn :color="systemProperty.theme === 'star' ? 'black' : 'primary'" glossy rounded align="evenly"
+            class="submit-btn" @click="submitForm">
             <q-icon name="save" class="q-mr-sm" />
             保存设置
           </q-btn>
@@ -742,9 +639,9 @@ onMounted(() => {
 
 .setting-content {
   flex: 1;
-  overflow-y: auto;
   scroll-behavior: smooth;
   margin-bottom: 60px;
+  overflow-y: auto;
 }
 
 .setting-section {
@@ -808,8 +705,12 @@ onMounted(() => {
 
 .item-control {
   flex-shrink: 0;
-  margin-left: 24px;
+  margin-right: 5%;
   min-height: 40px;
+  max-width: 80vw;
+  display: flex;
+  height: auto;
+  justify-content: flex-end;
 }
 
 .textarea {
