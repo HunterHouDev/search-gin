@@ -45,16 +45,6 @@ var (
 
 const defaultPeerTimeout = 90 * time.Second
 
-// InitPeerManager 初始化节点管理器，从配置加载静态节点
-func InitPeerManager() {
-	defaultManager = &peerManager{
-		peers: make(map[string]*Peer),
-	}
-	initNodeInfo()
-	loadStaticPeers()
-	utils.InfoFormat("节点管理器已初始化，本机: %s (%s)", LocalNodeHost, LocalNodeName)
-}
-
 // IsClusterEnabled 集群模式是否启用
 // nil（未配置）→ 默认启用；*false → 禁用；*true → 启用
 func IsClusterEnabled() bool {

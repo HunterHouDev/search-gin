@@ -79,7 +79,7 @@ search-gin/
 │   │   ├── service.go               # 全局单例注册（SearchApp, SearchEngine, Downloader, VideoEncoder）
 │   │   ├── index_builder.go         # 索引构建（全量/增量/替换/删除）
 │   │   ├── search_executor.go       # Page() 搜索入口 / pageAsync() 引擎搜索 / tryCache()
-│   │   ├── search_snapshot_manager.go # searchEngineCore struct + loadIndex() / installIndex()
+│   │   ├── search_index_manager.go # searchEngineCore struct + loadIndex() / installIndex()
 │   │   ├── index_engine_bucket.go   # bucketFile 文件桶 + searchBucket()
 │   │   ├── index_engine_cache.go    # 快照磁盘缓存（gob 序列化）
 │   │   ├── file_operations.go       # SetMovieType / AddTag / Rename / Move / Delete

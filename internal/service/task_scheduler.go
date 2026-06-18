@@ -120,11 +120,6 @@ var scanQueue = &taskQueue{
 	taskChan: make(chan *scanTask, 100),
 }
 
-// StartScanQueue 启动扫描任务队列处理器（由 main.go 在初始化完成后显式调用）
-func StartScanQueue() {
-	go scanQueue.processTasks()
-}
-
 // processTasks 处理任务队列
 func (q *taskQueue) processTasks() {
 	defer utils.RecoverPanic()

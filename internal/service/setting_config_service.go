@@ -4,43 +4,10 @@ import (
 	"encoding/json"
 
 	"os"
-	"path/filepath"
-	"search-gin/pkg/consts"
 	"search-gin/internal/model"
+	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 )
-
-// InitSetting 读取配置文件并初始化全局设置
-func InitSetting() {
-	curDir, err := filepath.Abs(".")
-	if err != nil {
-		utils.ErrorFormat("获取当前目录失败: %v", err)
-		curDir = "."
-	}
-	osSetting := consts.GetOSSetting()
-	settingPath := curDir + utils.PathSeparator + osSetting.SelfPath
-	dict := ReadDictionaryFromJson(settingPath)
-	dict.SelfPath = osSetting.SelfPath
-	if dict.ControllerHost == "" {
-		dict.ControllerHost = consts.PortNo
-	}
-	if dict.FileHost == "" {
-		dict.FileHost = osSetting.FileHost
-	}
-
-	// 多节点配置默认值
-	if dict.EnableLanDiscovery == nil {
-	 dict.EnableLanDiscovery = newBool(true) // 默认启用
-	}
-
-	// 如果启用硬件加速，主动检测并同步模式名称
-	if dict.HardwareAcceleration {
-		VideoEncoder.detectHwAccel()
-		dict.HardwareAccelMode = GetHwAccelModeName()
-	}
-
-	consts.SetOSSetting(dict)
-}
 
 // FlushDictionary 将当前设置持久化到配置文件
 func FlushDictionary(path string) {

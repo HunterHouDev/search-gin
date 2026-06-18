@@ -42,21 +42,6 @@ type searchEngineCore struct {
 	actorCountCache     []model.Author // PageAuthor 空关键词缓存（按Cnt排序）
 }
 
-// InitSearchPool 初始化 goroutine 池，根据配置的目录数量动态调整
-// 必须在 consts.GetOSSetting() 和 SearchEngine 初始化之后调用
-func InitSearchPool() {
-	dirCount := len(consts.GetOSSetting().Dirs)
-	poolSize := dirCount
-	if poolSize < 4 {
-		poolSize = 4
-	}
-	if poolSize > 50 {
-		poolSize = 50
-	}
-	SearchEngine.searchPool = utils.NewGoroutinePool(poolSize)
-	SearchEngine.KeywordHistoryCache = utils.NewLRUCache(10)
-}
-
 // loadIndex 线程安全地获取当前快照
 func (se *searchEngineCore) loadIndex() *searchIndex {
 	s := se.index.Load()
