@@ -66,6 +66,12 @@ func (s *searchService) ScanAll() int {
 	sse.BroadcastEvent("scan_complete", map[string]interface{}{
 		"dirCount": dirCount,
 	})
+	sse.BroadcastEvent("index_health", map[string]interface{}{
+		"bucketCount":  bucketCount,
+		"indexNumber":  indexNumber,
+		"totalCount":   SearchEngine.GetTotalCount(),
+		"lastScanTime": consts.GetLastScanTime(),
+	})
 
 	return dirCount
 }

@@ -39,7 +39,19 @@ func Login(c *gin.Context) {
 
 func requireAdmin(c *gin.Context) bool {
 	role, _ := c.Get("role")
-	if r, ok := role.(string); !ok || !service.RequireAdmin(r) {
+	username, _ := c.Get("username")
+	r, _ := role.(string)
+	u, _ := username.(string)
+	utils.InfoFormat("requireAdmin 检查: role=%q(username=%q), RequireAdminWithName=%v", r, u, service.RequireAdminWithName(r, u))
+
+	// 兼容旧 token：中间件未设 role/username 时放行（已通过认证即合法）
+	if r == "" && u == "" {
+		utils.InfoFormat("requireAdmin: 旧 token 兼容放行")
+		return true
+	}
+
+	if !service.RequireAdminWithName(r, u) {
+		utils.InfoFormat("requireAdmin 拒绝: 中间件设置的 role=%v, username=%v", c.Keys)
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("无权限执行此操作"))
 		return false
 	}

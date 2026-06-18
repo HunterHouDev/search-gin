@@ -16,7 +16,7 @@
   --theme: 'star';
   
   // Brand / Primary Colors
-  --q-primary: #eeeeee;
+  --q-primary: #E2E8F0;
   --q-primary-light: #334155;
   --q-primary-lighter: #475569;
   --q-primary-dark: #0F172A;
@@ -70,19 +70,19 @@
 :root.theme-natural {
   --theme: 'natural';
   
-  // Brand — same navy base, unchanged in light mode
-  --q-primary: #1E293B;
-  --q-primary-light: #334155;
-  --q-primary-lighter: #475569;
-  --q-primary-dark: #0F172A;
+  // Brand — 深蓝
+  --q-primary: #1E3A5F;
+  --q-primary-light: #2D5A8E;
+  --q-primary-lighter: #3B82C4;
+  --q-primary-dark: #0F2440;
 
   // Surface — 画布精确还原
   --q-bg-page: #FFFFFF;
   --q-bg-dark: #FFFFFF;
   --q-bg-darker: #F8F9FB;
-  --q-bg-card: #F6F7F9;
-  --q-bg-input: #FFFFFF;
-  --q-bg-hover: #EDEEF2;
+  --q-bg-card: #F8F9FB;
+  --q-bg-input: #EFF1F4;
+  --q-bg-hover: #E5E7EB;
   --q-bg-panel: rgba(246, 247, 249, 0.92);
 
   // 微渐变背景 (纯 CSS)
@@ -98,11 +98,11 @@
   --q-border-light: #E2E8F0;
   --q-border-hover: #94A3B8;
 
-  // Status
-  --q-success: #22C55E;
+  // Status — 绿色系
+  --q-success: #16A34A;
   --q-warning: #F59E0B;
   --q-danger: #EF4444;
-  --q-info: #475569;
+  --q-info: #1E3A5F;
 
   // Shadows — Minimalism: no shadows
   --q-shadow: none;

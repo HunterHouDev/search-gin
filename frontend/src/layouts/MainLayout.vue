@@ -134,14 +134,14 @@ const view = reactive({
 // 动态 header 样式 — Design System
 const headerStyle = computed(() => {
   return systemProperty.theme === 'natural'
-    ? 'background: #F6F7F9 !important; color: #1A1D29; border-bottom: 1px solid rgba(90,95,122,0.06);'
+    ? 'background: #DBEAFE !important; color: #1E3A5F; border-bottom: 1px solid #93C5FD;'
     : 'background: #181B27 !important; color: #E8EAF2; border-bottom: 1px solid rgba(139,143,168,0.1);';
 });
 
 // 动态抽屉样式 — Design System: bg-shift, no borders
 const drawerStyle = computed(() => {
   return systemProperty.theme === 'natural'
-    ? 'background-color: #F6F7F9; color: #1A1D29;'
+    ? 'background-color: #DBEAFE; color: #1E3A5F;'
     : 'background-color: #181B27; color: #E8EAF2;';
 });
 
@@ -156,7 +156,7 @@ const timeLogoutShow = ref('');
 let logoutTimer = null;
 
 // 仅在用户已认证时启动定时器
-if (localStorage.getItem('isAuthenticated')) {
+if (sessionStorage.getItem('isAuthenticated')) {
   logoutTimer = setInterval(() => {
     const time = parseInt(
       (systemProperty.expireTime - new Date().getTime()) / 1000
@@ -173,7 +173,7 @@ if (localStorage.getItem('isAuthenticated')) {
       console.log('即将退出', timeLogoutShow.value);
     }
     if (!systemProperty.expireTime || time < 0) {
-      localStorage.removeItem('isAuthenticated');
+      sessionStorage.removeItem('isAuthenticated');
       router.push('/');
     }
   }, 3000);
@@ -218,7 +218,7 @@ const openChatRoom = () => {
 };
 
 // 登录后自动连接 WebSocket
-if (localStorage.getItem('isAuthenticated')) {
+if (sessionStorage.getItem('isAuthenticated')) {
   wsConnect();
 }
 
@@ -324,22 +324,22 @@ const essentialLinks = [
 
 // 自然模式下抽屉背景色
 .drawer-natural {
-  background-color: #F6F7F9 !important;
+  background-color: #DBEAFE !important;
 }
 
 // 自然模式下抽屉 item 文字色
 .drawer-natural ::deep(.q-item) {
-  color: #1A1D29 !important;
+  color: #1E3A5F !important;
 }
 
 // 自然模式下抽屉中按钮颜色覆盖
 .drawer-natural ::deep(.q-btn) {
-  color: #1A1D29 !important;
+  color: #1E3A5F !important;
 }
 
 // 自然模式下 header 中 EssentialLink 按钮文字颜色
 .theme-natural .q-header ::deep(.q-btn) {
-  color: #1A1D29 !important;
+  color: #1E3A5F !important;
 }
 
 // 自然模式下 header 中当前页面的 EssentialLink 按钮保持红色

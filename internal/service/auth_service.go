@@ -75,18 +75,12 @@ func SetToken(token string, expireTime time.Time, username string, role string) 
 	}
 }
 
-// ValidateToken 验证 token 是否有效
-func ValidateToken(token string) bool {
-	_, valid := ValidateTokenWithInfo(token)
-	return valid
-}
-
 // ValidateTokenWithInfo 验证 token 并返回 TokenInfo
 func ValidateTokenWithInfo(token string) (TokenInfo, bool) {
 	tokenMu.RLock()
 	tokenInfo, exists := tokenStore[token]
 	tokenMu.RUnlock()
-
+	utils.InfoFormat("ValidateTokenWithInfo: token=%s, tokenStore=%v", token, tokenStore)
 	if !exists {
 		return TokenInfo{}, false
 	}
@@ -96,6 +90,16 @@ func ValidateTokenWithInfo(token string) (TokenInfo, bool) {
 		delete(tokenStore, token)
 		tokenMu.Unlock()
 		return TokenInfo{}, false
+	}
+
+	// 兼容旧 token：admin 用户 role 为空时自动补全并持久化
+	if tokenInfo.Role == "" && tokenInfo.Username == AdminUsername {
+		tokenMu.Lock()
+		info := tokenStore[token]
+		info.Role = AdminRole
+		tokenStore[token] = info
+		tokenMu.Unlock()
+		tokenInfo.Role = AdminRole
 	}
 
 	// 普通用户检查有效期
@@ -182,7 +186,7 @@ func issueToken(username, role string) LoginResult {
 		return LoginResult{Success: false, Message: "生成token失败，系统错误"}
 	}
 	token := hex.EncodeToString(tokenBytes)
-	SetToken(token, time.Now().Add(2*time.Hour), username, role)
+	SetToken(token, time.Now().Add(4*time.Hour), username, role)
 	return LoginResult{
 		Success:  true,
 		Token:    token,
@@ -195,6 +199,11 @@ func issueToken(username, role string) LoginResult {
 // RequireAdmin 检查角色是否为管理员
 func RequireAdmin(role string) bool {
 	return role == AdminRole
+}
+
+// RequireAdminWithName 检查角色或用户名是否为管理员（兼容旧 token）
+func RequireAdminWithName(role, username string) bool {
+	return role == AdminRole || username == AdminUsername
 }
 
 // ─── OSSetting 管理 ─────────────────────────────────────────────

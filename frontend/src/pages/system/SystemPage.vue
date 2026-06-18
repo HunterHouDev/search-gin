@@ -214,7 +214,7 @@
                 </q-btn>
               </div>
               <div class="log-list">
-                <div v-for="item in memoryPageData" :key="item" class="log-item q-py-xs">
+                <div v-for="item in memoryPageData" :key="item.time" class="log-item q-py-xs">
                   <span class="log-type-dot" :class="logTypeColor(logExtractType(item.msg))" />
                   <span class="log-time">{{ item.time.substring(0, 19) }}</span>
                   <span class="log-separator"> - </span>
@@ -400,10 +400,17 @@ const logTimeOptions = [
   { label: '昨天', value: 'yesterday' },
   { label: '≥3天', value: 'older' },
 ];
+
+interface LogItem {
+  type: string;
+  time: string;
+  msg: string;
+}
+
 const logPageSize = 50;
-const allMemoryLogs = ref([]);
+const allMemoryLogs = ref([] as LogItem[]);
 const memoryPage = ref(1);
-const allLocalLines = ref([]);
+const allLocalLines = ref([] as LogItem[]);
 const localPage = ref(1);
 
 function logExtractType(msg: string) {
@@ -530,7 +537,7 @@ const fetchLogs = async () => {
   view.logs = Array.isArray(data) ? data.reverse() : [];
 };
 
-let logIntervalId: ReturnType<typeof setInterval>;
+let logIntervalId: ReturnType<typeof setInterval> | undefined;
 
 // ── 多节点集群 ──
 const cluster = reactive({
@@ -715,7 +722,7 @@ watch(tab, (val) => {
       else fetchLocalLog();
     }, 5000);
   } else {
-    if (logIntervalId) { clearInterval(logIntervalId); logIntervalId = 0; }
+    if (logIntervalId) { clearInterval(logIntervalId); logIntervalId = undefined; }
   }
 });
 

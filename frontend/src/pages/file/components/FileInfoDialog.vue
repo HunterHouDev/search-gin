@@ -172,7 +172,7 @@
 import VideoPlayer from 'src/components/VideoPlayer.vue';
 import { useQuasar } from 'quasar';
 import { useDialogPluginComponent } from 'quasar';
-import { onMounted, reactive, ref, computed } from 'vue';
+import { onMounted, reactive, ref } from 'vue';
 
 import { formatTitle } from 'components/utils';
 import { GetSettingInfo } from 'components/api/settingAPI';

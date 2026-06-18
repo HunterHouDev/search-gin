@@ -30,6 +30,7 @@ export const useSystemProperty = defineStore({
     },
     showStyle:'lg', // lg md sm
     showImage:'poster', // post cover
+    theme:'natural', // post cover
     expireTime:null,
     lastAuthor:'',
     lastAuthores:[],

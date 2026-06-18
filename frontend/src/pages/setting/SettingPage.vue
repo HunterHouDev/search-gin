@@ -9,8 +9,8 @@
       :indicator-color="systemProperty.theme === 'natural' ? 'green' : 'white'"
     >
       <q-tab name="search" label="搜索设置" />
-      <q-tab name="dict" label="数据管理" />
       <q-tab name="network" label="网络配置" />
+      <q-tab name="dict" label="数据管理" />
     </q-tabs>
 
     <div class="setting-layout">
@@ -73,10 +73,11 @@
                 <div class="item-label">扫描目录</div>
                 <div class="item-hint">选择要扫描的文件夹</div>
               </div>
-              <div class="item-control full-width">
+              <div class="item-control">
                 <MutiSelector
                   v-bind:model-value="view.settingInfo.Dirs"
                   :options="view.settingInfo.DirsLib"
+                  :style="{ width: '80%',marginTop:'40px' }"
                   @onchange="(arr) => (view.settingInfo.Dirs = arr)"
                 />
               </div>
@@ -87,9 +88,10 @@
                 <div class="item-label">视频类型</div>
                 <div class="item-hint">支持的视频文件扩展名</div>
               </div>
-              <div class="item-control full-width">
+              <div class="item-control ">
                 <MutiSelector
                   v-bind:model-value="view.settingInfo.VideoTypes"
+                  :style="{ width: '80%',marginTop:'40px' }"
                   :options="view.settingInfo.Types"
                   @onchange="(arr) => (view.settingInfo.VideoTypes = arr)"
                 />
@@ -101,10 +103,11 @@
                 <div class="item-label">图片类型</div>
                 <div class="item-hint">支持的图片文件扩展名</div>
               </div>
-              <div class="item-control full-width">
+              <div class="item-control ">
                 <MutiSelector
                   v-bind:model-value="view.settingInfo.ImageTypes"
                   :options="view.settingInfo.Types"
+                  :style="{ width: '80%',marginTop:'40px' }"
                   @onchange="(arr) => (view.settingInfo.ImageTypes = arr)"
                 />
               </div>
@@ -115,10 +118,11 @@
                 <div class="item-label">文档类型</div>
                 <div class="item-hint">支持的文档文件扩展名</div>
               </div>
-              <div class="item-control full-width">
+              <div class="item-control ">
                 <MutiSelector
                   v-bind:model-value="view.settingInfo.DocsTypes"
                   :options="view.settingInfo.Types"
+                  :style="{ width: '80%',marginTop:'40px' }"
                   @onchange="(arr) => (view.settingInfo.DocsTypes = arr)"
                 />
               </div>
@@ -227,10 +231,11 @@
                 <div class="item-label">启用标签</div>
                 <div class="item-hint">选择要启用的标签分类</div>
               </div>
-              <div class="item-control full-width">
+              <div class="item-control ">
                 <MutiSelector
                   v-bind:model-value="view.settingInfo.Tags"
                   :options="view.settingInfo.TagsLib"
+                  :style="{ width: '80%',marginTop:'40px' }"
                   @onchange="(arr) => (view.settingInfo.Tags = arr)"
                 />
               </div>
@@ -246,9 +251,10 @@
                 <div class="item-label">文件类型库</div>
                 <div class="item-hint">可选的文件类型列表</div>
               </div>
-              <div class="item-control full-width">
+              <div class="item-control ">
                 <MutiInput
                   v-model="view.settingInfo.Types"
+                  :style="{ width: '80%',marginTop:'40px' }"
                   @onchange="(arr) => (view.settingInfo.Types = arr)"
                 />
               </div>
@@ -259,9 +265,10 @@
                 <div class="item-label">目录库</div>
                 <div class="item-hint">可选的目录列表</div>
               </div>
-              <div class="item-control full-width">
+              <div class="item-control ">
                 <MutiInput
                   v-model="view.settingInfo.DirsLib"
+                  :style="{ width: '80%',marginTop:'40px' }"
                   @onchange="(arr) => (view.settingInfo.DirsLib = arr)"
                 />
               </div>
@@ -272,9 +279,10 @@
                 <div class="item-label">标签库</div>
                 <div class="item-hint">可选的标签列表</div>
               </div>
-              <div class="item-control full-width">
+              <div class="item-control ">
                 <MutiInput
                   v-model="view.settingInfo.TagsLib"
+                  :style="{ width: '80%',marginTop:'40px' }"
                   @onchange="(arr) => (view.settingInfo.TagsLib = arr)"
                 />
               </div>
@@ -285,9 +293,10 @@
                 <div class="item-label">页面配置</div>
                 <div class="item-hint">分页显示的配置项</div>
               </div>
-              <div class="item-control full-width">
+              <div class="item-control ">
                 <MutiInput
                   v-model="view.settingInfo.Pages"
+                  :style="{ width: '80%',marginTop:'40px' }"
                   @onchange="(arr) => (view.settingInfo.Pages = arr)"
                 />
               </div>
@@ -367,11 +376,12 @@
                 <div class="item-label">备注</div>
                 <div class="item-hint">关于网络配置的备注信息</div>
               </div>
-              <div class="item-control full-width">
+              <div class="item-control textarea">
                 <q-input
                   v-model="view.settingInfo.Remark"
                   type="textarea"
                   autogrow
+                  :rows="3"
                   dense
                   outlined
                 />
@@ -386,6 +396,7 @@
             :color="systemProperty.theme === 'star' ? 'black' : 'primary'"
             glossy
             rounded
+            align="evenly"
             class="submit-btn"
             @click="submitForm"
           >
@@ -546,10 +557,10 @@ const systemProperty = useSystemProperty();
 
 const submitForm = async () => {
   const oldControllerHost = view.settingInfo.ControllerHost;
-  view.settingInfo.Dirs = view.settingInfo.Dirs.sort();
-  view.settingInfo.DirsLib = view.settingInfo.DirsLib.sort();
-  view.settingInfo.Types = view.settingInfo.Types.sort();
-  view.settingInfo.VideoTypes = view.settingInfo.VideoTypes.sort();
+  view.settingInfo.Dirs = (view.settingInfo.Dirs || []).sort();
+  view.settingInfo.DirsLib = (view.settingInfo.DirsLib || []).sort();
+  view.settingInfo.Types = (view.settingInfo.Types || []).sort();
+  view.settingInfo.VideoTypes = (view.settingInfo.VideoTypes || []).sort();
 
   const tagsLib = view.settingInfo.TagsLib || [];
   const dirsLib = view.settingInfo.DirsLib || [];
@@ -647,6 +658,7 @@ onMounted(() => {
 
 .setting-sidebar {
   width: 180px;
+  min-width: 180px;
   border-right: 1px solid var(--q-border);
   display: flex;
   flex-direction: column;
@@ -732,6 +744,7 @@ onMounted(() => {
   flex: 1;
   overflow-y: auto;
   scroll-behavior: smooth;
+  margin-bottom: 60px;
 }
 
 .setting-section {
@@ -784,49 +797,51 @@ onMounted(() => {
   font-size: 0.95rem;
   color: var(--q-text-primary);
   margin-bottom: 2px;
+  min-width: 200px;
 }
 
 .item-hint {
   font-size: 0.8rem;
   color: var(--q-text-muted);
+  min-width: 200px;
 }
 
 .item-control {
   flex-shrink: 0;
   margin-left: 24px;
+  min-height: 40px;
+}
 
-  &.full-width {
-    width: 100%;
-    margin-left: 0;
-    margin-top: 8px;
-  }
+.textarea {
+  width: 70vw;
 }
 
 .select-control {
-  min-width: 180px;
+  width: 70vw;
 }
 
 .number-input {
-  width: 100px;
+  width: 70vw;
 }
 
 .port-input {
-  width: 120px;
+  width: 70vw;
 }
 
 .url-input {
-  width: 240px;
+  width: 70vw;
 }
 
 .submit-bar {
-  padding: 16px 24px;
   border-top: 1px solid var(--q-border);
   background: var(--q-bg-card);
-  display: flex;
-  justify-content: flex-end;
+  position: absolute;
+  width: 160px;
+  right: 200px;
+  bottom: 20px;
 }
 
 .submit-btn {
-  min-width: 120px;
+  width: 100%;
 }
 </style>

@@ -1,5 +1,7 @@
 package service
 
+import "search-gin/pkg/utils"
+
 type searchService struct {
 	engine *searchEngineCore
 	dl     *downloader
@@ -7,7 +9,9 @@ type searchService struct {
 }
 
 var WorkDir string
-var SearchEngine = searchEngineCore{}
+var SearchEngine = searchEngineCore{
+	KeywordHistoryCache: utils.NewLRUCache(500),
+}
 var SearchApp = &searchService{
 	engine: &SearchEngine,
 	dl:     new(downloader),

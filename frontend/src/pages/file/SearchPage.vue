@@ -771,6 +771,9 @@ const handleSSEEvent = (event) => {
   if (event.Type === 'file_changed') {
     fetchSearch();
   }
+  if (event.Type === 'index_health' && indexButton.value) {
+    indexButton.value.updateHealth(event.Data);
+  }
 };
 useSSE(handleSSEEvent);
 
@@ -1337,7 +1340,7 @@ const pictureRightClick = async (item, e) => {
 
 const refreshDebounceFn = async (item, delayMs = 1000) => {
   // handleSSEEvent等待消息自动更新,当前功能暂时关闭
-  console.log('refreshDebounceFn', item);
+  console.log('refreshDebounceFn', item,delayMs );
   // await indexButton.value.refreshIndex(item);
   // const timer = setTimeout(async () => {
   //   await fetchSearch();
@@ -1543,7 +1546,7 @@ const saveParam = (skipPush = false) => {
   systemProperty.syncSearchParam(view.queryParam);
   systemProperty.expireTime = new Date().getTime() + 1000 * 60 * 60 * 2;
   localStorage.setItem('queryParam', JSON.stringify(view.queryParam));
-  localStorage.setItem('isAuthenticated', 'true');
+  sessionStorage.setItem('isAuthenticated', 'true');
   // 避免频繁 push 导致组件重创建，仅在需要时更新 URL
   if (skipPush) return;
   const { Page, PageSize, MovieType, SortField, SortType, Keyword, SearchNode } =

@@ -113,7 +113,7 @@
 
 <script setup>
 import { useDialogPluginComponent, useQuasar } from 'quasar';
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { onMounted, reactive, ref, watch } from 'vue';
 
 import { FileRename } from 'components/api/searchAPI';
 import { formatTitle } from 'components/utils';

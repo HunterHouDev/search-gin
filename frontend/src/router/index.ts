@@ -34,8 +34,8 @@ export default route(function (/* { store, ssrContext } */) {
   });
 
   Router.beforeEach((to, from, next) => {
-    const isAuthenticated = localStorage.getItem('isAuthenticated');
-    const token = localStorage.getItem('authToken');
+    const isAuthenticated = sessionStorage.getItem('isAuthenticated');
+    const token = sessionStorage.getItem('authToken');
     
     if (to.path !== '/login' && (!isAuthenticated || !token)) {
       next('/login');
