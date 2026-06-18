@@ -64,7 +64,7 @@
         <span class="health-value">{{ view.totalCount }}</span>
         <span class="health-label">占用空间</span>
         <span class="health-value">{{ view.totalSizeStr }}</span>
-        <span class="health-label">演员/标签</span>
+        <span class="health-label">作者/标签</span>
         <span class="health-value">{{ view.actorCount }} / {{ view.tagCount }}</span>
         <span class="health-label">分类/系列</span>
         <span class="health-value">{{ view.typeCount }} / {{ view.seriesCount }}</span>

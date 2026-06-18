@@ -62,10 +62,10 @@ func PostMovies(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// PostAuthor 演员搜索处理函数
-// 负责处理演员信息的搜索请求
-// @Summary 演员搜索
-// @Description 根据搜索参数查询演员信息
+// PostAuthor 作者搜索处理函数
+// 负责处理作者信息的搜索请求
+// @Summary 作者搜索
+// @Description 根据搜索参数查询作者信息
 // @Accept json
 // @Produce json
 // @Router /api/search/authors [post]
@@ -105,7 +105,7 @@ func PostAuthor(c *gin.Context) {
 		service.SearchApp.ScanAll()
 	}
 
-	// 调用搜索引擎获取演员分页搜索结果
+	// 调用搜索引擎获取作者分页搜索结果
 	pageAuthorResultWrapper := service.SearchEngine.PageAuthor(param)
 
 	// 初始化分页结果对象

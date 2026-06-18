@@ -161,9 +161,9 @@ func (se *searchEngineCore) returnRepeatSearch(index *searchIndex) model.PageRes
 	return wrapper
 }
 
-// ── 演员搜索 ────────────────────────────────────────────────────────
+// ── 作者搜索 ────────────────────────────────────────────────────────
 
-// PageAuthor 演员搜索
+// PageAuthor 作者搜索
 func (se *searchEngineCore) PageAuthor(searchParam model.SearchParam) model.PageAuthorResultWrapper {
 	index := se.loadIndex()
 
@@ -211,7 +211,7 @@ func (se *searchEngineCore) PageAuthor(searchParam model.SearchParam) model.Page
 	return buildAuthorResult(result, searchParam)
 }
 
-// buildAuthorResult 构造演员搜索结果
+// buildAuthorResult 构造作者搜索结果
 func buildAuthorResult(authors []model.Author, param model.SearchParam) model.PageAuthorResultWrapper {
 	wrapper := model.PageAuthorResultWrapper{}
 	list, size := model.GetAuthorPageOfFiles(authors, param.Page, param.PageSize)
@@ -238,7 +238,7 @@ func (se *searchEngineCore) FindById(id string) model.FileItem {
 	return model.FileItem{}
 }
 
-// FindAuthorByName 按名称查找演员
+// FindAuthorByName 按名称查找作者
 func (se *searchEngineCore) FindAuthorByName(name string) model.Author {
 	index := se.loadIndex()
 	if a, ok := index.actorMap[name]; ok {
@@ -247,7 +247,7 @@ func (se *searchEngineCore) FindAuthorByName(name string) model.Author {
 	return model.Author{}
 }
 
-// GetAuthorCount 获取演员总数
+// GetAuthorCount 获取作者总数
 func (se *searchEngineCore) GetAuthorCount() int {
 	return len(se.loadIndex().actorMap)
 }

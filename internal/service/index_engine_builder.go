@@ -170,7 +170,7 @@ func buildIndexFromBuckets(buckets map[string]*bucketFile) *searchIndex {
 		index.bucketCount++
 
 		for _, movie := range bucket.FileLib {
-			// 演员聚合
+			// 作者聚合
 			if len(movie.Author) > 0 {
 				if cur, ok := index.actorMap[movie.Author]; ok {
 					cur.PlusCnt()
@@ -292,7 +292,7 @@ func subtractBucketFromIndex(index *searchIndex, bucket *bucketFile) {
 		index.totalCount--
 		index.totalSize -= movie.Size
 
-		// 演员
+		// 作者
 		if len(movie.Author) > 0 {
 			if cur, ok := index.actorMap[movie.Author]; ok {
 				cur.MinusCnt()

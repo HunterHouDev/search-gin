@@ -1,6 +1,6 @@
 package model
 
-// PageAuthorResultWrapper 演员搜索结果分页
+// PageAuthorResultWrapper 作者搜索结果分页
 type PageAuthorResultWrapper struct {
 	FileList    []Author
 	Size        int64
@@ -12,7 +12,7 @@ type PageAuthorResultWrapper struct {
 	ResultCount int
 }
 
-// NewAuthorPageWrapper 创建空演员分页结果
+// NewAuthorPageWrapper 创建空作者分页结果
 func NewAuthorPageWrapper() PageAuthorResultWrapper {
 	return PageAuthorResultWrapper{}
 }

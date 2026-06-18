@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// Author 演员聚合信息
+// Author 作者聚合信息
 type Author struct {
 	Name    string
 	Url     string
@@ -15,7 +15,7 @@ type Author struct {
 	Images  []string
 }
 
-// NewAuthor 创建演员聚合对象
+// NewAuthor 创建作者聚合对象
 func NewAuthor(name string, url string, size int64) Author {
 	return Author{
 		Name:    name,
@@ -64,7 +64,7 @@ func (act *Author) MinusSize(size int64) {
 	act.SizeStr = utils.GetSizeStr(act.Size)
 }
 
-// GetAuthorPageOfFiles 演员分页
+// GetAuthorPageOfFiles 作者分页
 func GetAuthorPageOfFiles(files []Author, pageNo int, pageSize int) ([]Author, int64) {
 	if len(files) == 0 {
 		return files, 0
@@ -93,7 +93,7 @@ func GetAuthorPageOfFiles(files []Author, pageNo int, pageSize int) ([]Author, i
 	return data, volume
 }
 
-// SearchAuthorByKeyWord 按关键词搜索演员
+// SearchAuthorByKeyWord 按关键词搜索作者
 func SearchAuthorByKeyWord(files map[string]Author, keyWord string) []Author {
 	keywordUpper := strings.ToUpper(keyWord)
 	resultWrapper := make([]Author, 0, len(files))
