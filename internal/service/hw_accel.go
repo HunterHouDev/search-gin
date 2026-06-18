@@ -3,7 +3,6 @@ package service
 import (
 	"os/exec"
 	"runtime"
-	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 	"strings"
 	"sync"
@@ -96,7 +95,7 @@ func (e *videoEncoder) detectHwAccel() {
 
 // getH264Encoder 获取当前应使用的 H264 编码器
 func (e *videoEncoder) getH264Encoder() string {
-	if consts.GetOSSetting().HardwareAcceleration {
+	if GetOSSetting().HardwareAcceleration {
 		e.detectHwAccel()
 		if hwAccel.h264 != "" {
 			return hwAccel.h264
@@ -107,7 +106,7 @@ func (e *videoEncoder) getH264Encoder() string {
 
 // getH265Encoder 获取当前应使用的 H265 编码器
 func (e *videoEncoder) getH265Encoder() string {
-	if consts.GetOSSetting().HardwareAcceleration {
+	if GetOSSetting().HardwareAcceleration {
 		e.detectHwAccel()
 		if hwAccel.h265 != "" {
 			return hwAccel.h265
@@ -123,7 +122,7 @@ func GetHwAccelModeName() string {
 
 // getHwDecodeParams 获取硬件解码参数（在 -i 之前插入）
 func (e *videoEncoder) getHwDecodeParams() string {
-	if consts.GetOSSetting().HardwareAcceleration {
+	if GetOSSetting().HardwareAcceleration {
 		e.detectHwAccel()
 		if hwAccel.dec != "" {
 			return hwAccel.dec
@@ -134,7 +133,7 @@ func (e *videoEncoder) getHwDecodeParams() string {
 
 // getHwQualityParam 获取硬件编码器的质量参数
 func (e *videoEncoder) getHwQualityParam() string {
-	if consts.GetOSSetting().HardwareAcceleration {
+	if GetOSSetting().HardwareAcceleration {
 		e.detectHwAccel()
 		if hwAccel.h264 != "" || hwAccel.h265 != "" {
 			return "-q"
@@ -147,7 +146,7 @@ func (e *videoEncoder) getHwQualityParam() string {
 var lastHwAccelSetting bool
 
 func HwAccelSettingChanged() bool {
-	current := consts.GetOSSetting().HardwareAcceleration
+	current := GetOSSetting().HardwareAcceleration
 	hwAccel.mu.Lock()
 	defer hwAccel.mu.Unlock()
 	if lastHwAccelSetting != current {

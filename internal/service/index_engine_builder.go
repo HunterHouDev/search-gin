@@ -3,7 +3,6 @@ package service
 import (
 	"runtime/debug"
 	"search-gin/internal/model"
-	"search-gin/pkg/consts"
 	"sort"
 	"strings"
 	"time"
@@ -15,40 +14,40 @@ import (
 func (se *searchEngineCore) rebuildWithBuckets(entries map[string]*bucketFile) {
 	defer func() {
 		if r := recover(); r != nil {
-			consts.LogMem.Add("rebuildWithBuckets 异常: %v", r)
-			consts.LogMem.Add("堆栈: %s", string(debug.Stack()))
+			LogMem.Add("rebuildWithBuckets 异常: %v", r)
+			LogMem.Add("堆栈: %s", string(debug.Stack()))
 		}
 	}()
 
 	se.rebuildMu.Lock()
 	defer se.rebuildMu.Unlock()
 
-	consts.LogMem.Add("rebuildWithBuckets: 开始批量重建, %d 个目录", len(entries))
+	LogMem.Add("rebuildWithBuckets: 开始批量重建, %d 个目录", len(entries))
 	start := time.Now()
 
 	newIndex := buildIndexFromBuckets(entries)
 	se.installIndex(newIndex)
 
 	ti := time.Since(start)
-	consts.LogMem.Add("rebuildWithBuckets: 完成, 耗时 %dms, 文件数 %d", ti.Milliseconds(), newIndex.totalCount)
+	LogMem.Add("rebuildWithBuckets: 完成, 耗时 %dms, 文件数 %d", ti.Milliseconds(), newIndex.totalCount)
 }
 
 // rebuildWithBucket 用指定目录的新 bucket 构造新快照并原子替换
 func (se *searchEngineCore) rebuildWithBucket(baseDir string, newBucket *bucketFile) {
 	defer func() {
 		if r := recover(); r != nil {
-			consts.LogMem.Add("rebuildWithBucket 异常: %v", r)
-			consts.LogMem.Add("堆栈: %s", string(debug.Stack()))
+			LogMem.Add("rebuildWithBucket 异常: %v", r)
+			LogMem.Add("堆栈: %s", string(debug.Stack()))
 		}
 	}()
 
 	se.rebuildMu.Lock()
 	defer se.rebuildMu.Unlock()
 
-	consts.LogMem.Add("rebuildWithBucket: 开始处理目录 %s", baseDir)
+	LogMem.Add("rebuildWithBucket: 开始处理目录 %s", baseDir)
 	start := time.Now()
 
-	dirs := consts.GetOSSetting().Dirs
+	dirs := GetOSSetting().Dirs
 	dirSet := make(map[string]struct{}, len(dirs))
 	for _, d := range dirs {
 		dirSet[d] = struct{}{}
@@ -69,21 +68,21 @@ func (se *searchEngineCore) rebuildWithBucket(baseDir string, newBucket *bucketF
 		newBuckets[baseDir] = newBucket
 	}
 
-	consts.LogMem.Add("rebuildWithBucket: bucket 数量 %d -> %d", len(old.buckets), len(newBuckets))
+	LogMem.Add("rebuildWithBucket: bucket 数量 %d -> %d", len(old.buckets), len(newBuckets))
 
 	newIndex := buildIndexFromBuckets(newBuckets)
 	se.installIndex(newIndex)
 
 	ti := time.Since(start)
-	consts.LogMem.Add("rebuildWithBucket: 完成, 耗时 %dms, 文件数 %d", ti.Milliseconds(), newIndex.totalCount)
+	LogMem.Add("rebuildWithBucket: 完成, 耗时 %dms, 文件数 %d", ti.Milliseconds(), newIndex.totalCount)
 }
 
 // rebuildWithBucketIncremental 增量重建：只遍历变化的 bucket（O(变化量)）
 func (se *searchEngineCore) rebuildWithBucketIncremental(baseDir string, newBucket *bucketFile) {
 	defer func() {
 		if r := recover(); r != nil {
-			consts.LogMem.Add("rebuildWithBucketIncremental 异常: %v", r)
-			consts.LogMem.Add("堆栈: %s", string(debug.Stack()))
+			LogMem.Add("rebuildWithBucketIncremental 异常: %v", r)
+			LogMem.Add("堆栈: %s", string(debug.Stack()))
 		}
 	}()
 
@@ -93,7 +92,7 @@ func (se *searchEngineCore) rebuildWithBucketIncremental(baseDir string, newBuck
 	start := time.Now()
 	old := se.loadIndex()
 
-	dirs := consts.GetOSSetting().Dirs
+	dirs := GetOSSetting().Dirs
 	dirSet := make(map[string]struct{}, len(dirs))
 	for _, d := range dirs {
 		dirSet[d] = struct{}{}
@@ -136,7 +135,7 @@ func (se *searchEngineCore) rebuildWithBucketIncremental(baseDir string, newBuck
 	se.installIndex(index)
 
 	ti := time.Since(start)
-	consts.LogMem.Add("rebuildWithBucketIncremental: 完成, 耗时 %dms, bucket %s, 文件数 %d", ti.Milliseconds(), baseDir, index.totalCount)
+	LogMem.Add("rebuildWithBucketIncremental: 完成, 耗时 %dms, bucket %s, 文件数 %d", ti.Milliseconds(), baseDir, index.totalCount)
 }
 
 // ── 快照聚合操作 ──────────────────────────────────────────────────
@@ -146,9 +145,9 @@ func buildIndexFromBuckets(buckets map[string]*bucketFile) *searchIndex {
 	index := &searchIndex{
 		buckets:     make(map[string]*bucketFile, len(buckets)),
 		authorMap:    make(map[string]model.Author),
-		typeMenu:    make(map[string]consts.MenuSize),
-		tagMenu:     make(map[string]consts.MenuSize),
-		seriesCount: make(map[string]consts.MenuSize),
+		typeMenu:    make(map[string]MenuSize),
+		tagMenu:     make(map[string]MenuSize),
+		seriesCount: make(map[string]MenuSize),
 	}
 
 	for k, v := range buckets {
@@ -230,8 +229,8 @@ func cloneActorMap(src map[string]model.Author) map[string]model.Author {
 	return dst
 }
 
-func cloneMenuMap(src map[string]consts.MenuSize) map[string]consts.MenuSize {
-	dst := make(map[string]consts.MenuSize, len(src))
+func cloneMenuMap(src map[string]MenuSize) map[string]MenuSize {
+	dst := make(map[string]MenuSize, len(src))
 	for k, v := range src {
 		dst[k] = v
 	}
@@ -392,19 +391,19 @@ func addFileToIndex(index *searchIndex, movie model.FileItem) {
 	if v, ok := index.typeMenu[mt]; ok {
 		index.typeMenu[mt] = v.Plus(movie.Size)
 	} else {
-		index.typeMenu[mt] = consts.MenuSize{Name: mt, Cnt: 1, Size: movie.Size}
+		index.typeMenu[mt] = MenuSize{Name: mt, Cnt: 1, Size: movie.Size}
 	}
 	if v, ok := index.typeMenu["全部"]; ok {
 		index.typeMenu["全部"] = v.Plus(movie.Size)
 	} else {
-		index.typeMenu["全部"] = consts.MenuSize{Name: "全部", Cnt: 1, Size: movie.Size}
+		index.typeMenu["全部"] = MenuSize{Name: "全部", Cnt: 1, Size: movie.Size}
 	}
 
 	for i := range movie.Tags {
 		if v, ok := index.tagMenu[movie.Tags[i]]; ok {
 			index.tagMenu[movie.Tags[i]] = v.Plus(movie.Size)
 		} else {
-			index.tagMenu[movie.Tags[i]] = consts.MenuSize{Name: movie.Tags[i], Cnt: 1, Size: movie.Size, IsDir: true}
+			index.tagMenu[movie.Tags[i]] = MenuSize{Name: movie.Tags[i], Cnt: 1, Size: movie.Size, IsDir: true}
 		}
 	}
 
@@ -412,7 +411,7 @@ func addFileToIndex(index *searchIndex, movie model.FileItem) {
 		if v, ok := index.seriesCount[movie.Studio]; ok {
 			index.seriesCount[movie.Studio] = v.Plus(movie.Size)
 		} else {
-			index.seriesCount[movie.Studio] = consts.MenuSize{Name: movie.Studio, Cnt: 1, Size: movie.Size, IsDir: true}
+			index.seriesCount[movie.Studio] = MenuSize{Name: movie.Studio, Cnt: 1, Size: movie.Size, IsDir: true}
 		}
 	}
 }
@@ -478,17 +477,17 @@ func shallowCopyIndex(index *searchIndex) *searchIndex {
 		newAuthorMap[k] = v
 	}
 
-	newTypeMenu := make(map[string]consts.MenuSize, len(index.typeMenu))
+	newTypeMenu := make(map[string]MenuSize, len(index.typeMenu))
 	for k, v := range index.typeMenu {
 		newTypeMenu[k] = v
 	}
 
-	newTagMenu := make(map[string]consts.MenuSize, len(index.tagMenu))
+	newTagMenu := make(map[string]MenuSize, len(index.tagMenu))
 	for k, v := range index.tagMenu {
 		newTagMenu[k] = v
 	}
 
-	newSeriesCount := make(map[string]consts.MenuSize, len(index.seriesCount))
+	newSeriesCount := make(map[string]MenuSize, len(index.seriesCount))
 	for k, v := range index.seriesCount {
 		newSeriesCount[k] = v
 	}

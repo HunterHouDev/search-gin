@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
+	"search-gin/internal/service"
 	"search-gin/internal/ws"
-	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 
 	"github.com/gin-gonic/gin"
@@ -39,7 +39,7 @@ func HandleWebSocket(c *gin.Context) {
 		return
 	}
 
-	tokenInfo, valid := consts.ValidateTokenWithInfo(token)
+	tokenInfo, valid := service.ValidateTokenWithInfo(token)
 	if !valid {
 		utils.InfoFormat("[WS] invalid token")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "未认证"})

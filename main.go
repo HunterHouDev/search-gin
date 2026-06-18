@@ -76,7 +76,7 @@ func main() {
 	service.StartBackgroundTasks()
 
 	// ── 10. 获取配置端口，启动两个 HTTP 服务 ──
-	apiPort := resolvePort(consts.GetOSSetting().ControllerHost)
+	apiPort := resolvePort(service.GetOSSetting().ControllerHost)
 	apiSrv := createServer(apiPort, apiRouter)
 
 	filePort := consts.FilePortNo
@@ -97,7 +97,7 @@ func main() {
 	// ── 11. 注册 /api/close 和 /api/restart 接口 ──
 	apiRouter.GET("api/close", func(c *gin.Context) {
 		role, _ := c.Get("role")
-		if r, ok := role.(string); !ok || r != consts.AdminRole {
+		if r, ok := role.(string); !ok || r != service.AdminRole {
 			c.JSON(403, utils.NewFailByMsg("无权限执行此操作"))
 			return
 		}
@@ -106,7 +106,7 @@ func main() {
 	})
 	apiRouter.GET("api/restart", func(c *gin.Context) {
 		role, _ := c.Get("role")
-		if r, ok := role.(string); !ok || r != consts.AdminRole {
+		if r, ok := role.(string); !ok || r != service.AdminRole {
 			c.JSON(403, utils.NewFailByMsg("无权限执行此操作"))
 			return
 		}

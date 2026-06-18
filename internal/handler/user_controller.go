@@ -6,7 +6,6 @@ import (
 
 	"search-gin/internal/model"
 	"search-gin/internal/service"
-	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 
 	"github.com/gin-gonic/gin"
@@ -20,7 +19,7 @@ func GetUsers(c *gin.Context) {
 	}
 
 	var users []UserInfo
-	for _, u := range consts.GetOSSettingUsers() {
+	for _, u := range service.GetOSSettingUsers() {
 		users = append(users, UserInfo{
 			Username:   u.Username,
 			Role:       u.Role,
@@ -48,7 +47,7 @@ func AddUser(c *gin.Context) {
 		return
 	}
 
-	if req.Username == consts.AdminUsername {
+	if req.Username == service.AdminUsername {
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("用户名已存在"))
 		return
 	}
@@ -62,12 +61,12 @@ func AddUser(c *gin.Context) {
 
 	newUser := model.User{
 		Username:   req.Username,
-		Password:   consts.HashPassword(req.Password),
+		Password:   service.HashPassword(req.Password),
 		Role:       "user",
 		ExpireDate: req.ExpireDate,
 	}
 	added := false
-	consts.UpdateOSSetting(func(s model.Setting) model.Setting {
+	service.UpdateOSSetting(func(s model.Setting) model.Setting {
 		for _, u := range s.Users {
 			if u.Username == req.Username {
 				return s
@@ -81,7 +80,7 @@ func AddUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("用户名已存在"))
 		return
 	}
-	service.FlushDictionary(consts.GetOSSetting().SelfPath)
+	service.FlushDictionary(service.GetOSSetting().SelfPath)
 	c.JSON(http.StatusOK, utils.NewSuccess())
 }
 
@@ -100,7 +99,7 @@ func DeleteUser(c *gin.Context) {
 	}
 
 	deleted := false
-	consts.UpdateOSSetting(func(s model.Setting) model.Setting {
+	service.UpdateOSSetting(func(s model.Setting) model.Setting {
 		idx := -1
 		for i, u := range s.Users {
 			if u.Username == req.Username {
@@ -118,6 +117,6 @@ func DeleteUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("用户不存在"))
 		return
 	}
-	service.FlushDictionary(consts.GetOSSetting().SelfPath)
+	service.FlushDictionary(service.GetOSSetting().SelfPath)
 	c.JSON(http.StatusOK, utils.NewSuccess())
 }

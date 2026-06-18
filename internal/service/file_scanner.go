@@ -19,22 +19,22 @@ type scanResult struct {
 
 // ScanAll 全局扫描
 func (s *searchService) ScanAll() int {
-	setting := consts.GetOSSetting()
+	setting := GetOSSetting()
 	dirCount := len(setting.Dirs)
 	dirList := make([]string, dirCount)
 	copy(dirList, setting.Dirs)
-	consts.LogMem.Add("Plan to ScanAll dirTotal: %d, dirList: %v", dirCount, dirList)
+	LogMem.Add("Plan to ScanAll dirTotal: %d, dirList: %v", dirCount, dirList)
 	if !FullScanInProgress.CompareAndSwap(false, true) {
-		consts.LogMem.Add("全量扫描正在进行中")
+		LogMem.Add("全量扫描正在进行中")
 		return dirCount
 	}
 	defer FullScanInProgress.Store(false)
 
 	// 初始化扫描进度
-	consts.Sp.Init(dirCount)
+	Sp.Init(dirCount)
 
-	consts.ClearSmallDir()
-	consts.InitFolderTime()
+	ClearSmallDir()
+	InitFolderTime()
 
 	queryTypes := make([]string, 0)
 	queryTypes = utils.ExtendsItems(queryTypes, setting.VideoTypes)
@@ -45,7 +45,7 @@ func (s *searchService) ScanAll() int {
 	buckets := s.ScanDirs(dirList, queryTypes)
 
 	// 切换到索引构建阶段
-	consts.Sp.SetPhase("building", "正在构建索引...")
+	Sp.SetPhase("building", "正在构建索引...")
 
 	// 构建阶段：批量重建索引
 	SearchEngine.rebuildWithBuckets(buckets)
@@ -53,15 +53,15 @@ func (s *searchService) ScanAll() int {
 	// 一致性检查：验证 bucket 数量和目录数量
 	bucketCount := SearchEngine.BucketCount()
 	indexNumber := consts.IndexNumber.Load()
-	consts.LogMem.Add("ScanAll 一致性检查: BucketCount=%d, IndexNumber=%d, Expected=%d", bucketCount, indexNumber, dirCount)
+	LogMem.Add("ScanAll 一致性检查: BucketCount=%d, IndexNumber=%d, Expected=%d", bucketCount, indexNumber, dirCount)
 	if bucketCount != int32(dirCount) {
-		consts.LogMem.Add("警告: BucketCount(%d) != Expected(%d)，可能存在并发问题", bucketCount, dirCount)
+		LogMem.Add("警告: BucketCount(%d) != Expected(%d)，可能存在并发问题", bucketCount, dirCount)
 	}
 
 	consts.SetLastScanTime(time.Now())
 
 	// 扫描完成
-	consts.Sp.Complete()
+	Sp.Complete()
 
 	sse.BroadcastEvent("scan_complete", map[string]interface{}{
 		"dirCount": dirCount,
@@ -106,7 +106,7 @@ func (s *searchService) ScanDirs(baseDir []string, types []string) map[string]*b
 		}
 	}
 
-	consts.LogMem.Add("ScanDirs: 扫描完成, 共 %d 个目录", len(buckets))
+	LogMem.Add("ScanDirs: 扫描完成, 共 %d 个目录", len(buckets))
 	return buckets
 }
 
@@ -127,9 +127,9 @@ func (s *searchService) Walks(baseDir []string, types []string) []model.FileItem
 		}
 	}
 
-	consts.LogMem.Add("Walks: 准备重建索引")
+	LogMem.Add("Walks: 准备重建索引")
 	SearchEngine.rebuildWithBuckets(buckets)
-	consts.LogMem.Add("Walks: 索引重建完成")
+	LogMem.Add("Walks: 索引重建完成")
 
 	return result
 }
@@ -137,31 +137,31 @@ func (s *searchService) Walks(baseDir []string, types []string) []model.FileItem
 // goWalkWithResult 协程方法扫描单个文件夹并返回结果
 func (s *searchService) goWalkWithResult(baseDir string, types []string, resultChan chan<- scanResult) {
 	defer func() {
-		consts.Sp.IncrementCompletedDirs()
+		Sp.IncrementCompletedDirs()
 	}()
 
 	// 更新当前正在扫描的目录
-	consts.Sp.SetCurrentDir(baseDir)
+	Sp.SetCurrentDir(baseDir)
 
-	consts.LogMem.Add("goWalkWithResult: 开始扫描目录 %s", baseDir)
+	LogMem.Add("goWalkWithResult: 开始扫描目录 %s", baseDir)
 	start := time.Now()
 	files, size := s.WalkInner(baseDir, types, true, baseDir)
 
-	consts.LogMem.Add("goWalkWithResult: 扫描完成 %s, 发现 %d 个文件", baseDir, len(files))
+	LogMem.Add("goWalkWithResult: 扫描完成 %s, 发现 %d 个文件", baseDir, len(files))
 	// 更新已扫描文件计数
-	consts.Sp.AddScannedFiles(int64(len(files)))
+	Sp.AddScannedFiles(int64(len(files)))
 
 	bucket := newInstanceWithFiles(baseDir, files)
 
 	ti := time.Since(start)
-	thisTime := consts.MenuSize{
+	thisTime := MenuSize{
 		Name:    baseDir,
 		Cnt:     ti.Milliseconds(),
 		Size:    int64(len(files)),
 		SizeStr: utils.GetSizeStr(size),
 	}
-	consts.LogMem.Add("扫描目录:[%s] 耗时:[%d] 大小:[%s],剩余目录数:%d", baseDir, ti.Milliseconds(), utils.GetSizeStr(size), consts.IndexNumber.Load())
-	consts.AddFolderTime(thisTime)
+	LogMem.Add("扫描目录:[%s] 耗时:[%d] 大小:[%s],剩余目录数:%d", baseDir, ti.Milliseconds(), utils.GetSizeStr(size), consts.IndexNumber.Load())
+	AddFolderTime(thisTime)
 
 	resultChan <- scanResult{dir: baseDir, bucket: bucket}
 }
@@ -230,7 +230,7 @@ func (s *searchService) WalkInner(currentDir string, types []string, queryChild 
 					modDate := time.Date(emptyFile.ModTime().Year(), emptyFile.ModTime().Month(), emptyFile.ModTime().Day(), 0, 0, 0, 0, time.Local)
 					yesterdayDate := time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), 0, 0, 0, 0, time.Local)
 					if modDate.Equal(yesterdayDate) {
-						if utils.IndexOf(consts.GetOSSetting().Dirs, currentPath) < 0 {
+						if utils.IndexOf(GetOSSetting().Dirs, currentPath) < 0 {
 							if err := os.RemoveAll(currentPath); err != nil {
 								utils.InfoFormat("删除空目录失败: %s, 错误: %v", currentPath, err)
 							}
@@ -240,8 +240,8 @@ func (s *searchService) WalkInner(currentDir string, types []string, queryChild 
 			}
 		} else {
 			currentSize := sizeMap[currentPath]
-			if currentSize <= 20000000 && utils.IndexOf(consts.GetOSSetting().Dirs, currentPath) < 0 {
-				consts.AppendSmallDir(consts.NewMenuSizeFold(currentPath, currentSize, true))
+			if currentSize <= 20000000 && utils.IndexOf(GetOSSetting().Dirs, currentPath) < 0 {
+				AppendSmallDir(NewMenuSizeFold(currentPath, currentSize, true))
 			}
 
 			if currentPath != currentDir {

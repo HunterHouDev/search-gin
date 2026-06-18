@@ -5,10 +5,13 @@ import (
 	"os"
 	"path/filepath"
 	"search-gin/internal/model"
-	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
+	"sync"
 	"time"
 )
+
+var TransferTask = map[time.Time]model.TransferTaskModel{}
+var TransferTaskMutex sync.RWMutex // 保护 TransferTask 的并发访问
 
 // DeleteFileByPath 按路径删除文件：索引移除 + 物理删除 + 附属文件清理 + 空目录清理
 func DeleteFileByPath(validatedPath string) utils.Result {
@@ -79,9 +82,9 @@ func CreateMergeTask(fileIds []string, dest string, deleteSource bool) utils.Res
 
 	task := model.NewMergeTask(paths, dest, listPath, deleteSource)
 	task.SetStatus(model.StatusPending)
-	consts.TransferTaskMutex.Lock()
-	consts.TransferTask[task.CreateTime] = task
-	consts.TransferTaskMutex.Unlock()
+	TransferTaskMutex.Lock()
+	TransferTask[task.CreateTime] = task
+	TransferTaskMutex.Unlock()
 
 	return utils.NewSuccessByMsg("任务创建成功")
 }
@@ -96,23 +99,23 @@ func CreateTransferTask(id string, xcode string) utils.Result {
 	from := utils.GetSuffix(movieFile.Path)
 	to := "mp4"
 
-	consts.TransferTaskMutex.RLock()
-	for _, taskModel := range consts.TransferTask {
+	TransferTaskMutex.RLock()
+	for _, taskModel := range TransferTask {
 		if taskModel.Path == movieFile.Path && taskModel.Status != "执行失败" {
-			consts.TransferTaskMutex.RUnlock()
+			TransferTaskMutex.RUnlock()
 			return utils.NewFailByMsg("任务不可重复")
 		}
 	}
-	consts.TransferTaskMutex.RUnlock()
+	TransferTaskMutex.RUnlock()
 
 	task := model.NewTask(movieFile.Path, movieFile.Name, from, to)
 	task.SetStatus(model.StatusPending)
 	if xcode != "" {
 		task.VCode = xcode
 	}
-	consts.TransferTaskMutex.Lock()
-	consts.TransferTask[task.CreateTime] = task
-	consts.TransferTaskMutex.Unlock()
+	TransferTaskMutex.Lock()
+	TransferTask[task.CreateTime] = task
+	TransferTaskMutex.Unlock()
 
 	return utils.NewSuccessByMsg("任务创建成功")
 }
@@ -127,9 +130,9 @@ func CreateCutTask(id string, start string, end string) utils.Result {
 	from := utils.GetSuffix(movieFile.Path)
 	task := model.NewCutTask(movieFile.Path, movieFile.Name, start, end, from)
 	task.SetStatus(model.StatusPending)
-	consts.TransferTaskMutex.Lock()
-	consts.TransferTask[task.CreateTime] = task
-	consts.TransferTaskMutex.Unlock()
+	TransferTaskMutex.Lock()
+	TransferTask[task.CreateTime] = task
+	TransferTaskMutex.Unlock()
 
 	return utils.NewSuccessByMsg("任务创建成功")
 }

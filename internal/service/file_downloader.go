@@ -4,7 +4,6 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
-	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 	"strconv"
 	"strings"
@@ -86,11 +85,11 @@ func (dl *downloader) DownJpgMakePng(finalPath string, url string, makePng bool)
 	defer jpgOut.Close()
 
 	if !strings.Contains(url, "https") {
-		url = consts.GetOSSetting().BaseUrl + url
+		url = GetOSSetting().BaseUrl + url
 	}
 	start := time.Now()
 	resp, downErr := httpGet(url)
-	consts.LogMem.Add("DownJpg  time:%d  %s %d", time.Since(start).Milliseconds(), url, downErr)
+	LogMem.Add("DownJpg  time:%d  %s %d", time.Since(start).Milliseconds(), url, downErr)
 	if downErr != nil {
 		result.Fail()
 		result.Message = "文件下载失败：" + url
@@ -120,11 +119,11 @@ func (dl *downloader) DownJpgAsPng(finalPath string, url string) utils.Result {
 	defer pngOut.Close()
 
 	if !strings.Contains(url, "https") {
-		url = consts.GetOSSetting().BaseUrl + url
+		url = GetOSSetting().BaseUrl + url
 	}
 	start := time.Now()
 	resp, downErr := httpGet(url)
-	consts.LogMem.Add("DownPng  time:%d  %s %d", time.Since(start).Milliseconds(), url, downErr)
+	LogMem.Add("DownPng  time:%d  %s %d", time.Since(start).Milliseconds(), url, downErr)
 	if downErr != nil {
 		result.Fail()
 		result.Message = "文件下载失败：" + url

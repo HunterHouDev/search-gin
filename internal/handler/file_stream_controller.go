@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"search-gin/internal/model"
 	"search-gin/internal/service"
-	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 	"time"
 
@@ -17,7 +16,7 @@ func GetRefreshTargetIndex(c *gin.Context) {
 	dir := c.Param("dir")
 	baseDir, _ := url.QueryUnescape(dir)
 
-	validatedDir, err := utils.ValidatePath(baseDir, consts.GetOSSetting().Dirs)
+	validatedDir, err := utils.ValidatePath(baseDir, service.GetOSSetting().Dirs)
 	if err != nil {
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("路径不在允许范围内"))
 		return
@@ -39,7 +38,7 @@ func GetFileByPathUseEncode(c *gin.Context) {
 		return
 	}
 
-	validatedPath, err := utils.ValidatePath(decodedPath, consts.GetOSSetting().Dirs)
+	validatedPath, err := utils.ValidatePath(decodedPath, service.GetOSSetting().Dirs)
 	if err != nil {
 		utils.ErrorFormat("路径遍历攻击尝试: %s, 错误: %v", decodedPath, err)
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("访问被拒绝：路径不在允许范围内"))
@@ -60,7 +59,7 @@ func GetDeleteFileByPathUseEncode(c *gin.Context) {
 		return
 	}
 
-	validatedPath, err := utils.ValidatePath(decodedPath, consts.GetOSSetting().Dirs)
+	validatedPath, err := utils.ValidatePath(decodedPath, service.GetOSSetting().Dirs)
 	if err != nil {
 		utils.ErrorFormat("路径遍历攻击尝试: %s, 错误: %v", decodedPath, err)
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("删除被拒绝：路径不在允许范围内"))
@@ -89,22 +88,22 @@ func GetJpg(c *gin.Context) {
 
 func GetTransferTask(c *gin.Context) {
 	result := utils.NewSuccess()
-	consts.TransferTaskMutex.RLock()
-	tasks := make(map[time.Time]model.TransferTaskModel, len(consts.TransferTask))
-	for k, v := range consts.TransferTask {
+	service.TransferTaskMutex.RLock()
+	tasks := make(map[time.Time]model.TransferTaskModel, len(service.TransferTask))
+	for k, v := range service.TransferTask {
 		tasks[k] = v
 	}
-	consts.TransferTaskMutex.RUnlock()
+	service.TransferTaskMutex.RUnlock()
 	result.Data = tasks
 	c.JSON(http.StatusOK, result)
 }
 
 func GetDelTransferTask(c *gin.Context) {
 	create := c.Param("create")
-	consts.TransferTaskMutex.Lock()
+	service.TransferTaskMutex.Lock()
 	var ti time.Time
 	var task model.TransferTaskModel
-	for k, v := range consts.TransferTask {
+	for k, v := range service.TransferTask {
 		if v.Name == create {
 			ti = k
 			task = v
@@ -112,13 +111,13 @@ func GetDelTransferTask(c *gin.Context) {
 		}
 	}
 	if task.Status == "执行中" {
-		consts.TransferTaskMutex.Unlock()
+		service.TransferTaskMutex.Unlock()
 		r := utils.Fail()
 		r.Message = "执行中无法删除"
 		c.JSON(http.StatusOK, r)
 		return
 	}
-	delete(consts.TransferTask, ti)
-	consts.TransferTaskMutex.Unlock()
+	delete(service.TransferTask, ti)
+	service.TransferTaskMutex.Unlock()
 	c.JSON(http.StatusOK, utils.NewSuccess())
 }

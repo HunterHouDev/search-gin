@@ -27,10 +27,10 @@ func (fs *searchService) HeartBeat() {
 		case <-TaskCtx.Done():
 			return
 		case <-ticker.C:
-			if !consts.GetOSSetting().EnableTimeScan || time.Since(consts.GetLastScanTime()).Seconds() <= 180 {
+			if !GetOSSetting().EnableTimeScan || time.Since(consts.GetLastScanTime()).Seconds() <= 180 {
 				continue
 			}
-			for _, dir := range consts.GetOSSetting().Dirs {
+			for _, dir := range GetOSSetting().Dirs {
 				removeWalk(dir, true)
 			}
 		}
@@ -63,8 +63,8 @@ func (fs *searchService) pollTasks() {
 		executingMerges []model.TransferTaskModel
 	}{}
 
-	consts.TransferTaskMutex.RLock()
-	for _, t := range consts.TransferTask {
+	TransferTaskMutex.RLock()
+	for _, t := range TransferTask {
 		switch {
 		case strings.EqualFold(t.Status, model.StatusPending):
 			switch {
@@ -86,7 +86,7 @@ func (fs *searchService) pollTasks() {
 			}
 		}
 	}
-	consts.TransferTaskMutex.RUnlock()
+	TransferTaskMutex.RUnlock()
 
 	if len(taskGroups.executing) == 0 && len(taskGroups.todos) > 0 {
 		go VideoEncoder.TransferFormatter(taskGroups.todos[0])
@@ -134,19 +134,19 @@ func (q *taskQueue) processTasks() {
 // executeTask 执行单个扫描任务
 func (q *taskQueue) executeTask(task *scanTask) {
 	if task.canceled.Load() {
-		consts.LogMem.Add("扫描任务已取消: %s", task.baseDir)
+		LogMem.Add("扫描任务已取消: %s", task.baseDir)
 		return
 	}
 	select {
 	case <-task.cancel:
-		consts.LogMem.Add("扫描任务已取消: %s", task.baseDir)
+		LogMem.Add("扫描任务已取消: %s", task.baseDir)
 		return
 	default:
 	}
 
 	// 全量扫描互斥检查
 	if FullScanInProgress.Load() {
-		consts.LogMem.Add("全量扫描中，跳过队列任务: %s", task.baseDir)
+		LogMem.Add("全量扫描中，跳过队列任务: %s", task.baseDir)
 		return
 	}
 
@@ -154,9 +154,9 @@ func (q *taskQueue) executeTask(task *scanTask) {
 	consts.IndexNumber.Add(1)
 	defer consts.IndexNumber.Add(-1)
 
-	consts.LogMem.Add("开始扫描文件夹: %s", task.baseDir)
+	LogMem.Add("开始扫描文件夹: %s", task.baseDir)
 
-	setting := consts.GetOSSetting()
+	setting := GetOSSetting()
 	queryTypes := make([]string, 0)
 	queryTypes = utils.ExtendsItems(queryTypes, setting.VideoTypes)
 	queryTypes = utils.ExtendsItems(queryTypes, setting.DocsTypes)
@@ -171,7 +171,7 @@ func (q *taskQueue) executeTask(task *scanTask) {
 	delete(q.tasks, task.baseDir)
 	q.mutex.Unlock()
 
-	consts.LogMem.Add("扫描完成: %s", task.baseDir)
+	LogMem.Add("扫描完成: %s", task.baseDir)
 }
 
 // AddTask 添加扫描任务到队列
@@ -183,7 +183,7 @@ func (q *taskQueue) AddTask(baseDir string) {
 		if existingTask.canceled.CompareAndSwap(false, true) {
 			close(existingTask.cancel)
 		}
-		consts.LogMem.Add("取消现有扫描任务，执行新任务: %s", baseDir)
+		LogMem.Add("取消现有扫描任务，执行新任务: %s", baseDir)
 	}
 
 	newTask := &scanTask{
@@ -194,7 +194,7 @@ func (q *taskQueue) AddTask(baseDir string) {
 	q.tasks[baseDir] = newTask
 	q.taskChan <- newTask
 
-	consts.LogMem.Add("添加扫描任务到队列: %s", baseDir)
+	LogMem.Add("添加扫描任务到队列: %s", baseDir)
 }
 
 // GetTaskCount 获取队列中的任务数

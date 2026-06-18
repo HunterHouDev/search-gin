@@ -2,7 +2,6 @@ package handler
 
 import (
 	"search-gin/internal/service"
-	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 	"net/http"
 	"strings"
@@ -25,7 +24,7 @@ func GetOpenFolder(c *gin.Context) {
 		return
 	}
 
-	validatedPath, err := utils.ValidatePath(file.DirPath, consts.GetOSSetting().Dirs)
+	validatedPath, err := utils.ValidatePath(file.DirPath, service.GetOSSetting().Dirs)
 	if err != nil {
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("路径不在允许范围内"))
 		return
@@ -48,7 +47,7 @@ func PostOpenFolderByPath(c *gin.Context) {
 	}
 	dirpath := forms["dirpath"]
 	dirpath = strings.ReplaceAll(dirpath, utils.PathSeparator+utils.PathSeparator, utils.PathSeparator)
-	validatedPath, err := utils.ValidatePath(dirpath, consts.GetOSSetting().Dirs)
+	validatedPath, err := utils.ValidatePath(dirpath, service.GetOSSetting().Dirs)
 	if err != nil {
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("路径不在允许范围内"))
 		return
@@ -69,7 +68,7 @@ func PostDeleteFolderByPath(c *gin.Context) {
 	}
 	dirpath := forms["dirpath"]
 	dirpath = strings.ReplaceAll(dirpath, utils.PathSeparator+utils.PathSeparator, utils.PathSeparator)
-	validatedPath, err := utils.ValidatePath(dirpath, consts.GetOSSetting().Dirs)
+	validatedPath, err := utils.ValidatePath(dirpath, service.GetOSSetting().Dirs)
 	if err != nil {
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("路径不在允许范围内"))
 		return

@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"search-gin/internal/model"
-	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 	"strings"
 	"time"
@@ -61,7 +60,7 @@ func (e *videoEncoder) transferWithEncoder(task model.TransferTaskModel, encoder
 
 // cleanupSourceIfNeeded 如果配置了转码后删除源文件，则执行删除
 func (e *videoEncoder) cleanupSourceIfNeeded(path string) {
-	if consts.GetOSSetting().CutThenDelete {
+	if GetOSSetting().CutThenDelete {
 		if err := os.Remove(path); err != nil {
 			utils.InfoFormat("删除源文件失败: %s, 错误: %v", path, err)
 		}
@@ -118,7 +117,7 @@ func (e *videoEncoder) CutFormatter(task model.TransferTaskModel) utils.Result {
 	args := []string{"-i", from, "-ss", task.Start, "-t", task.End, "-c", "copy", dest}
 	res := e.ffmpegExec(args, task.CreateTime)
 
-	if res.IsSuccess() && consts.GetOSSetting().CutThenDelete {
+	if res.IsSuccess() && GetOSSetting().CutThenDelete {
 		e.cleanupSourceIfNeeded(task.Path)
 	}
 
@@ -187,10 +186,10 @@ func (e *videoEncoder) ffmpegBinPath() string {
 
 // ffmpegExec 执行ffmpeg命令
 func (e *videoEncoder) ffmpegExec(args []string, thisNow time.Time) utils.Result {
-	consts.TransferTaskMutex.Lock()
-	task, exists := consts.TransferTask[thisNow]
+	TransferTaskMutex.Lock()
+	task, exists := TransferTask[thisNow]
 	if !exists {
-		consts.TransferTaskMutex.Unlock()
+		TransferTaskMutex.Unlock()
 		return utils.NewFailByMsg("任务不存在")
 	}
 
@@ -199,8 +198,8 @@ func (e *videoEncoder) ffmpegExec(args []string, thisNow time.Time) utils.Result
 	task.SetStatus("执行中")
 	task.CreateTime = time.Now()
 	task.Command = ffmpegPath + " " + strings.Join(args, " ")
-	consts.TransferTask[thisNow] = task
-	consts.TransferTaskMutex.Unlock()
+	TransferTask[thisNow] = task
+	TransferTaskMutex.Unlock()
 
 	utils.InfoFormat("执行命令: %v", task.Command)
 
@@ -211,22 +210,22 @@ func (e *videoEncoder) ffmpegExec(args []string, thisNow time.Time) utils.Result
 
 	out, cmdErr := cmd.CombinedOutput()
 
-	consts.TransferTaskMutex.Lock()
+	TransferTaskMutex.Lock()
 	task.SetLog(string(out))
 	task.FinishTime = time.Now()
 
 	if cmdErr != nil {
 		task.SetStatus("执行失败")
-		consts.TransferTask[thisNow] = task
-		consts.TransferTaskMutex.Unlock()
+		TransferTask[thisNow] = task
+		TransferTaskMutex.Unlock()
 
 		utils.InfoFormat("命令执行失败: %v, 错误: %v, 参数: %v", string(out), cmdErr, args)
 		return utils.NewFailByMsg("转换失败")
 	}
 
 	task.SetStatus("成功")
-	consts.TransferTask[thisNow] = task
-	consts.TransferTaskMutex.Unlock()
+	TransferTask[thisNow] = task
+	TransferTaskMutex.Unlock()
 
 	return utils.NewSuccessByMsg("转换成功")
 }

@@ -26,7 +26,7 @@ type IndexHealth struct {
 	SeriesCount     int                 `json:"seriesCount"`
 	Status          string              `json:"status"`
 	Recommendations []string            `json:"recommendations"`
-	ScanProgress    consts.ScanProgress `json:"scanProgress"`
+	ScanProgress    service.ScanProgress `json:"scanProgress"`
 }
 
 func GetIndexHealthCheck(c *gin.Context) {
@@ -35,21 +35,21 @@ func GetIndexHealthCheck(c *gin.Context) {
 	health.BucketCount = service.SearchEngine.BucketCount()
 	health.IndexNumber = consts.IndexNumber.Load()
 	health.FullScanInProgress = service.FullScanInProgress.Load()
-	health.ExpectedDirs = len(consts.GetOSSetting().Dirs)
+	health.ExpectedDirs = len(service.GetOSSetting().Dirs)
 	health.TotalCount = service.SearchEngine.GetTotalCount()
 	health.TotalSize = service.SearchEngine.GetTotalSize()
 	health.TotalSizeStr = utils.GetSizeStr(health.TotalSize)
 	health.LastScanTime = consts.GetLastScanTime().Format("2006-01-02 15:04:05")
 	health.AuthorCount = service.SearchEngine.GetAuthorCount()
-	health.TagCount = consts.GetSyncMapCount(&consts.TagMenu)
-	health.TypeCount = consts.GetSyncMapCount(&consts.TypeMenu) - 1 // 排除"全部"
+	health.TagCount = service.GetSyncMapCount(&service.TagMenu)
+	health.TypeCount = service.GetSyncMapCount(&service.TypeMenu) - 1 // 排除"全部"
 	if health.TypeCount < 0 {
 		health.TypeCount = 0
 	}
-	health.SeriesCount = consts.GetSyncMapCount(&consts.SeriesCount)
+	health.SeriesCount = service.GetSyncMapCount(&service.SeriesCount)
 
 	// 读取扫描进度
-	health.ScanProgress = consts.Sp.Get()
+	health.ScanProgress = service.Sp.Get()
 
 	recommendations := []string{}
 

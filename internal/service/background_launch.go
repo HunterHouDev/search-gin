@@ -22,7 +22,7 @@ func InitSetting() {
 		utils.ErrorFormat("获取当前目录失败: %v", err)
 		curDir = "."
 	}
-	osSetting := consts.GetOSSetting()
+	osSetting := GetOSSetting()
 	settingPath := filepath.Join(curDir, osSetting.SelfPath)
 	dict := ReadDictionaryFromJson(settingPath)
 	dict.SelfPath = osSetting.SelfPath
@@ -44,13 +44,13 @@ func InitSetting() {
 		dict.HardwareAccelMode = GetHwAccelModeName()
 	}
 
-	consts.SetOSSetting(dict)
+	SetOSSetting(dict)
 }
 
 // InitSearchPool 初始化 goroutine 池，根据配置的目录数量动态调整
-// 必须在 consts.GetOSSetting() 和 SearchEngine 初始化之后调用
+// 必须在 GetOSSetting() 和 SearchEngine 初始化之后调用
 func InitSearchPool() {
-	dirCount := len(consts.GetOSSetting().Dirs)
+	dirCount := len(GetOSSetting().Dirs)
 	poolSize := dirCount
 	if poolSize < 4 {
 		poolSize = 4

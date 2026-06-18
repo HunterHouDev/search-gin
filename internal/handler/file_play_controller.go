@@ -5,7 +5,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"search-gin/internal/service"
-	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 	"strings"
 
@@ -20,7 +19,7 @@ func GetPlay(c *gin.Context) {
 		return
 	}
 
-	sanitizePath, err := utils.ValidatePath(file.Path, consts.GetOSSetting().Dirs)
+	sanitizePath, err := utils.ValidatePath(file.Path, service.GetOSSetting().Dirs)
 	if err != nil {
 		utils.ErrorFormat("命令注入攻击尝试: %s, 错误: %v", file.Path, err)
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("文件路径不在允许范围内"))
@@ -29,7 +28,7 @@ func GetPlay(c *gin.Context) {
 
 	utils.InfoFormat("GetPlay [%v]", sanitizePath)
 
-	setting := consts.GetOSSetting()
+	setting := service.GetOSSetting()
 	if setting.SystemPlayer == "ffplay" {
 		go func() {
 			params := []string{"-window_title", file.Title,
@@ -81,7 +80,7 @@ func GetAuthorImage(c *gin.Context) {
 	if author.IsNotEmpty() {
 		for _, v := range author.Images {
 			if v != "" {
-				if validated, err := utils.ValidatePath(v, consts.GetOSSetting().Dirs); err == nil {
+				if validated, err := utils.ValidatePath(v, service.GetOSSetting().Dirs); err == nil {
 					c.File(validated)
 					return
 				}

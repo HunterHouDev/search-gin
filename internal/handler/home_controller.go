@@ -22,10 +22,10 @@ func GetTypeSize(c *gin.Context) {
 	if service.SearchEngine.IsEmpty() {
 		service.SearchApp.ScanAll()
 	}
-	res := mapToSlice(&consts.TypeMenu)
-	smallDirs := consts.GetSmallDir()
+	res := mapToSlice(&service.TypeMenu)
+	smallDirs := service.GetSmallDir()
 	if len(smallDirs) > 0 {
-		smallSize := consts.NewMenuSize("小文件数量", int64(len(smallDirs)))
+		smallSize := service.NewMenuSize("小文件数量", int64(len(smallDirs)))
 		smallSize.SizeStr = utils.GetSizeStr(smallSize.Size)
 		res = append(res, smallSize)
 		for i := range smallDirs {
@@ -38,17 +38,17 @@ func GetTypeSize(c *gin.Context) {
 }
 
 func GetTagSize(c *gin.Context) {
-	res := mapToSlice(&consts.TagMenu)
+	res := mapToSlice(&service.TagMenu)
 	c.JSON(http.StatusOK, res)
 }
 
 func GetSeriesSize(c *gin.Context) {
-	res := mapToSlice(&consts.SeriesCount)
+	res := mapToSlice(&service.SeriesCount)
 	c.JSON(http.StatusOK, res)
 }
 
 func GetLogMemory(c *gin.Context) {
-	c.JSON(http.StatusOK, consts.LogMem.GetAll())
+	c.JSON(http.StatusOK, service.LogMem.GetAll())
 }
 
 // LocalLogLine 本地日志行
@@ -90,9 +90,9 @@ func splitLines(s string) []string {
 }
 
 func GetScanTime(c *gin.Context) {
-	var res []consts.MenuSize
-	consts.FolderTime.Range(func(_, value interface{}) bool {
-		if ms, ok := value.(consts.MenuSize); ok {
+	var res []service.MenuSize
+	service.FolderTime.Range(func(_, value interface{}) bool {
+		if ms, ok := value.(service.MenuSize); ok {
 			res = append(res, ms)
 		}
 		return true
@@ -109,7 +109,7 @@ func GetHeartBeat(c *gin.Context) {
 
 func GetDiskUsage(c *gin.Context) {
 	var res []model.DiskStatus
-	dirs := consts.GetOSSetting().Dirs
+	dirs := service.GetOSSetting().Dirs
 	for _, dir := range dirs {
 		usage, err := model.GetDiskUsage(dir)
 		if err != nil {
@@ -120,10 +120,10 @@ func GetDiskUsage(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 
-func mapToSlice(m *sync.Map) []consts.MenuSize {
-	var res []consts.MenuSize
+func mapToSlice(m *sync.Map) []service.MenuSize {
+	var res []service.MenuSize
 	m.Range(func(_, value interface{}) bool {
-		if ms, ok := value.(consts.MenuSize); ok {
+		if ms, ok := value.(service.MenuSize); ok {
 			res = append(res, ms)
 		}
 		return true

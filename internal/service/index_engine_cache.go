@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"search-gin/internal/model"
-	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 )
 
@@ -28,9 +27,9 @@ type cacheData struct {
 	Buckets     []cacheBucket
 	RepeatFiles []model.FileItem
 	AuthorMap    map[string]model.Author
-	TypeMenu    map[string]consts.MenuSize
-	TagMenu     map[string]consts.MenuSize
-	SeriesCount map[string]consts.MenuSize
+	TypeMenu    map[string]MenuSize
+	TagMenu     map[string]MenuSize
+	SeriesCount map[string]MenuSize
 }
 
 const cacheFileName = "search_cache.gob"
@@ -97,7 +96,7 @@ func saveIndexToCache(index *searchIndex) {
 				utils.InfoFormat("保存索引缓存失败(重命名): %v", err)
 				return
 			}
-			consts.LogMem.Add("索引缓存已保存: %s (%d buckets, %d files)", cachePath, len(data.Buckets), index.totalCount)
+			LogMem.Add("索引缓存已保存: %s (%d buckets, %d files)", cachePath, len(data.Buckets), index.totalCount)
 		}()
 
 		select {
@@ -163,6 +162,6 @@ func (se *searchEngineCore) LoadCachedIndex() bool {
 	}
 
 	se.installIndex(index)
-	consts.LogMem.Add("索引缓存已加载: %s (%d buckets, %d files)", cachePath, len(data.Buckets), totalCount)
+	LogMem.Add("索引缓存已加载: %s (%d buckets, %d files)", cachePath, len(data.Buckets), totalCount)
 	return true
 }

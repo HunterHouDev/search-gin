@@ -73,7 +73,7 @@ func (se *searchEngineCore) tryCache(p model.SearchParam) (model.PageResultWrapp
 func (se *searchEngineCore) doSearch(index *searchIndex, p model.SearchParam) model.PageResultWrapper {
 	bucketCount := len(index.buckets)
 	if bucketCount <= 0 {
-		consts.LogMem.Add("警告: bucketCount=0, 跳过搜索")
+		LogMem.Add("警告: bucketCount=0, 跳过搜索")
 		return model.PageResultWrapper{FileList: []model.FileItem{}}
 	}
 
@@ -93,7 +93,7 @@ func (se *searchEngineCore) doSearch(index *searchIndex, p model.SearchParam) mo
 		se.searchPool.Submit(func() {
 			defer func() {
 				if r := recover(); r != nil {
-					consts.LogMem.Add("搜索 bucket 异常: %v", r)
+					LogMem.Add("搜索 bucket 异常: %v", r)
 				}
 			}()
 			w := b.searchBucket(p)
@@ -138,7 +138,7 @@ loop:
 			w.SearchCount += len(data.FileList)
 			w.SearchSize += data.Size
 		case <-ctx.Done():
-			consts.LogMem.Add("搜索超时，部分结果可能未返回")
+			LogMem.Add("搜索超时，部分结果可能未返回")
 			drainDone := make(chan struct{})
 			go func() {
 				se.searchPool.Wait()

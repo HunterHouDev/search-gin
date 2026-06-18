@@ -26,9 +26,9 @@ type searchIndex struct {
 	authorMap    map[string]model.Author
 
 	// 预聚合的菜单数据（写入 consts.* 前暂存）
-	typeMenu    map[string]consts.MenuSize
-	tagMenu     map[string]consts.MenuSize
-	seriesCount map[string]consts.MenuSize
+	typeMenu    map[string]MenuSize
+	tagMenu     map[string]MenuSize
+	seriesCount map[string]MenuSize
 }
 
 // searchEngineCore 搜索引擎：只保留快照指针 + 不变的辅助字段
@@ -50,9 +50,9 @@ func (se *searchEngineCore) loadIndex() *searchIndex {
 		return &searchIndex{
 			buckets:     make(map[string]*bucketFile),
 			authorMap:   make(map[string]model.Author),
-			typeMenu:    make(map[string]consts.MenuSize),
-			tagMenu:     make(map[string]consts.MenuSize),
-			seriesCount: make(map[string]consts.MenuSize),
+			typeMenu:    make(map[string]MenuSize),
+			tagMenu:     make(map[string]MenuSize),
+			seriesCount: make(map[string]MenuSize),
 		}
 	}
 	index, ok := s.(*searchIndex)
@@ -60,9 +60,9 @@ func (se *searchEngineCore) loadIndex() *searchIndex {
 		return &searchIndex{
 			buckets:     make(map[string]*bucketFile),
 			authorMap:   make(map[string]model.Author),
-			typeMenu:    make(map[string]consts.MenuSize),
-			tagMenu:     make(map[string]consts.MenuSize),
-			seriesCount: make(map[string]consts.MenuSize),
+			typeMenu:    make(map[string]MenuSize),
+			tagMenu:     make(map[string]MenuSize),
+			seriesCount: make(map[string]MenuSize),
 		}
 	}
 	return index
@@ -89,17 +89,17 @@ func (se *searchEngineCore) syncIndex(index *searchIndex) {
 	se.authorCountCache = nil
 	se.authorCacheMu.Unlock()
 
-	consts.TypeMenu.Clear()
+	TypeMenu.Clear()
 	for k, v := range index.typeMenu {
-		consts.TypeMenu.Store(k, v)
+		TypeMenu.Store(k, v)
 	}
-	consts.TagMenu.Clear()
+	TagMenu.Clear()
 	for k, v := range index.tagMenu {
-		consts.TagMenu.Store(k, v)
+		TagMenu.Store(k, v)
 	}
-	consts.SeriesCount.Clear()
+	SeriesCount.Clear()
 	for k, v := range index.seriesCount {
-		consts.SeriesCount.Store(k, v)
+		SeriesCount.Store(k, v)
 	}
 	consts.SetLastScanTime(time.Now())
 }

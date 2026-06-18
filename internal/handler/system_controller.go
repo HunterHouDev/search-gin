@@ -14,7 +14,7 @@ import (
 )
 
 func GetSettingInfo(c *gin.Context) {
-	setting := consts.GetOSSetting()
+	setting := service.GetOSSetting()
 	safeSetting := setting
 	safeSetting.Users = nil
 	if safeSetting.HardwareAcceleration && safeSetting.HardwareAccelMode == "" {
@@ -32,9 +32,9 @@ func PostSetting(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数绑定失败"))
 		return
 	}
-	setInfo.SelfPath = consts.GetOSSetting().SelfPath
-	consts.SetOSSetting(setInfo)
-	service.FlushDictionary(consts.GetOSSetting().SelfPath)
+	setInfo.SelfPath = service.GetOSSetting().SelfPath
+	service.SetOSSetting(setInfo)
+	service.FlushDictionary(service.GetOSSetting().SelfPath)
 	if service.HwAccelSettingChanged() {
 		service.ForceHwAccelDetect()
 	}
@@ -48,7 +48,7 @@ func GetIpAddr2(c *gin.Context) {
 }
 
 func GetServerPort(c *gin.Context) {
-	setting := consts.GetOSSetting()
+	setting := service.GetOSSetting()
 	configured := setting.ControllerHost
 	if configured == "" {
 		configured = consts.PortNo

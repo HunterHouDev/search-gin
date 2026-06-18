@@ -2,7 +2,6 @@ package service
 
 import (
 	"search-gin/internal/model"
-	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 	"sync"
 	"testing"
@@ -349,11 +348,11 @@ func TestRebuildWithBucket_ReplacesExisting(t *testing.T) {
 	defer core.installIndexNoCache(emptySearchIndex())
 
 	// 设置配置目录使 rebuildWithBucket 不会跳过 bucket
-	orig := consts.GetOSSetting()
-	consts.SetOSSetting(model.Setting{
+	orig := GetOSSetting()
+	SetOSSetting(model.Setting{
 		Dirs: []string{"dir-a"},
 	})
-	defer consts.SetOSSetting(orig)
+	defer SetOSSetting(orig)
 
 	// 初始：dir-a 有文件
 	b1 := makeBucket("dir-a", makeMovie("1", "old.mp4", "/old.mp4", "", "", "", 100))
@@ -379,11 +378,11 @@ func TestRebuildWithBucket_KeepsOtherBuckets(t *testing.T) {
 	defer core.installIndexNoCache(emptySearchIndex())
 
 	// 设置配置目录使 rebuildWithBucket 不会跳过这些 bucket
-	orig := consts.GetOSSetting()
-	consts.SetOSSetting(model.Setting{
+	orig := GetOSSetting()
+	SetOSSetting(model.Setting{
 		Dirs: []string{"dir-a", "dir-b"},
 	})
-	defer consts.SetOSSetting(orig)
+	defer SetOSSetting(orig)
 
 	bA := makeBucket("dir-a", makeMovie("1", "a.mp4", "/a.mp4", "", "", "", 100))
 	bB := makeBucket("dir-b", makeMovie("2", "b.mp4", "/b.mp4", "", "", "", 200))
@@ -502,9 +501,9 @@ func emptySearchIndex() *searchIndex {
 }
 
 func resetGlobalState() {
-	consts.TypeMenu = sync.Map{}
-	consts.TagMenu = sync.Map{}
-	consts.SeriesCount = sync.Map{}
+	TypeMenu = sync.Map{}
+	TagMenu = sync.Map{}
+	SeriesCount = sync.Map{}
 }
 
 func TestMain(m *testing.M) {

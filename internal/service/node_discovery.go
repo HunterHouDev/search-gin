@@ -49,7 +49,7 @@ const defaultPeerTimeout = 90 * time.Second
 // IsClusterEnabled 集群模式是否启用
 // nil（未配置）→ 默认启用；*false → 禁用；*true → 启用
 func IsClusterEnabled() bool {
-	s := consts.GetOSSetting()
+	s := GetOSSetting()
 	return s.EnableLanDiscovery == nil ||
 		*s.EnableLanDiscovery
 }
@@ -64,7 +64,7 @@ func initNodeInfo() {
 	port := strings.TrimPrefix(consts.PortNo, ":")
 	LocalNodeHost = fmt.Sprintf("%s:%s", hostname, port)
 
-	setting := consts.GetOSSetting()
+	setting := GetOSSetting()
 	if setting.NodeName != "" {
 		LocalNodeName = setting.NodeName
 	} else {
@@ -79,7 +79,7 @@ func loadStaticPeers() {
 	if defaultManager == nil {
 		return
 	}
-	setting := consts.GetOSSetting()
+	setting := GetOSSetting()
 	for _, addr := range setting.DiscoveryPeers {
 		parts := strings.Split(addr, ":")
 		if len(parts) < 2 {
@@ -244,7 +244,7 @@ func AddPeer(ip, port, filePort string) bool {
 	})
 	// 持久化到 setting.json，重启后自动加载
 	addr := fmt.Sprintf("%s:%s:%s", ip, port, filePort)
-	consts.UpdateOSSetting(func(s model.Setting) model.Setting {
+	UpdateOSSetting(func(s model.Setting) model.Setting {
 		for _, v := range s.DiscoveryPeers {
 			if v == addr {
 				return s // 已存在
@@ -259,7 +259,7 @@ func AddPeer(ip, port, filePort string) bool {
 		utils.ErrorFormat("获取当前目录失败: %v", err)
 		return false
 	}
-	setting := consts.GetOSSetting()
+	setting := GetOSSetting()
 	FlushDictionary(curDir + utils.PathSeparator + setting.SelfPath)
 	utils.InfoFormat("手动添加节点成功: %s (%s)", id, ip)
 	return true
@@ -279,7 +279,7 @@ func RemovePeer(id string) bool {
 	defaultManager.mu.Unlock()
 
 	// 从 setting.json 的 discoveryPeers 中移除
-	consts.UpdateOSSetting(func(s model.Setting) model.Setting {
+	UpdateOSSetting(func(s model.Setting) model.Setting {
 		var keep []string
 		for _, v := range s.DiscoveryPeers {
 			if v != id && !strings.HasPrefix(v, id+":") {
@@ -294,7 +294,7 @@ func RemovePeer(id string) bool {
 		utils.ErrorFormat("获取当前目录失败: %v", err)
 		return false
 	}
-	setting := consts.GetOSSetting()
+	setting := GetOSSetting()
 	FlushDictionary(curDir + utils.PathSeparator + setting.SelfPath)
 	utils.InfoFormat("删除节点: %s", id)
 	return true

@@ -7,7 +7,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"search-gin/internal/service"
-	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 )
 
@@ -81,7 +80,7 @@ func AuthMiddleware() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		tokenInfo, valid := consts.ValidateTokenWithInfo(token)
+		tokenInfo, valid := service.ValidateTokenWithInfo(token)
 		if !valid {
 			c.JSON(http.StatusUnauthorized, utils.NewFailByMsg("认证失败"))
 			c.Abort()
