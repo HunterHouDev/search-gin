@@ -100,7 +100,7 @@ const submitBtn = () => {
 };
 
 const logout = () => {
-  localStorage.removeItem('isAuthenticated');
+  sessionStorage.removeItem('isAuthenticated');
   window.location.href = '/';
 };
 

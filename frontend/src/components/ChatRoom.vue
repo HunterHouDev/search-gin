@@ -199,7 +199,7 @@ const $q = useQuasar();
 const visible = ref(false);
 const inputText = ref('');
 const messageContainer = ref<HTMLElement | null>(null);
-const currentUser = localStorage.getItem('username') || '';
+const currentUser = sessionStorage.getItem('username') || '';
 const activeTab = ref('chat');
 
 const {

@@ -1,6 +1,6 @@
 import { boot } from 'quasar/wrappers';
-import { isElectron } from './platform';
 import axios, { AxiosInstance } from 'axios';
+import { isElectron } from './platform';
 
 declare module '@vue/runtime-core' {
   interface ComponentCustomProperties {
@@ -9,18 +9,15 @@ declare module '@vue/runtime-core' {
   }
 }
 
-// Be careful when using SSR for cross-request state pollution
-// due to creating a Singleton instance here;
-// If any client changes this (global) instance, it might be a
-// good idea to move this instance creation inside of the
-// "export default () => {}" function below (which runs individually
-// for each client)
-const api = axios.create({ baseURL: 'http://localhost:10081' });
+// Electron 下直连后端，浏览器下用相对路径走 devServer proxy
+const api = axios.create({
+  baseURL: isElectron() ? 'http://localhost:10081' : '',
+});
 
 // 请求拦截器：自动添加token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('authToken');
+    const token = sessionStorage.getItem('authToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -39,8 +36,8 @@ export default boot(({ app, router }) => {
     },
     (error) => {
       if (error.response && error.response.status === 401) {
-        localStorage.removeItem('isAuthenticated');
-        localStorage.removeItem('authToken');
+        sessionStorage.removeItem('isAuthenticated');
+        sessionStorage.removeItem('authToken');
         if (router) {
           router.push('/login');
         }
@@ -61,8 +58,7 @@ export default boot(({ app, router }) => {
 });
 
 const commonAxios = () => {
-  const rest = isElectron() ? api : axios;
-  return rest;
+  return api;
 };
 
 export { api, axios, commonAxios };

@@ -103,7 +103,6 @@
   </div>
 </template>
 <script setup>
-import { useQuasar } from 'quasar';
 import { useSystemProperty } from 'src/stores/System';
 import {
   AddTag,
@@ -113,8 +112,6 @@ import {
 } from './api/searchAPI';
 import { onMounted, reactive, inject, computed } from 'vue';
 import { useCommonExec } from 'src/composables/useCommonExec';
-
-const $q = useQuasar();
 
 const systemProperty = useSystemProperty();
 const { exec: commonExec } = useCommonExec();

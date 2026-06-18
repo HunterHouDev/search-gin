@@ -22,7 +22,7 @@ export function useVideoConference() {
   const camEnabled = ref(true);
   const error = ref<string | null>(null);
 
-  const currentUser = localStorage.getItem('username') || '';
+  const currentUser = sessionStorage.getItem('username') || '';
 
   // 存储所有 PeerConnection，key = 对方用户名
   const peers: Record<string, RTCPeerConnection> = {};

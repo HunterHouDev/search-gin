@@ -191,7 +191,7 @@
 
 <script setup>
 import { useQuasar } from 'quasar';
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useSystemProperty } from 'stores/System';
 import { CutImage, DeleteFile } from 'components/api/searchAPI';
 import { VideoClass } from 'components/utils/video';

@@ -143,35 +143,25 @@ const scanProgressRatio = computed(() => {
 const queryHealth = async () => {
   try {
     const health = await IndexHealthQuery();
-    if (health) {
-      view.healthStatus = health.status;
-      view.totalCount = health.totalCount;
-      view.totalSizeStr = health.totalSizeStr || '';
-      view.lastScanTime = health.lastScanTime || '';
-      view.actorCount = health.actorCount || 0;
-      view.tagCount = health.tagCount || 0;
-      view.typeCount = health.typeCount || 0;
-      view.seriesCount = health.seriesCount || 0;
-      view.recommendations = health.recommendations || [];
-      view.bucketCount = health.bucketCount;
-      view.expectedDirs = health.expectedDirs;
-      view.scanProgress = health.scanProgress || null;
-    }
+    if (health) updateHealth(health);
   } catch (error) {
     console.error('IndexHealthQuery error:', error);
   }
 };
 
-const startHealthPolling = () => {
-  queryHealth();
-  view.healthPollTimer = setInterval(queryHealth, 300);
-};
-
-const stopHealthPolling = () => {
-  if (view.healthPollTimer) {
-    clearInterval(view.healthPollTimer);
-    view.healthPollTimer = null;
-  }
+const updateHealth = (health) => {
+  view.healthStatus = health.status;
+  view.totalCount = health.totalCount;
+  view.totalSizeStr = health.totalSizeStr || '';
+  view.lastScanTime = health.lastScanTime || '';
+  view.actorCount = health.actorCount || 0;
+  view.tagCount = health.tagCount || 0;
+  view.typeCount = health.typeCount || 0;
+  view.seriesCount = health.seriesCount || 0;
+  view.recommendations = health.recommendations || [];
+  view.bucketCount = health.bucketCount;
+  view.expectedDirs = health.expectedDirs;
+  view.scanProgress = health.scanProgress || null;
 };
 
 const BASE_INTERVAL = 200;
@@ -236,14 +226,11 @@ onMounted(() => {
   queryHealth();
 });
 
-onBeforeUnmount(() => {
-  stopHealthPolling();
-});
-
 defineExpose({
   refreshIndex,
   refreshProgress,
   queryHealth,
+  updateHealth,
 });
 </script>
 

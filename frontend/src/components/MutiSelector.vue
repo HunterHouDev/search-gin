@@ -1,7 +1,7 @@
 <template>
   <div
     ref="target"
-    style="width: 100%; height: 100%; padding: 1px"
+    :style="style"
     @blur="editStyle == false"
   >
     <span v-if="!editStyle">
@@ -91,6 +91,10 @@ const props = defineProps({
   options: {
     type: Array,
     default: () => [],
+  },
+  style: {
+    type: Object,
+    default: () => ({}),
   },
 });
 

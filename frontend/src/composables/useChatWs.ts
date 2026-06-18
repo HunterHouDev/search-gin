@@ -41,15 +41,15 @@ let reconnectAttempt = 0;
 let connectTimer: ReturnType<typeof setTimeout> | null = null;
 
 function redirectToLogin() {
-  localStorage.removeItem('authToken');
-  localStorage.removeItem('isAuthenticated');
-  localStorage.removeItem('userRole');
-  localStorage.removeItem('username');
+  sessionStorage.removeItem('authToken');
+  sessionStorage.removeItem('isAuthenticated');
+  sessionStorage.removeItem('userRole');
+  sessionStorage.removeItem('username');
   window.location.href = '/#/login';
 }
 
 function getWsUrl(): string {
-  const token = localStorage.getItem('authToken');
+  const token = sessionStorage.getItem('authToken');
   const apiUrl = api.defaults.baseURL || `http://${location.host}`;
   const apiHost = apiUrl.replace(/^https?:\/\//, '');
   const isSecure = apiUrl.startsWith('https:');
@@ -62,7 +62,7 @@ function scheduleReconnect() {
   reconnectAttempt++;
   if (reconnectAttempt > WS_MAX_RETRY) {
     connectionFailed.value = true;
-    const token = localStorage.getItem('authToken');
+    const token = sessionStorage.getItem('authToken');
     if (token) {
       commonAxios().get('/api/heartBeat').catch((err) => {
         if (err?.response?.status === 401) {
