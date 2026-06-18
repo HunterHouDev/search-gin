@@ -89,21 +89,18 @@ func (se *searchEngineCore) syncIndex(index *searchIndex) {
 	se.authorCountCache = nil
 	se.authorCacheMu.Unlock()
 
-	newTypeMenu := &sync.Map{}
+	consts.TypeMenu.Clear()
 	for k, v := range index.typeMenu {
-		newTypeMenu.Store(k, v)
+		consts.TypeMenu.Store(k, v)
 	}
-	newTagMenu := &sync.Map{}
+	consts.TagMenu.Clear()
 	for k, v := range index.tagMenu {
-		newTagMenu.Store(k, v)
+		consts.TagMenu.Store(k, v)
 	}
-	newSeriesCount := &sync.Map{}
+	consts.SeriesCount.Clear()
 	for k, v := range index.seriesCount {
-		newSeriesCount.Store(k, v)
+		consts.SeriesCount.Store(k, v)
 	}
-	consts.TypeMenu = *newTypeMenu
-	consts.TagMenu = *newTagMenu
-	consts.SeriesCount = *newSeriesCount
 	consts.LastScanTime = time.Now()
 }
 
