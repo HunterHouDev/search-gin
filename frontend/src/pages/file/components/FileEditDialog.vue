@@ -1,11 +1,10 @@
 <template>
-  <q-dialog ref="dialogRef" @hide="onDialogHide">
-    <q-card class="file-edit-card">
-      <q-toolbar class="rounded-borders justify-between" style="background-color: rgba(0, 0, 0, 0.9)" wrap>
+  <q-dialog ref="dialogRef" full-width @hide="onDialogHide">
+    <div class="dialog">
+      <q-toolbar class="rounded-borders justify-between w100" style="background-color: rgba(0, 0, 0, 0.9)" wrap>
         <q-btn color="red" flat icon="ti-shift-left" :size="isMobile ? 'sm' : 'md'" @click="prevOne">
           <q-tooltip class="bg-white text-primary">上一个</q-tooltip>
         </q-btn>
-
         <span style="color: white; font-size: 18px" v-if="!isMobile">
           <span style="color: orchid; cursor: pointer">
             历史图鉴 ：
@@ -28,86 +27,80 @@
             {{ systemProperty.lastAuthor }}</a>
         </span>
         <q-space />
-        <q-btn style="margin-right: 10px" color="orange" align="evenly" label="改名移动" glossy
-          :size="isMobile ? 'sm' : 'md'" @click="editMoveout" />
-        <q-btn style="margin-right: 10px" color="green" glossy align="evenly" label="仅改名" :size="isMobile ? 'sm' : 'md'"
-          @click="editItemSubmit(false)" />
-        <q-btn style="margin-right: 10px" color="purple" glossy align="evenly" label="Bus" :size="isMobile ? 'sm' : 'md'"
-          @click="toggleJavBus" />
-        <q-btn style="margin-right: 10px" color="primary" icon="close" glossy  :size="isMobile ? 'sm' : 'md'"
-          @click="onDialogCancel">
+        <q-btn style="margin-right: 10px" color="orange" align="evenly" label="改名移动" glossy @click="editMoveout" />
+        <q-btn style="margin-right: 10px" icon="close" color="red" @click="onDialogCancel">
           <q-tooltip class="bg-white text-primary">关闭</q-tooltip>
         </q-btn>
         <q-btn color="red" flat icon="ti-shift-right" :size="isMobile ? 'sm' : 'md'" @click="nextOne">
           <q-tooltip class="bg-white text-primary">下一个</q-tooltip>
         </q-btn>
       </q-toolbar>
-      <q-form class="q-gutter-md row justify-between">
-        <div class="q-gutter-sm q-pa-sm">
-          <div>
+
+      <q-card class="file-edit-card">
+        <q-form class="q-pa-sm" :style="{ width: showBus ? '50%' : '100%' }">
+          <div class="row wrap justify-start q-gutter-sm">
+            <q-toggle v-model="systemProperty.fileEditAutoCode" color="green" glossy label="番号自动" left-label dense
+              class="taggle" />
+            <q-toggle v-model="systemProperty.fileEditAutoJpg" color="green" glossy label="JPG自动" left-label dense
+              class="taggle" />
+            <q-toggle v-model="systemProperty.fileEditAutoRefresh" color="green" glossy label="刷新" left-label dense
+              class="taggle" />
+            <q-toggle color="primary" dense flat glossy label="仅改名" left-label v-model="systemProperty.onlyRename"
+              class="taggle" />
+            <q-toggle color="red" dense glossy flat label="下个" left-label v-model="systemProperty.fileEditAutoNext"
+              class="taggle" />
+            <q-btn color="primary" glossy label="Bus" @click="toggleJavBus" />
+          </div>
+          <div class="q-gutter-sm q-pa-sm">
+
+            <q-input color="red-12" style="border-radius: 15px; background: rgba(0, 0, 0, 0.1)" autogrow standout
+              outlined label="名称" v-model="view.item.Title" :dense="false" clearable @focus="titleChange"
+              @change="titleChange">
+              <template v-slot:append>
+                <q-icon name="style" size="lg" color="red" class="cursor-pointer"
+                  @click="pasteFromClipboard('Title')" />
+              </template>
+            </q-input>
+
+            <q-input outlined label="图鉴" autogrow v-model="view.item.Author" clearable :dense="false">
+            </q-input>
+            <q-input outlined autogrow label="番号" v-model="view.item.Code" :dense="false" @change="makePreview"
+              clearable />
+            <q-input :class="isMobile ? '' : 'col-6'" label="JPG地址" autogrow outlined clearable v-model="view.item.Jpg"
+              :dense="false" @clear="systemProperty.fileEditAutoJpg = false">
+              <template v-slot:append>
+                <q-icon name="style" size="md" class="cursor-pointer" @click="pasteFromClipboard('Jpg')" />
+              </template>
+            </q-input>
+            <q-input :class="isMobile ? '' : 'col-6'" label="PNG地址" autogrow outlined v-model="view.item.Png" clearable
+              :dense="false">
+              <template v-slot:append>
+                <q-icon name="style" size="md" class="cursor-pointer" @click="pasteFromClipboard('Png')" />
+              </template>
+            </q-input>
             <p style="color: grey">
               {{ view.item.Path }}
               <span style="color: red">{{ view.item.SizeStr }}</span>
               <span style="color: green; margin-left: 10px" v-for="tag in view.item.Tags" :key="tag">{{ tag }}</span>
             </p>
           </div>
-          <q-input color="red-12" style="border-radius: 15px; background: rgba(0, 0, 0, 0.1)" autogrow standout outlined
-            label="名称" v-model="view.item.Title" :dense="false" clearable @focus="titleChange" @change="titleChange">
-            <template v-slot:append>
-              <q-icon name="style" size="lg" color="red" class="cursor-pointer" @click="pasteFromClipboard('Title')" />
+          <div class="q-pa-sm preview-panel">
+            <template v-if="view.item.Jpg || view.item.Png">
+              <q-img v-if="view.item.Jpg" fit="fill" height="180px" :src="view.item.Jpg"></q-img>
+              <q-img v-if="view.item.Png" fit="fill" height="180px" :src="view.item.Png"></q-img>
             </template>
-          </q-input>
-
-          <q-input outlined label="图鉴" autogrow v-model="view.item.Author" clearable :dense="false">
-          </q-input>
-          <q-input outlined autogrow label="番号" v-model="view.item.Code" :dense="false" @change="makePreview"
-            clearable />
-          <q-input :class="isMobile ? '' : 'col-6'" label="JPG地址" autogrow outlined clearable
-              v-model="view.item.Jpg" :dense="false" @clear="systemProperty.fileEditAutoJpg = false">
-              <template v-slot:append>
-                <q-icon name="style" size="md" class="cursor-pointer" @click="pasteFromClipboard('Jpg')" />
-              </template>
-            </q-input>
-            <q-input :class="isMobile ? '' : 'col-6'" label="PNG地址" autogrow outlined v-model="view.item.Png"
-              clearable :dense="false">
-              <template v-slot:append>
-                <q-icon name="style" size="md" class="cursor-pointer" @click="pasteFromClipboard('Png')" />
-              </template>
-            </q-input>
-          <div class="row wrap q-gutter-x-sm">
-            <q-toggle v-model="systemProperty.fileEditAutoCode" color="green" label="番号自动" left-label dense
-              class="taggle" />
-            <q-toggle v-model="systemProperty.fileEditAutoJpg" color="green" label="JPG自动" left-label dense
-              class="taggle" />
-            <q-toggle v-model="systemProperty.fileEditAutoRefresh" color="green" label="刷新自动" left-label dense
-              class="taggle" />
-
-            <q-toggle color="red" dense flat label="下一个" left-label v-model="systemProperty.fileEditAutoNext"
-              class="taggle" />
+            <div v-else class="preview-placeholder">
+              <q-icon name="image" size="48px" color="grey-5" />
+              <p class="text-grey-6">暂无预览图</p>
+            </div>
           </div>
+        </q-form>
+        <div v-if="showBus" class="bus-panel">
+          <iframe ref="busIframe" :frameborder="0" :allowfullscreen="true" width="100%" height="100%"
+            :src="busUrl"></iframe>
         </div>
-        <div class="q-pa-sm preview-panel">
-          <template v-if="view.item.Jpg || view.item.Png">
-            <q-img v-if="view.item.Jpg" fit="fill" height="180px" :src="view.item.Jpg"></q-img>
-            <q-img v-if="view.item.Png" fit="fill" height="180px" :src="view.item.Png"></q-img>
-          </template>
-          <div v-else class="preview-placeholder">
-            <q-icon name="image" size="48px" color="grey-5" />
-            <p class="text-grey-6">暂无预览图</p>
-          </div>
-        </div>
-      </q-form>
-      <div v-if="showBus" style="width: 100%; height: 500px; margin-top: 8px">
-        <iframe
-          ref="busIframe"
-          :frameborder="0"
-          :allowfullscreen="true"
-          width="100%"
-          height="100%"
-          :src="busUrl"
-        ></iframe>
-      </div>
-    </q-card>
+      </q-card>
+    </div>
   </q-dialog>
 </template>
 
@@ -277,7 +270,11 @@ const open = (item) => {
 };
 
 const editMoveout = async () => {
-  await editItemSubmit(true);
+  if (systemProperty.onlyRename) {
+    editItemSubmit(false);
+  } else {
+    await editItemSubmit(true);
+  }
 };
 
 const editItemSubmit = async (MoveOut) => {
@@ -300,7 +297,7 @@ const editItemSubmit = async (MoveOut) => {
   for (let idx = 0; idx < arrLength; idx++) {
     const str = arr[idx];
     if (!str) continue;
-    name += str.charAt(0).toUpperCase() + str.slice(1) +' ';
+    name += str.charAt(0).toUpperCase() + str.slice(1) + ' ';
   }
   if (Tags && Tags.length > 0) {
     name += `《${Tags.join(',')}》`;
@@ -398,10 +395,26 @@ defineExpose({
   border-radius: 8%;
 }
 
+.dialog {
+  display: flex;
+  flex-direction: column;
+  background-color: bisque;
+  min-height: 66vh;
+}
+
 .file-edit-card {
-  width: 800px;
-  max-width: 90vw;
   background-color: rgba(250, 250, 250, 1);
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  height: 66vh;
+  flex-direction: row;
+  overflow: auto;
+}
+
+.bus-panel {
+  width: 50%;
+  height: 100%;
 }
 
 .preview-panel {
@@ -439,12 +452,6 @@ defineExpose({
 
   .preview-placeholder {
     height: 120px;
-  }
-}
-
-@media (min-width: 1200px) {
-  .file-edit-card {
-    max-width: 800px;
   }
 }
 </style>

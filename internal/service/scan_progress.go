@@ -86,6 +86,13 @@ func (sp *ScanProgress) SetCurrentDir(dir string) {
 // AddScannedFiles 增加已扫描文件数（写锁）
 func (sp *ScanProgress) AddScannedFiles(count int64) {
 	sp.mu.Lock()
+	defer sp.mu.Unlock()
 	sp.ScannedFiles += count
-	sp.mu.Unlock()
+}
+
+// IncrementProcessedBuckets 已构建 bucket 数+1（写锁）
+func (sp *ScanProgress) IncrementProcessedBuckets() {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	sp.ProcessedBuckets++
 }

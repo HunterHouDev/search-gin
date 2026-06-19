@@ -201,7 +201,7 @@ const view = reactive({
 });
 
 const searchKeyword = inject('searchKeyword', () => {
-  console.log('refreshDebounceFn not found');
+  console.log('searchKeyword not found');
 });
 
 const refreshView = () => {

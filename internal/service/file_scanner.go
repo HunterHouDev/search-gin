@@ -33,6 +33,10 @@ func (s *searchService) ScanAll() int {
 	// 初始化扫描进度
 	Sp.Init(dirCount)
 
+	sse.BroadcastEvent("scan_start", map[string]interface{}{
+		"totalDirs": dirCount,
+	})
+
 	ClearSmallDir()
 	InitFolderTime()
 
@@ -64,7 +68,8 @@ func (s *searchService) ScanAll() int {
 	Sp.Complete()
 
 	sse.BroadcastEvent("scan_complete", map[string]interface{}{
-		"dirCount": dirCount,
+		"dirCount":  dirCount,
+		"fileCount": SearchEngine.GetTotalCount(),
 	})
 	sse.BroadcastEvent("index_health", map[string]interface{}{
 		"bucketCount":  bucketCount,
@@ -98,6 +103,7 @@ func (s *searchService) ScanDirs(baseDir []string, types []string) map[string]*b
 			defer wg.Done()
 			defer utils.RecoverPanic()
 			s.goWalkWithResult(dir, types, resultChan)
+
 		}(baseDir[i])
 	}
 
@@ -168,7 +174,13 @@ func (s *searchService) goWalkWithResult(baseDir string, types []string, resultC
 	}
 	LogMem.Add("扫描目录:[%s] 耗时:[%d] 大小:[%s],剩余目录数:%d", baseDir, ti.Milliseconds(), utils.GetSizeStr(size), consts.IndexNumber.Load())
 	AddFolderTime(thisTime)
-
+	sse.BroadcastEvent("scan_one_done", map[string]interface{}{
+		"dir":     baseDir,
+		"time":    ti.Milliseconds(),
+		"size":    int64(len(files)),
+		"sizeStr": utils.GetSizeStr(size),
+		"remain":  consts.IndexNumber.Load(),
+	})
 	resultChan <- scanResult{dir: baseDir, bucket: bucket}
 }
 

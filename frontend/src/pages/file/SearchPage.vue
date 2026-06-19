@@ -653,7 +653,7 @@
     <!-- 视频播放器 -->
 
     <InnerVideoPlayer ref="videoRef" @next-one="viewNextOne('play')" @prev-one="viewPrevOne('play')"
-      @refresh-disk="refreshDebounceFn" @choose-data="
+      @refresh-disk="fetchToUpdateList" @choose-data="
         (d) => {
           saveParam();
           view.currentDataInPlayer = d;
@@ -663,7 +663,7 @@
     <!-- 文件编辑对话框 -->
     <FileEdit ref="fileEditRef" @plus-one="view.renameCount = view.renameCount + 1"
       @sub-one="view.renameCount = view.renameCount - 1" @next-one="viewNextOne('info')" @prev-one="viewPrevOne('info')"
-      @success="refreshDebounceFn" @hide="view.currentDataInEditor = {}" />
+      @success="fetchToUpdateList" @hide="view.currentDataInEditor = {}" />
     <!-- 文件信息对话框 -->
     <FileInfo ref="fileInfoRef" @next-one="viewNextOne('edit')" @prev-one="viewPrevOne('edit')"
       @hide="view.currentDataInEditor = {}" />
@@ -770,6 +770,34 @@ import { useSSE } from 'src/composables/useSSE';
 const handleSSEEvent = (event) => {
   if (event.Type === 'file_changed') {
     fetchSearch();
+    const action = event.Data?.action;
+    const path = event.Data?.path || event.Data?.new || '';
+    if (action === 'delete') {
+      $q.notify({ type: 'info', message: `已删除: ${path}`, position: 'bottom-left', timeout: 2000 });
+    } else if (action === 'rename' || action === 'move') {
+      $q.notify({ type: 'info', message: `文件已移动/重命名`, position: 'bottom-left', timeout: 2000 });
+    }
+  }
+  if (event.Type === 'scan_start') {
+    indexButton.value?.queryHealth();
+    const total = event.Data?.totalDirs || '';
+    $q.notify({ type: 'info', message: `开始扫描 ${total} 个目录...`, position: 'bottom-left', timeout: 2000 });
+  }
+  if (event.Type === 'scan_one_done') {
+    indexButton.value?.queryHealth();
+  }
+  if (event.Type === 'scan_complete') {
+    indexButton.value?.queryHealth();
+    fetchSearch();
+    const cnt = event.Data?.fileCount || '';
+    $q.notify({ type: 'positive', message: `扫描完成，共 ${cnt} 个文件`, position: 'bottom-left', timeout: 3000 });
+  }
+  if (event.Type === 'scan_error') {
+    const dir = event.Data?.dir || '';
+    $q.notify({ type: 'negative', message: `扫描 "${dir}" 失败`, position: 'bottom-left', timeout: 5000 });
+  }
+  if (event.Type === 'index_update') {
+    indexButton.value?.queryHealth();
   }
   if (event.Type === 'index_health' && indexButton.value) {
     indexButton.value.updateHealth(event.Data);
@@ -1123,7 +1151,7 @@ const confirmDelete = (item) => {
     persistent: true,
   }).onOk(() => {
     commonExec(() => DeleteFile(item.Id)).then(() => {
-      refreshDebounceFn(item);
+      fetchToUpdateList(item);
     });
   });
 };
@@ -1339,13 +1367,15 @@ const pictureRightClick = async (item, e) => {
 };
 
 const refreshDebounceFn = async (item, delayMs = 1000) => {
-  // handleSSEEvent等待消息自动更新,当前功能暂时关闭
-  console.log('refreshDebounceFn', item,delayMs );
-  // await indexButton.value.refreshIndex(item);
-  // const timer = setTimeout(async () => {
-  //   await fetchSearch();
-  //   clearTimeout(timer);
-  // }, delayMs);
+  await indexButton.value.refreshIndex(item);
+  fetchToUpdateList(delayMs)
+};
+
+const fetchToUpdateList = async (delayMs = 1000) => {
+  const timer = setTimeout(async () => {
+    await fetchSearch();
+    clearTimeout(timer);
+  }, delayMs);
 };
 
 const searchKeyword = async (keyword) => {
@@ -1586,6 +1616,7 @@ const gotoPrevPage = () => {
 };
 
 provide('refreshDebounceFn', refreshDebounceFn);
+provide('fetchToUpdateList', fetchToUpdateList);
 provide('searchKeyword', searchKeyword);
 provide('gotoNextPage', gotoNextPage);
 provide('gotoPrevPage', gotoPrevPage);

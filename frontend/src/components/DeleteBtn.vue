@@ -97,8 +97,8 @@ const deleteMouseOut = () => {
   }, 3000);
 };
 
-const refreshDebounceFn = inject('refreshDebounceFn', () => {
-  console.log('refreshDebounceFn not found');
+const fetchToUpdateList = inject('fetchToUpdateList', () => {
+  console.log('fetchToUpdateList not found');
 });
 
 const picDelete = async (n) => {
@@ -113,7 +113,7 @@ const picDelete = async (n) => {
     if (Code !== 200) {
       $q.notify({ message: `${Message}`, position: 'bottom-left' });
     }
-    refreshDebounceFn(props.currentData);
+    fetchToUpdateList(props.currentData);
   }, 3000);
 };
 </script>

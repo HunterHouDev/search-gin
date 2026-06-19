@@ -22,6 +22,11 @@ func AuthMiddleware() gin.HandlerFunc {
 			"/api/lanPeers",
 			"/api/heartBeat",
 			"/api/authorImage/",
+			"/css/",
+			"/js/",
+			"/assets/",
+			"/icons/",
+			"/favicon.ico",
 		}
 
 		// 单独处理根路径（不能用前缀匹配，否则所有 /api/* 都会被跳过）

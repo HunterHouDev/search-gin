@@ -372,7 +372,7 @@ import FileEdit from 'src/pages/file/components/FileEditDialog.vue';
 import VideoVolumnBtn from 'components/VideoVolumnBtn.vue';
 import DeleteBtn from 'components/DeleteBtn.vue';
 
-const props = defineProps({
+defineProps({
   minimal: { type: Boolean, default: false },
 });
 

@@ -127,8 +127,8 @@ const view = reactive({
   submitMutiTag: [],
 });
 
-const refreshDebounceFn = inject('refreshDebounceFn', () => {
-  console.log('refreshDebounceFn not found');
+const fetchToUpdateList = inject('fetchToUpdateList', () => {
+  console.log('fetchToUpdateList not found');
 });
 
 const emmits = defineEmits(['nextOne', 'prevOne']);
@@ -197,7 +197,7 @@ const addPlayingTag = async (id, tag) => {
     if (res?.Data) {
       Object.assign(props.currentData, res.Data);
     }
-    refreshDebounceFn(props.currentData);
+    fetchToUpdateList(props.currentData);
   }, 1000);
 };
 
@@ -213,7 +213,7 @@ const removePlayingTag = async (id, tag) => {
     if (res?.Data) {
       Object.assign(props.currentData, res.Data);
     }
-    refreshDebounceFn(props.currentData);
+    fetchToUpdateList(props.currentData);
   }, 1000);
 };
 

@@ -3,6 +3,7 @@ package service
 import (
 	"runtime/debug"
 	"search-gin/internal/model"
+	"search-gin/internal/sse"
 	"sort"
 	"strings"
 	"time"
@@ -133,6 +134,13 @@ func (se *searchEngineCore) rebuildWithBucketIncremental(baseDir string, newBuck
 
 	recomputeRepeats(index)
 	se.installIndex(index)
+
+	Sp.IncrementProcessedBuckets()
+	prog := Sp.Get()
+	sse.BroadcastEvent("index_update", map[string]interface{}{
+		"processed": prog.ProcessedBuckets,
+		"total":     prog.TotalBuckets,
+	})
 
 	ti := time.Since(start)
 	LogMem.Add("rebuildWithBucketIncremental: 完成, 耗时 %dms, bucket %s, 文件数 %d", ti.Milliseconds(), baseDir, index.totalCount)
@@ -424,13 +432,35 @@ func (se *searchEngineCore) ReplaceFile(oldFile, newFile model.FileItem) {
 		return
 	}
 
-	newBucket := bucket.clone()
-	if _, exists := newBucket.FileLib[oldFile.Id]; exists {
-		newBucket.FileLib[oldFile.Id] = newFile
+	bucket.mu.RLock()
+	files := make([]model.FileItem, 0, len(bucket.FileLib))
+	replaced := false
+	for id, file := range bucket.FileLib {
+		if id == oldFile.Id {
+			files = append(files, newFile)
+			replaced = true
+		} else {
+			files = append(files, file)
+		}
 	}
+	bucket.mu.RUnlock()
+
+	if !replaced {
+		return
+	}
+
+	newBucket := newInstanceWithFiles(oldFile.BaseDir, files)
 
 	newIndex := shallowCopyIndex(index)
 	newIndex.buckets[oldFile.BaseDir] = newBucket
+
+	// 更新 index 级聚合数据（authorMap、totalCount、totalSize、菜单计数）
+	subtractFileFromIndex(newIndex, oldFile)
+	addFileToIndex(newIndex, newFile)
+
+	// 重新计算重复文件列表
+	recomputeRepeats(newIndex)
+
 	se.installIndexNoCache(newIndex)
 }
 
@@ -462,6 +492,7 @@ func (se *searchEngineCore) DeleteFile(file model.FileItem) {
 	newIndex := shallowCopyIndex(index)
 	newIndex.buckets[file.BaseDir] = newBucket
 	subtractFileFromIndex(newIndex, entry)
+	recomputeRepeats(newIndex)
 	se.installIndexNoCache(newIndex)
 }
 
