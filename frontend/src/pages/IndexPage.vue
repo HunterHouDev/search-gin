@@ -369,7 +369,7 @@ const loadDiskUsage = async () => {
 };
 
 const loadScanTime = async () => {
-  scanTime.value = await ScanTime();
+  scanTime.value = (await ScanTime()) || [];
   scanTime.value = scanTime.value.sort((a, b) => {
     return b.Cnt - a.Cnt;
   });

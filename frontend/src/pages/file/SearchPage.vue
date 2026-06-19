@@ -144,15 +144,14 @@
         </q-btn>
 
         <!-- 排序字段选择 -->
-        <q-btn-dropdown glossy  :size="btnSize('head')" class="w-5"
-          :label="getLabelByValue(currentSort, sortOptions)">
+        <q-btn-dropdown glossy :size="btnSize('head')" class="w-5" :label="getLabelByValue(currentSort, sortOptions)">
           <q-list>
             <q-item v-for="item in sortOptions" :key="item.label" clickable v-close-popup @click="
               currentSort = item.value;
             fetchSearch();
             ">
               <q-item-section :class="{ 'text-blue': currentSort === item.value }">
-                <q-item-label >{{ item.label }}</q-item-label>
+                <q-item-label>{{ item.label }}</q-item-label>
               </q-item-section>
             </q-item>
           </q-list>
@@ -347,7 +346,7 @@
                 <q-chip square dense v-for="tag in item.Tags" :key="tag" :size="btnSize('top')" class="chip-tag">
                   <span @click="searchKeyword(tag)">{{
                     tag?.substring(0, 4)
-                  }}</span>
+                    }}</span>
                 </q-chip>
               </div>
               <div class="card-top-type">
@@ -371,7 +370,7 @@
                 <q-btn dense glossy color="grey" size="sm" class="mt-1" v-if="formatSeries(item.Code)">
                   <span @click="searchKeyword(formatSeries(item.Code))">{{
                     formatSeries(item.Code).substring(0, 4)
-                  }}</span>
+                    }}</span>
                 </q-btn>
                 <q-btn dense flat text-color="green" size="sm" class="mt-1" v-if="systemProperty.getPlayTime(item.Id)">
                   <span>{{ formatPlayTime(systemProperty.getPlayTime(item.Id)) }}</span>
@@ -448,16 +447,12 @@
                     <q-btn round ripple glossy :size="btnSize('footer')" color="negative" icon="delete" title="删除"
                       @click="confirmDelete(item)" />
                     <!-- 扫码按钮 -->
-                    <q-btn round ripple glossy :size="btnSize('footer')" color="teal" icon="qr_code_scanner" title="扫码" v-if="!isSmall"
-                      @click="openQrDownload(item)" />
+                    <q-btn round ripple glossy :size="btnSize('footer')" color="teal" icon="qr_code_scanner" title="扫码"
+                      v-if="!isSmall" @click="openQrDownload(item)" />
                     <!-- 更多按钮 -->
                     <q-btn round ripple glossy :size="btnSize('footer')" color="grey-7" icon="more_vert" title="更多">
-                      <q-menu
-                        anchor="top left"
-                        self="bottom left"
-                        transition-show="jump-down"
-                        transition-hide="jump-up"
-                      >
+                      <q-menu anchor="top left" self="bottom left" transition-show="jump-down"
+                        transition-hide="jump-up">
                         <q-list style="min-width: 120px">
                           <q-item clickable v-close-popup @click="
                             view.currentDataInEditor = item;
@@ -496,15 +491,12 @@
                 </div>
 
                 <div class="content-row" :style="{
-                  height: isLarge ? '51px' : '34px',
+                  ...themeStyle, height: isLarge ? '54px' : '38px',
                   fontSize: isLarge ? '14px' : '14px',
-                  color: 'grey',
-                  backgroundColor: 'rgba(250, 250, 250,0.4)',
                 }">
                   <span style="
                     color: green;
                     margin-right: 1px;
-                    background-color: rgba(0, 0, 0, 0.1);
                   " class="cursor-pointer">{{ getTimeAgo(item.MTime) }}
                     <q-popup-proxy>
                       <div style="
@@ -536,27 +528,24 @@
                     </q-popup-proxy>
                   </span>
                   <span @click="copyText(item.Title)" class="cursor-pointer" style="
-                    color: rgb(239, 30, 30);
+                   
                     margin-right: 1px;
-                    background-color: rgba(0, 0, 0, 0.1);
                   ">
                     {{ humanStorageSize(item.Size) }}
                   </span>
                   <span style="
-                    color: rgb(161, 100, 19);
-                    background-color: rgba(0, 0, 0, 0.1);
+                    color: green;
                     margin-right: 1px;
                   " class="cursor-pointer" @click="goAuthor(item.Author)">{{ item.Author }}</span>
 
                   <span style="
-                    color: rgb(239, 30, 30);
-                    background-color: rgba(0, 0, 0, 0.1);
+                    color: orange;
                     margin-right: 4px;
                   " class="cursor-pointer" @click="copyText(item.Code)">{{ item.title ? item.Code?.substring(0,
                     12) : item.Code }}
                     <q-tooltip class="bg-white text-primary">{{
                       item.Code
-                    }}</q-tooltip>
+                      }}</q-tooltip>
                   </span>
 
                   {{ formatTitle(item.Title) }}
@@ -751,7 +740,6 @@ import DataPop from 'components/DataPop.vue';
 import IndexButton from 'components/IndexButton.vue';
 import TagPop from 'components/TagPop.vue';
 import { useSystemProperty } from 'stores/System';
-import { useAppStore } from 'stores/app';
 import FileEdit from './components/FileEditDialog.vue';
 import FileInfo from './components/FileInfoDialog.vue';
 import ListEdit from './components/ListEditDialog.vue';
@@ -967,12 +955,7 @@ const sortedSearchRecords = computed(() => {
   return [...records].sort((a, b) => b.createdAt - a.createdAt);
 });
 
-const themeStyle = computed(() => {
-  return {
-    color: 'var(--q-text-primary)',
-    backgroundColor: 'var(--q-bg-card)',
-  };
-});
+const themeStyle = computed(() => systemProperty.themeStyle);
 
 const themeIcon = computed(() => {
   return systemProperty.theme === 'natural' ? 'eco' : 'star';
@@ -983,8 +966,7 @@ const currentThemeLabel = computed(() => {
 });
 
 const setTheme = (theme) => {
-  const appStore = useAppStore();
-  appStore.setTheme(theme);
+  systemProperty.theme = theme;
   const html = document.documentElement;
   if (theme === 'natural') {
     html.classList.add('theme-natural');
@@ -1764,7 +1746,7 @@ onUnmounted(() => {
 .large-result {
   padding: 0px;
   width: 220px;
-  height: 376px;
+  height: 386px;
   overflow: hidden;
 }
 
@@ -1786,7 +1768,7 @@ onUnmounted(() => {
 .medium-result {
   padding: 0px;
   width: 224px;
-  height: 192px;
+  height: 198px;
   overflow: hidden;
 }
 
@@ -1800,7 +1782,7 @@ onUnmounted(() => {
     bottom: 0;
     left: 0;
     right: 0;
-    height: 20%;
+    height: 24%;
     background: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.3));
   }
 }
@@ -1824,7 +1806,7 @@ onUnmounted(() => {
     bottom: 0;
     left: 0;
     right: 0;
-    height: 20%;
+    height: 25%;
     background: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.3));
   }
 }
@@ -1860,7 +1842,7 @@ onUnmounted(() => {
     /* 隐藏溢出文本 */
     text-overflow: ellipsis;
     /* 显示省略号 */
-
+    padding: 2px;
     line-height: 1.2 !important;
   }
 
@@ -2016,13 +1998,16 @@ onUnmounted(() => {
 
 // 搜索结果卡片增强样式
 .search-result-card {
+  border: grey 1px solid;
   border-radius: 12px !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.8);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
 
   &:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    
+    transform: translateY(-8px);
+    box-shadow: 0 16px 32px rgba(0, 0, 0, 0.15);
+    border: orangered 2px solid;
   }
 }
 </style>

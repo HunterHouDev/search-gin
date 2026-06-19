@@ -22,7 +22,7 @@
       <q-separator />
 
       <!-- Tab 切换 -->
-      <q-tabs v-model="activeTab" dense class="bg-grey-2" active-color="primary" indicator-color="primary">
+      <q-tabs v-model="activeTab" dense active-color="primary" indicator-color="primary">
         <q-tab name="chat" icon="chat" label="聊天" no-caps />
         <q-tab name="video" icon="videocam" label="视频" no-caps />
       </q-tabs>

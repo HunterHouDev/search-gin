@@ -90,7 +90,7 @@ func splitLines(s string) []string {
 }
 
 func GetScanTime(c *gin.Context) {
-	var res []service.MenuSize
+	res := make([]service.MenuSize, 0)
 	service.FolderTime.Range(func(_, value interface{}) bool {
 		if ms, ok := value.(service.MenuSize); ok {
 			res = append(res, ms)

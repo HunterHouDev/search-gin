@@ -322,12 +322,7 @@ const fetchSearch = async () => {
   isLoading.value = false;
 };
 
-const themeStyle = computed(() => {
-  return {
-    color: 'var(--q-text-primary)',
-    backgroundColor: 'var(--q-bg-card)',
-  };
-});
+const themeStyle = computed(() => systemProperty.themeStyle);
 
 onMounted(() => {
   document.title = '图鉴';

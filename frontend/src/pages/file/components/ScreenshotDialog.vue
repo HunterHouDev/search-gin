@@ -1,27 +1,16 @@
 <template>
   <q-dialog ref="dialogRef" @hide="hide" @close="hide" :maximized="true">
-    <q-layout
-      view="lHh Lpr lFf"
-      container
-      style="height: 80vh; background-color: aliceblue"
-      :style="{ width: isMobile() ? '100%' : '800px' }"
-    >
+    <q-layout view="lHh Lpr lFf" container style="height: 80vh;"
+      :style="{ width: isMobile() ? '100%' : '800px', ...themeStyle }">
       <q-header>
-        <q-toolbar
-          class="bg-black text-white shadow-2 rounded-borders w100 justify-between"
-        >
+        <q-toolbar class="bg-black text-white shadow-2 rounded-borders w100 justify-between">
           <q-btn color="red" dense flat icon="ti-shift-left" @click="prevOne">
             <q-tooltip class="bg-white text-primary">上一个</q-tooltip>
           </q-btn>
-          <q-tabs
-            ripple
-            v-model="tab"
-            align="justify"
-            style="width: 60%"
+          <q-tabs ripple v-model="tab" align="justify" style="width: 60%"
             :active-color="systemProperty.theme === 'natural' ? 'primary' : 'white'"
             :indicator-color="systemProperty.theme === 'natural' ? 'green' : 'white'"
-            @update:model-value="view.startTime = '00:00:05'"
-          >
+            @update:model-value="view.startTime = '00:00:05'">
             <q-tab name="png" label="png" />
             <q-tab name="jpg" label="jpg" />
             <q-tab name="cut" label="cut" />
@@ -33,51 +22,30 @@
             <q-tooltip class="bg-white text-primary">下一个</q-tooltip>
           </q-btn>
         </q-toolbar>
-        <p
-          style="
+        <p style="
             display: -webkit-box; /* 将对象作为弹性伸缩盒子模型显示 */
             -webkit-box-orient: vertical; /* 设置子元素的排列方式为垂直方向 */
             line-clamp: 2; /* 设置显示的行数 */
             overflow: hidden; /* 隐藏溢出文本 */
             text-overflow: ellipsis; /* 显示省略号 */
-            color: whitesmoke;
             padding: 4px 4px;
-          "
-        >
+          ">
           {{ view.item.Name }}
         </p>
-        <div
-          style="
+        <div style="
             display: flex;
-            background-color: aliceblue;
             flex-direction: row;
             justify-content: center;
-            height: 4rem;
             padding: 0;
-          "
-        >
-          <q-input
-            v-model="view.startTime"
-            mask="fulltime"
-            :rules="['fulltime']"
-            @change="previewPicture"
-          >
+          " :style="themeStyle">
+          <q-input v-model="view.startTime" mask="fulltime" :rules="['fulltime']" @change="previewPicture">
             <template v-slot:append>
               <div style="width: 100%">
                 <q-icon name="access_time" class="cursor-pointer">
-                  <q-popup-proxy
-                    cover
-                    transition-show="scale"
-                    transition-hide="scale"
-                  >
+                  <q-popup-proxy cover transition-show="scale" transition-hide="scale">
                     <q-time v-model="view.startTime" with-seconds format24h>
                       <div class="row items-center justify-end">
-                        <q-btn
-                          v-close-popup
-                          label="Close"
-                          color="primary"
-                          flat
-                        />
+                        <q-btn v-close-popup label="Close" color="primary" flat />
                       </div>
                     </q-time>
                   </q-popup-proxy>
@@ -85,126 +53,53 @@
               </div>
             </template>
           </q-input>
-          <q-btn
-            size="md"
-            flat
-            color="orange"
-            label="截"
-            @click="previewPicture"
-          />
-          <q-btn
-            color="primary"
-            v-for="(item, index) in btns"
-            :key="index"
-            :label="item"
-            flat
-            @click="timePlus(item)"
+          <q-btn size="md" flat color="orange" label="截" @click="previewPicture" />
+          <q-btn color="primary" v-for="(item, index) in btns" :key="index" :label="item" flat @click="timePlus(item)"
             @contextmenu="
               (e) => {
                 timePlus(-item);
                 e.returnValue = false;
               }
-            "
-          />
+            " />
         </div>
       </q-header>
 
       <q-page-container style="padding: 160px 1px 1px 1px">
         <q-page>
-          <q-tab-panels
-            v-model="tab"
-            animated
-            style="height: 100%; overflow: auto; margin: 0; width: 100%"
-          >
+          <q-tab-panels v-model="tab" animated style="height: 100%; overflow: auto; margin: 0; width: 100%">
             <q-tab-panel name="jpg">
-              <q-img
-                fit="fill"
-                class="max-image-height"
-                v-if="!view.uImage"
-                :src="view.item.JpgUrl"
-              />
+              <q-img fit="fill" class="max-image-height" v-if="!view.uImage" :src="view.item.JpgUrl" />
 
-              <q-img
-                fit="fill"
-                v-if="view.uImage"
-                class="max-image-height"
-                :src="view.uImage"
-              />
+              <q-img fit="fill" v-if="view.uImage" class="max-image-height" :src="view.uImage" />
             </q-tab-panel>
             <q-tab-panel name="png">
-              <q-img
-                fit="fill"
-                v-show="!view.showCanvas"
-                class="max-image-height"
-                v-if="!view.uPng"
-                :src="view.item.JpgUrl"
-              />
+              <q-img fit="fill" v-show="!view.showCanvas" class="max-image-height" v-if="!view.uPng"
+                :src="view.item.JpgUrl" />
 
-              <q-img
-                fit="fill"
-                v-show="!view.showCanvas"
-                v-if="view.uPng"
-                class="max-image-height"
-                :src="view.uPng"
-              />
-              <q-btn
-                color="primary"
-                flat
-                @click="view.showCanvas = !view.showCanvas"
-                :label="view.showCanvas ? '关闭裁剪' : '去裁剪'"
-              ></q-btn>
-              <canvas
-                v-show="view.showCanvas"
-                id="mycanvas"
-                ref="mycanvas"
-                width="700px"
-                height="500px"
-                style="border: 1px solid #000"
-              >
+              <q-img fit="fill" v-show="!view.showCanvas" v-if="view.uPng" class="max-image-height" :src="view.uPng" />
+              <q-btn color="primary" flat @click="view.showCanvas = !view.showCanvas"
+                :label="view.showCanvas ? '关闭裁剪' : '去裁剪'"></q-btn>
+              <canvas v-show="view.showCanvas" id="mycanvas" ref="mycanvas" width="700px" height="500px"
+                style="border: 1px solid #000">
               </canvas>
-              <q-btn
-                color="primary"
-                flat
-                @click="scalePng"
-                label="裁剪"
-                v-show="view.showCanvas"
-              ></q-btn>
+              <q-btn color="primary" flat @click="scalePng" label="裁剪" v-show="view.showCanvas"></q-btn>
             </q-tab-panel>
             <q-tab-panel name="cut" class="q-gutter-y-xs">
-              <q-img
-                fit="contain"
-                v-for="item in view.prewiewImages"
-                :key="item.Id"
-                :src="GetFileByPathUseEncode(item.Path)"
-                style="width: 100%; height: auto"
-                class="max-image-height"
-              >
+              <q-img fit="contain" v-for="item in view.prewiewImages" :key="item.Id"
+                :src="GetFileByPathUseEncode(item.Path)" style="width: 100%; height: auto" class="max-image-height">
                 <template v-slot:error>
                   <!-- 图片加载失败时显示的占位图 -->
                   <div class="text-subtitle1 text-white">
                     <q-icon name="image_not_supported" size="8em"></q-icon>
                     <div>图片加载失败</div>
-                    <q-btn
-                      color="rgba(0,0,0,0.5)"
-                      size="sm"
-                      dense
-                      ripple
-                      @click="deleteTemp(item.Path)"
-                      icon="ti-trash"
-                    >
+                    <q-btn color="rgba(0,0,0,0.5)" size="sm" dense ripple @click="deleteTemp(item.Path)"
+                      icon="ti-trash">
                       <q-tooltip class="bg-white text-primary">删除</q-tooltip>
                     </q-btn>
                   </div>
                 </template>
                 <div style="padding: 0; position: relative; float: right">
-                  <q-btn
-                    color="rgba(0,0,0,0.5)"
-                    size="sm"
-                    dense
-                    ripple
-                    @click="deleteTemp(item.Path)"
-                    icon="ti-trash"
-                  >
+                  <q-btn color="rgba(0,0,0,0.5)" size="sm" dense ripple @click="deleteTemp(item.Path)" icon="ti-trash">
                     <q-tooltip class="bg-white text-primary">删除</q-tooltip>
                   </q-btn>
                 </div>
@@ -212,11 +107,7 @@
             </q-tab-panel>
           </q-tab-panels>
           <!-- 页面滚动器 -->
-          <q-page-scroller
-            position="bottom-right"
-            :scroll-offset="150"
-            :offset="[18, 100]"
-          >
+          <q-page-scroller position="bottom-right" :scroll-offset="150" :offset="[18, 100]">
             <q-btn fab icon="keyboard_arrow_up" color="accent" />
           </q-page-scroller>
         </q-page>
@@ -226,7 +117,7 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue';
+import { reactive, ref, computed } from 'vue';
 
 import { useDialogPluginComponent, useQuasar } from 'quasar';
 import {
@@ -239,8 +130,9 @@ import { GetFileByPathUseEncode } from 'components/utils/images';
 import { isMobile } from 'src/boot/platform';
 import { useSystemProperty } from 'src/stores/System';
 
+const themeStyle = computed(() => systemProperty.themeStyle);
 
-const systemProperty = useSystemProperty()  
+const systemProperty = useSystemProperty()
 const $q = useQuasar();
 const tab = ref('png');
 
@@ -486,7 +378,7 @@ const scalePng = () => {
 const previewPicture = async () => {
   if (view.startTime) {
     if (tab.value == 'png') {
-      const { Data} = await CutImage(view.item.Id, 'Png', view.startTime, false);
+      const { Data } = await CutImage(view.item.Id, 'Png', view.startTime, false);
       view.uPng = `data:image/png;base64,${Data}`;
       const img = new Image(); // 创建一个新的图片对象
       img.crossOrigin = 'anonymous'; // 处理跨域问题
@@ -497,7 +389,7 @@ const previewPicture = async () => {
         drawImage();
       };
     } else if (tab.value == 'jpg') {
-      const { Data} = await CutImage(view.item.Id, 'Jpg', view.startTime, false);
+      const { Data } = await CutImage(view.item.Id, 'Jpg', view.startTime, false);
       view.uImage = `data:image/jpeg;base64,${Data}`;
     } else if (tab.value == 'cut') {
       await CutImage(view.item.Id, 'shot', view.startTime, false);
@@ -509,7 +401,7 @@ const previewPicture = async () => {
 };
 
 const timePlus = (n) => {
-  if(n !== 0) {
+  if (n !== 0) {
     view.startTime = plusN(view.startTime, n);
   } else {
     view.startTime = '00:00:00';

@@ -8,7 +8,7 @@
     <q-layout
       container
       view="hHh Lpr lff"
-      style="height: 80vh; background: white; margin: 0"
+      style="height: 80vh; margin: 0"
       :style="{
         'padding-top': '0px',
         'max-width': isMobile ? '94vw' : '800px',
@@ -165,10 +165,10 @@
         <q-page-sticky
           v-if="tab == 'filelist'"
           style="z-index: 9"
-          position="bottom-left"
-          :offset="[2, 2]"
+          position="bottom-right"
+          :offset="[2, 0]"
         >
-          <div class="row justify-start bg-white q-pa-xs">
+          <div class="row justify-start q-pa-xs">
             <div>
               当前{{ view.queryParam.Page }}页， 每页{{
                 view.queryParam.PageSize
@@ -630,7 +630,7 @@
                 ripple
                 v-model="tabTask"
                 align="justify"
-                class="bg-blue text-white shadow-2 w100"
+                class="shadow-2 w100"
               >
                 <q-tab name="等待" label="等待">
                   <q-badge color="red" floating>{{
