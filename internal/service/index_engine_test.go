@@ -496,3 +496,99 @@ func emptySearchIndex() *searchIndex {
 		authorMap: make(map[string]model.Author),
 	}
 }
+
+func TestGetTypeMenu_ReturnsAggregatedTypes(t *testing.T) {
+	m1 := makeMovie("1", "movie1", "/d/f1.mp4", "AB-111", "mp4", "actor1", 100)
+	m2 := makeMovie("2", "movie2", "/d/f2.mp4", "AB-222", "mp4", "actor2", 200)
+	m3 := makeMovie("3", "movie3", "/d/f3.avi", "AB-333", "avi", "actor1", 300)
+
+	bucket := makeBucket("d", m1, m2, m3)
+	buckets := map[string]*bucketFile{"d": bucket}
+	index := buildIndexFromBuckets(buckets)
+
+	engine := newTestEngine()
+	engine.installIndex(index)
+
+	menu := engine.GetTypeMenu()
+	if len(menu) < 2 {
+		t.Fatalf("expected at least 2 types (mp4, avi), got %d", len(menu))
+	}
+	// mp4: 2 files = 300
+	if v, ok := menu["mp4"]; !ok {
+		t.Error("mp4 type not found in menu")
+	} else if v.Size != 300 {
+		t.Errorf("mp4 size = %d, want 300", v.Size)
+	}
+	// avi: 1 file = 300
+	if v, ok := menu["avi"]; !ok {
+		t.Error("avi type not found in menu")
+	} else if v.Size != 300 {
+		t.Errorf("avi size = %d, want 300", v.Size)
+	}
+	// 全部: 3 files = 600
+	if v, ok := menu["全部"]; !ok {
+		t.Error("'全部' type not found in menu")
+	} else if v.Size != 600 {
+		t.Errorf("'全部' size = %d, want 600", v.Size)
+	}
+}
+
+func TestGetTagMenu_ReturnsAggregatedTags(t *testing.T) {
+	m1 := makeMovie("1", "m1", "/d/f1.mp4", "AB-111", "mp4", "", 100)
+	m1.Tags = []string{"tag1", "tag2"}
+	m2 := makeMovie("2", "m2", "/d/f2.mp4", "AB-222", "mp4", "", 200)
+	m2.Tags = []string{"tag1"}
+
+	bucket := makeBucket("d", m1, m2)
+	index := buildIndexFromBuckets(map[string]*bucketFile{"d": bucket})
+
+	engine := newTestEngine()
+	engine.installIndex(index)
+
+	menu := engine.GetTagMenu()
+	if len(menu) < 1 {
+		t.Fatal("expected at least 1 tag")
+	}
+	if v, ok := menu["tag1"]; !ok {
+		t.Error("tag1 not found")
+	} else if v.Size != 300 { // 100 + 200
+		t.Errorf("tag1 size = %d, want 300", v.Size)
+	}
+	if v, ok := menu["tag2"]; !ok {
+		t.Error("tag2 not found")
+	} else if v.Size != 100 {
+		t.Errorf("tag2 size = %d, want 100", v.Size)
+	}
+}
+
+func TestGetSeriesCount_ReturnsAggregatedSeries(t *testing.T) {
+	m1 := makeMovie("1", "m1", "/d/f1.mp4", "AB-111", "mp4", "", 100)
+	m1.Studio = "series1"
+	m2 := makeMovie("2", "m2", "/d/f2.mp4", "AB-222", "mp4", "", 200)
+	m2.Studio = "series1"
+
+	bucket := makeBucket("d", m1, m2)
+	index := buildIndexFromBuckets(map[string]*bucketFile{"d": bucket})
+
+	engine := newTestEngine()
+	engine.installIndex(index)
+
+	sc := engine.GetSeriesCount()
+	if v, ok := sc["series1"]; !ok {
+		t.Error("series1 not found")
+	} else if v.Size != 300 {
+		t.Errorf("series1 size = %d, want 300", v.Size)
+	}
+}
+
+func TestGetMenu_EmptyIndex(t *testing.T) {
+	engine := newTestEngine()
+	// 未安装索引时返回空 map
+	menu := engine.GetTypeMenu()
+	if menu == nil {
+		t.Error("GetTypeMenu should return empty map, not nil")
+	}
+	if len(menu) != 0 {
+		t.Errorf("expected empty menu, got %d items", len(menu))
+	}
+}

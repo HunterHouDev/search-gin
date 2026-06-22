@@ -8,6 +8,8 @@ import (
 
 // ── searchService ──────────────────────────────────────────────────
 
+// searchService 文件操作/扫描/流媒体的业务实现。
+// 所有方法通过字段访问依赖（s.engine / s.settings / s.events），不使用全局变量。
 type searchService struct {
 	engine    *searchEngineCore
 	settings  Settings
@@ -19,8 +21,11 @@ type searchService struct {
 
 var workDir string
 
+// SetWorkDir 设置工作目录路径，由 main.go 启动时调用。
 func SetWorkDir(dir string) { workDir = dir }
-func GetWorkDir() string    { return workDir }
+
+// GetWorkDir 获取工作目录路径。
+func GetWorkDir() string { return workDir }
 
 // ── 全局引擎/应用（内部使用，由 InitService 设置） ────────────────
 
@@ -29,6 +34,8 @@ var (
 	globalSearch *searchService
 )
 
+// InitService 注册全局引擎和应用实例。
+// 供包内辅助函数（remote_operation.go、task_service.go 等）通过 Getter 访问。
 func InitService(engine *searchEngineCore, search *searchService) {
 	globalEngine = engine
 	globalSearch = search
@@ -37,14 +44,16 @@ func InitService(engine *searchEngineCore, search *searchService) {
 func GetEngine() *searchEngineCore { return globalEngine }
 func GetSearch() *searchService    { return globalSearch }
 
-// ── 构造函数 ──────────────────────────────────────────────────────
+// ── 构造函数（由 main.go 显式调用） ──────────────────────────────
 
+// NewSearchEngine 创建搜索引擎实例。
 func NewSearchEngine() *searchEngineCore {
 	return &searchEngineCore{
 		KeywordHistoryCache: utils.NewLRUCache(500),
 	}
 }
 
+// NewSearchService 创建搜索服务实例，注入所有依赖。
 func NewSearchService(engine *searchEngineCore, settings Settings, events EventBus, scanQueue *taskQueue) *searchService {
 	return &searchService{
 		engine:    engine,
@@ -68,13 +77,12 @@ func (sseAdapter) Broadcast(event string, data map[string]interface{}) {
 	sse.BroadcastEvent(event, data)
 }
 
-// DefaultSettings 返回默认配置适配器，供 handler 等外部包使用
+// DefaultSettings 返回默认配置适配器（桥接到全局 GetOSSetting()）。
 func DefaultSettings() Settings {
 	return settingsAdapter{}
 }
 
-// DefaultEventBus 返回默认事件总线适配器
+// DefaultEventBus 返回默认事件总线适配器（桥接到 sse.BroadcastEvent()）。
 func DefaultEventBus() EventBus {
 	return sseAdapter{}
-
 }
