@@ -24,6 +24,13 @@ type SearchParam struct {
 	SortType   string
 	Sql        string
 	SearchNode string // 目标节点 ""=本机 / "host:port"=指定节点
+
+	// 高级过滤（仅本地搜索有效）
+	MinSize  int64    `json:"minSize,omitempty"`  // 文件大小下限（字节）
+	MaxSize  int64    `json:"maxSize,omitempty"`  // 文件大小上限（字节）
+	DateFrom string   `json:"dateFrom,omitempty"` // 修改日期起始 "2006-01-02"
+	DateTo   string   `json:"dateTo,omitempty"`   // 修改日期截止 "2006-01-02"
+	FileExts []string `json:"fileExts,omitempty"` // 文件扩展名白名单，如 ["mp4","avi"]
 }
 
 func NewSearchParam(keyword string, page int, pageSize int, sortField string, sortType string, moiveType string) SearchParam {

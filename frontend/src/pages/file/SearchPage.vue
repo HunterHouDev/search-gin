@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div>
     <q-layout view="lHh lpr lFf" container style="height: 93vh" class="shadow-2 rounded-borders"
       :class="{ 'theme-natural': systemProperty.theme === 'natural' }" :style="themeStyle">
@@ -177,6 +177,12 @@
           </q-list>
         </q-btn-dropdown>
 
+        <!-- 高级过滤按钮 -->
+        <q-btn icon="ti-filter" dense :size="btnSize('head')" flat :color="hasAdvancedFilters ? 'orange' : 'grey'"
+          @click="view.showAdvancedFilter = !view.showAdvancedFilter">
+          <q-tooltip class="bg-white text-primary">高级过滤</q-tooltip>
+        </q-btn>
+
         <!-- 搜索框 -->
         <q-input dense type="search" style="
           max-width: 400px;
@@ -239,6 +245,71 @@
           </q-fab>
         </div>
       </q-header>
+
+      <!-- 高级过滤面板 -->
+      <q-slide-transition>
+        <div v-show="view.showAdvancedFilter" class="advanced-filter-panel" :style="themeStyle">
+          <div class="row q-gutter-sm q-pa-sm items-end">
+            <!-- 文件大小范围 -->
+            <div class="col-auto">
+              <div class="text-caption text-grey-7 q-mb-xs">文件大小</div>
+              <div class="row q-gutter-xs items-center">
+                <q-select dense outlined style="width: 100px" v-model="filterMinSizeUnit" :options="sizeUnitOptions"
+                  emit-value map-options @update:model-value="onMinSizeChange" />
+                <q-input dense outlined style="width: 90px" type="number" v-model.number="filterMinSizeValue"
+                  @update:model-value="onMinSizeChange" placeholder="最小" />
+                <span class="text-grey-5">~</span>
+                <q-input dense outlined style="width: 90px" type="number" v-model.number="filterMaxSizeValue"
+                  @update:model-value="onMaxSizeChange" placeholder="最大" />
+                <q-select dense outlined style="width: 100px" v-model="filterMaxSizeUnit" :options="sizeUnitOptions"
+                  emit-value map-options @update:model-value="onMaxSizeChange" />
+              </div>
+            </div>
+
+            <!-- 修改日期范围 -->
+            <div class="col-auto">
+              <div class="text-caption text-grey-7 q-mb-xs">修改日期</div>
+              <div class="row q-gutter-xs items-center">
+                <q-input dense outlined style="width: 140px" v-model="view.queryParam.dateFrom" type="date"
+                  @update:model-value="onFilterChange" clearable />
+                <span class="text-grey-5">~</span>
+                <q-input dense outlined style="width: 140px" v-model="view.queryParam.dateTo" type="date"
+                  @update:model-value="onFilterChange" clearable />
+              </div>
+            </div>
+
+            <!-- 文件扩展名 -->
+            <div class="col-auto">
+              <div class="text-caption text-grey-7 q-mb-xs">文件扩展名</div>
+              <div class="row q-gutter-xs items-center">
+                <q-select dense outlined use-input use-chips multiple hide-dropdown-icon
+                  style="min-width: 220px" v-model="view.queryParam.fileExts"
+                  input-debounce="0" new-value-mode="add-unique"
+                  @update:model-value="onFilterChange"
+                  placeholder="输入扩展名后回车，如 mp4" />
+              </div>
+            </div>
+
+            <!-- 快捷预设 -->
+            <div class="col-auto">
+              <div class="text-caption text-grey-7 q-mb-xs">快捷</div>
+              <div class="row q-gutter-xs">
+                <q-btn dense flat size="sm" color="primary" label="视频" @click="applyExtPreset(['mp4','avi','mkv','mov','wmv','flv','ts'])" />
+                <q-btn dense flat size="sm" color="primary" label="图片" @click="applyExtPreset(['jpg','jpeg','png','gif','bmp','webp'])" />
+                <q-btn dense flat size="sm" color="primary" label="大于1GB" @click="applySizePreset(1073741824, 0)" />
+                <q-btn dense flat size="sm" color="primary" label="近一周" @click="applyDatePreset(7)" />
+                <q-btn dense flat size="sm" color="primary" label="近一月" @click="applyDatePreset(30)" />
+              </div>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div class="col-auto self-end">
+              <q-btn dense flat size="sm" color="red" icon="ti-close" label="重置" @click="clearAdvancedFilters" />
+            </div>
+          </div>
+        </div>
+      </q-slide-transition>
+
       <!-- 底部 -->
       <q-footer elevated :style="themeStyle" class="glossy">
         <div class="flex flex-center">
@@ -528,7 +599,7 @@
                     </q-popup-proxy>
                   </span>
                   <span @click="copyText(item.Title)" class="cursor-pointer" style="
-                   
+
                     margin-right: 1px;
                   ">
                     {{ humanStorageSize(item.Size) }}
@@ -903,6 +974,7 @@ const view = reactive({
   settingInfo: {},
   allPageNo: 0,
   resultShow: '',
+  showAdvancedFilter: false,
   queryParam: {
     Keyword: '',
     MovieType: '',
@@ -912,6 +984,11 @@ const view = reactive({
     SortField: 'MTime',
     SortType: 'desc',
     SearchNode: '',
+    minSize: 0,
+    maxSize: 0,
+    dateFrom: '',
+    dateTo: '',
+    fileExts: [],
   },
   resultData: {},
   searchNodeDisplay: '本机',
@@ -921,6 +998,120 @@ const view = reactive({
 });
 
 const sortOptions = useSortOptions('   ');
+
+// ========== 高级过滤 ==========
+const sizeUnitOptions = [
+  { label: 'B', value: 1 },
+  { label: 'KB', value: 1024 },
+  { label: 'MB', value: 1048576 },
+  { label: 'GB', value: 1073741824 },
+];
+
+const filterMinSizeValue = ref(0);
+const filterMinSizeUnit = ref(1073741824); // 默认 GB
+const filterMaxSizeValue = ref(0);
+const filterMaxSizeUnit = ref(1073741824);
+
+// 从 queryParam 恢复过滤 UI 状态（初始化时调用）
+const syncFilterUI = () => {
+  if (view.queryParam.minSize > 0) {
+    const best = pickBestUnit(view.queryParam.minSize);
+    filterMinSizeValue.value = best.value;
+    filterMinSizeUnit.value = best.unit;
+  }
+  if (view.queryParam.maxSize > 0) {
+    const best = pickBestUnit(view.queryParam.maxSize);
+    filterMaxSizeValue.value = best.value;
+    filterMaxSizeUnit.value = best.unit;
+  }
+};
+
+const pickBestUnit = (bytes) => {
+  if (bytes >= 1073741824) return { value: Math.round(bytes / 1073741824 * 10) / 10, unit: 1073741824 };
+  if (bytes >= 1048576) return { value: Math.round(bytes / 1048576 * 10) / 10, unit: 1048576 };
+  if (bytes >= 1024) return { value: Math.round(bytes / 1024 * 10) / 10, unit: 1024 };
+  return { value: bytes, unit: 1 };
+};
+
+const onMinSizeChange = () => {
+  view.queryParam.minSize = filterMinSizeValue.value > 0
+    ? Math.round(filterMinSizeValue.value * filterMinSizeUnit.value)
+    : 0;
+  view.queryParam.Page = 1;
+  fetchSearch();
+};
+
+const onMaxSizeChange = () => {
+  view.queryParam.maxSize = filterMaxSizeValue.value > 0
+    ? Math.round(filterMaxSizeValue.value * filterMaxSizeUnit.value)
+    : 0;
+  view.queryParam.Page = 1;
+  fetchSearch();
+};
+
+const onFilterChange = () => {
+  view.queryParam.Page = 1;
+  fetchSearch();
+};
+
+const hasAdvancedFilters = computed(() => {
+  return (view.queryParam.minSize > 0) ||
+    (view.queryParam.maxSize > 0) ||
+    (view.queryParam.dateFrom !== '' && view.queryParam.dateFrom != null) ||
+    (view.queryParam.dateTo !== '' && view.queryParam.dateTo != null) ||
+    (Array.isArray(view.queryParam.fileExts) && view.queryParam.fileExts.length > 0);
+});
+
+const applyExtPreset = (exts) => {
+  view.queryParam.fileExts = [...exts];
+  onFilterChange();
+};
+
+const applySizePreset = (minBytes, maxBytes) => {
+  view.queryParam.minSize = minBytes;
+  view.queryParam.maxSize = maxBytes;
+  if (minBytes > 0) {
+    const best = pickBestUnit(minBytes);
+    filterMinSizeValue.value = best.value;
+    filterMinSizeUnit.value = best.unit;
+  }
+  if (maxBytes > 0) {
+    const best = pickBestUnit(maxBytes);
+    filterMaxSizeValue.value = best.value;
+    filterMaxSizeUnit.value = best.unit;
+  }
+  onFilterChange();
+};
+
+const applyDatePreset = (daysAgo) => {
+  const now = new Date();
+  const from = new Date(now.getTime() - daysAgo * 86400000);
+  view.queryParam.dateFrom = from.toISOString().slice(0, 10);
+  view.queryParam.dateTo = now.toISOString().slice(0, 10);
+  onFilterChange();
+};
+
+const clearAdvancedFilters = () => {
+  view.queryParam.minSize = 0;
+  view.queryParam.maxSize = 0;
+  view.queryParam.dateFrom = '';
+  view.queryParam.dateTo = '';
+  view.queryParam.fileExts = [];
+  filterMinSizeValue.value = 0;
+  filterMaxSizeValue.value = 0;
+  filterMinSizeUnit.value = 1073741824;
+  filterMaxSizeUnit.value = 1073741824;
+  onFilterChange();
+};
+
+// 确保从旧版 localStorage/pinia 恢复的 queryParam 包含高级过滤默认字段
+const ensureFilterDefaults = () => {
+  if (view.queryParam.minSize == null) view.queryParam.minSize = 0;
+  if (view.queryParam.maxSize == null) view.queryParam.maxSize = 0;
+  if (view.queryParam.dateFrom == null) view.queryParam.dateFrom = '';
+  if (view.queryParam.dateTo == null) view.queryParam.dateTo = '';
+  if (!Array.isArray(view.queryParam.fileExts)) view.queryParam.fileExts = [];
+};
 
 const currentSort = computed({
   get: () => `${view.queryParam.SortField}_${view.queryParam.SortType}`,
@@ -1676,6 +1867,9 @@ onMounted(async () => {
   }
   // 提前设置标志位（IndexButton 的 heartBeat 有延迟，fetchSearch 是异步的）
   isInitializing = false;
+  // 恢复高级过滤 UI 状态（从 localStorage/pinia 恢复的 queryParam 中同步）
+  ensureFilterDefaults();
+  syncFilterUI();
   skipIndexRefresh = true;  // 初始化期间不响应 IndexButton 的 refreshDone
   fetchSearch(true);  // 异步执行
   // fetchSearch 完成后允许 IndexButton 触发搜索
@@ -2004,10 +2198,36 @@ onUnmounted(() => {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
 
   &:hover {
-    
+
     transform: translateY(-8px);
     box-shadow: 0 16px 32px rgba(0, 0, 0, 0.15);
     border: orangered 2px solid;
   }
+}
+
+// 高级过滤面板
+.advanced-filter-panel {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--q-border, rgba(0, 0, 0, 0.12));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  z-index: 10;
+
+  .q-input,
+  .q-select {
+    font-size: 0.85rem;
+  }
+
+  .text-caption {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+}
+
+// 暗黑模式过滤面板
+.body--dark .advanced-filter-panel {
+  background: rgba(30, 30, 30, 0.95);
+  border-bottom-color: rgba(255, 255, 255, 0.08);
 }
 </style>

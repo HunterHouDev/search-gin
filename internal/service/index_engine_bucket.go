@@ -2,8 +2,10 @@ package service
 
 import (
 	"search-gin/internal/model"
+	"search-gin/pkg/utils"
 	"strings"
 	"sync"
+	"time"
 )
 
 type bucketFile struct {
@@ -123,43 +125,24 @@ func (fs *bucketFile) searchBucket(searchParam model.SearchParam) model.PageResu
 	keyWord := searchParam.Keyword
 	movieType := searchParam.MovieType
 
+	// 定义公共过滤函数：同时检查关键词 + 高级过滤
+	filter := func(file model.FileItem) bool {
+		if !matchAdvancedFilters(file, searchParam) {
+			return false
+		}
+		if keyWord == "" || keyWord == model.UndefinedStr {
+			return true
+		}
+		return matchKeywords(file, strings.Fields(strings.ToUpper(keyWord)))
+	}
+
 	fs.mu.RLock()
 
-	if keyWord == "" || keyWord == model.UndefinedStr {
-		// 无关键词，按类型筛选后直接返回
-		if movieType != "" && movieType != model.UndefinedStr {
-			if fileIds, ok := fs.TypeIndex[movieType]; ok {
-				for id := range fileIds {
-					if file, ok := fs.FileLib[id]; ok {
-						resultWrapper.AddWrapperItem(file)
-					}
-				}
-			}
-		} else {
-			for _, file := range fs.FileLib {
-				resultWrapper.AddWrapperItem(file)
-			}
-		}
-		fs.mu.RUnlock()
-		return resultWrapper
-	}
-
-	// 预处理关键词
-	keyWord = strings.TrimSpace(keyWord)
-	keywords := []string{}
-	for _, word := range strings.Split(keyWord, " ") {
-		word = strings.TrimSpace(word)
-		if len(word) > 0 {
-			keywords = append(keywords, strings.ToUpper(word))
-		}
-	}
-
-	// 遍历时直接过滤，不构建中间切片
 	if movieType != "" && movieType != model.UndefinedStr {
 		if fileIds, ok := fs.TypeIndex[movieType]; ok {
 			for id := range fileIds {
 				if file, ok := fs.FileLib[id]; ok {
-					if matchKeywords(file, keywords) {
+					if filter(file) {
 						resultWrapper.AddWrapperItem(file)
 					}
 				}
@@ -167,7 +150,7 @@ func (fs *bucketFile) searchBucket(searchParam model.SearchParam) model.PageResu
 		}
 	} else {
 		for _, file := range fs.FileLib {
-			if matchKeywords(file, keywords) {
+			if filter(file) {
 				resultWrapper.AddWrapperItem(file)
 			}
 		}
@@ -183,6 +166,53 @@ func matchKeywords(file model.FileItem, keywords []string) bool {
 	for _, keyword := range keywords {
 		if !strings.Contains(filePath, keyword) {
 			return false
+		}
+	}
+	return true
+}
+
+// matchAdvancedFilters 检查高级过滤条件：大小范围、日期范围、扩展名
+func matchAdvancedFilters(file model.FileItem, p model.SearchParam) bool {
+	if p.MinSize > 0 && file.Size < p.MinSize {
+		return false
+	}
+	if p.MaxSize > 0 && file.Size > p.MaxSize {
+		return false
+	}
+	if len(p.FileExts) > 0 {
+		suffix := utils.GetSuffix(file.Name)
+		matched := false
+		for _, ext := range p.FileExts {
+			if strings.EqualFold(suffix, ext) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+	if p.DateFrom != "" || p.DateTo != "" {
+		// MTime 格式示例: "2006-01-02 15:04:05"
+		fileTime, err := time.Parse("2006-01-02 15:04:05", file.MTime)
+		if err != nil {
+			return true // 无法解析日期时不过滤
+		}
+		if p.DateFrom != "" {
+			from, err := time.Parse("2006-01-02", p.DateFrom)
+			if err == nil && fileTime.Before(from) {
+				return false
+			}
+		}
+		if p.DateTo != "" {
+			to, err := time.Parse("2006-01-02", p.DateTo)
+			if err == nil {
+				// 包含截止日期当天
+				toEnd := to.Add(24*time.Hour - time.Nanosecond)
+				if fileTime.After(toEnd) {
+					return false
+				}
+			}
 		}
 	}
 	return true
