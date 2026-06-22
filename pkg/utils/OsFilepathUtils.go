@@ -59,8 +59,8 @@ func ConcatSuffix(path string, suffix string) string {
 func ExistsFiles(path string) bool {
 	_, err := os.Stat(path)
 	if err != nil {
-		// 修正：应该检查文件是否不存在，而不是存在
-		return !os.IsNotExist(err)
+		// 只有明确确认文件存在才返回 true，权限错误等其他情况一律视为不存在
+		return false
 	}
 	return true
 }

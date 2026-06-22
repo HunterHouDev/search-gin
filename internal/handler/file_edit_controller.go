@@ -15,6 +15,10 @@ func SetMovieType(c *gin.Context) {
 	id := c.Param("id")
 	movieType := c.Param("movieType")
 	file := UseApp().search.FindById(id)
+	if file.IsNull() {
+		c.JSON(http.StatusNotFound, utils.NewFailByMsg("文件不存在"))
+		return
+	}
 	res := UseApp().files.SetMovieType(file, movieType)
 	c.JSON(http.StatusOK, res)
 }

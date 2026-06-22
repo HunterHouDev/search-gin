@@ -125,15 +125,21 @@ func (fs *bucketFile) searchBucket(searchParam model.SearchParam) model.PageResu
 	keyWord := searchParam.Keyword
 	movieType := searchParam.MovieType
 
+	// 预处理关键词（仅执行一次，避免在每个文件的 filter 闭包中重复计算）
+	var keywords []string
+	if keyWord != "" && keyWord != model.UndefinedStr {
+		keywords = strings.Fields(strings.ToUpper(keyWord))
+	}
+
 	// 定义公共过滤函数：同时检查关键词 + 高级过滤
 	filter := func(file model.FileItem) bool {
 		if !matchAdvancedFilters(file, searchParam) {
 			return false
 		}
-		if keyWord == "" || keyWord == model.UndefinedStr {
+		if keywords == nil {
 			return true
 		}
-		return matchKeywords(file, strings.Fields(strings.ToUpper(keyWord)))
+		return matchKeywords(file, keywords)
 	}
 
 	fs.mu.RLock()

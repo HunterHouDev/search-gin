@@ -72,6 +72,7 @@ func main() {
 	service.InitSetting()
 	service.InitSearchPool()
 	service.StartScanQueue()
+	engine.StartFlushLoop() // 启动单文件操作的节流刷新协程
 
 	// ── 10. 初始化节点管理器（手动添加 + 反向心跳自动发现） ──
 	service.InitPeerManager()

@@ -93,7 +93,6 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 		tokenInfo, valid := service.ValidateTokenWithInfo(token)
-		utils.InfoFormat("AuthMiddleware: token=%s valid=%v username=%q role=%q", token[:8]+"...", valid, tokenInfo.Username, tokenInfo.Role)
 		if !valid {
 			c.JSON(http.StatusUnauthorized, utils.NewFailByMsg("认证失败"))
 			c.Abort()

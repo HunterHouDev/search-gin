@@ -50,12 +50,18 @@ func (s *searchService) AddTag(id string, tag string) utils.Result {
 
 	if len(movie.Tags) > 0 {
 		originTagStr := utils.GetTagStr(movie.Path)
-		for _, t := range movie.Tags {
-			if t == tag {
-				res := utils.NewSuccessByMsg("已添加")
-				res.Data = movie
-				return res
+		// 检查每个新标签是否已存在，全部已存在则直接返回
+		allExist := true
+		for _, nt := range newTags {
+			if !slices.Contains(movie.Tags, nt) {
+				allExist = false
+				break
 			}
+		}
+		if allExist {
+			res := utils.NewSuccessByMsg("已添加")
+			res.Data = movie
+			return res
 		}
 
 		newTagStr := originTagStr

@@ -28,6 +28,7 @@ func (se *searchEngineCore) rebuildWithBuckets(entries map[string]*bucketFile) {
 
 	newIndex := buildIndexFromBuckets(entries)
 	se.installIndex(newIndex)
+	se.repeatsDirty.Store(false) // 全量重建已计算最新重复列表，清除脏标记
 
 	ti := time.Since(start)
 	LogMem.Add("rebuildWithBuckets: 完成, 耗时 %dms, 文件数 %d", ti.Milliseconds(), newIndex.totalCount)
@@ -73,6 +74,7 @@ func (se *searchEngineCore) rebuildWithBucket(baseDir string, newBucket *bucketF
 
 	newIndex := buildIndexFromBuckets(newBuckets)
 	se.installIndex(newIndex)
+	se.repeatsDirty.Store(false) // 全量重建已计算最新重复列表，清除脏标记
 
 	ti := time.Since(start)
 	LogMem.Add("rebuildWithBucket: 完成, 耗时 %dms, 文件数 %d", ti.Milliseconds(), newIndex.totalCount)
@@ -134,6 +136,7 @@ func (se *searchEngineCore) rebuildWithBucketIncremental(baseDir string, newBuck
 
 	recomputeRepeats(index)
 	se.installIndex(index)
+	se.repeatsDirty.Store(false) // 增量重建已计算最新重复列表，清除脏标记
 
 	Sp.IncrementProcessedBuckets()
 	prog := Sp.Get()
@@ -424,76 +427,141 @@ func addFileToIndex(index *searchIndex, movie model.FileItem) {
 	}
 }
 
-// ReplaceFile 替换索引中的单文件记录（Copy-on-Write：只深拷贝目标 bucket）
+// ReplaceFile 替换索引中的单文件记录
+// 非阻塞：仅将操作加入待处理队列，由 StartFlushLoop 节流批量应用并刷新索引
 func (se *searchEngineCore) ReplaceFile(oldFile, newFile model.FileItem) {
-	index := se.loadIndex()
-	bucket := index.buckets[oldFile.BaseDir]
-	if bucket == nil {
-		return
-	}
-
-	bucket.mu.RLock()
-	files := make([]model.FileItem, 0, len(bucket.FileLib))
-	replaced := false
-	for id, file := range bucket.FileLib {
-		if id == oldFile.Id {
-			files = append(files, newFile)
-			replaced = true
-		} else {
-			files = append(files, file)
-		}
-	}
-	bucket.mu.RUnlock()
-
-	if !replaced {
-		return
-	}
-
-	newBucket := newInstanceWithFiles(oldFile.BaseDir, files)
-
-	newIndex := shallowCopyIndex(index)
-	newIndex.buckets[oldFile.BaseDir] = newBucket
-
-	// 更新 index 级聚合数据（authorMap、totalCount、totalSize、菜单计数）
-	subtractFileFromIndex(newIndex, oldFile)
-	addFileToIndex(newIndex, newFile)
-
-	// 重新计算重复文件列表
-	recomputeRepeats(newIndex)
-
-	se.installIndexNoCache(newIndex)
+	se.pendingMu.Lock()
+	se.pendingFileOps = append(se.pendingFileOps, fileOp{opType: "replace", oldFile: oldFile, newFile: newFile})
+	se.pendingMu.Unlock()
 }
 
-// DeleteFile 从索引中删除文件记录（Copy-on-Write：只深拷贝目标 bucket）
+// DeleteFile 从索引中删除文件记录
+// 非阻塞：仅将操作加入待处理队列，由 StartFlushLoop 节流批量应用并刷新索引
 func (se *searchEngineCore) DeleteFile(file model.FileItem) {
-	index := se.loadIndex()
-	bucket := index.buckets[file.BaseDir]
-	if bucket == nil {
+	se.pendingMu.Lock()
+	se.pendingFileOps = append(se.pendingFileOps, fileOp{opType: "delete", oldFile: file})
+	se.pendingMu.Unlock()
+}
+
+// flushPendingOps 将待处理队列中的文件操作批量应用到索引
+// 由 StartFlushLoop 定时器触发，多个操作合并为一次索引安装 + 一次缓存清除
+func (se *searchEngineCore) flushPendingOps() {
+	se.rebuildMu.Lock()
+	defer se.rebuildMu.Unlock()
+
+	// 在 rebuildMu 内取队列，保证锁序 rebuildMu → pendingMu，与全量重建路径一致
+	se.pendingMu.Lock()
+	ops := se.pendingFileOps
+	se.pendingFileOps = nil
+	se.pendingMu.Unlock()
+
+	if len(ops) == 0 {
 		return
 	}
 
-	newBucket := bucket.clone()
-	entry, exists := newBucket.FileLib[file.Id]
-	if !exists {
-		return
+	start := time.Now()
+
+	// 加载当前索引快照（持 rebuildMu，不会被并发重建覆盖）
+	index := se.loadIndex()
+
+	// ── 按 baseDir 分组收集操作，保证同 bucket 多操作顺序应用 ──
+	type dirOps struct {
+		baseDir string
+		ops     []fileOp
 	}
-	delete(newBucket.FileLib, file.Id)
-	newBucket.TotalCount--
-	newBucket.TotalSize -= entry.Size
-	if entry.MovieType != "" {
-		if ids, ok := newBucket.TypeIndex[entry.MovieType]; ok {
-			delete(ids, entry.Id)
-			if len(ids) == 0 {
-				delete(newBucket.TypeIndex, entry.MovieType)
-			}
+	ordered := make([]dirOps, 0)
+	dirMap := make(map[string]int, len(ops)) // baseDir → ordered 下标
+
+	for _, op := range ops {
+		baseDir := op.oldFile.BaseDir
+		if idx, ok := dirMap[baseDir]; ok {
+			ordered[idx].ops = append(ordered[idx].ops, op)
+		} else {
+			dirMap[baseDir] = len(ordered)
+			ordered = append(ordered, dirOps{baseDir: baseDir, ops: []fileOp{op}})
 		}
 	}
 
+	// ── 构造新索引 ──
 	newIndex := shallowCopyIndex(index)
-	newIndex.buckets[file.BaseDir] = newBucket
-	subtractFileFromIndex(newIndex, entry)
-	recomputeRepeats(newIndex)
+
+	for _, dg := range ordered {
+		bucket := index.buckets[dg.baseDir]
+		if bucket == nil {
+			continue
+		}
+
+		// 克隆 bucket，按顺序应用所有操作
+		newBucket := bucket.clone()
+		applied := false
+
+		for _, op := range dg.ops {
+			switch op.opType {
+			case "replace":
+				if _, exists := newBucket.FileLib[op.oldFile.Id]; !exists {
+					continue
+				}
+				// 更新 bucket 数据
+				newBucket.FileLib[op.oldFile.Id] = op.newFile
+				sizeDiff := op.newFile.Size - op.oldFile.Size
+				newBucket.TotalSize += sizeDiff
+				// 更新 TypeIndex
+				if op.oldFile.MovieType != op.newFile.MovieType {
+					if op.oldFile.MovieType != "" {
+						if ids, ok := newBucket.TypeIndex[op.oldFile.MovieType]; ok {
+							delete(ids, op.oldFile.Id)
+							if len(ids) == 0 {
+								delete(newBucket.TypeIndex, op.oldFile.MovieType)
+							}
+						}
+					}
+					if op.newFile.MovieType != "" {
+						if newBucket.TypeIndex[op.newFile.MovieType] == nil {
+							newBucket.TypeIndex[op.newFile.MovieType] = map[string]struct{}{}
+						}
+						newBucket.TypeIndex[op.newFile.MovieType][op.newFile.Id] = struct{}{}
+					}
+				}
+				// 更新 index 级聚合
+				subtractFileFromIndex(newIndex, op.oldFile)
+				addFileToIndex(newIndex, op.newFile)
+				applied = true
+
+			case "delete":
+				entry, exists := newBucket.FileLib[op.oldFile.Id]
+				if !exists {
+					continue
+				}
+				// 更新 bucket 数据
+				delete(newBucket.FileLib, op.oldFile.Id)
+				newBucket.TotalCount--
+				newBucket.TotalSize -= entry.Size
+				if entry.MovieType != "" {
+					if ids, ok := newBucket.TypeIndex[entry.MovieType]; ok {
+						delete(ids, entry.Id)
+						if len(ids) == 0 {
+							delete(newBucket.TypeIndex, entry.MovieType)
+						}
+					}
+				}
+				// 更新 index 级聚合
+				subtractFileFromIndex(newIndex, entry)
+				applied = true
+			}
+		}
+
+		if applied {
+			newIndex.buckets[dg.baseDir] = newBucket
+		}
+	}
+
+	// 单次安装 + 单次缓存清除（对比逐操作安装，大幅降低开销）
 	se.installIndexNoCache(newIndex)
+	// 重复文件列表延迟到下次 returnRepeatSearch 时惰性重算
+	se.repeatsDirty.Store(true)
+
+	ti := time.Since(start)
+	LogMem.Add("flushPendingOps: 完成, 耗时 %dms, 操作数 %d", ti.Milliseconds(), len(ops))
 }
 
 // shallowCopyIndex 浅拷贝 searchIndex，共享未修改的 bucket 指针

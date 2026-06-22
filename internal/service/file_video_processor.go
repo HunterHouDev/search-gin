@@ -192,8 +192,8 @@ func ffmpegExec(args []string, thisNow time.Time) utils.Result {
 
 	ffmpegPath := ffmpegBinPath()
 
-	task.SetStatus("执行中")
-	task.CreateTime = time.Now()
+	// 直接赋值：SetStatus/SetLog 是值接收器，对局部副本操作无效
+	task.Status = model.StatusExecuting
 	task.Command = ffmpegPath + " " + strings.Join(args, " ")
 	TransferTask[thisNow] = task
 	TransferTaskMutex.Unlock()
@@ -208,11 +208,11 @@ func ffmpegExec(args []string, thisNow time.Time) utils.Result {
 	out, cmdErr := cmd.CombinedOutput()
 
 	TransferTaskMutex.Lock()
-	task.SetLog(string(out))
+	task.Log = string(out)
 	task.FinishTime = time.Now()
 
 	if cmdErr != nil {
-		task.SetStatus("执行失败")
+		task.Status = model.StatusFailed
 		TransferTask[thisNow] = task
 		TransferTaskMutex.Unlock()
 
@@ -220,7 +220,7 @@ func ffmpegExec(args []string, thisNow time.Time) utils.Result {
 		return utils.NewFailByMsg("转换失败")
 	}
 
-	task.SetStatus("成功")
+	task.Status = model.StatusCompleted
 	TransferTask[thisNow] = task
 	TransferTaskMutex.Unlock()
 

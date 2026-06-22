@@ -87,15 +87,30 @@ func (s *searchService) pollTasks() {
 	}
 	TransferTaskMutex.RUnlock()
 
+	// 启动前在 map 中原子标记为 "执行中"，防止下次 poll 周期重复启动
 	if len(taskGroups.executing) == 0 && len(taskGroups.todos) > 0 {
+		markTaskExecuting(taskGroups.todos[0].CreateTime)
 		go TransferFormatter(taskGroups.todos[0])
 	}
 	if len(taskGroups.executingCuts) == 0 && len(taskGroups.todosCuts) > 0 {
+		markTaskExecuting(taskGroups.todosCuts[0].CreateTime)
 		go CutFormatter(taskGroups.todosCuts[0])
 	}
 	if len(taskGroups.executingMerges) == 0 && len(taskGroups.todosMerges) > 0 {
+		markTaskExecuting(taskGroups.todosMerges[0].CreateTime)
 		go MergeFiles(taskGroups.todosMerges[0])
 	}
+}
+
+// markTaskExecuting 在 TransferTask map 中原子地将任务标记为执行中
+// 在启动 goroutine 之前调用，消除 pollTasks 竞态窗口
+func markTaskExecuting(key time.Time) {
+	TransferTaskMutex.Lock()
+	if t, ok := TransferTask[key]; ok {
+		t.Status = model.StatusExecuting
+		TransferTask[key] = t
+	}
+	TransferTaskMutex.Unlock()
 }
 
 // ── 扫描任务队列 ──────────────────────────────────────────────────

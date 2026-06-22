@@ -202,15 +202,22 @@ func GetDelTransferTask(c *gin.Context) {
 	create := c.Param("create")
 	service.TransferTaskMutex.Lock()
 	var ti time.Time
+	var found bool
 	var task model.TransferTaskModel
 	for k, v := range service.TransferTask {
 		if v.Name == create {
 			ti = k
 			task = v
+			found = true
 			break
 		}
 	}
-	if task.Status == "执行中" {
+	if !found {
+		service.TransferTaskMutex.Unlock()
+		c.JSON(http.StatusOK, utils.NewFailByMsg("任务不存在"))
+		return
+	}
+	if task.Status == model.StatusExecuting {
 		service.TransferTaskMutex.Unlock()
 		r := utils.Fail()
 		r.Message = "执行中无法删除"

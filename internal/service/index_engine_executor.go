@@ -157,8 +157,16 @@ loop:
 	}
 }
 
-// returnRepeatSearch 返回重复文件
+// returnRepeatSearch 返回重复文件（惰性重算：脏标记为 true 时触发全量重算）
 func (se *searchEngineCore) returnRepeatSearch(index *searchIndex) model.PageResultWrapper {
+	// 若单文件操作导致重复列表过期，惰性重算并安装新快照
+	if se.repeatsDirty.CompareAndSwap(true, false) {
+		newIndex := shallowCopyIndex(index)
+		recomputeRepeats(newIndex)
+		se.installIndexNoCache(newIndex)
+		index = newIndex
+	}
+
 	wrapper := model.NewPageWrapper()
 	if len(index.repeatFiles) > 0 {
 		wrapper.FileList = make([]model.FileItem, len(index.repeatFiles))

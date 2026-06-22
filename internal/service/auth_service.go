@@ -80,7 +80,6 @@ func ValidateTokenWithInfo(token string) (TokenInfo, bool) {
 	tokenMu.RLock()
 	tokenInfo, exists := tokenStore[token]
 	tokenMu.RUnlock()
-	utils.InfoFormat("ValidateTokenWithInfo: token=%s, tokenStore=%v", token, tokenStore)
 	if !exists {
 		return TokenInfo{}, false
 	}
@@ -186,11 +185,12 @@ func issueToken(username, role string) LoginResult {
 		return LoginResult{Success: false, Message: "生成token失败，系统错误"}
 	}
 	token := hex.EncodeToString(tokenBytes)
-	SetToken(token, time.Now().Add(4*time.Hour), username, role)
+	expireIn := 4 * 3600 // 4小时，与服务端 SetToken 的有效期保持一致
+	SetToken(token, time.Now().Add(time.Duration(expireIn)*time.Second), username, role)
 	return LoginResult{
 		Success:  true,
 		Token:    token,
-		ExpireIn: 2 * 3600,
+		ExpireIn: expireIn,
 		Role:     role,
 		Username: username,
 	}

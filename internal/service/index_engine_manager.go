@@ -37,9 +37,22 @@ type searchEngineCore struct {
 	searchPool          *utils.GoroutinePool
 	rebuildMu           sync.Mutex     // 防止并发 rebuildWithBucket
 	cacheEpoch          atomic.Int64   // 缓存失效纪元，递增触发 cache 清空
+	repeatsDirty        atomic.Bool    // 单文件操作后标记重复文件列表需要重算
 	authorCacheMu       sync.RWMutex   // 保护 authorSizeCache/authorCountCache
 	authorSizeCache     []model.Author // PageAuthor 空关键词缓存（按Size排序）
 	authorCountCache    []model.Author // PageAuthor 空关键词缓存（按Cnt排序）
+
+	// 延迟批量刷新队列：单文件操作入队，节流定时器批量应用并刷新索引
+	pendingMu       sync.Mutex
+	pendingFileOps  []fileOp
+	flushLoopActive atomic.Bool
+}
+
+// fileOp 延迟文件操作
+type fileOp struct {
+	opType  string // "replace" | "delete"
+	oldFile model.FileItem
+	newFile model.FileItem // 仅 replace 有效
 }
 
 // loadIndex 线程安全地获取当前快照
@@ -124,4 +137,30 @@ func (se *searchEngineCore) GetTotalSize() int64 {
 // BucketCount 返回 bucket 数量
 func (se *searchEngineCore) BucketCount() int32 {
 	return se.loadIndex().bucketCount
+}
+
+const fileOpFlushInterval = 500 * time.Millisecond
+
+// StartFlushLoop 启动节流刷新协程：定期将待处理的文件操作批量应用到索引
+// 单文件操作（ReplaceFile/DeleteFile）仅入队不触发索引刷新，
+// 由本协程每 500ms 批量应用并做一次 cache clear，避免频繁操作时反复清缓存
+func (se *searchEngineCore) StartFlushLoop() {
+	if !se.flushLoopActive.CompareAndSwap(false, true) {
+		return
+	}
+	go func() {
+		defer utils.RecoverPanic()
+		ticker := time.NewTicker(fileOpFlushInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-TaskCtx.Done():
+				// 关闭前刷出剩余操作
+				se.flushPendingOps()
+				return
+			case <-ticker.C:
+				se.flushPendingOps()
+			}
+		}
+	}()
 }
