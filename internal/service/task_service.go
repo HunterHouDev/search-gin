@@ -16,9 +16,9 @@ var TransferTaskMutex sync.RWMutex // 保护 TransferTask 的并发访问
 // DeleteFileByPath 按路径删除文件：索引移除 + 物理删除 + 附属文件清理 + 空目录清理
 func DeleteFileByPath(validatedPath string) utils.Result {
 	id := utils.DirpathForId(validatedPath)
-	file := SearchEngine.FindById(id)
+	file := GetEngine().FindById(id)
 	if !file.IsNull() {
-		SearchEngine.DeleteFile(file)
+		GetEngine().DeleteFile(file)
 		utils.InfoFormat("已从索引中删除: %s", file.Path)
 	}
 
@@ -48,7 +48,7 @@ func CreateMergeTask(fileIds []string, dest string, deleteSource bool) utils.Res
 	var paths []string
 	var dir string
 	for _, id := range fileIds {
-		curFile := SearchEngine.FindById(id)
+		curFile := GetEngine().FindById(id)
 		if curFile.IsNull() {
 			return utils.NewFailByMsg("文件不存在: " + id)
 		}
@@ -91,7 +91,7 @@ func CreateMergeTask(fileIds []string, dest string, deleteSource bool) utils.Res
 
 // CreateTransferTask 创建转码任务（含重复检查）
 func CreateTransferTask(id string, xcode string) utils.Result {
-	movieFile := SearchEngine.FindById(id)
+	movieFile := GetEngine().FindById(id)
 	if !utils.ExistsFiles(movieFile.Path) {
 		return utils.NewFailByMsg("文件不存在")
 	}
@@ -122,7 +122,7 @@ func CreateTransferTask(id string, xcode string) utils.Result {
 
 // CreateCutTask 创建剪切任务
 func CreateCutTask(id string, start string, end string) utils.Result {
-	movieFile := SearchEngine.FindById(id)
+	movieFile := GetEngine().FindById(id)
 	if !utils.ExistsFiles(movieFile.Path) {
 		return utils.NewFailByMsg("文件不存在")
 	}

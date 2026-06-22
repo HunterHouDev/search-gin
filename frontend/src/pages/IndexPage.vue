@@ -136,7 +136,7 @@
                     flat
                     @click="gotoMenu(item)"
                   >
-                    {{ item.IsDir ? '文件夹' : item.Name }}
+                    {{ item.IsDir ? '📁 ' + item.Name : item.Name }}
                   </q-btn>
                 </div>
                 <div class="text-caption q-mt-sm" style="color: var(--q-text-secondary)">

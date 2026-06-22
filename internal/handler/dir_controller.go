@@ -1,9 +1,9 @@
 package handler
 
 import (
+	"net/http"
 	"search-gin/internal/service"
 	"search-gin/pkg/utils"
-	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -12,7 +12,7 @@ import (
 // GetOpenFolder 本地打开文件夹
 func GetOpenFolder(c *gin.Context) {
 	id := c.Param("id")
-	file := service.SearchEngine.FindById(id)
+	file := UseApp().search.FindById(id)
 
 	if file.IsNull() {
 		res := utils.NewFailByMsg("文件不存在")
@@ -24,7 +24,7 @@ func GetOpenFolder(c *gin.Context) {
 		return
 	}
 
-	validatedPath, err := utils.ValidatePath(file.DirPath, service.GetOSSetting().Dirs)
+	validatedPath, err := utils.ValidatePath(file.DirPath, UseApp().config.Get().Dirs)
 	if err != nil {
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("路径不在允许范围内"))
 		return
@@ -47,7 +47,7 @@ func PostOpenFolderByPath(c *gin.Context) {
 	}
 	dirpath := forms["dirpath"]
 	dirpath = strings.ReplaceAll(dirpath, utils.PathSeparator+utils.PathSeparator, utils.PathSeparator)
-	validatedPath, err := utils.ValidatePath(dirpath, service.GetOSSetting().Dirs)
+	validatedPath, err := utils.ValidatePath(dirpath, UseApp().config.Get().Dirs)
 	if err != nil {
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("路径不在允许范围内"))
 		return
@@ -68,12 +68,12 @@ func PostDeleteFolderByPath(c *gin.Context) {
 	}
 	dirpath := forms["dirpath"]
 	dirpath = strings.ReplaceAll(dirpath, utils.PathSeparator+utils.PathSeparator, utils.PathSeparator)
-	validatedPath, err := utils.ValidatePath(dirpath, service.GetOSSetting().Dirs)
+	validatedPath, err := utils.ValidatePath(dirpath, UseApp().config.Get().Dirs)
 	if err != nil {
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("路径不在允许范围内"))
 		return
 	}
-	service.SearchApp.DownDeleteDir(validatedPath)
+	UseApp().files.DownDeleteDir(validatedPath)
 	res := utils.NewSuccessByMsg("删除成功")
 	c.JSON(http.StatusOK, res)
 }

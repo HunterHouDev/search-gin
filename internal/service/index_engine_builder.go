@@ -118,7 +118,7 @@ func (se *searchEngineCore) rebuildWithBucketIncremental(baseDir string, newBuck
 		bucketCount: int32(len(newBuckets)),
 		totalSize:   old.totalSize,
 		totalCount:  old.totalCount,
-		authorMap:    cloneActorMap(old.authorMap),
+		authorMap:   cloneActorMap(old.authorMap),
 		typeMenu:    cloneMenuMap(old.typeMenu),
 		tagMenu:     cloneMenuMap(old.tagMenu),
 		seriesCount: cloneMenuMap(old.seriesCount),
@@ -152,10 +152,10 @@ func (se *searchEngineCore) rebuildWithBucketIncremental(baseDir string, newBuck
 func buildIndexFromBuckets(buckets map[string]*bucketFile) *searchIndex {
 	index := &searchIndex{
 		buckets:     make(map[string]*bucketFile, len(buckets)),
-		authorMap:    make(map[string]model.Author),
-		typeMenu:    make(map[string]MenuSize),
-		tagMenu:     make(map[string]MenuSize),
-		seriesCount: make(map[string]MenuSize),
+		authorMap:   make(map[string]model.Author),
+		typeMenu:    make(map[string]model.FileInfo),
+		tagMenu:     make(map[string]model.FileInfo),
+		seriesCount: make(map[string]model.FileInfo),
 	}
 
 	for k, v := range buckets {
@@ -237,8 +237,8 @@ func cloneActorMap(src map[string]model.Author) map[string]model.Author {
 	return dst
 }
 
-func cloneMenuMap(src map[string]MenuSize) map[string]MenuSize {
-	dst := make(map[string]MenuSize, len(src))
+func cloneMenuMap(src map[string]model.FileInfo) map[string]model.FileInfo {
+	dst := make(map[string]model.FileInfo, len(src))
 	for k, v := range src {
 		dst[k] = v
 	}
@@ -399,19 +399,19 @@ func addFileToIndex(index *searchIndex, movie model.FileItem) {
 	if v, ok := index.typeMenu[mt]; ok {
 		index.typeMenu[mt] = v.Plus(movie.Size)
 	} else {
-		index.typeMenu[mt] = MenuSize{Name: mt, Cnt: 1, Size: movie.Size}
+		index.typeMenu[mt] = model.FileInfo{Name: mt, Cnt: 1, Size: movie.Size}
 	}
 	if v, ok := index.typeMenu["全部"]; ok {
 		index.typeMenu["全部"] = v.Plus(movie.Size)
 	} else {
-		index.typeMenu["全部"] = MenuSize{Name: "全部", Cnt: 1, Size: movie.Size}
+		index.typeMenu["全部"] = model.FileInfo{Name: "全部", Cnt: 1, Size: movie.Size}
 	}
 
 	for i := range movie.Tags {
 		if v, ok := index.tagMenu[movie.Tags[i]]; ok {
 			index.tagMenu[movie.Tags[i]] = v.Plus(movie.Size)
 		} else {
-			index.tagMenu[movie.Tags[i]] = MenuSize{Name: movie.Tags[i], Cnt: 1, Size: movie.Size, IsDir: true}
+			index.tagMenu[movie.Tags[i]] = model.FileInfo{Name: movie.Tags[i], Cnt: 1, Size: movie.Size, IsDir: true}
 		}
 	}
 
@@ -419,7 +419,7 @@ func addFileToIndex(index *searchIndex, movie model.FileItem) {
 		if v, ok := index.seriesCount[movie.Studio]; ok {
 			index.seriesCount[movie.Studio] = v.Plus(movie.Size)
 		} else {
-			index.seriesCount[movie.Studio] = MenuSize{Name: movie.Studio, Cnt: 1, Size: movie.Size, IsDir: true}
+			index.seriesCount[movie.Studio] = model.FileInfo{Name: movie.Studio, Cnt: 1, Size: movie.Size, IsDir: true}
 		}
 	}
 }
@@ -508,17 +508,17 @@ func shallowCopyIndex(index *searchIndex) *searchIndex {
 		newAuthorMap[k] = v
 	}
 
-	newTypeMenu := make(map[string]MenuSize, len(index.typeMenu))
+	newTypeMenu := make(map[string]model.FileInfo, len(index.typeMenu))
 	for k, v := range index.typeMenu {
 		newTypeMenu[k] = v
 	}
 
-	newTagMenu := make(map[string]MenuSize, len(index.tagMenu))
+	newTagMenu := make(map[string]model.FileInfo, len(index.tagMenu))
 	for k, v := range index.tagMenu {
 		newTagMenu[k] = v
 	}
 
-	newSeriesCount := make(map[string]MenuSize, len(index.seriesCount))
+	newSeriesCount := make(map[string]model.FileInfo, len(index.seriesCount))
 	for k, v := range index.seriesCount {
 		newSeriesCount[k] = v
 	}

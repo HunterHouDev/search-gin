@@ -17,7 +17,7 @@
 | `:10082` | 文件/图片/视频流 | 注册在 `BuildFileRouter()`，无需认证 |
 | `:6060` | pprof（仅开发环境） | 开发调试用 |
 
-端口在 `pkg/consts/base_param.go:60-61` 硬编码（`PortNo=:10081`，`FilePortNo=:10082`）。
+端口在 `internal/service/index_param.go` 硬编码（`PortNo=:10081`，`FilePortNo=:10082`）。
 
 ## 前端构建 / 嵌入流程
 
@@ -31,7 +31,7 @@
 
 模块名：`search-gin`。所有内部导入使用 `search-gin/internal/...` 和 `search-gin/pkg/...`。
 
-注意：`pkg/` 会导入 `internal/`——这是本仓库的设计（例如 `pkg/consts/` 导入 `internal/model`，`pkg/utils/` 导入 `internal/env`）。
+注意：`pkg/utils/` 导入 `internal/env`——这是本仓库的设计。
 
 ## 无数据库
 
@@ -39,7 +39,7 @@
 
 ## 认证
 
-- 硬编码管理员账号：`admin` / `qwer`（`pkg/consts/setting_data.go:16-18`）
+- 硬编码管理员账号：`admin` / `qwer`（`internal/service/auth_service.go`）
 - Token 存储在内存中（`TokenStore` map），通过 `Authorization: Bearer <token>` 发送
 - WebSocket 使用 `?token=` 查询参数传递（无法设置自定义 Header）
 - **集群节点间转发**使用 `X-Search-Gin-Remote: true` header 跳过 Token 认证，但来源 IP 必须为集群内已知 peer（`middleware/common.go`），详见下方多节点集群认证机制
@@ -116,43 +116,113 @@ bash ball_build.sh
 
 ## 后端架构
 
-### 服务层（`internal/service/`）
+### 依赖注入架构（2024年重构）
 
-采用"空 struct + 方法"模式，全局单例在 `service.go` 注册：
+采用**显式依赖注入**模式，消除全局单例依赖，提升可测试性。
 
-| 单例 | 类型 | 职责 |
+#### 核心依赖图
+
+```
+main.go
+  ├─ NewSearchEngine()         → *searchEngineCore
+  ├─ NewScanQueue(engine)      → *taskQueue
+  ├─ NewSearchService(engine, settings, events, scanQueue) → *searchService
+  ├─ InitService(engine, search)   → 注册全局 getter（内部使用）
+  └─ handler.InitApp(search, files, config) → handler 层依赖注入
+```
+
+#### 服务层结构（`internal/service/`）
+
+| 结构体 | 字段 | 职责 |
+|--------|------|------|
+| `searchService` | `engine`, `settings`, `events`, `scanQueue` | 文件操作 / 扫描 / 流媒体 / 目录清理 |
+| `searchEngineCore` | `KeywordHistoryCache`, `buckets`, `index` | 搜索引擎：索引加载、分页搜索、缓存、并发 searchPool |
+| `taskQueue` | `tasks chan` | 扫描任务队列（容量 100 channel） |
+
+**接口定义（`interfaces.go`）：**
+
+| 接口 | 方法 | 说明 |
 |------|------|------|
-| `SearchApp` | `searchService`（空 struct） | 文件操作 / 扫描 / 流媒体 / 目录清理 |
-| `SearchEngine` | `searchEngineCore` | 搜索引擎：索引加载、分页搜索、缓存、并发 searchPool |
-| `Downloader` | `downloader` | HTTP 下载 |
-| `VideoEncoder` | `videoEncoder` | 视频转码 / 缩略图截取 |
-| `scanQueue` | `taskQueue` | 扫描任务队列（容量 100 channel） |
+| `IndexEngine` | `Page`, `FindById`, `ReplaceFile`, `DeleteFile` 等 | 搜索引擎抽象 |
+| `FileService` | `SetMovieType`, `AddTag`, `Rename`, `Move`, `Delete` 等 | 文件操作抽象 |
+| `Settings` | `Get`, `Set`, `Flush` | 配置读写抽象，替代全局 `GetOSSetting()` |
+| `EventBus` | `Broadcast` | 事件广播抽象，替代 `sse.BroadcastEvent()` |
+
+#### Handler 层结构（`internal/handler/`）
+
+```go
+type AppHandle struct {
+    search  service.IndexEngine   // 搜索引擎
+    files   service.FileService   // 文件操作
+    config  service.Settings      // 配置管理
+}
+
+func InitApp(search, files, config)  // main.go 调用初始化
+func UseApp() *AppHandle             // 获取全局 handler
+```
+
+#### 初始化流程（`main.go`）
+
+```go
+// 1. 创建核心组件（显式依赖图）
+engine := service.NewSearchEngine()
+settings := service.DefaultSettings()
+events := service.DefaultEventBus()
+
+// 2. 创建扫描队列并关联 searchService
+scanQueue := service.NewScanQueue(engine, settings)
+search := service.NewSearchService(engine, settings, events, scanQueue)
+
+// 3. 注册全局（内部函数仍需通过 getter 访问）
+service.InitService(engine, search)
+
+// 4. 加载上次扫描的索引缓存
+engine.LoadCachedIndex()
+
+// 5. 创建 Handler（注入依赖）
+handler.InitApp(engine, search, settings)
+```
 
 **核心文件说明：**
 
 | 文件 | 内容 |
 |------|------|
-| `service.go` | 全局单例 + `searchService` 类型定义（~400B） |
+| `service.go` | 依赖注入：`NewSearchEngine()`, `NewSearchService()`, `InitService()`, 全局 getter |
+| `interfaces.go` | 接口定义：`IndexEngine`, `FileService`, `Settings`, `EventBus` |
 | `search_executor.go` | `Page()`（导出）/ `pageAsync()`（内部）/ `tryCache()` / `doSearch()` / `collectResults()` / `returnRepeatSearch()` / `PageAuthor()` / `FindById()` |
-| `search_index_manager.go` | `searchEngineCore` struct 定义 + `loadIndex()` / `installIndex()` / `rebuildWithBucket` |
-| `index_builder.go` | 索引构建：`newInstanceWithFiles()` / `buildIndexFromBuckets()`（668行） |
+| `index_engine_manager.go` | `searchEngineCore` struct 定义 + `loadIndex()` / `installIndex()` / `syncIndex()` |
+| `index_engine_builder.go` | 索引构建：`buildIndexFromBuckets()` / `addFileToIndex()` |
+| `index_engine_cache.go` | `saveIndexToCache` / `LoadCachedIndex` — 磁盘缓存 |
 | `index_engine_bucket.go` | `bucketFile` — 单目录下的文件桶，支持 `searchBucket()` |
-| `index_engine_cache.go` | `cacheBucket` / `cacheData` — 缓存结构 |
-| `file_operations.go` | `SetMovieType` / `AddTag` / `ClearTag` / `Rename` / `Move` / `Delete` — receiver 为 `*searchService` |
-| `file_scanner.go` | `ScanAll` / `ScanTarget` / `Walk` / `WalkInner` |
-| `file_media_streamer.go` | `GetPng` / `GetJpg` / `GetFile` |
-| `file_video_processor.go` | `TransferFormatter` / `CutImage` / `MergeFiles` |
-| `file_downloader.go` | `DownJpgMakePng` / `DownJpgAsPng` |
-| `directory_cleaner.go` | `DeleteOne` / `DownDeleteDir` / `removeWalk()` |
-| `hw_accel.go` | `detectHwAccel` / `getH264Encoder` / `getH265Encoder` — receiver 为 `*videoEncoder` |
+| `file_operations.go` | `SetMovieType` / `AddTag` / `ClearTag` / `Rename` / `Move` / `Delete` — receiver 为 `*searchService`，通过 `s.engine` 访问索引 |
+| `file_scanner.go` | `ScanAll` / `ScanTarget` / `Walk` / `WalkInner` — 通过 `s.settings.Get()` 读取配置 |
+| `file_video_processor.go` | `TransferFormatter` / `CutImage` / `MergeFiles` — 包级函数（无状态，不依赖 receiver） |
+| `file_downloader.go` | `DownJpgMakePng` / `DownJpgAsPng` — 包级函数 |
+| `directory_cleaner.go` | `DeleteOne` / `DownDeleteDir` / `UpDirClear` / `removeWalk()` — 方法为 `*searchService` |
+| `hw_accel.go` | `detectHwAccel` / `getH264Encoder` / `getH265Encoder` — 包级函数（无状态） |
 | `task_scheduler.go` | `TaskExecuting()` / `HeartBeat()` + 扫描任务队列（`scanTask` / `taskQueue`） |
-| `init_service.go` | 初始化：`StartScanQueue()` 后启动扫描队列，`TaskExecuting()` 和 `HeartBeat()` 循环 |
+| `background_launch.go` | `InitSetting()` / `StartBackgroundTasks()` — 包级函数，由 `main.go` 调用 |
 | `torrent_service.go` | BT 下载（独立 `TorrentService` struct） |
+
+#### 全局访问（仅限必要场景）
+
+```go
+// service 包内部使用（通过 getter）
+engine := GetEngine()   // *searchEngineCore
+search := GetSearch()   // *searchService
+workDir := GetWorkDir() // string
+
+// handler 层使用（通过 InitApp 注入）
+app := UseApp()
+app.search.FindById(id)
+app.files.SetMovieType(file, movieType)
+app.config.Get()
+```
 
 ### 搜索流程
 
 ```
-handler: SearchEngine.Page(param)
+handler: UseApp().search.Page(param)
   → pageAsync(param)
     → loadIndex()               // atomic.Value 读取当前索引
     → OnlyRepeat? → returnRepeatSearch(snap)
@@ -174,8 +244,25 @@ handler: SearchEngine.Page(param)
 - `pkg/utils/Os.go` 导出 `PathSeparator`——请使用此常量而非直接使用 `os.PathSeparator`
 - 文件存在判断：`utils.ExistsFiles(path)`（定义在 `OsFilepathUtils.go`）
 - 搜索结果缓存（`KeywordHistoryCache`）使用 epoch 机制：`cacheEpoch` 在每次 `installIndex` 时递增，缓存读写时校验 epoch，防止索引重建后返回过时结果（`search_executor.go:cachedResult`）
-- 搜索入口：`SearchEngine.Page(param) utils.Page`（导出）；内部 `pageAsync()` 三步：`loadIndex` → `tryCache`/`OnlyRepeat` → `doSearch`
-- 文件操作用 `notifyFileChanged(oldFile, updated, action)` 统一更新索引 + SSE 通知
+- 搜索入口：`UseApp().search.Page(param)`（导出）；内部 `pageAsync()` 三步：`loadIndex` → `tryCache`/`OnlyRepeat` → `doSearch`
+- 文件操作通过 `s.notifyFileChanged(oldFile, updated, action)`（`searchService` 方法）统一更新索引 + SSE 通知
+
+## 依赖注入模式
+
+### 访问规则
+
+| 场景 | 方式 | 示例 |
+|------|------|------|
+| **handler 层** | 通过 `UseApp()` 获取注入的依赖 | `app.search.FindById(id)` |
+| **service 层内部** | 通过结构体字段访问 | `s.engine.FindById(id)`, `s.settings.Get()` |
+| **包级辅助函数** | 通过 getter 获取（仅限必要） | `GetEngine().FindById(id)` |
+| **禁止** | 直接引用全局单例 | ~~`service.SearchEngine.FindById()`~~ |
+
+### 接口优先原则
+
+- 新增依赖必须定义接口（`interfaces.go`）
+- 构造函数接收接口而非具体类型
+- 默认适配器提供开箱即用的实现（`DefaultSettings()`, `DefaultEventBus()`）
 
 ## CI（已废弃）
 

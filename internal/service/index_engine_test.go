@@ -3,7 +3,6 @@ package service
 import (
 	"search-gin/internal/model"
 	"search-gin/pkg/utils"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -491,22 +490,9 @@ func Test_returnRepeatSearch(t *testing.T) {
 	assert.Greater(t, len(result.FileList), 0, "应检测到重复文件")
 }
 
-// ── 全局状态清理 ──
-
 func emptySearchIndex() *searchIndex {
 	return &searchIndex{
-		buckets:  make(map[string]*bucketFile),
+		buckets:   make(map[string]*bucketFile),
 		authorMap: make(map[string]model.Author),
 	}
-}
-
-func resetGlobalState() {
-	TypeMenu = sync.Map{}
-	TagMenu = sync.Map{}
-	SeriesCount = sync.Map{}
-}
-
-func TestMain(m *testing.M) {
-	resetGlobalState()
-	m.Run()
 }

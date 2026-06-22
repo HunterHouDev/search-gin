@@ -4,14 +4,13 @@ import (
 	"os"
 	"path/filepath"
 	"search-gin/internal/model"
-	"search-gin/internal/sse"
 	"search-gin/pkg/utils"
 	"slices"
 	"strings"
 )
 
 // SetMovieType 设置电影类型
-func (fo *searchService) SetMovieType(movie model.FileItem, movieType string) utils.Result {
+func (s *searchService) SetMovieType(movie model.FileItem, movieType string) utils.Result {
 	newMovieType := "{{" + movieType + "}}"
 
 	if movie.MovieType != "" && movie.MovieType != "无" {
@@ -29,7 +28,7 @@ func (fo *searchService) SetMovieType(movie model.FileItem, movieType string) ut
 		if err != nil {
 			return utils.NewFailByMsg("重命名失败: " + err.Error())
 		}
-		return notifyFileChanged(movie, updated, "type_change")
+		return s.notifyFileChanged(movie, updated, "type_change")
 	}
 
 	suffix := "." + utils.GetSuffix(movie.Path)
@@ -41,12 +40,12 @@ func (fo *searchService) SetMovieType(movie model.FileItem, movieType string) ut
 	if err != nil {
 		return utils.NewFailByMsg("重命名视频失败: " + err.Error())
 	}
-	return notifyFileChanged(movie, updated, "type_change")
+	return s.notifyFileChanged(movie, updated, "type_change")
 }
 
 // AddTag 添加标签
-func (fo *searchService) AddTag(id string, tag string) utils.Result {
-	movie := SearchEngine.FindById(id)
+func (s *searchService) AddTag(id string, tag string) utils.Result {
+	movie := s.engine.FindById(id)
 	newTags := strings.Split(tag, ",")
 
 	if len(movie.Tags) > 0 {
@@ -74,7 +73,7 @@ func (fo *searchService) AddTag(id string, tag string) utils.Result {
 		if err != nil {
 			return utils.NewFailByMsg("重命名失败: " + err.Error())
 		}
-		return notifyFileChanged(movie, updated, "tag_change")
+		return s.notifyFileChanged(movie, updated, "tag_change")
 	}
 
 	suffix := "." + utils.GetSuffix(movie.Path)
@@ -86,12 +85,12 @@ func (fo *searchService) AddTag(id string, tag string) utils.Result {
 	if err != nil {
 		return utils.NewFailByMsg("重命名失败: " + err.Error())
 	}
-	return notifyFileChanged(movie, updated, "tag_change")
+	return s.notifyFileChanged(movie, updated, "tag_change")
 }
 
 // ClearTag 清除标签
-func (fo *searchService) ClearTag(id string, tag string) utils.Result {
-	movie := SearchEngine.FindById(id)
+func (s *searchService) ClearTag(id string, tag string) utils.Result {
+	movie := s.engine.FindById(id)
 	if len(movie.Tags) == 0 {
 		res := utils.NewSuccessByMsg("执行成功")
 		res.Data = movie
@@ -118,13 +117,13 @@ func (fo *searchService) ClearTag(id string, tag string) utils.Result {
 	if err != nil {
 		return utils.NewFailByMsg("重命名失败" + path)
 	}
-	return notifyFileChanged(movie, updated, "tag_change")
+	return s.notifyFileChanged(movie, updated, "tag_change")
 }
 
 // Rename 重命名文件
-func (fo *searchService) Rename(movie model.FileEdit) utils.Result {
+func (s *searchService) Rename(movie model.FileEdit) utils.Result {
 	res := utils.NewSuccess()
-	movieLib := SearchEngine.FindById(movie.Id)
+	movieLib := s.engine.FindById(movie.Id)
 	if movieLib.IsNull() {
 		res.FailByMsg("数据不存在")
 		return res
@@ -183,28 +182,28 @@ func (fo *searchService) Rename(movie model.FileEdit) utils.Result {
 	// 下载 JPG/PNG
 	if movie.Png != "" && strings.HasPrefix(movie.Png, "http") {
 		if movie.Jpg != "" && strings.HasPrefix(movie.Jpg, "http") {
-			res = Downloader.DownJpgMakePng(newPath, movie.Jpg, false)
+			res = DownJpgMakePng(newPath, movie.Jpg, false)
 			if !res.IsSuccess() {
 				return res
 			}
 		}
-		res = Downloader.DownJpgAsPng(newPath, movie.Png)
+		res = DownJpgAsPng(newPath, movie.Png)
 		if !res.IsSuccess() {
 			return res
 		}
 	} else if movie.Jpg != "" && strings.HasPrefix(movie.Jpg, "http") {
-		res = Downloader.DownJpgMakePng(newPath, movie.Jpg, true)
+		res = DownJpgMakePng(newPath, movie.Jpg, true)
 		if !res.IsSuccess() {
 			return res
 		}
 	}
-	return notifyFileChanged(movieLib, updated, "rename")
+	return s.notifyFileChanged(movieLib, updated, "rename")
 }
 
 // Move 移动文件到新目录
-func (fo *searchService) Move(id string, newDir string, title string) utils.Result {
+func (s *searchService) Move(id string, newDir string, title string) utils.Result {
 	res := utils.NewSuccess()
-	movieLib := SearchEngine.FindById(id)
+	movieLib := s.engine.FindById(id)
 	if movieLib.IsNull() {
 		res.FailByMsg("数据不存在")
 		return res
@@ -225,17 +224,17 @@ func (fo *searchService) Move(id string, newDir string, title string) utils.Resu
 		res.Data = err
 		return res
 	}
-	return notifyFileChanged(movieLib, updated, "move")
+	return s.notifyFileChanged(movieLib, updated, "move")
 }
 
 // Delete 删除文件
-func (fo *searchService) Delete(id string) {
-	file := SearchEngine.FindById(id)
+func (s *searchService) Delete(id string) {
+	file := s.engine.FindById(id)
 	if file.IsNull() {
 		return
 	}
-	SearchApp.DeleteOne(file.DirPath, file.Title)
-	sse.BroadcastEvent("file_changed", map[string]interface{}{
+	s.DeleteOne(file.DirPath, file.Title)
+	s.events.Broadcast("file_changed", map[string]interface{}{
 		"action": "delete",
 		"id":     id,
 		"path":   file.Path,
@@ -263,11 +262,11 @@ func choose2To1(cond bool, a, b string) string {
 }
 
 // notifyFileChanged 更新索引 + SSE 通知前端，返回 Result
-func notifyFileChanged(oldFile, updated model.FileItem, action string) utils.Result {
-	SearchEngine.ReplaceFile(oldFile, updated)
+func (s *searchService) notifyFileChanged(oldFile, updated model.FileItem, action string) utils.Result {
+	s.engine.ReplaceFile(oldFile, updated)
 	res := utils.NewSuccessByMsg("执行成功")
 	res.Data = updated
-	sse.BroadcastEvent("file_changed", map[string]interface{}{
+	s.events.Broadcast("file_changed", map[string]interface{}{
 		"action": action,
 		"id":     updated.Id,
 		"old":    oldFile.Path,

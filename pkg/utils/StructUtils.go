@@ -14,6 +14,7 @@ func InterfaceToMap(setting interface{}) map[string]interface{} {
 	}
 	return data
 }
+
 // InterfaceFields 获取结构体字段名列表
 func InterfaceFields(setting interface{}) []string {
 

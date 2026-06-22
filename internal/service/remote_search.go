@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"search-gin/internal/model"
-	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 	"strconv"
 	"strings"
@@ -58,7 +57,7 @@ func SearchPeers(searchParam model.SearchParam) ([]model.FileItem, int, int64) {
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 
-			result, err := searchPeer(p, searchParam)
+			result, err := p.searchPeer(searchParam)
 			if err != nil {
 				utils.ErrorFormat("远程搜索失败 [%s:%s]: %v", p.ID, p.IP, err)
 				return
@@ -76,7 +75,7 @@ func SearchPeers(searchParam model.SearchParam) ([]model.FileItem, int, int64) {
 }
 
 // searchPeer 向单个远程节点发送搜索请求
-func searchPeer(peer *Peer, searchParam model.SearchParam) (*PeerSearchResult, error) {
+func (p *Peer) searchPeer(searchParam model.SearchParam) (*PeerSearchResult, error) {
 	// 远程也用大 pageSize 获取全部结果，由请求端做最终分页
 	remoteParam := searchParam
 	remoteParam.Page = 1
@@ -87,7 +86,7 @@ func searchPeer(peer *Peer, searchParam model.SearchParam) (*PeerSearchResult, e
 		return nil, fmt.Errorf("序列化请求参数失败: %w", err)
 	}
 
-	url := fmt.Sprintf("http://%s:%s/api/movieList", peer.IP, peer.Port)
+	url := fmt.Sprintf("http://%s:%s/api/movieList", p.IP, p.Port)
 	req, err := http.NewRequest("POST", url, bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, fmt.Errorf("创建请求失败: %w", err)
@@ -258,7 +257,7 @@ func FillURLs(c *gin.Context, movies []model.FileItem) {
 
 	localIP := pickLocalIP(clientIP)
 	localNode := LocalNodeHost
-	filePort := strings.TrimPrefix(consts.FilePortNo, ":")
+	filePort := strings.TrimPrefix(FilePortNo, ":")
 
 	for i := range movies {
 		m := &movies[i]

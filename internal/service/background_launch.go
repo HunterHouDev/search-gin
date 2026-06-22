@@ -8,15 +8,11 @@ import (
 	"path/filepath"
 
 	"search-gin/internal/env"
-	"search-gin/internal/model"
-	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 )
 
 // InitSetting 读取配置文件并初始化全局设置
 func InitSetting() {
-	consts.MovieFields = utils.InterfaceFields(model.FileItem{})
-
 	// 先用默认值填充，确保 SelfPath 等基础字段不为空
 	SetOSSetting(defaultSetting())
 
@@ -30,7 +26,7 @@ func InitSetting() {
 	dict := ReadDictionaryFromJson(settingPath)
 	dict.SelfPath = osSetting.SelfPath
 	if dict.ControllerHost == "" {
-		dict.ControllerHost = consts.PortNo
+		dict.ControllerHost = PortNo
 	}
 	if dict.FileHost == "" {
 		dict.FileHost = osSetting.FileHost
@@ -43,7 +39,7 @@ func InitSetting() {
 
 	// 如果启用硬件加速，主动检测并同步模式名称
 	if dict.HardwareAcceleration {
-		VideoEncoder.detectHwAccel()
+		detectHwAccel()
 		dict.HardwareAccelMode = GetHwAccelModeName()
 	}
 
@@ -61,8 +57,8 @@ func InitSearchPool() {
 	if poolSize > 50 {
 		poolSize = 50
 	}
-	SearchEngine.searchPool = utils.NewGoroutinePool(poolSize)
-	SearchEngine.KeywordHistoryCache = utils.NewLRUCache(10)
+	GetEngine().searchPool = utils.NewGoroutinePool(poolSize)
+	GetEngine().KeywordHistoryCache = utils.NewLRUCache(10)
 }
 
 // InitPeerManager 初始化节点管理器，从配置加载静态节点
@@ -97,11 +93,11 @@ func StartPprof() {
 func StartBackgroundTasks() {
 	go func() {
 		defer utils.RecoverPanic()
-		SearchApp.HeartBeat()
+		GetSearch().HeartBeat()
 	}()
 	go func() {
 		defer utils.RecoverPanic()
-		SearchApp.TaskExecuting()
+		GetSearch().TaskExecuting()
 	}()
 }
 

@@ -35,7 +35,7 @@ func SignURL(baseURL, path string, ttl time.Duration) string {
 	params.Set("sign", signature)
 	params.Set("expire", strconv.FormatInt(expire, 10))
 	sep := "?"
-	if containsQuery(baseURL+path) {
+	if containsQuery(baseURL + path) {
 		sep = "&"
 	}
 	return baseURL + path + sep + params.Encode()

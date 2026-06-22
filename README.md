@@ -66,39 +66,43 @@ bash bpc_build.sh
 
 ```
 search-gin/
-├── main.go              # 入口，信号处理、优雅关闭
-├── server.go            # HTTP 服务创建、端口解析
+├── main.go              # 入口，依赖组装、信号处理、优雅关闭
 ├── assets.go            # 资源解压、静态文件加载
 ├── assets_dev.go        # 开发环境（不嵌入资源）
 ├── assets_prod.go       # 生产环境 //go:embed
 ├── internal/
-│   ├── handler/         # HTTP 处理器（文件、搜索、设置、种子、WS 等）
-│   ├── model/           # 数据模型（FileItem、搜索参数、任务模型）
+│   ├── handler/         # HTTP 处理器（依赖注入：IndexEngine + FileService + Settings）
+│   ├── model/           # 数据模型（FileItem、FileInfo、搜索参数、任务模型）
 │   ├── router/          # 路由注册（API 路由 + 文件流路由）
-│   ├── service/         # 业务逻辑（空 struct + 方法 + 全局单例）
-│   │   ├── service.go               # 全局单例注册（SearchApp, SearchEngine, Downloader, VideoEncoder）
-│   │   ├── index_builder.go         # 索引构建（全量/增量/替换/删除）
-│   │   ├── search_executor.go       # Page() 搜索入口 / pageAsync() 引擎搜索 / tryCache()
-│   │   ├── search_index_manager.go # searchEngineCore struct + loadIndex() / installIndex()
+│   ├── server/          # HTTP 服务创建、端口解析、优雅关闭
+│   ├── service/         # 业务逻辑（显式依赖注入模式）
+│   │   ├── service.go               # 构造函数（NewSearchEngine/NewSearchService）+ 默认适配器
+│   │   ├── interfaces.go            # 接口定义（IndexEngine/FileService/Settings/EventBus）
+│   │   ├── index_engine_manager.go  # searchEngineCore + atomic.Value 索引指针
+│   │   ├── index_engine_builder.go  # 索引构建（全量/增量/替换/删除）
+│   │   ├── index_engine_executor.go # Page() 搜索入口 / pageAsync() / tryCache()
 │   │   ├── index_engine_bucket.go   # bucketFile 文件桶 + searchBucket()
 │   │   ├── index_engine_cache.go    # 快照磁盘缓存（gob 序列化）
-│   │   ├── file_operations.go       # SetMovieType / AddTag / Rename / Move / Delete
-│   │   ├── file_scanner.go          # ScanAll / Walk / WalkInner
-│   │   ├── file_media_streamer.go   # GetPng / GetJpg / GetFile（图片视频流）
-│   │   ├── file_video_processor.go  # TransferFormatter / CutImage / MergeFiles
-│   │   ├── file_downloader.go       # DownJpgMakePng / DownJpgAsPng
-│   │   ├── directory_cleaner.go     # DeleteOne / DownDeleteDir / removeWalk
-│   │   ├── hw_accel.go              # 硬件加速检测 / 编码器选择
-│   │   ├── task_scheduler.go        # TaskExecuting / HeartBeat + 扫描任务队列
-│   │   ├── init_service.go          # 初始化启动（扫描队列/心跳/任务调度）
-│   │   ├── lan_discovery.go         # 集群节点管理（HTTP 信令 + 反向心跳）
-│   │   ├── remote_search.go         # 跨节点搜索 + 合并去重
-│   │   ├── remote_operation.go      # 跨节点文件操作转发
-│   │   └── torrent_service.go       # 磁力链/BT 下载管理
+│   │   ├── index_stats.go          # 扫描计时、内存日志、小文件目录
+│   │   ├── index_param.go          # 端口常量、IndexNumber、最后扫描时间
+│   │   ├── file_operations.go      # SetMovieType / AddTag / Rename / Move / Delete
+│   │   ├── file_scanner.go         # ScanAll / Walk / WalkInner
+│   │   ├── file_video_processor.go # TransferFormatter / CutImage / MergeFiles
+│   │   ├── file_downloader.go      # DownJpgMakePng / DownJpgAsPng
+│   │   ├── file_directory_cleaner.go # DeleteOne / DownDeleteDir / removeWalk
+│   │   ├── hw_accel.go             # 硬件加速检测 / 编码器选择
+│   │   ├── task_scheduler.go       # TaskExecuting / HeartBeat + 扫描任务队列
+│   │   ├── background_launch.go    # InitSetting / StartScanQueue / StartBackgroundTasks
+│   │   ├── auth_service.go         # 认证（硬编码 admin/qwer）
+│   │   ├── node_discovery.go       # 集群节点管理（HTTP 信令 + 反向心跳）
+│   │   ├── remote_search.go        # 跨节点搜索 + 合并去重
+│   │   ├── remote_operation.go     # 跨节点文件操作转发
+│   │   └── torrent_service.go      # 磁力链/BT 下载管理
+│   ├── sse/             # Server-Sent Events 广播
 │   ├── ws/              # WebSocket Hub（聊天/视频会议信令）
 │   └── env/             # 环境配置（prod/dev build tag）
 ├── pkg/
-│   ├── consts/          # 常量、配置、Token 管理
+│   ├── consts/          # 基础常量（端口等，逐步迁移至 internal）
 │   └── utils/           # 日志、LRU 缓存、FNV 哈希、文件工具、协程池
 ├── middleware/           # Gin 中间件（认证、recovery）
 ├── frontend/            # Vue 3 + Quasar 前端源码
@@ -106,6 +110,60 @@ search-gin/
 ├── setting.json         # 运行时配置（扫描目录、文件类型、多节点配置等）
 └── ffmpeg.exe ffplay.exe  # 媒体处理工具
 ```
+
+## 依赖注入架构
+
+2024 年重构采用**显式依赖注入**模式，消除全局单例依赖。
+
+### 核心依赖图
+
+```
+main.go
+  ├─ NewSearchEngine()         → *searchEngineCore
+  ├─ NewScanQueue(engine)      → *taskQueue
+  ├─ NewSearchService(engine, settings, events, scanQueue) → *searchService
+  ├─ InitService(engine, search)   → 注册全局 getter（内部使用）
+  └─ handler.InitApp(engine, search, settings) → handler 层 DI
+```
+
+### 服务层结构
+
+| 结构体 | 字段 | 职责 |
+|--------|------|------|
+| `searchService` | `engine`, `settings`, `events`, `scanQueue` | 文件操作 / 扫描 / 流媒体 / 目录清理 |
+| `searchEngineCore` | `index`, `KeywordHistoryCache`, `searchPool` | 搜索引擎：索引加载、分页搜索、缓存 |
+| `taskQueue` | `tasks`, `engine`, `settings`, `walkInner` | 扫描任务队列（容量 100 channel） |
+
+### 接口定义（`interfaces.go`）
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `IndexEngine` | `Page`, `FindById`, `ReplaceFile`, `DeleteFile`, `GetTypeMenu` 等 | 搜索引擎抽象 |
+| `FileService` | `SetMovieType`, `AddTag`, `Rename`, `Move`, `Delete` 等 | 文件操作抽象 |
+| `Settings` | `Get`, `Set`, `Flush` | 配置读写抽象，替代全局 `GetOSSetting()` |
+| `EventBus` | `Broadcast` | 事件广播抽象，替代直接调用 `sse.BroadcastEvent()` |
+
+### Handler 层
+
+```go
+type AppHandle struct {
+    search  service.IndexEngine
+    files   service.FileService
+    config  service.Settings
+}
+
+func InitApp(search, files, config)  // main.go 调用
+func UseApp() *AppHandle             // 获取全局 handler
+```
+
+### 访问规则
+
+| 场景 | 方式 | 示例 |
+|------|------|------|
+| handler 层 | 通过 `UseApp()` 获取注入的依赖 | `app.search.FindById(id)` |
+| service 层内部 | 通过结构体字段访问 | `s.engine.FindById(id)` |
+| 包级辅助函数 | 通过 getter 获取（仅限必要） | `GetEngine().FindById(id)` |
+| 禁止 | 直接引用全局单例 | ~`service.SearchEngine.FindById()`~ |
 
 ## ID 生成
 
@@ -213,15 +271,16 @@ func DirpathForId(path string) string {
 
 每个 bucket 有自有的 `RWMutex`，写入时只锁单个 bucket，不影响其他 bucket 并发读。
 
-#### 2. searchIndex — 只读索引
+#### 2. searchIndex — 只读快照
 
-`searchIndex` 是一个不可变结构体，包含：
+`searchIndex` 是一个不可变结构体，通过 `atomic.Value` 原子替换，包含：
 
-- **buckets**：所有 bucket 的引用（非拷贝，pointer 共享）
-- **预聚合数据**：`actorMap`、`typeMenu`、`tagMenu`、`seriesCount`、`repeatFiles`
+- **buckets**：所有 bucket 的引用（pointer 共享）
+- **预聚合数据**：`authorMap`、`typeMenu`、`tagMenu`、`seriesCount`、`repeatFiles`
 - **统计**：`totalSize`、`totalCount`、`bucketCount`
 
 预聚合数据在索引构建时一次性算好，搜索时零计算开销。
+Handler 层通过 `GetTypeMenu()` / `GetTagMenu()` / `GetSeriesCount()` 方法从快照直接读取，消除 `sync.Map` 全局变量。
 
 #### 3. searchEngineCore — 引擎门面
 
@@ -233,19 +292,19 @@ type searchEngineCore struct {
     KeywordHistoryCache *utils.LRUCache // 搜索结果 LRU 缓存
     searchPool          *utils.GoroutinePool
     rebuildMu           sync.Mutex      // 防止并发重建
-    cacheEpoch          atomic.Int64    // 缓存失效纪元（installIndex 时递增，读写时校验）
+    cacheEpoch          atomic.Int64    // 缓存失效纪元
 }
 ```
 
 ### 搜索流程
 
 ```
-Page(keyword, type, page)        ← handler 调用的 API 入口
-  └─ pageAsync(param)            ← 内部引擎方法
+UseApp().search.Page(param)            ← handler 调用的 API 入口
+  └─ pageAsync(param)                  ← 内部引擎方法
        │
-       ├─ loadIndex()            ← atomic.Value.Load（无锁）
+       ├─ loadIndex()                  ← atomic.Value.Load（无锁）
        ├─ OnlyRepeat？ → returnRepeatSearch(index)
-       ├─ tryCache(param)        ← LRU + epoch 校验
+       ├─ tryCache(param)              ← LRU + epoch 校验
        │     └─ 命中 & epoch 匹配 → 直接分页返回
        │
        └─ doSearch(index, param)
@@ -277,15 +336,15 @@ ScanAll()
       ├─ 清空 LRU 缓存
       ├─ cacheEpoch.Add(1)          ← 递增纪元，旧缓存自动失效
       ├─ 清空作者缓存
-      └─ 同步 typeMenu/tagMenu/seriesCount 到全局 consts
+      └─ 设置最后扫描时间
 ```
 
-**增量扫描**（单目录）走 `rebuildWithBucket()`：
+**增量扫描**（单目录）走 `rebuildWithBucketIncremental()`：
 1. 加载当前快照
 2. 复制除目标目录外的所有 bucket 引用
 3. 放入新 bucket
-4. 在新集合上运行 `buildSnapshotFromBuckets`
-5. `installIndex` 原子替换
+4. 在新集合上重新聚合作者/类型/标签/系列/重复检测
+5. `syncIndex` 原子替换
 
 ### 快照磁盘缓存（填补启动空窗期）
 
@@ -294,23 +353,22 @@ ScanAll()
 ```
 installIndex(newSnap)
   ├─ index.Store(newSnap)
-  ├─ 同步菜单到 consts.**
-  ├─ 清空 LRU 缓存
+  ├─ 清空 LRU 缓存 / 递增 epoch
   └─ saveIndexToCache(newSnap)         ← 异步 goroutine
        ├─ 遍历 buckets，持有 RLock 复制数据
        ├─ gob.Encode → .tmp 文件
        └─ os.Rename → search_cache.gob   ← 原子替换，防碎裂
 ```
 
-**启动时**（`main.go` L41-42）在 HTTP 服务启动前加载缓存：
+**启动时**（`main.go`）在 HTTP 服务启动前加载缓存：
 
 ```
 main()
-  ├─ WorkDir = getwd()
-  ├─ LoadCachedIndex()                    ← 加载磁盘缓存
-  │     └─ installIndex(loaded)           ← 用户立刻可搜
+  ├─ NewSearchEngine() / NewSearchService()
+  ├─ engine.LoadCachedIndex()              ← 加载磁盘缓存
+  │     └─ syncIndex(loaded)              ← 用户立刻可搜
   ├─ InitSetting()
-  ├─ StartScanQueue() / ScanAll()        ← 后台扫描, 完成后原子替换
+  ├─ StartScanQueue() / ScanAll()         ← 后台扫描, 完成后原子替换
   └─ server.ListenAndServe()
 ```
 
@@ -332,7 +390,7 @@ main()
 | 搜索读 | `atomic.Value.Load` (`loadIndex()`) | **完全无锁** |
 | 索引重建写 | `rebuildMu` + 影子索引 | 写时排他，读不受影响 |
 | Bucket 内部写入 | `bucketFile.mu` (RWMutex) | 细粒度，不影响其他 bucket |
-| 全局菜单同步 | `sync.Map` | 原子读写 |
+| 菜单读取 | 从索引快照 `map` 直接读取（getter 方法） | 快照不可变，无锁 |
 | LRU 缓存 | `sync.RWMutex` + epoch 校验 | 高并发读优化，索引更新后自动失效 |
 | 快照磁盘缓存 | 异步 goroutine + 原子 rename | 不阻塞任何路径，写中断不损坏文件 |
 

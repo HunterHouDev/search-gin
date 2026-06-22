@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"search-gin/internal/model"
-	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 	"sort"
 	"strings"
@@ -34,7 +33,7 @@ func (se *searchEngineCore) Page(searchParam model.SearchParam) utils.Page {
 		files[i].PageNo = searchParam.Page
 	}
 	result.Data = files
-	result.SetProgress(consts.IndexNumber.Load())
+	result.SetProgress(IndexNumber.Load())
 	return result
 }
 

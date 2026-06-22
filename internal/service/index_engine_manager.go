@@ -2,7 +2,6 @@ package service
 
 import (
 	"search-gin/internal/model"
-	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 	"sync"
 	"sync/atomic"
@@ -23,12 +22,12 @@ type searchIndex struct {
 	totalSize   int64
 	totalCount  int
 	repeatFiles []model.FileItem
-	authorMap    map[string]model.Author
+	authorMap   map[string]model.Author
 
 	// 预聚合的菜单数据（写入 consts.* 前暂存）
-	typeMenu    map[string]MenuSize
-	tagMenu     map[string]MenuSize
-	seriesCount map[string]MenuSize
+	typeMenu    map[string]model.FileInfo
+	tagMenu     map[string]model.FileInfo
+	seriesCount map[string]model.FileInfo
 }
 
 // searchEngineCore 搜索引擎：只保留快照指针 + 不变的辅助字段
@@ -50,9 +49,9 @@ func (se *searchEngineCore) loadIndex() *searchIndex {
 		return &searchIndex{
 			buckets:     make(map[string]*bucketFile),
 			authorMap:   make(map[string]model.Author),
-			typeMenu:    make(map[string]MenuSize),
-			tagMenu:     make(map[string]MenuSize),
-			seriesCount: make(map[string]MenuSize),
+			typeMenu:    make(map[string]model.FileInfo),
+			tagMenu:     make(map[string]model.FileInfo),
+			seriesCount: make(map[string]model.FileInfo),
 		}
 	}
 	index, ok := s.(*searchIndex)
@@ -60,9 +59,9 @@ func (se *searchEngineCore) loadIndex() *searchIndex {
 		return &searchIndex{
 			buckets:     make(map[string]*bucketFile),
 			authorMap:   make(map[string]model.Author),
-			typeMenu:    make(map[string]MenuSize),
-			tagMenu:     make(map[string]MenuSize),
-			seriesCount: make(map[string]MenuSize),
+			typeMenu:    make(map[string]model.FileInfo),
+			tagMenu:     make(map[string]model.FileInfo),
+			seriesCount: make(map[string]model.FileInfo),
 		}
 	}
 	return index
@@ -79,7 +78,7 @@ func (se *searchEngineCore) installIndexNoCache(index *searchIndex) {
 	se.syncIndex(index)
 }
 
-// syncIndex 原子替换索引 + 清 LRU 缓存 + 递增 epoch + 刷新全局菜单
+// syncIndex 原子替换索引 + 清 LRU 缓存 + 递增 epoch
 func (se *searchEngineCore) syncIndex(index *searchIndex) {
 	se.index.Store(index)
 	se.KeywordHistoryCache.Clear()
@@ -89,19 +88,22 @@ func (se *searchEngineCore) syncIndex(index *searchIndex) {
 	se.authorCountCache = nil
 	se.authorCacheMu.Unlock()
 
-	TypeMenu.Clear()
-	for k, v := range index.typeMenu {
-		TypeMenu.Store(k, v)
-	}
-	TagMenu.Clear()
-	for k, v := range index.tagMenu {
-		TagMenu.Store(k, v)
-	}
-	SeriesCount.Clear()
-	for k, v := range index.seriesCount {
-		SeriesCount.Store(k, v)
-	}
-	consts.SetLastScanTime(time.Now())
+	SetLastScanTime(time.Now())
+}
+
+// GetTypeMenu 从当前索引快照获取类型菜单
+func (se *searchEngineCore) GetTypeMenu() map[string]model.FileInfo {
+	return se.loadIndex().typeMenu
+}
+
+// GetTagMenu 从当前索引快照获取标签菜单
+func (se *searchEngineCore) GetTagMenu() map[string]model.FileInfo {
+	return se.loadIndex().tagMenu
+}
+
+// GetSeriesCount 从当前索引快照获取系列统计
+func (se *searchEngineCore) GetSeriesCount() map[string]model.FileInfo {
+	return se.loadIndex().seriesCount
 }
 
 // IsEmpty 检查是否有 bucket 数据

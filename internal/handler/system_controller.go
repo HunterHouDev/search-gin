@@ -9,14 +9,13 @@ import (
 
 	"search-gin/internal/model"
 	"search-gin/internal/service"
-	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 
 	"github.com/gin-gonic/gin"
 )
 
 func GetSettingInfo(c *gin.Context) {
-	setting := service.GetOSSetting()
+	setting := UseApp().config.Get()
 	safeSetting := setting
 	safeSetting.Users = nil
 	if safeSetting.HardwareAcceleration && safeSetting.HardwareAccelMode == "" {
@@ -52,7 +51,7 @@ func PostSetting(c *gin.Context) {
 	}
 
 	// 将现有配置序列化为 map
-	existing := service.GetOSSetting()
+	existing := UseApp().config.Get()
 	existingJSON, _ := json.Marshal(existing)
 	var merged map[string]any
 	if err := json.Unmarshal(existingJSON, &merged); err != nil {
@@ -72,8 +71,8 @@ func PostSetting(c *gin.Context) {
 	}
 	updated.SelfPath = existing.SelfPath
 
-	service.SetOSSetting(updated)
-	service.FlushDictionary(updated.SelfPath)
+	UseApp().config.Set(updated)
+	UseApp().config.Flush(updated.SelfPath)
 	if service.HwAccelSettingChanged() {
 		service.ForceHwAccelDetect()
 	}
@@ -87,17 +86,17 @@ func GetIpAddr2(c *gin.Context) {
 }
 
 func GetServerPort(c *gin.Context) {
-	setting := service.GetOSSetting()
+	setting := UseApp().config.Get()
 	configured := setting.ControllerHost
 	if configured == "" {
-		configured = consts.PortNo
+		configured = service.PortNo
 	}
 	cfgPort := configured
 	idx := strings.LastIndex(cfgPort, ":")
 	if idx >= 0 {
 		cfgPort = cfgPort[idx:]
 	}
-	runningPort := consts.PortNo
+	runningPort := service.PortNo
 	changed := cfgPort != runningPort
 	c.JSON(http.StatusOK, gin.H{
 		"runningPort":    runningPort,

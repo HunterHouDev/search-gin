@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"search-gin/internal/model"
-	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 	"strings"
 
@@ -27,7 +26,7 @@ func HandleRemote(c *gin.Context, movie model.FileItem, action string) bool {
 		return true
 	}
 
-	apiPort := strings.TrimPrefix(consts.PortNo, ":")
+	apiPort := strings.TrimPrefix(PortNo, ":")
 	targetURL := fmt.Sprintf("http://%s:%s%s", peerIP, apiPort, c.Request.URL.Path)
 
 	resp, err := forwardRequest(targetURL, c)
@@ -50,13 +49,13 @@ func HandleRemote(c *gin.Context, movie model.FileItem, action string) bool {
 
 // HandleRemoteByID 根据 id 查找 Movie，若远程则转发
 func HandleRemoteByID(c *gin.Context, id string, action string) bool {
-	movie := SearchEngine.FindById(id)
+	movie := GetEngine().FindById(id)
 	return HandleRemote(c, movie, action)
 }
 
 // HandleRemoteByMovieEdit 从 MovieEdit 提取 id 查找 Movie，若远程则转发
 func HandleRemoteByMovieEdit(c *gin.Context, edit model.FileEdit, action string) bool {
-	movie := SearchEngine.FindById(edit.Id)
+	movie := GetEngine().FindById(edit.Id)
 	return HandleRemote(c, movie, action)
 }
 

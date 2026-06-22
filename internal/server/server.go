@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"context"
@@ -9,27 +9,27 @@ import (
 	"time"
 
 	"search-gin/internal/service"
-	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 )
 
-// resolvePort 从 ControllerHost 中提取端口号
+// ResolvePort 从 ControllerHost 中提取端口号
 // 支持 ":10081" 和 "127.0.0.1:10081" 两种格式
-func resolvePort(controllerHost string) string {
+func ResolvePort(portNo, controllerHost string) string {
 	if controllerHost == "" {
-		return consts.PortNo
+		return portNo
 	}
 	idx := strings.LastIndex(controllerHost, ":")
 	if idx < 0 {
-		return consts.PortNo
+		return portNo
 	}
 	return controllerHost[idx:]
 }
 
-// createServer 创建 HTTP 服务器
+// CreateServer 创建 HTTP 服务器
 // 注意: 不设置 ReadTimeout 和 WriteTimeout，因为 WebSocket hijack 后超时仍会残留导致连接断开
-//       使用 ReadHeaderTimeout 防范慢连接攻击即可
-func createServer(addr string, handler http.Handler) *http.Server {
+//
+//	使用 ReadHeaderTimeout 防范慢连接攻击即可
+func CreateServer(addr string, handler http.Handler) *http.Server {
 	return &http.Server{
 		Addr:              addr,
 		Handler:           handler,
@@ -37,8 +37,8 @@ func createServer(addr string, handler http.Handler) *http.Server {
 	}
 }
 
-// gracefulShutdown 监听信号，收到后优雅关闭所有 HTTP 服务
-func gracefulShutdown(sigChan <-chan os.Signal, servers []*http.Server) {
+// GracefulShutdown 监听信号，收到后优雅关闭所有 HTTP 服务
+func GracefulShutdown(sigChan <-chan os.Signal, servers []*http.Server) {
 	go func() {
 		defer utils.RecoverPanic()
 

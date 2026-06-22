@@ -80,7 +80,7 @@ func AddUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("用户名已存在"))
 		return
 	}
-	service.FlushDictionary(service.GetOSSetting().SelfPath)
+	UseApp().config.Flush(UseApp().config.Get().SelfPath)
 	c.JSON(http.StatusOK, utils.NewSuccess())
 }
 
@@ -117,6 +117,6 @@ func DeleteUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("用户不存在"))
 		return
 	}
-	service.FlushDictionary(service.GetOSSetting().SelfPath)
+	UseApp().config.Flush(UseApp().config.Get().SelfPath)
 	c.JSON(http.StatusOK, utils.NewSuccess())
 }

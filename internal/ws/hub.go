@@ -12,17 +12,17 @@ import (
 type OnlineSession struct {
 	Username    string   `json:"username"`
 	Role        string   `json:"role"`
-	DeviceCount int      `json:"deviceCount"`          // 同账号设备数
-	IPs         []string `json:"ips,omitempty"`         // 各设备 IP
+	DeviceCount int      `json:"deviceCount"`   // 同账号设备数
+	IPs         []string `json:"ips,omitempty"` // 各设备 IP
 }
 
 // ChatMessage 聊天消息
 type ChatMessage struct {
-	Type      string    `json:"type"` // "online" | "chat" | "system"
-	Username  string    `json:"username,omitempty"`
-	Role      string    `json:"role,omitempty"`
-	Content   string    `json:"content,omitempty"`
-	Time      time.Time `json:"time"`
+	Type        string          `json:"type"` // "online" | "chat" | "system"
+	Username    string          `json:"username,omitempty"`
+	Role        string          `json:"role,omitempty"`
+	Content     string          `json:"content,omitempty"`
+	Time        time.Time       `json:"time"`
 	OnlineUsers []OnlineSession `json:"onlineUsers,omitempty"`
 }
 
@@ -58,11 +58,11 @@ func (c *ClientConn) SendBatchHistory(history []ChatMessage) {
 
 // Hub WebSocket 连接管理中心
 type Hub struct {
-	clients   map[*ClientConn]bool
-	mu        sync.RWMutex
-	register   chan *ClientConn
-	unregister chan *ClientConn
-	broadcast  chan []byte
+	clients     map[*ClientConn]bool
+	mu          sync.RWMutex
+	register    chan *ClientConn
+	unregister  chan *ClientConn
+	broadcast   chan []byte
 	chatHistory []ChatMessage // 最近 N 条聊天记录
 	historyMu   sync.RWMutex
 	maxHistory  int
@@ -78,10 +78,10 @@ func init() {
 // NewHub 创建 Hub
 func NewHub(maxHistory int) *Hub {
 	return &Hub{
-		clients:    make(map[*ClientConn]bool),
-		register:   make(chan *ClientConn),
-		unregister: make(chan *ClientConn),
-		broadcast:  make(chan []byte, 256),
+		clients:     make(map[*ClientConn]bool),
+		register:    make(chan *ClientConn),
+		unregister:  make(chan *ClientConn),
+		broadcast:   make(chan []byte, 256),
 		chatHistory: make([]ChatMessage, 0, maxHistory),
 		maxHistory:  maxHistory,
 	}

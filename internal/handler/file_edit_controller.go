@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"search-gin/internal/model"
 	"search-gin/internal/service"
-	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 
 	"github.com/gin-gonic/gin"
@@ -15,8 +14,8 @@ import (
 func SetMovieType(c *gin.Context) {
 	id := c.Param("id")
 	movieType := c.Param("movieType")
-	file := fileHandler.engine.FindById(id)
-	res := fileHandler.fileSvc.SetMovieType(file, movieType)
+	file := UseApp().search.FindById(id)
+	res := UseApp().files.SetMovieType(file, movieType)
 	c.JSON(http.StatusOK, res)
 }
 
@@ -42,7 +41,7 @@ func PostRename(c *gin.Context) {
 	}
 
 	utils.InfoFormat("PostRename :searchCnt[%v]", currentFile)
-	res := fileHandler.fileSvc.Rename(currentFile)
+	res := UseApp().files.Rename(currentFile)
 	c.JSON(http.StatusOK, res)
 }
 
@@ -68,7 +67,7 @@ func PostMove(c *gin.Context) {
 	}
 
 	utils.InfoFormat("PostMove :[%v]", currentFile)
-	res := fileHandler.fileSvc.Move(currentFile.Id, currentFile.Path, currentFile.Title)
+	res := UseApp().files.Move(currentFile.Id, currentFile.Path, currentFile.Title)
 	c.JSON(http.StatusOK, res)
 }
 
@@ -76,7 +75,7 @@ func GetAddTag(c *gin.Context) {
 	id := c.Param("id")
 	tag := c.Param("tag")
 
-	file := fileHandler.engine.FindById(id)
+	file := UseApp().search.FindById(id)
 	if file.IsNull() {
 		if service.HandleRemote(c, file, "addTag") {
 			return
@@ -86,7 +85,7 @@ func GetAddTag(c *gin.Context) {
 	}
 
 	utils.InfoFormat("GetAddTag [%v] [%v]", id, tag)
-	res := fileHandler.fileSvc.AddTag(id, tag)
+	res := UseApp().files.AddTag(id, tag)
 	c.JSON(http.StatusOK, res)
 }
 
@@ -94,7 +93,7 @@ func GetClearTag(c *gin.Context) {
 	id := c.Param("id")
 	tag := c.Param("tag")
 
-	file := fileHandler.engine.FindById(id)
+	file := UseApp().search.FindById(id)
 	if file.IsNull() {
 		if service.HandleRemote(c, file, "clearTag") {
 			return
@@ -103,15 +102,17 @@ func GetClearTag(c *gin.Context) {
 		return
 	}
 
-	res := fileHandler.fileSvc.ClearTag(id, tag)
+	res := UseApp().files.ClearTag(id, tag)
 	c.JSON(http.StatusOK, res)
 }
+
+var Images = []string{"png", "jpg", "gif"}
 
 func GetDirInfo(c *gin.Context) {
 	id := c.Param("id")
 	sort := c.Param("sort")
-	file := fileHandler.engine.FindById(id)
-	files := fileHandler.fileSvc.Walk(file.DirPath, consts.Images, false)
+	file := UseApp().search.FindById(id)
+	files := UseApp().files.Walk(file.DirPath, Images, false)
 	model.SortFileItems(files, "MTime", sort)
 	c.JSON(http.StatusOK, files)
 }
@@ -119,7 +120,7 @@ func GetDirInfo(c *gin.Context) {
 func GetDelete(c *gin.Context) {
 	id := c.Param("id")
 
-	file := fileHandler.engine.FindById(id)
+	file := UseApp().search.FindById(id)
 	if file.IsNull() {
 		if service.HandleRemote(c, file, "delete") {
 			return
@@ -128,7 +129,7 @@ func GetDelete(c *gin.Context) {
 		return
 	}
 
-	fileHandler.engine.DeleteFile(file)
-	fileHandler.fileSvc.DeleteOne(file.DirPath, file.Title)
+	UseApp().search.DeleteFile(file)
+	UseApp().files.DeleteOne(file.DirPath, file.Title)
 	c.JSON(http.StatusOK, utils.NewSuccessByMsg("删除成功"))
 }

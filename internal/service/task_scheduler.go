@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"search-gin/internal/model"
-	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 	"strings"
 	"sync"
@@ -18,7 +17,7 @@ var (
 var FullScanInProgress atomic.Bool
 
 // HeartBeat 心跳定时扫描
-func (fs *searchService) HeartBeat() {
+func (s *searchService) HeartBeat() {
 	ticker := time.NewTicker(180 * time.Second)
 	defer ticker.Stop()
 
@@ -27,10 +26,10 @@ func (fs *searchService) HeartBeat() {
 		case <-TaskCtx.Done():
 			return
 		case <-ticker.C:
-			if !GetOSSetting().EnableTimeScan || time.Since(consts.GetLastScanTime()).Seconds() <= 180 {
+			if !s.settings.Get().EnableTimeScan || time.Since(GetLastScanTime()).Seconds() <= 180 {
 				continue
 			}
-			for _, dir := range GetOSSetting().Dirs {
+			for _, dir := range s.settings.Get().Dirs {
 				removeWalk(dir, true)
 			}
 		}
@@ -38,11 +37,11 @@ func (fs *searchService) HeartBeat() {
 }
 
 // TaskExecuting 任务执行调度器
-func (fs *searchService) TaskExecuting() {
+func (s *searchService) TaskExecuting() {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 	for {
-		fs.pollTasks()
+		s.pollTasks()
 		select {
 		case <-TaskCtx.Done():
 			utils.InfoFormat("任务调度器已停止")
@@ -53,7 +52,7 @@ func (fs *searchService) TaskExecuting() {
 }
 
 // pollTasks 轮询并执行待处理任务
-func (fs *searchService) pollTasks() {
+func (s *searchService) pollTasks() {
 	taskGroups := struct {
 		todos           []model.TransferTaskModel
 		todosCuts       []model.TransferTaskModel
@@ -89,13 +88,13 @@ func (fs *searchService) pollTasks() {
 	TransferTaskMutex.RUnlock()
 
 	if len(taskGroups.executing) == 0 && len(taskGroups.todos) > 0 {
-		go VideoEncoder.TransferFormatter(taskGroups.todos[0])
+		go TransferFormatter(taskGroups.todos[0])
 	}
 	if len(taskGroups.executingCuts) == 0 && len(taskGroups.todosCuts) > 0 {
-		go VideoEncoder.CutFormatter(taskGroups.todosCuts[0])
+		go CutFormatter(taskGroups.todosCuts[0])
 	}
 	if len(taskGroups.executingMerges) == 0 && len(taskGroups.todosMerges) > 0 {
-		go VideoEncoder.MergeFiles(taskGroups.todosMerges[0])
+		go MergeFiles(taskGroups.todosMerges[0])
 	}
 }
 
@@ -110,14 +109,33 @@ type scanTask struct {
 }
 
 type taskQueue struct {
-	tasks    map[string]*scanTask // baseDir -> task
-	mutex    sync.Mutex
-	taskChan chan *scanTask
+	tasks     map[string]*scanTask // baseDir -> task
+	mutex     sync.Mutex
+	taskChan  chan *scanTask
+	engine    *searchEngineCore
+	settings  Settings
+	walkInner func(string, []string, bool, string) ([]model.FileItem, int64)
 }
 
-var scanQueue = &taskQueue{
-	tasks:    make(map[string]*scanTask),
-	taskChan: make(chan *scanTask, 100),
+var scanQueue *taskQueue
+
+// NewScanQueue 创建扫描任务队列（由 main.go 显式调用）
+func NewScanQueue(engine *searchEngineCore, settings Settings) *taskQueue {
+	q := &taskQueue{
+		tasks:    make(map[string]*scanTask),
+		taskChan: make(chan *scanTask, 100),
+		engine:   engine,
+		settings: settings,
+	}
+	scanQueue = q
+	return q
+}
+
+// SetScanWalkInner 设置扫描队列的 WalkInner 回调（需要 searchService 实例化后才能调用）
+func SetScanWalkInner(walkInner func(string, []string, bool, string) ([]model.FileItem, int64)) {
+	if scanQueue != nil {
+		scanQueue.walkInner = walkInner
+	}
 }
 
 // processTasks 处理任务队列
@@ -151,21 +169,21 @@ func (q *taskQueue) executeTask(task *scanTask) {
 	}
 
 	// 设置索引构建状态
-	consts.IndexNumber.Add(1)
-	defer consts.IndexNumber.Add(-1)
+	IndexNumber.Add(1)
+	defer IndexNumber.Add(-1)
 
 	LogMem.Add("开始扫描文件夹: %s", task.baseDir)
 
-	setting := GetOSSetting()
+	setting := q.settings.Get()
 	queryTypes := make([]string, 0)
 	queryTypes = utils.ExtendsItems(queryTypes, setting.VideoTypes)
 	queryTypes = utils.ExtendsItems(queryTypes, setting.DocsTypes)
 	queryTypes = utils.ExtendsItems(queryTypes, setting.ImageTypes)
 
 	// 执行扫描
-	files, _ := SearchApp.WalkInner(task.baseDir, queryTypes, true, task.baseDir)
+	files, _ := q.walkInner(task.baseDir, queryTypes, true, task.baseDir)
 	newBucket := newInstanceWithFiles(task.baseDir, files)
-	SearchEngine.rebuildWithBucketIncremental(task.baseDir, newBucket)
+	q.engine.rebuildWithBucketIncremental(task.baseDir, newBucket)
 
 	q.mutex.Lock()
 	delete(q.tasks, task.baseDir)

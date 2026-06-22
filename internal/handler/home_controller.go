@@ -6,10 +6,8 @@ import (
 	"path/filepath"
 	"search-gin/internal/model"
 	"search-gin/internal/service"
-	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 	"sort"
-	"sync"
 
 	"github.com/gin-gonic/gin"
 )
@@ -19,13 +17,13 @@ func Index(c *gin.Context) {
 }
 
 func GetTypeSize(c *gin.Context) {
-	if service.SearchEngine.IsEmpty() {
-		service.SearchApp.ScanAll()
+	if UseApp().search.IsEmpty() {
+		UseApp().files.ScanAll()
 	}
-	res := mapToSlice(&service.TypeMenu)
+	res := mapToSlice(UseApp().search.GetTypeMenu())
 	smallDirs := service.GetSmallDir()
 	if len(smallDirs) > 0 {
-		smallSize := service.NewMenuSize("小文件数量", int64(len(smallDirs)))
+		smallSize := model.NewFileInfo("小文件数量", int64(len(smallDirs)))
 		smallSize.SizeStr = utils.GetSizeStr(smallSize.Size)
 		res = append(res, smallSize)
 		for i := range smallDirs {
@@ -38,12 +36,12 @@ func GetTypeSize(c *gin.Context) {
 }
 
 func GetTagSize(c *gin.Context) {
-	res := mapToSlice(&service.TagMenu)
+	res := mapToSlice(UseApp().search.GetTagMenu())
 	c.JSON(http.StatusOK, res)
 }
 
 func GetSeriesSize(c *gin.Context) {
-	res := mapToSlice(&service.SeriesCount)
+	res := mapToSlice(UseApp().search.GetSeriesCount())
 	c.JSON(http.StatusOK, res)
 }
 
@@ -51,27 +49,24 @@ func GetLogMemory(c *gin.Context) {
 	c.JSON(http.StatusOK, service.LogMem.GetAll())
 }
 
-// LocalLogLine 本地日志行
 type LocalLogLine struct {
 	Raw string `json:"raw"`
 }
 
 func GetLocalLog(c *gin.Context) {
-	logPath := filepath.Join(service.WorkDir, "gin.log")
+	logPath := filepath.Join(service.GetWorkDir(), "gin.log")
 	content, err := os.ReadFile(logPath)
 	if err != nil {
 		c.JSON(http.StatusOK, []string{})
 		return
 	}
 	lines := splitLines(string(content))
-	// 反转（最新在前）
 	for i, j := 0, len(lines)-1; i < j; i, j = i+1, j-1 {
 		lines[i], lines[j] = lines[j], lines[i]
 	}
 	c.JSON(http.StatusOK, lines)
 }
 
-// splitLines 按换行符分割，忽略末尾空行
 func splitLines(s string) []string {
 	var result []string
 	start := 0
@@ -90,9 +85,9 @@ func splitLines(s string) []string {
 }
 
 func GetScanTime(c *gin.Context) {
-	res := make([]service.MenuSize, 0)
-	service.FolderTime.Range(func(_, value interface{}) bool {
-		if ms, ok := value.(service.MenuSize); ok {
+	res := make([]model.FileInfo, 0)
+	service.GetFolderTime().Range(func(_, value interface{}) bool {
+		if ms, ok := value.(model.FileInfo); ok {
 			res = append(res, ms)
 		}
 		return true
@@ -103,13 +98,14 @@ func GetScanTime(c *gin.Context) {
 	})
 	c.JSON(http.StatusOK, res)
 }
+
 func GetHeartBeat(c *gin.Context) {
-	c.JSON(http.StatusOK, consts.IndexNumber.Load())
+	c.JSON(http.StatusOK, service.IndexNumber.Load())
 }
 
 func GetDiskUsage(c *gin.Context) {
 	var res []model.DiskStatus
-	dirs := service.GetOSSetting().Dirs
+	dirs := UseApp().config.Get().Dirs
 	for _, dir := range dirs {
 		usage, err := model.GetDiskUsage(dir)
 		if err != nil {
@@ -120,14 +116,11 @@ func GetDiskUsage(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 
-func mapToSlice(m *sync.Map) []service.MenuSize {
-	var res []service.MenuSize
-	m.Range(func(_, value interface{}) bool {
-		if ms, ok := value.(service.MenuSize); ok {
-			res = append(res, ms)
-		}
-		return true
-	})
+func mapToSlice(m map[string]model.FileInfo) []model.FileInfo {
+	var res []model.FileInfo
+	for _, v := range m {
+		res = append(res, v)
+	}
 	for i := 0; i < len(res); i++ {
 		res[i].SizeStr = utils.GetSizeStr(res[i].Size)
 	}

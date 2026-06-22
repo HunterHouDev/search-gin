@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"search-gin/internal/model"
-	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 	"strings"
 	"sync"
@@ -40,7 +39,7 @@ type peerManager struct {
 }
 
 var (
-	defaultManager *peerManager
+	defaultManager   *peerManager
 	peerVerifyClient = &http.Client{Timeout: 2 * time.Second}
 )
 
@@ -61,7 +60,7 @@ func initNodeInfo() {
 		hostname = "unknown"
 	}
 
-	port := strings.TrimPrefix(consts.PortNo, ":")
+	port := strings.TrimPrefix(PortNo, ":")
 	LocalNodeHost = fmt.Sprintf("%s:%s", hostname, port)
 
 	setting := GetOSSetting()
@@ -193,8 +192,8 @@ func TryVerifyAndAddPeer(ip string) bool {
 	if defaultManager == nil {
 		return false
 	}
-	port := strings.TrimPrefix(consts.PortNo, ":")
-	filePort := strings.TrimPrefix(consts.FilePortNo, ":")
+	port := strings.TrimPrefix(PortNo, ":")
+	filePort := strings.TrimPrefix(FilePortNo, ":")
 	return AddPeer(ip, port, filePort)
 }
 

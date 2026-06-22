@@ -57,7 +57,7 @@ func removeWalk(baseDir string, deep bool) {
 }
 
 // DeleteOne 删除指定文件夹下的指定文件名的文件
-func (d *searchService) DeleteOne(dirName string, fileName string) {
+func (s *searchService) DeleteOne(dirName string, fileName string) {
 	if len(fileName) == 0 {
 		return
 	}
@@ -87,13 +87,13 @@ func (d *searchService) DeleteOne(dirName string, fileName string) {
 			return
 		}
 		if len(filesThen) == 0 {
-			d.UpDirClear(dirName)
+			s.UpDirClear(dirName)
 		}
 	}
 }
 
 // DownDeleteDir 迭代方式删除文件夹及其内容
-func (d *searchService) DownDeleteDir(dirname string) {
+func (s *searchService) DownDeleteDir(dirname string) {
 	postOrderStack := []stackItem{{path: dirname, visited: false}}
 
 	for len(postOrderStack) > 0 {
@@ -130,11 +130,11 @@ func (d *searchService) DownDeleteDir(dirname string) {
 	}
 
 	parentDir := filepath.Dir(dirname)
-	d.UpDirClear(parentDir)
+	s.UpDirClear(parentDir)
 }
 
 // UpDirClear 迭代方式向上删除空文件夹
-func (d *searchService) UpDirClear(dirname string) {
+func (s *searchService) UpDirClear(dirname string) {
 	currentDir := dirname
 
 	for {

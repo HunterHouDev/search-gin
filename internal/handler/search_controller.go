@@ -22,8 +22,8 @@ func PostMovies(c *gin.Context) {
 	// 检查是否为远程转发请求（X-Search-Gin-Remote: true）
 	isRemote := c.GetHeader("X-Search-Gin-Remote") == "true"
 
-	if service.SearchEngine.IsEmpty() {
-		service.SearchApp.ScanAll()
+	if UseApp().search.IsEmpty() {
+		UseApp().files.ScanAll()
 	}
 
 	searchParam := model.SearchParam{}
@@ -34,7 +34,7 @@ func PostMovies(c *gin.Context) {
 	}
 
 	if isRemote {
-		result := service.SearchEngine.Page(searchParam)
+		result := UseApp().search.Page(searchParam)
 		if data, ok := result.Data.([]model.FileItem); ok {
 			service.FillURLs(c, data)
 			result.Data = data
@@ -62,7 +62,7 @@ func PostMovies(c *gin.Context) {
 	}
 
 	// 搜索本机
-	result := service.SearchEngine.Page(searchParam)
+	result := UseApp().search.Page(searchParam)
 	if data, ok := result.Data.([]model.FileItem); ok {
 		service.FillURLs(c, data)
 		result.Data = data
@@ -87,10 +87,10 @@ func PostAuthor(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数绑定失败"))
 			return
 		}
-		if service.SearchEngine.IsEmpty() {
-			service.SearchApp.ScanAll()
+		if UseApp().search.IsEmpty() {
+			UseApp().files.ScanAll()
 		}
-		pageAuthorResultWrapper := service.SearchEngine.PageAuthor(param)
+		pageAuthorResultWrapper := UseApp().search.PageAuthor(param)
 		result := utils.NewPage()
 		result.CurCnt = pageAuthorResultWrapper.ResultCount
 		result.TotalCnt = pageAuthorResultWrapper.SearchCount
@@ -111,12 +111,12 @@ func PostAuthor(c *gin.Context) {
 	}
 
 	// 检查搜索引擎索引是否为空，如果为空则执行扫描
-	if service.SearchEngine.IsEmpty() {
-		service.SearchApp.ScanAll()
+	if UseApp().search.IsEmpty() {
+		UseApp().files.ScanAll()
 	}
 
 	// 调用搜索引擎获取作者分页搜索结果
-	pageAuthorResultWrapper := service.SearchEngine.PageAuthor(param)
+	pageAuthorResultWrapper := UseApp().search.PageAuthor(param)
 
 	// 初始化分页结果对象
 	result := utils.NewPage()

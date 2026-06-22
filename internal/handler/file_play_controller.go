@@ -13,13 +13,13 @@ import (
 
 func GetPlay(c *gin.Context) {
 	id := c.Param("id")
-	file := fileHandler.engine.FindById(id)
+	file := UseApp().search.FindById(id)
 	if file.IsNull() {
 		c.JSON(http.StatusNotFound, utils.NewFailByMsg("文件不存在"))
 		return
 	}
 
-	sanitizePath, err := utils.ValidatePath(file.Path, service.GetOSSetting().Dirs)
+	sanitizePath, err := utils.ValidatePath(file.Path, UseApp().config.Get().Dirs)
 	if err != nil {
 		utils.ErrorFormat("命令注入攻击尝试: %s, 错误: %v", file.Path, err)
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("文件路径不在允许范围内"))
@@ -28,7 +28,7 @@ func GetPlay(c *gin.Context) {
 
 	utils.InfoFormat("GetPlay [%v]", sanitizePath)
 
-	setting := service.GetOSSetting()
+	setting := UseApp().config.Get()
 	if setting.SystemPlayer == "ffplay" {
 		go func() {
 			params := []string{"-window_title", file.Title,
@@ -48,8 +48,8 @@ func GetPlay(c *gin.Context) {
 			}
 
 			ffplayPath := "./ffplay.exe"
-			if service.WorkDir != "" {
-				ffplayPath = filepath.Join(service.WorkDir, "ffplay.exe")
+			if service.GetWorkDir() != "" {
+				ffplayPath = filepath.Join(service.GetWorkDir(), "ffplay.exe")
 			}
 
 			params = append(params, sanitizePath)
@@ -70,19 +70,19 @@ func GetInfo(c *gin.Context) {
 	if service.HandleRemoteByID(c, id, "info") {
 		return
 	}
-	file := fileHandler.engine.FindById(id)
+	file := UseApp().search.FindById(id)
 	c.JSON(http.StatusOK, file)
 }
 
 func GetAuthorImage(c *gin.Context) {
 	path := c.Param("path")
-	author := fileHandler.engine.FindAuthorByName(path)
+	author := UseApp().search.FindAuthorByName(path)
 	if author.IsNotEmpty() {
 		for _, v := range author.Images {
 			if v == "" || !utils.ExistsFiles(v) {
 				continue
 			}
-			if validated, err := utils.ValidatePath(v, service.GetOSSetting().Dirs); err == nil {
+			if validated, err := utils.ValidatePath(v, UseApp().config.Get().Dirs); err == nil {
 				c.File(validated)
 				return
 			}

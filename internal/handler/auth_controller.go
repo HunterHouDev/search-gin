@@ -51,7 +51,7 @@ func requireAdmin(c *gin.Context) bool {
 	}
 
 	if !service.RequireAdminWithName(r, u) {
-		utils.InfoFormat("requireAdmin 拒绝: 中间件设置的 role=%v, username=%v", c.Keys)
+		utils.InfoFormat("requireAdmin 拒绝: 中间件设置的 role=%v, username=%v", r, u)
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("无权限执行此操作"))
 		return false
 	}

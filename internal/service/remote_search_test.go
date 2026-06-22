@@ -4,7 +4,6 @@ import (
 	"net"
 	"net/http/httptest"
 	"search-gin/internal/model"
-	"search-gin/pkg/consts"
 	"strings"
 	"testing"
 
@@ -164,8 +163,8 @@ func TestFillURLs_LocalFile_AssignsURLs(t *testing.T) {
 	c := newTestContext("192.168.1.100:12345")
 
 	movies := []model.FileItem{
-		{Id: "file-a", NodeHost: ""},                // 空 → 视为本机
-		{Id: "file-b", NodeHost: "mypc:10081"},      // 匹配本机
+		{Id: "file-a", NodeHost: ""},           // 空 → 视为本机
+		{Id: "file-b", NodeHost: "mypc:10081"}, // 匹配本机
 	}
 
 	FillURLs(c, movies)
@@ -233,7 +232,7 @@ func TestFillURLs_UsesFilePort(t *testing.T) {
 	FillURLs(c, movies)
 
 	m := movies[0]
-	filePort := strings.TrimPrefix(consts.FilePortNo, ":")
+	filePort := strings.TrimPrefix(FilePortNo, ":")
 	assert.Contains(t, m.StreamUrl, filePort, "StreamUrl 应使用文件流端口 10082")
 }
 

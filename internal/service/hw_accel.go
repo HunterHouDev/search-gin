@@ -20,7 +20,7 @@ var hwAccel = struct {
 }{}
 
 // detectHwAccel 检测平台上可用的最佳硬件编码器（惰性调用，首次转码时自动识别）
-func (e *videoEncoder) detectHwAccel() {
+func detectHwAccel() {
 	hwAccel.mu.Lock()
 	defer hwAccel.mu.Unlock()
 
@@ -37,7 +37,7 @@ func (e *videoEncoder) detectHwAccel() {
 		hwAccel.dec = ""
 	}
 
-	ffmpegPath := e.ffmpegBinPath()
+	ffmpegPath := ffmpegBinPath()
 	cmd := exec.Command(ffmpegPath, "-encoders")
 	if runtime.GOOS == "windows" {
 		utils.FixOnWin(cmd)
@@ -94,9 +94,9 @@ func (e *videoEncoder) detectHwAccel() {
 }
 
 // getH264Encoder 获取当前应使用的 H264 编码器
-func (e *videoEncoder) getH264Encoder() string {
+func getH264Encoder() string {
 	if GetOSSetting().HardwareAcceleration {
-		e.detectHwAccel()
+		detectHwAccel()
 		if hwAccel.h264 != "" {
 			return hwAccel.h264
 		}
@@ -105,9 +105,9 @@ func (e *videoEncoder) getH264Encoder() string {
 }
 
 // getH265Encoder 获取当前应使用的 H265 编码器
-func (e *videoEncoder) getH265Encoder() string {
+func getH265Encoder() string {
 	if GetOSSetting().HardwareAcceleration {
-		e.detectHwAccel()
+		detectHwAccel()
 		if hwAccel.h265 != "" {
 			return hwAccel.h265
 		}
@@ -121,9 +121,9 @@ func GetHwAccelModeName() string {
 }
 
 // getHwDecodeParams 获取硬件解码参数（在 -i 之前插入）
-func (e *videoEncoder) getHwDecodeParams() string {
+func getHwDecodeParams() string {
 	if GetOSSetting().HardwareAcceleration {
-		e.detectHwAccel()
+		detectHwAccel()
 		if hwAccel.dec != "" {
 			return hwAccel.dec
 		}
@@ -132,9 +132,9 @@ func (e *videoEncoder) getHwDecodeParams() string {
 }
 
 // getHwQualityParam 获取硬件编码器的质量参数
-func (e *videoEncoder) getHwQualityParam() string {
+func getHwQualityParam() string {
 	if GetOSSetting().HardwareAcceleration {
-		e.detectHwAccel()
+		detectHwAccel()
 		if hwAccel.h264 != "" || hwAccel.h265 != "" {
 			return "-q"
 		}

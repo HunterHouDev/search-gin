@@ -40,14 +40,14 @@ func GetCutImage(c *gin.Context) {
 		return
 	}
 
-	movieFile := fileHandler.engine.FindById(idInt)
+	movieFile := UseApp().search.FindById(idInt)
 	if movieFile.IsNull() {
 		r := utils.Fail()
 		r.Message = "文件不存在"
 		c.JSON(http.StatusOK, r)
 		return
 	}
-	c.JSON(http.StatusOK, fileHandler.ve.CutImage(movieFile.Path, typeImage, start))
+	c.JSON(http.StatusOK, service.CutImage(movieFile.Path, typeImage, start))
 }
 
 func GetCutMovie(c *gin.Context) {

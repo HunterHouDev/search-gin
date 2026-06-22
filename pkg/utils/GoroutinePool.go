@@ -1,40 +1,40 @@
 package utils
 
 import (
- "sync"
- "sync/atomic"
+	"sync"
+	"sync/atomic"
 )
 
 // GoroutinePool goroutine池
 
 type GoroutinePool struct {
- capacity int
- jobs     chan func()
- wg       sync.WaitGroup
- closed   atomic.Bool
+	capacity int
+	jobs     chan func()
+	wg       sync.WaitGroup
+	closed   atomic.Bool
 }
 
 // NewGoroutinePool 创建goroutine池
 func NewGoroutinePool(capacity int) *GoroutinePool {
- if capacity <= 0 {
-  capacity = 10
- }
+	if capacity <= 0 {
+		capacity = 10
+	}
 
- pool := &GoroutinePool{
-  capacity: capacity,
-  jobs:     make(chan func(), 1000),
- }
+	pool := &GoroutinePool{
+		capacity: capacity,
+		jobs:     make(chan func(), 1000),
+	}
 
- // 启动goroutine
- for i := 0; i < capacity; i++ {
-  go func() {
-   for job := range pool.jobs {
-    job()
-   }
-  }()
- }
+	// 启动goroutine
+	for i := 0; i < capacity; i++ {
+		go func() {
+			for job := range pool.jobs {
+				job()
+			}
+		}()
+	}
 
- return pool
+	return pool
 }
 
 // Submit 提交任务，非阻塞；若池满则在当前 goroutine 直接执行
@@ -58,7 +58,7 @@ func (p *GoroutinePool) Submit(job func()) {
 
 // Wait 等待所有已提交的任务完成
 func (p *GoroutinePool) Wait() {
- p.wg.Wait()
+	p.wg.Wait()
 }
 
 // Cap 返回池容量
@@ -68,7 +68,7 @@ func (p *GoroutinePool) Cap() int {
 
 // Close 关闭goroutine池，停止接收新任务
 func (p *GoroutinePool) Close() {
- if p.closed.CompareAndSwap(false, true) {
-  close(p.jobs)
- }
+	if p.closed.CompareAndSwap(false, true) {
+		close(p.jobs)
+	}
 }

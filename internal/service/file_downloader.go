@@ -12,9 +12,6 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
-// downloader HTTP 下载服务
-type downloader struct{}
-
 // ── 共享 HTTP 客户端（复用连接池） ─────────────────────────────────
 // 不要在热路径上每次创建新 *http.Client，连接复用可显著降低延迟
 
@@ -73,7 +70,7 @@ func httpGet(url string) (*resty.Response, error) {
 // ── 图片下载 ──────────────────────────────────────────────────────
 
 // DownJpgMakePng 下载 JPG，可选生成 PNG
-func (dl *downloader) DownJpgMakePng(finalPath string, url string, makePng bool) utils.Result {
+func DownJpgMakePng(finalPath string, url string, makePng bool) utils.Result {
 	result := utils.Result{}
 	jpgPath := utils.ConcatSuffix(finalPath, "jpg")
 	jpgOut, createErr := os.Create(jpgPath)
@@ -108,7 +105,7 @@ func (dl *downloader) DownJpgMakePng(finalPath string, url string, makePng bool)
 }
 
 // DownJpgAsPng 下载并保存为 PNG
-func (dl *downloader) DownJpgAsPng(finalPath string, url string) utils.Result {
+func DownJpgAsPng(finalPath string, url string) utils.Result {
 	result := utils.Result{}
 	pngPath := utils.ConcatSuffix(finalPath, "png")
 	pngOut, createErr := os.Create(pngPath)

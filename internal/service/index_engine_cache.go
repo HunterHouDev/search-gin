@@ -26,10 +26,10 @@ type cacheBucket struct {
 type cacheData struct {
 	Buckets     []cacheBucket
 	RepeatFiles []model.FileItem
-	AuthorMap    map[string]model.Author
-	TypeMenu    map[string]MenuSize
-	TagMenu     map[string]MenuSize
-	SeriesCount map[string]MenuSize
+	AuthorMap   map[string]model.Author
+	TypeMenu    map[string]model.FileInfo
+	TagMenu     map[string]model.FileInfo
+	SeriesCount map[string]model.FileInfo
 }
 
 const cacheFileName = "search_cache.gob"
@@ -37,18 +37,18 @@ const cacheFileName = "search_cache.gob"
 // saveIndexToCache 将当前快照异步保存到缓存文件
 // 空快照（无 bucket）不保存，避免 Reset() 等路径清空磁盘缓存
 func saveIndexToCache(index *searchIndex) {
-	if WorkDir == "" {
+	if GetWorkDir() == "" {
 		return
 	}
 	if len(index.buckets) == 0 {
 		return
 	}
-	cachePath := filepath.Join(WorkDir, cacheFileName)
+	cachePath := filepath.Join(GetWorkDir(), cacheFileName)
 
 	// 转换为可序列化的 cacheData
 	data := cacheData{
 		RepeatFiles: index.repeatFiles,
-		AuthorMap:    index.authorMap,
+		AuthorMap:   index.authorMap,
 		TypeMenu:    index.typeMenu,
 		TagMenu:     index.tagMenu,
 		SeriesCount: index.seriesCount,
@@ -109,10 +109,10 @@ func saveIndexToCache(index *searchIndex) {
 
 // LoadCachedIndex 从缓存文件加载快照，成功则安装到搜索引擎并返回 true
 func (se *searchEngineCore) LoadCachedIndex() bool {
-	if WorkDir == "" {
+	if GetWorkDir() == "" {
 		return false
 	}
-	cachePath := filepath.Join(WorkDir, cacheFileName)
+	cachePath := filepath.Join(GetWorkDir(), cacheFileName)
 
 	if _, err := os.Stat(cachePath); os.IsNotExist(err) {
 		return false
@@ -155,7 +155,7 @@ func (se *searchEngineCore) LoadCachedIndex() bool {
 		totalSize:   totalSize,
 		totalCount:  totalCount,
 		repeatFiles: data.RepeatFiles,
-		authorMap:    data.AuthorMap,
+		authorMap:   data.AuthorMap,
 		typeMenu:    data.TypeMenu,
 		tagMenu:     data.TagMenu,
 		seriesCount: data.SeriesCount,

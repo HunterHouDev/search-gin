@@ -92,7 +92,7 @@ func HandleWebSocket(c *gin.Context) {
 			break
 		}
 
-	// 解析客户端发来的消息
+		// 解析客户端发来的消息
 		var msg struct {
 			Type        string          `json:"type"`
 			To          string          `json:"to,omitempty"`

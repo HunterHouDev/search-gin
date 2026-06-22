@@ -4,8 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"search-gin/internal/model"
-	"search-gin/internal/sse"
-	"search-gin/pkg/consts"
 	"search-gin/pkg/utils"
 	"sync"
 	"time"
@@ -19,7 +17,7 @@ type scanResult struct {
 
 // ScanAll 全局扫描
 func (s *searchService) ScanAll() int {
-	setting := GetOSSetting()
+	setting := s.settings.Get()
 	dirCount := len(setting.Dirs)
 	dirList := make([]string, dirCount)
 	copy(dirList, setting.Dirs)
@@ -33,7 +31,7 @@ func (s *searchService) ScanAll() int {
 	// 初始化扫描进度
 	Sp.Init(dirCount)
 
-	sse.BroadcastEvent("scan_start", map[string]interface{}{
+	s.events.Broadcast("scan_start", map[string]interface{}{
 		"totalDirs": dirCount,
 	})
 
@@ -52,30 +50,30 @@ func (s *searchService) ScanAll() int {
 	Sp.SetPhase("building", "正在构建索引...")
 
 	// 构建阶段：批量重建索引
-	SearchEngine.rebuildWithBuckets(buckets)
+	s.engine.rebuildWithBuckets(buckets)
 
 	// 一致性检查：验证 bucket 数量和目录数量
-	bucketCount := SearchEngine.BucketCount()
-	indexNumber := consts.IndexNumber.Load()
+	bucketCount := s.engine.BucketCount()
+	indexNumber := IndexNumber.Load()
 	LogMem.Add("ScanAll 一致性检查: BucketCount=%d, IndexNumber=%d, Expected=%d", bucketCount, indexNumber, dirCount)
 	if bucketCount != int32(dirCount) {
 		LogMem.Add("警告: BucketCount(%d) != Expected(%d)，可能存在并发问题", bucketCount, dirCount)
 	}
 
-	consts.SetLastScanTime(time.Now())
+	SetLastScanTime(time.Now())
 
 	// 扫描完成
 	Sp.Complete()
 
-	sse.BroadcastEvent("scan_complete", map[string]interface{}{
+	s.events.Broadcast("scan_complete", map[string]interface{}{
 		"dirCount":  dirCount,
-		"fileCount": SearchEngine.GetTotalCount(),
+		"fileCount": s.engine.GetTotalCount(),
 	})
-	sse.BroadcastEvent("index_health", map[string]interface{}{
+	s.events.Broadcast("index_health", map[string]interface{}{
 		"bucketCount":  bucketCount,
 		"indexNumber":  indexNumber,
-		"totalCount":   SearchEngine.GetTotalCount(),
-		"lastScanTime": consts.GetLastScanTime(),
+		"totalCount":   s.engine.GetTotalCount(),
+		"lastScanTime": GetLastScanTime(),
 	})
 
 	return dirCount
@@ -140,7 +138,7 @@ func (s *searchService) Walks(baseDir []string, types []string) []model.FileItem
 	}
 
 	LogMem.Add("Walks: 准备重建索引")
-	SearchEngine.rebuildWithBuckets(buckets)
+	s.engine.rebuildWithBuckets(buckets)
 	LogMem.Add("Walks: 索引重建完成")
 
 	return result
@@ -166,20 +164,20 @@ func (s *searchService) goWalkWithResult(baseDir string, types []string, resultC
 	bucket := newInstanceWithFiles(baseDir, files)
 
 	ti := time.Since(start)
-	thisTime := MenuSize{
+	thisTime := model.FileInfo{
 		Name:    baseDir,
 		Cnt:     ti.Milliseconds(),
 		Size:    int64(len(files)),
 		SizeStr: utils.GetSizeStr(size),
 	}
-	LogMem.Add("扫描目录:[%s] 耗时:[%d] 大小:[%s],剩余目录数:%d", baseDir, ti.Milliseconds(), utils.GetSizeStr(size), consts.IndexNumber.Load())
+	LogMem.Add("扫描目录:[%s] 耗时:[%d] 大小:[%s],剩余目录数:%d", baseDir, ti.Milliseconds(), utils.GetSizeStr(size), IndexNumber.Load())
 	AddFolderTime(thisTime)
-	sse.BroadcastEvent("scan_one_done", map[string]interface{}{
+	s.events.Broadcast("scan_one_done", map[string]interface{}{
 		"dir":     baseDir,
 		"time":    ti.Milliseconds(),
 		"size":    int64(len(files)),
 		"sizeStr": utils.GetSizeStr(size),
-		"remain":  consts.IndexNumber.Load(),
+		"remain":  IndexNumber.Load(),
 	})
 	resultChan <- scanResult{dir: baseDir, bucket: bucket}
 }
@@ -248,7 +246,7 @@ func (s *searchService) WalkInner(currentDir string, types []string, queryChild 
 					modDate := time.Date(emptyFile.ModTime().Year(), emptyFile.ModTime().Month(), emptyFile.ModTime().Day(), 0, 0, 0, 0, time.Local)
 					yesterdayDate := time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), 0, 0, 0, 0, time.Local)
 					if modDate.Equal(yesterdayDate) {
-						if utils.IndexOf(GetOSSetting().Dirs, currentPath) < 0 {
+						if utils.IndexOf(s.settings.Get().Dirs, currentPath) < 0 {
 							if err := os.RemoveAll(currentPath); err != nil {
 								utils.InfoFormat("删除空目录失败: %s, 错误: %v", currentPath, err)
 							}
@@ -258,8 +256,8 @@ func (s *searchService) WalkInner(currentDir string, types []string, queryChild 
 			}
 		} else {
 			currentSize := sizeMap[currentPath]
-			if currentSize <= 20000000 && utils.IndexOf(GetOSSetting().Dirs, currentPath) < 0 {
-				AppendSmallDir(NewMenuSizeFold(currentPath, currentSize, true))
+			if currentSize <= 20000000 && utils.IndexOf(s.settings.Get().Dirs, currentPath) < 0 {
+				AppendSmallDir(model.NewFileInfoFold(currentPath, currentSize, true))
 			}
 
 			if currentPath != currentDir {
