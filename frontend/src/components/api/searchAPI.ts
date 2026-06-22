@@ -70,14 +70,6 @@ export const DelTransferTasksInfo = async (create: string) => {
   return res && res.data;
 };
 
-export const TansferFile = async (data: string) => {
-  const res = await commonAxios().get(`/api/tranferToMp4/${data}`);
-  return res && res.data;
-};
-
-
-
-
 export const TansferFileVcode = async (data: string, vcode: string) => {
   const res = await commonAxios().get(`/api/tranferToMp4/${data}/${vcode}`);
   return res && res.data;

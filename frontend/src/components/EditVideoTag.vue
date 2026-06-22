@@ -107,7 +107,6 @@ import { useSystemProperty } from 'src/stores/System';
 import {
   AddTag,
   CloseTag,
-  TansferFile,
   TansferFileVcode,
 } from './api/searchAPI';
 import { onMounted, reactive, inject, computed } from 'vue';
@@ -155,11 +154,7 @@ const toVcode = async (item, vcode) => {
   } else {
     emmits('prevOne');
   }
-  if (vcode == 'copy') {
-    commonExec(() => TansferFile(item));
-  } else {
-    commonExec(() => TansferFileVcode(item, vcode));
-  }
+  commonExec(() => TansferFileVcode(item, vcode));
 };
 
 const loadTagData = async () => {
