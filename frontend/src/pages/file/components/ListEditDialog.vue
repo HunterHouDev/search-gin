@@ -637,12 +637,12 @@
                     view.totalCount[3] + view.totalCount[4]
                   }}</q-badge>
                 </q-tab>
-                <q-tab name="成功" label="成功">
+                <q-tab name="完成" label="成功">
                   <q-badge color="red" floating>{{
                     view.totalCount[1]
                   }}</q-badge>
                 </q-tab>
-                <q-tab alert name="执行失败" label="失败">
+                <q-tab alert name="失败" label="失败">
                   <q-badge color="red" floating>{{
                     view.totalCount[2]
                   }}</q-badge></q-tab
@@ -1037,9 +1037,9 @@ const { isMobile } = useBreakpoint();
 const { exec: commonExec } = useCommonExec({ notifyOnSuccess: true });
 
 const getColor = (status) => {
-  return status == '成功'
+  return status == '完成'
     ? 'green'
-    : status == '执行失败'
+    : status == '失败'
     ? 'red'
     : status == '执行中'
     ? 'orange'
@@ -1102,9 +1102,9 @@ const fetchTasking = async () => {
   Object.keys(res.Data).forEach((key) => {
     const v = res.Data[key];
     arr[0]++;
-    if (v.Status == '成功') {
+    if (v.Status == '完成') {
       arr[1]++;
-    } else if (v.Status == '执行失败') {
+    } else if (v.Status == '失败') {
       arr[2]++;
     } else if (v.Status == '执行中') {
       arr[3]++;

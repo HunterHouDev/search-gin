@@ -34,10 +34,19 @@ export default route(function (/* { store, ssrContext } */) {
   });
 
   Router.beforeEach((to, from, next) => {
+    if (to.path === '/login') {
+      sessionStorage.removeItem('authToken');
+      sessionStorage.removeItem('isAuthenticated');
+      sessionStorage.removeItem('userRole');
+      sessionStorage.removeItem('username');
+      next();
+      return;
+    }
+
     const isAuthenticated = sessionStorage.getItem('isAuthenticated');
     const token = sessionStorage.getItem('authToken');
-    
-    if (to.path !== '/login' && (!isAuthenticated || !token)) {
+
+    if (!isAuthenticated || !token) {
       next('/login');
     } else {
       next();
