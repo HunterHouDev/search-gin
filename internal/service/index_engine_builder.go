@@ -556,7 +556,7 @@ func (se *searchEngineCore) flushPendingOps() {
 	}
 
 	// 单次安装 + 单次缓存清除（对比逐操作安装，大幅降低开销）
-	se.installIndexNoCache(newIndex)
+	se.installIndexSkipDisk(newIndex)
 	// 重复文件列表延迟到下次 returnRepeatSearch 时惰性重算
 	se.repeatsDirty.Store(true)
 

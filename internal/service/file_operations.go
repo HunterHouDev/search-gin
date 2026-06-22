@@ -233,12 +233,13 @@ func (s *searchService) Move(id string, newDir string, title string) utils.Resul
 	return s.notifyFileChanged(movieLib, updated, "move")
 }
 
-// Delete 删除文件
+// Delete 删除文件（索引移除 + 物理删除 + SSE 通知）
 func (s *searchService) Delete(id string) {
 	file := s.engine.FindById(id)
 	if file.IsNull() {
 		return
 	}
+	s.engine.DeleteFile(file) // 入队索引删除，由 flushLoop 批量应用
 	s.DeleteOne(file.DirPath, file.Title)
 	s.events.Broadcast("file_changed", map[string]interface{}{
 		"action": "delete",

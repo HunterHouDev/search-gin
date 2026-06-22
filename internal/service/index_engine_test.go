@@ -195,14 +195,14 @@ func newTestEngine() searchEngineCore {
 
 func TestSearchEngineCore_IsEmpty(t *testing.T) {
 	core := newTestEngine()
-	defer core.installIndexNoCache(emptySearchIndex())
+	defer core.installIndexSkipDisk(emptySearchIndex())
 
 	assert.True(t, core.IsEmpty())
 }
 
 func TestSearchEngineCore_InstallIndex(t *testing.T) {
 	core := newTestEngine()
-	defer core.installIndexNoCache(emptySearchIndex())
+	defer core.installIndexSkipDisk(emptySearchIndex())
 
 	b := makeBucket("dir", makeMovie("1", "f.mp4", "/f.mp4", "", "", "", 100))
 	index := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
@@ -220,7 +220,7 @@ func TestSearchEngineCore_Reset(t *testing.T) {
 	b := makeBucket("dir", makeMovie("1", "f.mp4", "/f.mp4", "", "", "", 100))
 	index := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
 	core.installIndex(index)
-	core.installIndexNoCache(emptySearchIndex())
+	core.installIndexSkipDisk(emptySearchIndex())
 
 	assert.True(t, core.IsEmpty())
 	assert.Equal(t, 0, core.GetTotalCount())
@@ -228,7 +228,7 @@ func TestSearchEngineCore_Reset(t *testing.T) {
 
 func TestSearchEngineCore_FindById(t *testing.T) {
 	core := newTestEngine()
-	defer core.installIndexNoCache(emptySearchIndex())
+	defer core.installIndexSkipDisk(emptySearchIndex())
 
 	b := makeBucket("dir",
 		makeMovie("id-a", "a.mp4", "/a.mp4", "", "", "", 100),
@@ -247,7 +247,7 @@ func TestSearchEngineCore_FindById(t *testing.T) {
 
 func TestSearchEngineCore_GetAuthorCount(t *testing.T) {
 	core := newTestEngine()
-	defer core.installIndexNoCache(emptySearchIndex())
+	defer core.installIndexSkipDisk(emptySearchIndex())
 
 	b := makeBucket("dir",
 		makeMovie("1", "a.mp4", "/a.mp4", "", "骑兵", "田中", 100),
@@ -261,7 +261,7 @@ func TestSearchEngineCore_GetAuthorCount(t *testing.T) {
 
 func TestSearchEngineCore_FindAuthorByName(t *testing.T) {
 	core := newTestEngine()
-	defer core.installIndexNoCache(emptySearchIndex())
+	defer core.installIndexSkipDisk(emptySearchIndex())
 
 	b := makeBucket("dir",
 		makeMovie("1", "a.mp4", "/a.mp4", "", "骑兵", "田中", 100),
@@ -344,7 +344,7 @@ func TestBucketFile_SearchKeyword_NoMatch(t *testing.T) {
 
 func TestRebuildWithBucket_ReplacesExisting(t *testing.T) {
 	core := newTestEngine()
-	defer core.installIndexNoCache(emptySearchIndex())
+	defer core.installIndexSkipDisk(emptySearchIndex())
 
 	// 设置配置目录使 rebuildWithBucket 不会跳过 bucket
 	orig := GetOSSetting()
@@ -374,7 +374,7 @@ func TestRebuildWithBucket_ReplacesExisting(t *testing.T) {
 
 func TestRebuildWithBucket_KeepsOtherBuckets(t *testing.T) {
 	core := newTestEngine()
-	defer core.installIndexNoCache(emptySearchIndex())
+	defer core.installIndexSkipDisk(emptySearchIndex())
 
 	// 设置配置目录使 rebuildWithBucket 不会跳过这些 bucket
 	orig := GetOSSetting()
@@ -401,7 +401,7 @@ func TestRebuildWithBucket_KeepsOtherBuckets(t *testing.T) {
 
 func Test_PageAsync_SearchAcrossAllBuckets(t *testing.T) {
 	engine := newTestEngine()
-	defer engine.installIndexNoCache(emptySearchIndex())
+	defer engine.installIndexSkipDisk(emptySearchIndex())
 
 	b1 := makeBucket("dir-a", makeMovie("1", "alpha.mp4", "/a/alpha.mp4", "", "", "", 100))
 	b2 := makeBucket("dir-b", makeMovie("2", "beta.mp4", "/b/beta.mp4", "", "", "", 200))
@@ -420,7 +420,7 @@ func Test_PageAsync_SearchAcrossAllBuckets(t *testing.T) {
 
 func Test_PageAsync_NoMatchReturnsEmpty(t *testing.T) {
 	engine := newTestEngine()
-	defer engine.installIndexNoCache(emptySearchIndex())
+	defer engine.installIndexSkipDisk(emptySearchIndex())
 
 	b := makeBucket("dir", makeMovie("1", "cat.mp4", "/cat.mp4", "", "", "", 100))
 	index := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
@@ -433,7 +433,7 @@ func Test_PageAsync_NoMatchReturnsEmpty(t *testing.T) {
 
 func Test_PageAsync_Pagination(t *testing.T) {
 	engine := newTestEngine()
-	defer engine.installIndexNoCache(emptySearchIndex())
+	defer engine.installIndexSkipDisk(emptySearchIndex())
 
 	movies := make([]model.FileItem, 25)
 	for i := range movies {
@@ -464,7 +464,7 @@ func Test_PageAsync_Pagination(t *testing.T) {
 
 func Test_PageAsync_EmptyEngine(t *testing.T) {
 	engine := newTestEngine()
-	defer engine.installIndexNoCache(emptySearchIndex())
+	defer engine.installIndexSkipDisk(emptySearchIndex())
 
 	param := model.SearchParam{Keyword: "test", Page: 1, PageSize: 10}
 	result := engine.pageAsync(param)
@@ -475,7 +475,7 @@ func Test_PageAsync_EmptyEngine(t *testing.T) {
 
 func Test_returnRepeatSearch(t *testing.T) {
 	engine := newTestEngine()
-	defer engine.installIndexNoCache(emptySearchIndex())
+	defer engine.installIndexSkipDisk(emptySearchIndex())
 
 	// 创建重复文件：同 Code + 同 Size
 	b := makeBucket("dir",

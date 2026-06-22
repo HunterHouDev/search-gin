@@ -2,6 +2,7 @@ package model
 
 import (
 	"search-gin/pkg/utils"
+	"strconv"
 	"strings"
 )
 
@@ -48,7 +49,24 @@ func NewSearchParam(keyword string, page int, pageSize int, sortField string, so
 
 func (p *SearchParam) UniWords() string {
 	p.Keyword = strings.TrimSpace(p.Keyword)
-	return p.Keyword + "::" + p.MovieType + "::" + p.SortField + "::" + p.SortType
+	key := p.Keyword + "::" + p.MovieType + "::" + p.SortField + "::" + p.SortType
+	// 高级过滤参数必须参与缓存 key，否则不同过滤条件会命中相同缓存
+	if p.MinSize > 0 {
+		key += "::min" + strconv.FormatInt(p.MinSize, 10)
+	}
+	if p.MaxSize > 0 {
+		key += "::max" + strconv.FormatInt(p.MaxSize, 10)
+	}
+	if p.DateFrom != "" {
+		key += "::from" + p.DateFrom
+	}
+	if p.DateTo != "" {
+		key += "::to" + p.DateTo
+	}
+	if len(p.FileExts) > 0 {
+		key += "::ext" + strings.Join(p.FileExts, ",")
+	}
+	return key
 }
 
 func (p *SearchParam) GetKeywords() string {

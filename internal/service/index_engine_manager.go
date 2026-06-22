@@ -86,8 +86,8 @@ func (se *searchEngineCore) installIndex(index *searchIndex) {
 	saveIndexToCache(index)
 }
 
-// installIndexNoCache 原子替换索引（跳过磁盘缓存持久化，单文件操作用）
-func (se *searchEngineCore) installIndexNoCache(index *searchIndex) {
+// installIndexSkipDisk 原子替换索引 + 清 LRU 缓存（跳过磁盘持久化，单文件操作用）
+func (se *searchEngineCore) installIndexSkipDisk(index *searchIndex) {
 	se.syncIndex(index)
 }
 

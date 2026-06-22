@@ -163,7 +163,7 @@ func (se *searchEngineCore) returnRepeatSearch(index *searchIndex) model.PageRes
 	if se.repeatsDirty.CompareAndSwap(true, false) {
 		newIndex := shallowCopyIndex(index)
 		recomputeRepeats(newIndex)
-		se.installIndexNoCache(newIndex)
+		se.installIndexSkipDisk(newIndex)
 		index = newIndex
 	}
 
