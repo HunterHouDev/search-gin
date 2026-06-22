@@ -78,7 +78,7 @@ func transferFormatWithCopy(task model.TransferTaskModel) utils.Result {
 	}
 
 	dest := strings.ReplaceAll(task.Path, "."+suffix, "."+task.To)
-	args := []string{"-i", from, "-vcodec", "copy", dest}
+	args := []string{"-i", from, "-c", "copy", dest}
 	res := ffmpegExec(args, task.CreateTime)
 
 	if res.IsSuccess() {
@@ -90,8 +90,15 @@ func transferFormatWithCopy(task model.TransferTaskModel) utils.Result {
 
 // MergeFiles 合并文件
 func MergeFiles(task model.TransferTaskModel) utils.Result {
-	args := []string{"-f", "concat", "-safe", "0", "-i", task.ConcatFile, "-vcodec", "copy", task.Dest}
+	args := []string{"-f", "concat", "-safe", "0", "-i", task.ConcatFile, "-c", "copy", task.Dest}
 	res := ffmpegExec(args, task.CreateTime)
+
+	// 清理临时合并列表文件
+	if task.ConcatFile != "" && utils.ExistsFiles(task.ConcatFile) {
+		if err := os.Remove(task.ConcatFile); err != nil {
+			utils.InfoFormat("删除合并临时文件失败: %s, 错误: %v", task.ConcatFile, err)
+		}
+	}
 
 	if res.IsSuccess() && task.DeleteSource {
 		cleanupSourceIfNeeded(task.Path)
@@ -105,9 +112,13 @@ func CutFormatter(task model.TransferTaskModel) utils.Result {
 	from := task.Path
 	suffix := utils.GetSuffix(task.Path)
 
-	toSuffix := "mkv"
-	if suffix == "mkv" {
-		toSuffix = "mp4"
+	toSuffix := task.To
+	if toSuffix == "" {
+		// 兜底：未指定 To 时按原逻辑
+		toSuffix = "mkv"
+		if suffix == "mkv" {
+			toSuffix = "mp4"
+		}
 	}
 
 	dest := strings.ReplaceAll(task.Path, "."+suffix, "."+toSuffix)
@@ -161,12 +172,7 @@ func CutImage(path string, typeImage string, start string) utils.Result {
 	out, cmdErr := cmd.CombinedOutput()
 	if cmdErr != nil {
 		utils.InfoFormat("视频截图失败，输出: %v, 错误: %v", string(out), cmdErr)
-		res = utils.NewFailByMsg("截图转换失败")
-
-		if utils.ExistsFiles(dest) {
-			res.Data = utils.ImageToString(dest)
-		}
-		return res
+		return utils.NewFailByMsg("截图转换失败")
 	}
 
 	res.Data = utils.ImageToString(dest)

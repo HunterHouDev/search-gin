@@ -772,7 +772,7 @@
                             dense
                             color="red"
                             class="q-mr-sm"
-                            @click="removeTask(v.Name)"
+                            @click="removeTask(v.CreateTime)"
                           >
                             清除
                           </q-btn>
@@ -1046,8 +1046,8 @@ const getColor = (status) => {
     : 'black';
 };
 
-const removeTask = async (name) => {
-  commonExec(() => DelTransferTasksInfo(name));
+const removeTask = async (createTime) => {
+  commonExec(() => DelTransferTasksInfo(createTime));
 };
 
 const doSetMovieType = async (item, type) => {

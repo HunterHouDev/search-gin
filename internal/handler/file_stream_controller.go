@@ -9,10 +9,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"search-gin/internal/model"
 	"search-gin/internal/service"
 	"search-gin/pkg/utils"
-	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -184,47 +182,4 @@ func generatePlaceholderPNG(w io.Writer) error {
 	}
 
 	return png.Encode(w, img)
-}
-
-func GetTransferTask(c *gin.Context) {
-	result := utils.NewSuccess()
-	service.TransferTaskMutex.RLock()
-	tasks := make(map[time.Time]model.TransferTaskModel, len(service.TransferTask))
-	for k, v := range service.TransferTask {
-		tasks[k] = v
-	}
-	service.TransferTaskMutex.RUnlock()
-	result.Data = tasks
-	c.JSON(http.StatusOK, result)
-}
-
-func GetDelTransferTask(c *gin.Context) {
-	create := c.Param("create")
-	service.TransferTaskMutex.Lock()
-	var ti time.Time
-	var found bool
-	var task model.TransferTaskModel
-	for k, v := range service.TransferTask {
-		if v.Name == create {
-			ti = k
-			task = v
-			found = true
-			break
-		}
-	}
-	if !found {
-		service.TransferTaskMutex.Unlock()
-		c.JSON(http.StatusOK, utils.NewFailByMsg("任务不存在"))
-		return
-	}
-	if task.Status == model.StatusExecuting {
-		service.TransferTaskMutex.Unlock()
-		r := utils.Fail()
-		r.Message = "执行中无法删除"
-		c.JSON(http.StatusOK, r)
-		return
-	}
-	delete(service.TransferTask, ti)
-	service.TransferTaskMutex.Unlock()
-	c.JSON(http.StatusOK, utils.NewSuccess())
 }

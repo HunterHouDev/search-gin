@@ -5,6 +5,7 @@ import (
 	"search-gin/internal/model"
 	"search-gin/internal/service"
 	"search-gin/pkg/utils"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -18,6 +19,45 @@ func PostMerge(c *gin.Context) {
 	}
 	utils.InfoFormat("PostMerge： [%v]", searchParam)
 	c.JSON(http.StatusOK, service.CreateMergeTask(searchParam.Files, searchParam.Dest, searchParam.DeleteSource))
+}
+
+func GetTransferTask(c *gin.Context) {
+	result := utils.NewSuccess()
+	service.TransferTaskMutex.RLock()
+	tasks := make(map[time.Time]model.TransferTaskModel, len(service.TransferTask))
+	for k, v := range service.TransferTask {
+		tasks[k] = v
+	}
+	service.TransferTaskMutex.RUnlock()
+	result.Data = tasks
+	c.JSON(http.StatusOK, result)
+}
+
+func GetDelTransferTask(c *gin.Context) {
+	createStr := c.Param("create")
+	ti, err := time.Parse(time.RFC3339Nano, createStr)
+	if err != nil {
+		c.JSON(http.StatusOK, utils.NewFailByMsg("参数解析失败"))
+		return
+	}
+
+	service.TransferTaskMutex.Lock()
+	task, found := service.TransferTask[ti]
+	if !found {
+		service.TransferTaskMutex.Unlock()
+		c.JSON(http.StatusOK, utils.NewFailByMsg("任务不存在"))
+		return
+	}
+	if task.Status == model.StatusExecuting {
+		service.TransferTaskMutex.Unlock()
+		r := utils.Fail()
+		r.Message = "执行中无法删除"
+		c.JSON(http.StatusOK, r)
+		return
+	}
+	delete(service.TransferTask, ti)
+	service.TransferTaskMutex.Unlock()
+	c.JSON(http.StatusOK, utils.NewSuccess())
 }
 
 func GetTransferToMp4(c *gin.Context) {
