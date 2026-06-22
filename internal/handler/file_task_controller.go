@@ -66,8 +66,7 @@ func GetTransferToMp4(c *gin.Context) {
 		return
 	}
 
-	xcode := c.Param("xcode")
-	utils.InfoFormat("GetTransferToMp4 newFile [%v][%v]", id, xcode)
+	xcode := c.Param("x code")
 	c.JSON(http.StatusOK, service.CreateTransferTask(id, xcode))
 }
 

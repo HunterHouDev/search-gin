@@ -36,8 +36,10 @@ export default boot(({ app, router }) => {
     },
     (error) => {
       if (error.response && error.response.status === 401) {
-        sessionStorage.removeItem('isAuthenticated');
         sessionStorage.removeItem('authToken');
+        sessionStorage.removeItem('isAuthenticated');
+        sessionStorage.removeItem('userRole');
+        sessionStorage.removeItem('username');
         if (router) {
           router.push('/login');
         }

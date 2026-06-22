@@ -13,6 +13,21 @@ import (
 var TransferTask = map[time.Time]model.TransferTaskModel{}
 var TransferTaskMutex sync.RWMutex // 保护 TransferTask 的并发访问
 
+// pendingExecutingCount 统计当前等待中和执行中的任务数量
+func pendingExecutingCount() (pending, executing int) {
+	TransferTaskMutex.RLock()
+	defer TransferTaskMutex.RUnlock()
+	for _, t := range TransferTask {
+		switch t.Status {
+		case model.StatusPending:
+			pending++
+		case model.StatusExecuting:
+			executing++
+		}
+	}
+	return
+}
+
 // DeleteFileByPath 按路径删除文件：索引移除 + 物理删除 + 附属文件清理 + 空目录清理
 func DeleteFileByPath(validatedPath string) utils.Result {
 	id := utils.DirpathForId(validatedPath)
@@ -86,6 +101,8 @@ func CreateMergeTask(fileIds []string, dest string, deleteSource bool) utils.Res
 	TransferTask[task.CreateTime] = task
 	TransferTaskMutex.Unlock()
 
+	pending, executing := pendingExecutingCount()
+	LogMem.Add("CreateMergeTask: 创建成功 path=%s, CreateTime=%v, pending=%d, executing=%d", task.Path, task.CreateTime, pending, executing)
 	return utils.NewSuccessByMsg("任务创建成功")
 }
 
@@ -101,9 +118,10 @@ func CreateTransferTask(id string, xcode string) utils.Result {
 
 	TransferTaskMutex.RLock()
 	for _, taskModel := range TransferTask {
-		if taskModel.Path == movieFile.Path && taskModel.Status != "执行失败" {
+		if taskModel.Path == movieFile.Path &&
+			(taskModel.Status == model.StatusPending || taskModel.Status == model.StatusExecuting) {
 			TransferTaskMutex.RUnlock()
-			return utils.NewFailByMsg("任务不可重复")
+			return utils.NewFailByMsg("该文件已有转码任务在执行，请等待完成")
 		}
 	}
 	TransferTaskMutex.RUnlock()
@@ -116,7 +134,8 @@ func CreateTransferTask(id string, xcode string) utils.Result {
 	TransferTaskMutex.Lock()
 	TransferTask[task.CreateTime] = task
 	TransferTaskMutex.Unlock()
-
+	pending, executing := pendingExecutingCount()
+	LogMem.Add("CreateTransferTask: 创建成功 id=%s, xcode=%s, path=%s, CreateTime=%v, pending=%d, executing=%d", id, xcode, task.Path, task.CreateTime, pending, executing)
 	return utils.NewSuccessByMsg("任务创建成功")
 }
 
@@ -134,5 +153,7 @@ func CreateCutTask(id string, start string, end string) utils.Result {
 	TransferTask[task.CreateTime] = task
 	TransferTaskMutex.Unlock()
 
+	pending, executing := pendingExecutingCount()
+	LogMem.Add("CreateCutTask: 创建成功 path=%s, start=%s, end=%s, CreateTime=%v, pending=%d, executing=%d", task.Path, start, end, task.CreateTime, pending, executing)
 	return utils.NewSuccessByMsg("任务创建成功")
 }

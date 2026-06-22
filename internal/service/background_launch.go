@@ -91,13 +91,21 @@ func StartPprof() {
 
 // StartBackgroundTasks 启动心跳扫描和转换任务执行
 func StartBackgroundTasks() {
+	utils.InfoFormat("StartBackgroundTasks: 正在启动后台任务...")
+
+	search := GetSearch()
+	if search == nil {
+		utils.ErrorFormat("StartBackgroundTasks: GetSearch() 返回 nil，后台任务无法启动")
+		return
+	}
+
 	go func() {
 		defer utils.RecoverPanic()
-		GetSearch().HeartBeat()
+		search.HeartBeat()
 	}()
 	go func() {
 		defer utils.RecoverPanic()
-		GetSearch().TaskExecuting()
+		search.TaskExecuting()
 	}()
 }
 

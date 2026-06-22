@@ -4,11 +4,26 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"search-gin/internal/service"
 	"search-gin/pkg/utils"
 )
+
+// SlowRequestLogger 记录耗时超过阈值的请求（开发环境）
+func SlowRequestLogger() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+		path := c.Request.URL.Path
+		c.Next()
+		duration := time.Since(start)
+		if duration > 5*time.Second {
+			utils.InfoFormat("慢请求 [%s] %s %d %v",
+				c.Request.Method, path, c.Writer.Status(), duration)
+		}
+	}
+}
 
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {

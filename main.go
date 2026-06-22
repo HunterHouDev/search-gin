@@ -3,10 +3,8 @@ package main
 import (
 	"net/http"
 	"os"
-	"os/exec"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"search-gin/internal/env"
 	"search-gin/internal/handler"
@@ -15,7 +13,6 @@ import (
 	"search-gin/internal/service"
 	"search-gin/pkg/utils"
 
-	"github.com/gin-gonic/gin"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -72,7 +69,6 @@ func main() {
 	service.InitSetting()
 	service.InitSearchPool()
 	service.StartScanQueue()
-	engine.StartFlushLoop() // 启动单文件操作的节流刷新协程
 
 	// ── 10. 初始化节点管理器（手动添加 + 反向心跳自动发现） ──
 	service.InitPeerManager()
@@ -85,7 +81,7 @@ func main() {
 	defer closeTorrent()
 
 	// ── 13. 构建路由（API 路由 + 文件流路由） ──
-	apiRouter := router.BuildAPIRouter()
+	apiRouter := router.BuildAPIRouter(sigChan)
 	fileRouter := router.BuildFileRouter()
 
 	// ── 14. 加载前端静态文件（等待解压完成） ──
@@ -112,45 +108,8 @@ func main() {
 		return fileSrv.ListenAndServe()
 	})
 
-	// ── 17. 注册 /api/close 和 /api/restart 接口 ──
-	apiRouter.GET("api/close", func(c *gin.Context) {
-		role, _ := c.Get("role")
-		if r, ok := role.(string); !ok || r != service.AdminRole {
-			c.JSON(403, utils.NewFailByMsg("无权限执行此操作"))
-			return
-		}
-		c.String(200, "即将关闭服务器")
-		sigChan <- syscall.SIGTERM
-	})
-	apiRouter.GET("api/restart", func(c *gin.Context) {
-		role, _ := c.Get("role")
-		if r, ok := role.(string); !ok || r != service.AdminRole {
-			c.JSON(403, utils.NewFailByMsg("无权限执行此操作"))
-			return
-		}
-		c.String(200, "正在重启服务器")
-		go func() {
-			defer utils.RecoverPanic()
-			time.Sleep(200 * time.Millisecond)
-			sigChan <- syscall.SIGTERM
-			time.Sleep(2 * time.Second)
-			exe, err := os.Executable()
-			if err != nil {
-				utils.ErrorFormat("获取可执行文件路径失败: %v", err)
-				return
-			}
-			cmd := exec.Command(exe, os.Args[1:]...)
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			cmd.Start()
-		}()
-	})
-
-	// ── 18. 优雅关闭监听 ──
+	// ── 17. 优雅关闭监听（启动 goroutine 等信号，非阻塞） ──
 	server.GracefulShutdown(sigChan, []*http.Server{apiSrv, fileSrv})
-
-	// 通知后台任务停止
-	service.TaskCancel()
 
 	// ── 19. 等待所有 HTTP 服务退出 ──
 	if err := g.Wait(); err != nil && err != http.ErrServerClosed {
@@ -158,4 +117,8 @@ func main() {
 	} else {
 		utils.InfoFormat("服务已停止")
 	}
+
+	// 服务退出后，通知后台任务停止
+	service.TaskCancel()
+	service.HeartBeatCancel()
 }

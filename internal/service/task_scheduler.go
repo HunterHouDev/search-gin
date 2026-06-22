@@ -11,7 +11,8 @@ import (
 )
 
 var (
-	TaskCtx, TaskCancel = context.WithCancel(context.Background())
+	TaskCtx, TaskCancel           = context.WithCancel(context.Background())
+	HeartBeatCtx, HeartBeatCancel = context.WithCancel(context.Background())
 )
 
 var FullScanInProgress atomic.Bool
@@ -23,7 +24,7 @@ func (s *searchService) HeartBeat() {
 
 	for {
 		select {
-		case <-TaskCtx.Done():
+		case <-HeartBeatCtx.Done():
 			return
 		case <-ticker.C:
 			if !s.settings.Get().EnableTimeScan || time.Since(GetLastScanTime()).Seconds() <= 180 {
@@ -38,13 +39,18 @@ func (s *searchService) HeartBeat() {
 
 // TaskExecuting 任务执行调度器
 func (s *searchService) TaskExecuting() {
+	if s == nil {
+		utils.ErrorFormat("TaskExecuting: s 为 nil，调度器无法启动")
+		return
+	}
+	utils.InfoFormat("TaskExecuting: 调度器已启动")
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 	for {
 		s.pollTasks()
 		select {
 		case <-TaskCtx.Done():
-			utils.InfoFormat("任务调度器已停止")
+			utils.InfoFormat("TaskExecuting: 调度器已停止")
 			return
 		case <-ticker.C:
 		}
@@ -86,17 +92,19 @@ func (s *searchService) pollTasks() {
 		}
 	}
 	TransferTaskMutex.RUnlock()
-
 	// 启动前在 map 中原子标记为 "执行中"，防止下次 poll 周期重复启动
 	if len(taskGroups.executing) == 0 && len(taskGroups.todos) > 0 {
+		LogMem.Add("pollTasks: 启动转码任务 CreateTime=%v, path=%s", taskGroups.todos[0].CreateTime, taskGroups.todos[0].Path)
 		markTaskExecuting(taskGroups.todos[0].CreateTime)
 		go TransferFormatter(taskGroups.todos[0])
 	}
 	if len(taskGroups.executingCuts) == 0 && len(taskGroups.todosCuts) > 0 {
+		LogMem.Add("pollTasks: 启动分切任务 CreateTime=%v, path=%s", taskGroups.todosCuts[0].CreateTime, taskGroups.todosCuts[0].Path)
 		markTaskExecuting(taskGroups.todosCuts[0].CreateTime)
 		go CutFormatter(taskGroups.todosCuts[0])
 	}
 	if len(taskGroups.executingMerges) == 0 && len(taskGroups.todosMerges) > 0 {
+		LogMem.Add("pollTasks: 启动合并任务 CreateTime=%v, path=%s", taskGroups.todosMerges[0].CreateTime, taskGroups.todosMerges[0].Path)
 		markTaskExecuting(taskGroups.todosMerges[0].CreateTime)
 		go MergeFiles(taskGroups.todosMerges[0])
 	}

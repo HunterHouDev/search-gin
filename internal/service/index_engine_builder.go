@@ -427,37 +427,26 @@ func addFileToIndex(index *searchIndex, movie model.FileItem) {
 	}
 }
 
-// ReplaceFile 替换索引中的单文件记录
-// 非阻塞：仅将操作加入待处理队列，由 StartFlushLoop 节流批量应用并刷新索引
+// ReplaceFile 同步替换索引中的单文件记录
 func (se *searchEngineCore) ReplaceFile(oldFile, newFile model.FileItem) {
-	se.pendingMu.Lock()
-	se.pendingFileOps = append(se.pendingFileOps, fileOp{opType: "replace", oldFile: oldFile, newFile: newFile})
-	se.pendingMu.Unlock()
+	op := fileOp{opType: "replace", oldFile: oldFile, newFile: newFile}
+	se.flushPendingOp(op)
 }
 
-// DeleteFile 从索引中删除文件记录
-// 非阻塞：仅将操作加入待处理队列，由 StartFlushLoop 节流批量应用并刷新索引
+// DeleteFile 同步从索引中删除文件记录
 func (se *searchEngineCore) DeleteFile(file model.FileItem) {
-	se.pendingMu.Lock()
-	se.pendingFileOps = append(se.pendingFileOps, fileOp{opType: "delete", oldFile: file})
-	se.pendingMu.Unlock()
+	op := fileOp{opType: "delete", oldFile: file}
+	se.flushPendingOp(op)
+}
+func (se *searchEngineCore) flushPendingOp(ops fileOp) {
+	se.flushPendingOps([]fileOp{ops})
 }
 
-// flushPendingOps 将待处理队列中的文件操作批量应用到索引
-// 由 StartFlushLoop 定时器触发，多个操作合并为一次索引安装 + 一次缓存清除
-func (se *searchEngineCore) flushPendingOps() {
+// flushPendingOps 将一组文件操作同步应用到索引
+// 合并为一次索引安装 + 一次缓存清除
+func (se *searchEngineCore) flushPendingOps(ops []fileOp) {
 	se.rebuildMu.Lock()
 	defer se.rebuildMu.Unlock()
-
-	// 在 rebuildMu 内取队列，保证锁序 rebuildMu → pendingMu，与全量重建路径一致
-	se.pendingMu.Lock()
-	ops := se.pendingFileOps
-	se.pendingFileOps = nil
-	se.pendingMu.Unlock()
-
-	if len(ops) == 0 {
-		return
-	}
 
 	start := time.Now()
 

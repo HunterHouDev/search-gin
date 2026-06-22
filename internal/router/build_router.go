@@ -2,16 +2,18 @@ package router
 
 import (
 	"os"
+	"os/exec"
 	"search-gin/internal/env"
 	"search-gin/internal/handler"
+	"search-gin/internal/service"
 	"search-gin/middleware"
-	"search-gin/pkg/utils"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	ginlogrus "github.com/toorop/gin-logrus"
+	"search-gin/pkg/utils"
 )
 
 // buildCORSConfig 构建 CORS 配置
@@ -36,7 +38,6 @@ func buildCORSConfig() cors.Config {
 // buildCommonMiddleware 构建通用中间件（CORS + 日志 + Recovery）
 func buildCommonMiddleware(router *gin.Engine) {
 	router.Use(cors.New(buildCORSConfig()))
-	router.Use(ginlogrus.Logger(utils.NewLogger()))
 	router.Use(middleware.CustomRecovery())
 }
 
@@ -47,8 +48,43 @@ func buildStreamMiddleware(router *gin.Engine) {
 	router.GET("/api/stream/GetFileByPathUseEncode/:path", handler.GetFileByPathUseEncode)
 }
 
+func buildShutdownRoutes(router *gin.Engine, sigChan chan os.Signal) {
+	router.GET("api/close", func(c *gin.Context) {
+		role, _ := c.Get("role")
+		if r, ok := role.(string); !ok || r != service.AdminRole {
+			c.JSON(403, utils.NewFailByMsg("无权限执行此操作"))
+			return
+		}
+		c.String(200, "即将关闭服务器")
+		sigChan <- syscall.SIGTERM
+	})
+	router.GET("api/restart", func(c *gin.Context) {
+		role, _ := c.Get("role")
+		if r, ok := role.(string); !ok || r != service.AdminRole {
+			c.JSON(403, utils.NewFailByMsg("无权限执行此操作"))
+			return
+		}
+		c.String(200, "正在重启服务器")
+		go func() {
+			defer utils.RecoverPanic()
+			time.Sleep(200 * time.Millisecond)
+			sigChan <- syscall.SIGTERM
+			time.Sleep(2 * time.Second)
+			exe, err := os.Executable()
+			if err != nil {
+				utils.ErrorFormat("获取可执行文件路径失败: %v", err)
+				return
+			}
+			cmd := exec.Command(exe, os.Args[1:]...)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			cmd.Start()
+		}()
+	})
+}
+
 // BuildAPIRouter 构建 API 业务路由（端口 10081）：需要认证
-func BuildAPIRouter() *gin.Engine {
+func BuildAPIRouter(sigChan chan os.Signal) *gin.Engine {
 	if env.IsProd {
 		gin.SetMode(gin.ReleaseMode)
 	} else {
@@ -60,16 +96,7 @@ func BuildAPIRouter() *gin.Engine {
 	router.Use(middleware.AuthMiddleware())
 
 	if !env.IsProd {
-		router.Use(func(c *gin.Context) {
-			start := time.Now()
-			path := c.Request.URL.Path
-			c.Next()
-			duration := time.Since(start)
-			if duration > 5*time.Second {
-				utils.InfoFormat("慢请求 [%s] %s %d %v",
-					c.Request.Method, path, c.Writer.Status(), duration)
-			}
-		})
+		router.Use(middleware.SlowRequestLogger())
 	}
 
 	router.NoRoute(handler.Index)
@@ -147,6 +174,7 @@ func BuildAPIRouter() *gin.Engine {
 	router.DELETE("/api/torrent/:infoHash", handler.DeleteTorrent)
 
 	buildStreamMiddleware(router)
+	buildShutdownRoutes(router, sigChan)
 
 	return router
 }
