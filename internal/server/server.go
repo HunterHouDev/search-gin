@@ -45,6 +45,9 @@ func GracefulShutdown(sigChan <-chan os.Signal, servers []*http.Server) {
 		sig := <-sigChan
 		utils.InfoFormat("收到信号 %v，正在优雅关闭所有服务...", sig)
 
+		// 强制写入索引缓存，避免 30 秒去抖窗口内退出导致缓存丢失
+		service.FlushCache()
+
 		shutdownTimeout := 5 * time.Second
 		for _, srv := range servers {
 			ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)

@@ -140,6 +140,7 @@ loop:
 			LogMem.Add("搜索超时，部分结果可能未返回")
 			drainDone := make(chan struct{})
 			go func() {
+				defer utils.RecoverPanic()
 				se.searchPool.Wait()
 				close(drainDone)
 			}()
@@ -258,8 +259,8 @@ func (se *searchEngineCore) FindById(id string) model.FileItem {
 			continue
 		}
 		result := bucket.get(id)
-		if !result.IsNull() {
-			return result
+		if result != nil {
+			return *result
 		}
 	}
 	return model.FileItem{}

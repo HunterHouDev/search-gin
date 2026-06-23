@@ -22,7 +22,7 @@ func PostMovies(c *gin.Context) {
 	// 检查是否为远程转发请求（X-Search-Gin-Remote: true）
 	isRemote := c.GetHeader("X-Search-Gin-Remote") == "true"
 
-	if UseApp().search.IsEmpty() {
+	if !isRemote && UseApp().search.IsEmpty() {
 		UseApp().files.ScanAll()
 	}
 
@@ -80,15 +80,12 @@ func PostMovies(c *gin.Context) {
 // @Produce json
 // @Router /api/search/authors [post]
 func PostAuthor(c *gin.Context) {
-	// 远程转发：只查本地，不递归
+	// 远程转发：只查本地，不递归，不触发扫描（避免跨节点递归死锁）
 	if c.GetHeader("X-Search-Gin-Remote") == "true" {
 		param := model.SearchParam{}
 		if err := c.Bind(&param); err != nil {
 			c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数绑定失败"))
 			return
-		}
-		if UseApp().search.IsEmpty() {
-			UseApp().files.ScanAll()
 		}
 		pageAuthorResultWrapper := UseApp().search.PageAuthor(param)
 		result := utils.NewPage()

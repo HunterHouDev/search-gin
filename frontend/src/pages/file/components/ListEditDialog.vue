@@ -1097,24 +1097,8 @@ const redirectUrl = (item) => {
 
 const fetchTasking = async () => {
   const res = await TransferTasksInfo();
-  const listTasks = [];
-  const arr = [0, 0, 0, 0, 0];
-  Object.keys(res.Data).forEach((key) => {
-    const v = res.Data[key];
-    arr[0]++;
-    if (v.Status == '完成') {
-      arr[1]++;
-    } else if (v.Status == '失败') {
-      arr[2]++;
-    } else if (v.Status == '执行中') {
-      arr[3]++;
-    } else if (v.Status == '等待') {
-      arr[4]++;
-    }
-    listTasks.unshift(v);
-  });
-  view.tasking = listTasks;
-  view.totalCount = arr;
+  view.tasking = res.Data?.tasks || [];
+  view.totalCount = res.Data?.counts || [0, 0, 0, 0, 0];
 };
 
 const searchCode = (item) => {

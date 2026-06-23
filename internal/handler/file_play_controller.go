@@ -31,6 +31,7 @@ func GetPlay(c *gin.Context) {
 	setting := UseApp().config.Get()
 	if setting.SystemPlayer == "ffplay" {
 		go func() {
+			defer utils.RecoverPanic()
 			params := []string{"-window_title", file.Title,
 				"-alwaysontop",
 				"-seek_interval", "30",
@@ -58,11 +59,14 @@ func GetPlay(c *gin.Context) {
 				utils.InfoFormat("播放失败: %v, 错误: %v", sanitizePath, err)
 			}
 		}()
-	} else {
+		c.JSON(http.StatusOK, utils.NewSuccessByMsg("播放成功"))
+	} else if setting.SystemPlayer != "" {
 		utils.ExecCmdStart(sanitizePath)
+		c.JSON(http.StatusOK, utils.NewSuccessByMsg("播放成功"))
+	} else {
+		utils.InfoFormat("播放失败: 未配置播放器, 路径: %v", sanitizePath)
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("请先在设置中配置播放器"))
 	}
-
-	c.JSON(http.StatusOK, utils.NewSuccessByMsg("播放成功"))
 }
 
 func GetInfo(c *gin.Context) {

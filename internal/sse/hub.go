@@ -5,7 +5,11 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 )
+
+// 客户端超时阈值：超过该时间未成功发送事件则视为断连
+const clientTimeout = 5 * time.Minute
 
 type Event struct {
 	Type string      `json:"Type"`
@@ -13,8 +17,9 @@ type Event struct {
 }
 
 type Client struct {
-	ID     int
-	Events chan Event
+	ID         int
+	Events     chan Event
+	lastActive time.Time // 最后一次成功发送事件的时间
 }
 
 type Hub struct {
@@ -43,6 +48,10 @@ func NewHub() *Hub {
 }
 
 func (h *Hub) Run() {
+	// 定期清理超时客户端
+	cleanupTicker := time.NewTicker(1 * time.Minute)
+	defer cleanupTicker.Stop()
+
 	for {
 		select {
 		case client := <-h.register:
@@ -69,17 +78,30 @@ func (h *Hub) Run() {
 			for _, client := range clients {
 				select {
 				case client.Events <- event:
+					// 发送成功，更新活跃时间
+					client.lastActive = time.Now()
 				default:
-					h.mu.Lock()
-					if _, ok := h.clients[client.ID]; ok {
-						close(client.Events)
-						delete(h.clients, client.ID)
-					}
-					h.mu.Unlock()
+					// 缓冲区满，不更新活跃时间（下次清理时若超时则踢出）
 				}
 			}
+
+		case <-cleanupTicker.C:
+			h.cleanupStaleClients()
 		}
 	}
+}
+
+// cleanupStaleClients 移除超过 clientTimeout 未成功发送事件的客户端
+func (h *Hub) cleanupStaleClients() {
+	now := time.Now()
+	h.mu.Lock()
+	for id, client := range h.clients {
+		if now.Sub(client.lastActive) > clientTimeout {
+			close(client.Events)
+			delete(h.clients, id)
+		}
+	}
+	h.mu.Unlock()
 }
 
 func (h *Hub) Broadcast(event Event) {
@@ -108,8 +130,9 @@ func HandleSSE(w http.ResponseWriter, r *http.Request) {
 	DefaultHub.mu.Unlock()
 
 	client := &Client{
-		ID:     id,
-		Events: make(chan Event, 10),
+		ID:         id,
+		Events:     make(chan Event, 10),
+		lastActive: time.Now(),
 	}
 
 	DefaultHub.register <- client

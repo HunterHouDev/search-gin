@@ -59,7 +59,7 @@ func TestBucketFile_PutAndGet(t *testing.T) {
 
 	// 不存在的 id
 	notFound := b.get("nonexist")
-	assert.True(t, notFound.IsNull())
+	assert.Nil(t, notFound)
 }
 
 func TestBucketFile_PutBatch(t *testing.T) {

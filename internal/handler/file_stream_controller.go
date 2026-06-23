@@ -1,12 +1,8 @@
 package handler
 
 import (
-	"bytes"
+	"encoding/base64"
 	"fmt"
-	"image"
-	"image/color"
-	"image/png"
-	"io"
 	"net/http"
 	"net/url"
 	"search-gin/internal/service"
@@ -124,62 +120,19 @@ func GetJpg(c *gin.Context) {
 	c.Data(http.StatusOK, contentType, noPic)
 }
 
-// 默认占位图片数据
+// 默认占位图片数据（预生成的 base64 编码 PNG）
 var (
 	noPic       []byte
 	contentType = "image/png"
 )
 
+// placeholderPNGBase64 是预生成的 200x200 占位 PNG 图片 base64 编码
+const placeholderPNGBase64 = "iVBORw0KGgoAAAANSUhEUgAAAMgAAADICAIAAAAiOjnJAAACXUlEQVR4nOzbQUrGMBBAYZHeqPe/QXMntyJSRPKszP99y3aTxWMggTmu63qD3d6fPgAzCYuEsEgIi4SwSAiLhLBICIuEsEgIi4SwSAiLhLBICIuEsEgIi4SwSAiLhLBICIuEsEgIi4SwSAiLhLBICIuEsEgIi4SwSAiLhLBICIuEsEgIi4SwSAiLhLBICIuEsEgIi4SwSAiLhLBICIuEsEgIi4SwSAiLhLBICIuEsEgIi4SwSAiLhLBICIuEsEgIi4SwSAiLhLBICIuEsEgIi4SwSAiLhLBICIuEsEgIi4SwSAiLhLBICIuEsEgIi4SwSAiLhLBICIuEsEgIi4SwSAiLhLBICIuEsEgIi4SwSAiLhLBICIuEsEgIi4SwSAiLhLBICIuEsEgIi4SwSAiLhLBICIuEsEgIi8TAFfvtbNP/golFQlgkhEVCWCSERUJYJIRFYuBzw/Z7+7evFcNeB7YzsUgIi4SwSAiLhLBICIuEsEgIi4SwSAiLhLBICIuEsEgIi4SwSAiLhLBICIuEsEgIi4SwSAiLhLBICIuEsEgIi8TAFfvtbNP/golFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkhEVCWCSERUJYJIRFQlgkPgIAAP//W5kXM9bEb4kAAAAASUVORK5CYII="
+
 func init() {
-	var buf bytes.Buffer
-	if err := generatePlaceholderPNG(&buf); err != nil {
-		panic("初始化默认图片失败: " + err.Error())
+	var err error
+	noPic, err = base64.StdEncoding.DecodeString(placeholderPNGBase64)
+	if err != nil {
+		panic("解码占位图片失败: " + err.Error())
 	}
-	noPic = buf.Bytes()
-}
-
-// generatePlaceholderPNG 生成一个简单的占位PNG图片
-func generatePlaceholderPNG(w io.Writer) error {
-	width, height := 200, 200
-	img := image.NewRGBA(image.Rect(0, 0, width, height))
-
-	bgColor := color.RGBA{R: 204, G: 204, B: 204, A: 255}
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			img.Set(x, y, bgColor)
-		}
-	}
-
-	lineColor := color.RGBA{R: 153, G: 153, B: 153, A: 255}
-	centerX, centerY := width/2, height/2
-	thickness := 6
-	size := 30
-
-	for x := centerX - size; x <= centerX+size; x++ {
-		for dy := -thickness / 2; dy <= thickness/2; dy++ {
-			img.Set(x, centerY+dy, lineColor)
-		}
-	}
-	for y := centerY; y <= centerY+size; y++ {
-		for dx := -thickness / 2; dx <= thickness/2; dx++ {
-			img.Set(centerX+dx, y, lineColor)
-		}
-	}
-	for x := centerX - size + 10; x < centerX+size-10; x++ {
-		for y := centerY - size; y < centerY-size+thickness; y++ {
-			img.Set(x, y, lineColor)
-		}
-	}
-	for x := centerX - size; x < centerX-size+thickness; x++ {
-		for y := centerY - size; y < centerY; y++ {
-			img.Set(x, y, lineColor)
-		}
-	}
-	for x := centerX + size - thickness; x < centerX+size; x++ {
-		for y := centerY - size; y < centerY; y++ {
-			img.Set(x, y, lineColor)
-		}
-	}
-
-	return png.Encode(w, img)
 }

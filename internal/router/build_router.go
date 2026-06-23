@@ -11,9 +11,10 @@ import (
 	"syscall"
 	"time"
 
+	"search-gin/pkg/utils"
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"search-gin/pkg/utils"
 )
 
 // buildCORSConfig 构建 CORS 配置
@@ -26,7 +27,7 @@ func buildCORSConfig() cors.Config {
 		} else {
 			config.AllowOrigins = []string{"*"}
 		}
-		config.AllowCredentials = true
+		// config.AllowCredentials = true
 	} else {
 		config.AllowOrigins = []string{"*"}
 	}
@@ -159,6 +160,7 @@ func BuildAPIRouter(sigChan chan os.Signal) *gin.Engine {
 	router.GET("/api/logMemory", handler.GetLogMemory)
 	router.GET("/api/localLog", handler.GetLocalLog)
 	router.GET("/api/indexHealth", handler.GetIndexHealthCheck)
+	router.POST("/api/chat/deepseek", handler.PostChatDeepSeek)
 	router.GET("/api/ws", handler.HandleWebSocket)
 	router.GET("/api/events", func(c *gin.Context) {
 		handler.HandleSSE(c.Writer, c.Request)

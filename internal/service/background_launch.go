@@ -58,7 +58,7 @@ func InitSearchPool() {
 		poolSize = 50
 	}
 	GetEngine().searchPool = utils.NewGoroutinePool(poolSize)
-	GetEngine().KeywordHistoryCache = utils.NewLRUCache(10)
+	GetEngine().KeywordHistoryCache = utils.NewLRUCache(20)
 }
 
 // InitPeerManager 初始化节点管理器，从配置加载静态节点

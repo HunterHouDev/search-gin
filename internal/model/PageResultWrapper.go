@@ -24,7 +24,7 @@ func (fsw PageResultWrapper) IsEmpty() bool {
 	return !fsw.IsNotEmpty()
 }
 
-func (fsw *PageResultWrapper) AddWrapperItem(item FileItem) {
-	fsw.FileList = append(fsw.FileList, item)
+func (fsw *PageResultWrapper) AddWrapperItem(item *FileItem) {
+	fsw.FileList = append(fsw.FileList, *item)
 	fsw.Size += item.Size
 }

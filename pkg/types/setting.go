@@ -37,6 +37,8 @@ type Setting struct {
 	ControllerHost string
 	FileHost       string
 
+	DeepSeekApiKey string `json:"deepSeekApiKey"`
+
 	NodeName           string   `json:"nodeName"`
 	EnableLanDiscovery *bool    `json:"enableLanDiscovery"`
 	DiscoveryPeers     []string `json:"discoveryPeers"`

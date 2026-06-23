@@ -63,61 +63,24 @@ const view = reactive({
 const askAi = () => {
   if (view.question && view.question.length > 0) {
     view.messages.unshift({ content: view.question, role: 'user' });
-    // chatAi(Array.from(view.messages).reverse());
     chatAi(Array.from(view.messages));
   }
 };
 
-const chatAi = (msgs: { content: string; role: string; }[]) => {
-  let data = JSON.stringify({
-    // "messages": [
-    //   {
-    //     "content": "You are a helpful assistant",
-    //     "role": "system"
-    //   },
-    //   {
-    //     "content": "Hi",
-    //     "role": "user"
-    //   }
-    // ],
-    messages: msgs,
-    model: 'deepseek-chat',
-    frequency_penalty: 0,
-    max_tokens: 2048,
-    presence_penalty: 0,
-    response_format: {
-      type: 'text',
-    },
-    stop: null,
-    stream: false,
-    stream_options: null,
-    temperature: 1,
-    top_p: 1,
-    tools: null,
-    tool_choice: 'none',
-    logprobs: false,
-    top_logprobs: null,
-  });
-
-  let config = {
-    method: 'post',
-    maxBodyLength: Infinity,
-    url: 'https://api.deepseek.com/chat/completions',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      Authorization: 'Bearer sk-5e20928ea69d465d88eaa9e02665e6a2',
-    },
-    data: data,
-  };
-
-  axios(config)
+const chatAi = (msgs: { content: string; role: string }[]) => {
+  axios
+    .post('/api/chat/deepseek', {
+      messages: msgs,
+      model: 'deepseek-chat',
+    })
     .then((response) => {
-      console.log(JSON.stringify(response.data));
-      view.messages = response.data.messages
+      const content = response.data?.Data;
+      if (content) {
+        view.messages.unshift({ content, role: 'assistant' });
+      }
     })
     .catch((error) => {
-      console.log(error);
+      console.error('AI 对话失败:', error);
     });
 };
 
@@ -131,7 +94,6 @@ const open = () => {
 
 const closeWin = () => {
   onDialogCancel();
-  // window.location.reload();
 };
 
 defineExpose({

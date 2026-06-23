@@ -35,7 +35,7 @@
 
 ## 无数据库
 
-`internal/repository/` 和 `configs/` 目录为空。所有数据存储在内存中（Go struct + `sync.Map`），通过文件系统扫描填充。`FileItem` 结构体中历史遗留的 `xorm` 标签已清理。
+所有数据存储在内存中（Go struct + `sync.Map`），通过文件系统扫描填充。`FileItem` 结构体中历史遗留的 `xorm` 标签已清理。
 
 ## 认证
 

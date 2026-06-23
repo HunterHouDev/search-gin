@@ -186,10 +186,10 @@ func buildIndexFromBuckets(buckets map[string]*bucketFile) *searchIndex {
 				if ok {
 					rs.Count++
 					fileRepeats[rs.Files.Path] = rs.Files
-					fileRepeats[movie.Path] = movie
+					fileRepeats[movie.Path] = *movie
 					sizeRepeats[pkSize] = rs
 				} else {
-					sizeRepeats[pkSize] = repeatModel{Code: movie.Code, Files: movie, Count: 1}
+					sizeRepeats[pkSize] = repeatModel{Code: movie.Code, Files: *movie, Count: 1}
 				}
 
 				pkCode := strings.ReplaceAll(movie.Code, "-", "")
@@ -198,10 +198,10 @@ func buildIndexFromBuckets(buckets map[string]*bucketFile) *searchIndex {
 				if ok {
 					rc.Count++
 					fileRepeats[rc.Files.Path] = rc.Files
-					fileRepeats[movie.Path] = movie
+					fileRepeats[movie.Path] = *movie
 					codeRepeats[pkCode] = rc
 				} else {
-					codeRepeats[pkCode] = repeatModel{Code: movie.Code, Files: movie, Count: 1}
+					codeRepeats[pkCode] = repeatModel{Code: movie.Code, Files: *movie, Count: 1}
 				}
 			}
 		}
@@ -285,10 +285,10 @@ func recomputeRepeats(index *searchIndex) {
 			if ok {
 				rs.Count++
 				fileRepeats[rs.Files.Path] = rs.Files
-				fileRepeats[movie.Path] = movie
+				fileRepeats[movie.Path] = *movie
 				sizeRepeats[movie.Size] = rs
 			} else {
-				sizeRepeats[movie.Size] = repeatModel{Code: movie.Code, Files: movie, Count: 1}
+				sizeRepeats[movie.Size] = repeatModel{Code: movie.Code, Files: *movie, Count: 1}
 			}
 
 			pkCode := strings.ReplaceAll(movie.Code, "-", "")
@@ -297,10 +297,10 @@ func recomputeRepeats(index *searchIndex) {
 			if ok {
 				rc.Count++
 				fileRepeats[rc.Files.Path] = rc.Files
-				fileRepeats[movie.Path] = movie
+				fileRepeats[movie.Path] = *movie
 				codeRepeats[pkCode] = rc
 			} else {
-				codeRepeats[pkCode] = repeatModel{Code: movie.Code, Files: movie, Count: 1}
+				codeRepeats[pkCode] = repeatModel{Code: movie.Code, Files: *movie, Count: 1}
 			}
 		}
 
@@ -319,7 +319,7 @@ func recomputeRepeats(index *searchIndex) {
 
 // ── 单文件操作 ────────────────────────────────────────────────────
 
-func subtractFileFromIndex(index *searchIndex, movie model.FileItem) {
+func subtractFileFromIndex(index *searchIndex, movie *model.FileItem) {
 	index.totalCount--
 	index.totalSize -= movie.Size
 
@@ -379,7 +379,7 @@ func subtractFileFromIndex(index *searchIndex, movie model.FileItem) {
 	}
 }
 
-func addFileToIndex(index *searchIndex, movie model.FileItem) {
+func addFileToIndex(index *searchIndex, movie *model.FileItem) {
 	index.totalCount++
 	index.totalSize += movie.Size
 
@@ -491,7 +491,8 @@ func (se *searchEngineCore) flushPendingOps(ops []fileOp) {
 					continue
 				}
 				// 更新 bucket 数据
-				newBucket.FileLib[op.oldFile.Id] = op.newFile
+					f := op.newFile
+					newBucket.FileLib[op.oldFile.Id] = &f
 				sizeDiff := op.newFile.Size - op.oldFile.Size
 				newBucket.TotalSize += sizeDiff
 				// 更新 TypeIndex
@@ -512,8 +513,8 @@ func (se *searchEngineCore) flushPendingOps(ops []fileOp) {
 					}
 				}
 				// 更新 index 级聚合
-				subtractFileFromIndex(newIndex, op.oldFile)
-				addFileToIndex(newIndex, op.newFile)
+					subtractFileFromIndex(newIndex, &op.oldFile)
+					addFileToIndex(newIndex, &op.newFile)
 				applied = true
 
 			case "delete":

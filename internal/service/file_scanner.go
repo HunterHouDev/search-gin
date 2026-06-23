@@ -133,7 +133,7 @@ func (s *searchService) Walks(baseDir []string, types []string) []model.FileItem
 	var result []model.FileItem
 	for _, b := range buckets {
 		for _, m := range b.FileLib {
-			result = append(result, m)
+			result = append(result, *m)
 		}
 	}
 

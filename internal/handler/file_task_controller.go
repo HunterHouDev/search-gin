@@ -22,14 +22,30 @@ func PostMerge(c *gin.Context) {
 }
 
 func GetTransferTask(c *gin.Context) {
-	result := utils.NewSuccess()
 	service.TransferTaskMutex.RLock()
-	tasks := make(map[time.Time]model.TransferTaskModel, len(service.TransferTask))
-	for k, v := range service.TransferTask {
-		tasks[k] = v
+	n := len(service.TransferTask)
+	tasks := make([]model.TransferTaskModel, 0, n)
+	counts := [5]int{} // [total, completed, failed, executing, pending]
+	for _, v := range service.TransferTask {
+		tasks = append(tasks, v)
+		switch v.Status {
+		case model.StatusCompleted:
+			counts[1]++
+		case model.StatusFailed:
+			counts[2]++
+		case model.StatusExecuting:
+			counts[3]++
+		case model.StatusPending:
+			counts[4]++
+		}
 	}
 	service.TransferTaskMutex.RUnlock()
-	result.Data = tasks
+
+	result := utils.NewSuccess()
+	result.Data = map[string]interface{}{
+		"tasks":  tasks,
+		"counts": counts[:],
+	}
 	c.JSON(http.StatusOK, result)
 }
 
@@ -66,7 +82,8 @@ func GetTransferToMp4(c *gin.Context) {
 		return
 	}
 
-	xcode := c.Param("x code")
+	xcode := c.Param("xcode")
+	utils.InfoFormat("GetTransferToMp4 newFile [%v][%v]", id, xcode)
 	c.JSON(http.StatusOK, service.CreateTransferTask(id, xcode))
 }
 

@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"search-gin/internal/service"
+	"search-gin/pkg/utils"
 	"strconv"
 	"strings"
 	"sync"
@@ -135,6 +136,7 @@ func GetLanPeersWithStats(c *gin.Context) {
 		wg.Add(1)
 		go func(idx int, peer *service.Peer) {
 			defer wg.Done()
+			defer utils.RecoverPanic()
 			cnt, size, _ := service.GetPeerStats(peer.ID)
 			result[idx] = peerInfo{
 				ID: peer.ID, Name: peer.Name, IP: peer.IP,

@@ -99,7 +99,10 @@ func CreateMergeTask(fileIds []string, dest string, deleteSource bool) utils.Res
 	task.SetStatus(model.StatusPending)
 	TransferTaskMutex.Lock()
 	TransferTask[task.CreateTime] = task
+	PendingTaskCount.Add(1)
 	TransferTaskMutex.Unlock()
+
+	notifyTaskChange()
 
 	pending, executing := pendingExecutingCount()
 	LogMem.Add("CreateMergeTask: 创建成功 path=%s, CreateTime=%v, pending=%d, executing=%d", task.Path, task.CreateTime, pending, executing)
@@ -133,7 +136,9 @@ func CreateTransferTask(id string, xcode string) utils.Result {
 	}
 	TransferTaskMutex.Lock()
 	TransferTask[task.CreateTime] = task
+	PendingTaskCount.Add(1)
 	TransferTaskMutex.Unlock()
+	notifyTaskChange()
 	pending, executing := pendingExecutingCount()
 	LogMem.Add("CreateTransferTask: 创建成功 id=%s, xcode=%s, path=%s, CreateTime=%v, pending=%d, executing=%d", id, xcode, task.Path, task.CreateTime, pending, executing)
 	return utils.NewSuccessByMsg("任务创建成功")
@@ -151,7 +156,10 @@ func CreateCutTask(id string, start string, end string) utils.Result {
 	task.SetStatus(model.StatusPending)
 	TransferTaskMutex.Lock()
 	TransferTask[task.CreateTime] = task
+	PendingTaskCount.Add(1)
 	TransferTaskMutex.Unlock()
+
+	notifyTaskChange()
 
 	pending, executing := pendingExecutingCount()
 	LogMem.Add("CreateCutTask: 创建成功 path=%s, start=%s, end=%s, CreateTime=%v, pending=%d, executing=%d", task.Path, start, end, task.CreateTime, pending, executing)

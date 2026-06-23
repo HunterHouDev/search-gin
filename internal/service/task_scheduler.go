@@ -15,7 +15,20 @@ var (
 	HeartBeatCtx, HeartBeatCancel = context.WithCancel(context.Background())
 )
 
+var PendingTaskCount atomic.Int32
+
 var FullScanInProgress atomic.Bool
+
+// TaskNotify 任务变更通知通道：有任务加入或完成时发送信号，消除空闲轮询
+var TaskNotify = make(chan struct{}, 1)
+
+// notifyTaskChange 非阻塞通知调度器有任务变更
+func notifyTaskChange() {
+	select {
+	case TaskNotify <- struct{}{}:
+	default:
+	}
+}
 
 // HeartBeat 心跳定时扫描
 func (s *searchService) HeartBeat() {
@@ -44,69 +57,100 @@ func (s *searchService) TaskExecuting() {
 		return
 	}
 	utils.InfoFormat("TaskExecuting: 调度器已启动")
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
+
+	// 启动时立即扫描一次，处理可能已有任务
+	s.pollTasks()
+
+	// fallback ticker：channel 通知为主信号，ticker 作为兜底（任务完成通知等边界情况）
+	fallback := time.NewTicker(10 * time.Second)
+	defer fallback.Stop()
+
 	for {
-		s.pollTasks()
 		select {
 		case <-TaskCtx.Done():
 			utils.InfoFormat("TaskExecuting: 调度器已停止")
 			return
-		case <-ticker.C:
+		case <-TaskNotify:
+			s.pollTasks()
+		case <-fallback.C:
+			s.pollTasks()
 		}
 	}
 }
 
 // pollTasks 轮询并执行待处理任务
 func (s *searchService) pollTasks() {
-	taskGroups := struct {
-		todos           []model.TransferTaskModel
-		todosCuts       []model.TransferTaskModel
-		todosMerges     []model.TransferTaskModel
-		executing       []model.TransferTaskModel
-		executingCuts   []model.TransferTaskModel
-		executingMerges []model.TransferTaskModel
-	}{}
+	// 快速路径：没有待处理任务则直接返回
+	if PendingTaskCount.Load() == 0 {
+		return
+	}
+
+	// 只需要每个类别的第一个 pending 任务 + 检查是否有 executing 防止重复启动
+	var pendingTrans, pendingCut, pendingMerge *model.TransferTaskModel
+	var hasExecTrans, hasExecCut, hasExecMerge bool
 
 	TransferTaskMutex.RLock()
 	for _, t := range TransferTask {
+		hasAllPending := false
+		hasAllExec := false
+
 		switch {
 		case strings.EqualFold(t.Status, model.StatusPending):
 			switch {
 			case strings.EqualFold(t.Type, model.TaskTypeCut):
-				taskGroups.todosCuts = append(taskGroups.todosCuts, t)
+				if pendingCut == nil {
+					task := t // 复制，range 变量在下一轮会变
+					pendingCut = &task
+				}
 			case strings.EqualFold(t.Type, model.TaskTypeMerge):
-				taskGroups.todosMerges = append(taskGroups.todosMerges, t)
+				if pendingMerge == nil {
+					task := t
+					pendingMerge = &task
+				}
 			case strings.EqualFold(t.Type, model.TaskTypeTrans):
-				taskGroups.todos = append(taskGroups.todos, t)
+				if pendingTrans == nil {
+					task := t
+					pendingTrans = &task
+				}
 			}
+			// 3 个 pending 都找到了？
+			hasAllPending = pendingTrans != nil && pendingCut != nil && pendingMerge != nil
+
 		case strings.EqualFold(t.Status, model.StatusExecuting):
 			switch {
 			case strings.EqualFold(t.Type, model.TaskTypeCut):
-				taskGroups.executingCuts = append(taskGroups.executingCuts, t)
+				hasExecCut = true
 			case strings.EqualFold(t.Type, model.TaskTypeMerge):
-				taskGroups.executingMerges = append(taskGroups.executingMerges, t)
+				hasExecMerge = true
 			case strings.EqualFold(t.Type, model.TaskTypeTrans):
-				taskGroups.executing = append(taskGroups.executing, t)
+				hasExecTrans = true
 			}
+			// 3 个 executing 状态都知道了？
+			hasAllExec = hasExecTrans && hasExecCut && hasExecMerge
+		}
+
+		// 信息收集完毕，提前退出遍历
+		if hasAllPending && hasAllExec {
+			break
 		}
 	}
 	TransferTaskMutex.RUnlock()
-	// 启动前在 map 中原子标记为 "执行中"，防止下次 poll 周期重复启动
-	if len(taskGroups.executing) == 0 && len(taskGroups.todos) > 0 {
-		LogMem.Add("pollTasks: 启动转码任务 CreateTime=%v, path=%s", taskGroups.todos[0].CreateTime, taskGroups.todos[0].Path)
-		markTaskExecuting(taskGroups.todos[0].CreateTime)
-		go TransferFormatter(taskGroups.todos[0])
+
+	// 按类别启动第一个待处理任务（无同类执行中任务时）
+	if pendingTrans != nil && !hasExecTrans {
+		LogMem.Add("pollTasks: 启动转码任务 CreateTime=%v, path=%s", pendingTrans.CreateTime, pendingTrans.Path)
+		markTaskExecuting(pendingTrans.CreateTime)
+		go TransferFormatter(*pendingTrans)
 	}
-	if len(taskGroups.executingCuts) == 0 && len(taskGroups.todosCuts) > 0 {
-		LogMem.Add("pollTasks: 启动分切任务 CreateTime=%v, path=%s", taskGroups.todosCuts[0].CreateTime, taskGroups.todosCuts[0].Path)
-		markTaskExecuting(taskGroups.todosCuts[0].CreateTime)
-		go CutFormatter(taskGroups.todosCuts[0])
+	if pendingCut != nil && !hasExecCut {
+		LogMem.Add("pollTasks: 启动分切任务 CreateTime=%v, path=%s", pendingCut.CreateTime, pendingCut.Path)
+		markTaskExecuting(pendingCut.CreateTime)
+		go CutFormatter(*pendingCut)
 	}
-	if len(taskGroups.executingMerges) == 0 && len(taskGroups.todosMerges) > 0 {
-		LogMem.Add("pollTasks: 启动合并任务 CreateTime=%v, path=%s", taskGroups.todosMerges[0].CreateTime, taskGroups.todosMerges[0].Path)
-		markTaskExecuting(taskGroups.todosMerges[0].CreateTime)
-		go MergeFiles(taskGroups.todosMerges[0])
+	if pendingMerge != nil && !hasExecMerge {
+		LogMem.Add("pollTasks: 启动合并任务 CreateTime=%v, path=%s", pendingMerge.CreateTime, pendingMerge.Path)
+		markTaskExecuting(pendingMerge.CreateTime)
+		go MergeFiles(*pendingMerge)
 	}
 }
 
@@ -117,6 +161,7 @@ func markTaskExecuting(key time.Time) {
 	if t, ok := TransferTask[key]; ok {
 		t.Status = model.StatusExecuting
 		TransferTask[key] = t
+		PendingTaskCount.Add(-1)
 	}
 	TransferTaskMutex.Unlock()
 }

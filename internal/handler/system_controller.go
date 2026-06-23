@@ -2,12 +2,10 @@ package handler
 
 import (
 	"encoding/json"
-	"maps"
 	"net/http"
 	"os/exec"
 	"strings"
 
-	"search-gin/internal/model"
 	"search-gin/internal/service"
 	"search-gin/pkg/utils"
 
@@ -18,6 +16,7 @@ func GetSettingInfo(c *gin.Context) {
 	setting := UseApp().config.Get()
 	safeSetting := setting
 	safeSetting.Users = nil
+	safeSetting.DeepSeekApiKey = "" // 密钥不返回前端
 	if safeSetting.HardwareAcceleration && safeSetting.HardwareAccelMode == "" {
 		safeSetting.HardwareAccelMode = service.GetHwAccelModeName()
 	}
@@ -50,26 +49,14 @@ func PostSetting(c *gin.Context) {
 		}
 	}
 
-	// 将现有配置序列化为 map
-	existing := UseApp().config.Get()
-	existingJSON, _ := json.Marshal(existing)
-	var merged map[string]any
-	if err := json.Unmarshal(existingJSON, &merged); err != nil {
-		c.JSON(http.StatusInternalServerError, utils.NewFailByMsg("合并配置失败"))
-		return
-	}
-
-	// 用请求中的字段覆盖（只覆盖在 body 中存在的字段）
-	maps.Copy(merged, body)
-
-	// 将合并后的 map 反序列化回 Setting
-	mergedJSON, _ := json.Marshal(merged)
-	var updated model.Setting
-	if err := json.Unmarshal(mergedJSON, &updated); err != nil {
+	// 将 body map 序列化后反序列化到现有 struct 上
+	// 不在 body 中的字段保持不变（Go json.Unmarshal 特性）
+	bodyJSON, _ := json.Marshal(body)
+	var updated = UseApp().config.Get()
+	if err := json.Unmarshal(bodyJSON, &updated); err != nil {
 		c.JSON(http.StatusInternalServerError, utils.NewFailByMsg("反序列化配置失败"))
 		return
 	}
-	updated.SelfPath = existing.SelfPath
 
 	UseApp().config.Set(updated)
 	UseApp().config.Flush(updated.SelfPath)

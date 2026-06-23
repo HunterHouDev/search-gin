@@ -221,6 +221,7 @@ func ffmpegExec(args []string, thisNow time.Time) utils.Result {
 		task.Status = model.StatusFailed
 		TransferTask[thisNow] = task
 		TransferTaskMutex.Unlock()
+		notifyTaskChange()
 
 		utils.InfoFormat("命令执行失败: %v, 错误: %v, 参数: %v", string(out), cmdErr, args)
 		return utils.NewFailByMsg("转换失败")
@@ -229,6 +230,7 @@ func ffmpegExec(args []string, thisNow time.Time) utils.Result {
 	task.Status = model.StatusCompleted
 	TransferTask[thisNow] = task
 	TransferTaskMutex.Unlock()
+	notifyTaskChange()
 
 	return utils.NewSuccessByMsg("转换成功")
 }

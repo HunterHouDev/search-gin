@@ -12,7 +12,7 @@ type bucketFile struct {
 	InstanceName string
 	TotalSize    int64
 	TotalCount   int
-	FileLib      map[string]model.FileItem
+	FileLib      map[string]*model.FileItem
 	// 倒排索引，类型 -> 文件ID集合 (O(1) 去重)
 	TypeIndex map[string]map[string]struct{}
 	mu        sync.RWMutex
@@ -23,9 +23,10 @@ func (fs *bucketFile) clone() *bucketFile {
 	fs.mu.RLock()
 	defer fs.mu.RUnlock()
 
-	newFileLib := make(map[string]model.FileItem, len(fs.FileLib))
+	newFileLib := make(map[string]*model.FileItem, len(fs.FileLib))
 	for k, v := range fs.FileLib {
-		newFileLib[k] = v
+		f := *v // 值拷贝每个 FileItem
+		newFileLib[k] = &f
 	}
 
 	newTypeIndex := make(map[string]map[string]struct{}, len(fs.TypeIndex))
@@ -51,7 +52,7 @@ func newInstance(name string) *bucketFile {
 		InstanceName: name,
 		TotalSize:    0,
 		TotalCount:   0,
-		FileLib:      map[string]model.FileItem{},
+		FileLib:      map[string]*model.FileItem{},
 		TypeIndex:    map[string]map[string]struct{}{},
 	}
 }
@@ -76,7 +77,9 @@ func (fs *bucketFile) put(m model.FileItem) {
 	if m.PathUpper == "" {
 		m.PathUpper = strings.ToUpper(m.Path)
 	}
-	fs.FileLib[m.Id] = m
+	f := new(model.FileItem)
+	*f = m
+	fs.FileLib[f.Id] = f
 	fs.TotalSize = fs.TotalSize + m.Size
 	fs.TotalCount = fs.TotalCount + 1
 
@@ -92,7 +95,9 @@ func (fs *bucketFile) putBatch(files []model.FileItem) {
 		if file.PathUpper == "" {
 			file.PathUpper = strings.ToUpper(file.Path)
 		}
-		fs.FileLib[file.Id] = file
+		f := new(model.FileItem)
+		*f = file
+		fs.FileLib[f.Id] = f
 		fs.TotalSize += file.Size
 		fs.TotalCount++
 		fs.buildTypeIndex(file)
@@ -110,14 +115,14 @@ func (fs *bucketFile) buildTypeIndex(m model.FileItem) {
 	fs.TypeIndex[m.MovieType][m.Id] = struct{}{}
 }
 
-func (fs *bucketFile) get(id string) model.FileItem {
+func (fs *bucketFile) get(id string) *model.FileItem {
 	fs.mu.RLock()
 	defer fs.mu.RUnlock()
 	movieFile, ok := fs.FileLib[id]
 	if ok {
 		return movieFile
 	}
-	return model.FileItem{}
+	return nil
 }
 
 func (fs *bucketFile) searchBucket(searchParam model.SearchParam) model.PageResultWrapper {
@@ -132,7 +137,7 @@ func (fs *bucketFile) searchBucket(searchParam model.SearchParam) model.PageResu
 	}
 
 	// 定义公共过滤函数：同时检查关键词 + 高级过滤
-	filter := func(file model.FileItem) bool {
+	filter := func(file *model.FileItem) bool {
 		if !matchAdvancedFilters(file, searchParam) {
 			return false
 		}
@@ -167,7 +172,7 @@ func (fs *bucketFile) searchBucket(searchParam model.SearchParam) model.PageResu
 }
 
 // matchKeywords 检查文件路径是否匹配所有关键词
-func matchKeywords(file model.FileItem, keywords []string) bool {
+func matchKeywords(file *model.FileItem, keywords []string) bool {
 	filePath := file.PathUpper
 	for _, keyword := range keywords {
 		if !strings.Contains(filePath, keyword) {
@@ -178,7 +183,7 @@ func matchKeywords(file model.FileItem, keywords []string) bool {
 }
 
 // matchAdvancedFilters 检查高级过滤条件：大小范围、日期范围、扩展名
-func matchAdvancedFilters(file model.FileItem, p model.SearchParam) bool {
+func matchAdvancedFilters(file *model.FileItem, p model.SearchParam) bool {
 	if p.MinSize > 0 && file.Size < p.MinSize {
 		return false
 	}

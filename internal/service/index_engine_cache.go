@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"search-gin/internal/model"
@@ -18,7 +19,7 @@ type cacheBucket struct {
 	InstanceName string
 	TotalSize    int64
 	TotalCount   int
-	FileLib      map[string]model.FileItem
+	FileLib      map[string]*model.FileItem
 	TypeIndex    map[string]map[string]struct{}
 }
 
@@ -34,7 +35,19 @@ type cacheData struct {
 
 const cacheFileName = "search_cache.gob"
 
-// saveIndexToCache 将当前快照异步保存到缓存文件
+// ── 去抖写入 ──────────────────────────────────────────────────────
+
+// 多次 rebuild 在 cacheDebounceInterval 内合并为一次磁盘写入
+const cacheDebounceInterval = 30 * time.Second
+
+var (
+	cacheDebounceMu    sync.Mutex
+	cacheDebounceTimer *time.Timer
+	cacheDebounceIndex *searchIndex
+)
+
+// saveIndexToCache 带去抖的异步缓存写入
+// 30 秒窗口内的多次 rebuild 合并为一次 gob 序列化 + 磁盘写入
 // 空快照（无 bucket）不保存，避免 Reset() 等路径清空磁盘缓存
 func saveIndexToCache(index *searchIndex) {
 	if GetWorkDir() == "" {
@@ -43,18 +56,66 @@ func saveIndexToCache(index *searchIndex) {
 	if len(index.buckets) == 0 {
 		return
 	}
+
+	cacheDebounceMu.Lock()
+	cacheDebounceIndex = index
+	if cacheDebounceTimer != nil {
+		cacheDebounceTimer.Stop()
+	}
+	cacheDebounceTimer = time.AfterFunc(cacheDebounceInterval, flushCache)
+	cacheDebounceMu.Unlock()
+}
+
+// flushCache 去抖超时后异步执行一次序列化 + 磁盘写入
+func flushCache() {
+	cacheDebounceMu.Lock()
+	idx := cacheDebounceIndex
+	cacheDebounceTimer = nil
+	cacheDebounceMu.Unlock()
+
+	if idx == nil {
+		return
+	}
+
+	go func() {
+		defer utils.RecoverPanic()
+		doFlushCache(idx)
+	}()
+}
+
+// FlushCache 同步强制写入缓存（用于 shutdown 信号处理，确保退出前持久化）
+func FlushCache() {
+	cacheDebounceMu.Lock()
+	idx := cacheDebounceIndex
+	// 取消待处理的定时器，避免重复写入
+	if cacheDebounceTimer != nil {
+		cacheDebounceTimer.Stop()
+		cacheDebounceTimer = nil
+	}
+	cacheDebounceIndex = nil
+	cacheDebounceMu.Unlock()
+
+	if idx == nil {
+		return
+	}
+
+	doFlushCache(idx)
+}
+
+// doFlushCache 执行实际的序列化 + 磁盘写入（同步，带 30s 超时）
+func doFlushCache(idx *searchIndex) {
 	cachePath := filepath.Join(GetWorkDir(), cacheFileName)
 
 	// 转换为可序列化的 cacheData
 	data := cacheData{
-		RepeatFiles: index.repeatFiles,
-		AuthorMap:   index.authorMap,
-		TypeMenu:    index.typeMenu,
-		TagMenu:     index.tagMenu,
-		SeriesCount: index.seriesCount,
-		Buckets:     make([]cacheBucket, 0, len(index.buckets)),
+		RepeatFiles: idx.repeatFiles,
+		AuthorMap:   idx.authorMap,
+		TypeMenu:    idx.typeMenu,
+		TagMenu:     idx.tagMenu,
+		SeriesCount: idx.seriesCount,
+		Buckets:     make([]cacheBucket, 0, len(idx.buckets)),
 	}
-	for _, b := range index.buckets {
+	for _, b := range idx.buckets {
 		b.mu.RLock()
 		data.Buckets = append(data.Buckets, cacheBucket{
 			InstanceName: b.InstanceName,
@@ -66,45 +127,41 @@ func saveIndexToCache(index *searchIndex) {
 		b.mu.RUnlock()
 	}
 
-	// 异步写入，带超时保护，不阻塞扫描流程
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	done := make(chan struct{})
 	go func() {
 		defer utils.RecoverPanic()
-
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-
-		done := make(chan struct{})
-		go func() {
-			defer close(done)
-			tmpPath := cachePath + ".tmp"
-			f, err := os.Create(tmpPath)
-			if err != nil {
-				utils.InfoFormat("保存索引缓存失败(创建临时文件): %v", err)
-				return
-			}
-
-			enc := gob.NewEncoder(f)
-			if err := enc.Encode(data); err != nil {
-				f.Close()
-				os.Remove(tmpPath)
-				utils.InfoFormat("保存索引缓存失败(编码): %v", err)
-				return
-			}
-			f.Close()
-
-			if err := os.Rename(tmpPath, cachePath); err != nil {
-				utils.InfoFormat("保存索引缓存失败(重命名): %v", err)
-				return
-			}
-			LogMem.Add("索引缓存已保存: %s (%d buckets, %d files)", cachePath, len(data.Buckets), index.totalCount)
-		}()
-
-		select {
-		case <-done:
-		case <-ctx.Done():
-			utils.ErrorFormat("保存索引缓存超时(30s): %s", cachePath)
+		defer close(done)
+		tmpPath := cachePath + ".tmp"
+		f, err := os.Create(tmpPath)
+		if err != nil {
+			utils.InfoFormat("保存索引缓存失败(创建临时文件): %v", err)
+			return
 		}
+
+		enc := gob.NewEncoder(f)
+		if err := enc.Encode(data); err != nil {
+			f.Close()
+			os.Remove(tmpPath)
+			utils.InfoFormat("保存索引缓存失败(编码): %v", err)
+			return
+		}
+		f.Close()
+
+		if err := os.Rename(tmpPath, cachePath); err != nil {
+			utils.InfoFormat("保存索引缓存失败(重命名): %v", err)
+			return
+		}
+		LogMem.Add("索引缓存已保存: %s (%d buckets, %d files)", cachePath, len(data.Buckets), idx.totalCount)
 	}()
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+		utils.ErrorFormat("保存索引缓存超时(30s): %s", cachePath)
+	}
 }
 
 // LoadCachedIndex 从缓存文件加载快照，成功则安装到搜索引擎并返回 true

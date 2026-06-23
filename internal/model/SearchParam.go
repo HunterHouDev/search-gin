@@ -1,7 +1,6 @@
 package model
 
 import (
-	"search-gin/pkg/utils"
 	"strconv"
 	"strings"
 )
@@ -23,7 +22,6 @@ type SearchParam struct {
 	PageSize   int
 	SortField  string
 	SortType   string
-	Sql        string
 	SearchNode string // 目标节点 ""=本机 / "host:port"=指定节点
 
 	// 高级过滤（仅本地搜索有效）
@@ -73,22 +71,10 @@ func (p *SearchParam) GetKeywords() string {
 	p.Keyword = strings.TrimSpace(p.Keyword)
 	return p.Keyword
 }
-func (p *SearchParam) SetSql(sql string) {
-	p.Sql = sql
-}
-func (p *SearchParam) GetFuzzyKeywords() string {
-	p.Keyword = strings.TrimSpace(p.Keyword)
-	p.Keyword = strings.ReplaceAll(p.Keyword, utils.PathSeparator+utils.PathSeparator, utils.PathSeparator)
-	return "%" + p.Keyword + "%"
-}
 
 func (p *SearchParam) GetMovieType() string {
 	p.MovieType = strings.TrimSpace(p.MovieType)
 	return p.MovieType
-}
-func (p *SearchParam) GetFuzzyMovieType() string {
-	p.MovieType = strings.TrimSpace(p.MovieType)
-	return "%" + p.MovieType + "%"
 }
 
 func (p *SearchParam) SetOnlyRepeat(b bool) {
