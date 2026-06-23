@@ -7,12 +7,14 @@ log() {
 }
 
 clean_dirs() {
+	cd qapp || { log "ERROR" "无法进入 qapp 目录"; exit 1; }
     log "INFO" "清理 dist 目录..."
     rm -rf dist
     mkdir -p dist
 
     log "INFO" "清理 qapp/dist 和 qapp/log..."
     rm -rf qapp/dist qapp/log
+	cd .. || { log "ERROR" "无法返回上级目录"; exit 1;
 }
 
 build_frontend() {
