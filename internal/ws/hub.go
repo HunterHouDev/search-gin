@@ -156,16 +156,21 @@ func (h *Hub) Broadcast(msg []byte) {
 // 返回发送成功的设备数
 func (h *Hub) SendToUser(username string, msg []byte) int {
 	h.mu.RLock()
-	defer h.mu.RUnlock()
-	count := 0
+	var targetClients []*ClientConn
 	for client := range h.clients {
 		if client.Username == username {
-			client.mu.Lock()
-			err := client.Conn.WriteMessage(websocket.TextMessage, msg)
-			client.mu.Unlock()
-			if err == nil {
-				count++
-			}
+			targetClients = append(targetClients, client)
+		}
+	}
+	h.mu.RUnlock()
+
+	count := 0
+	for _, client := range targetClients {
+		client.mu.Lock()
+		err := client.Conn.WriteMessage(websocket.TextMessage, msg)
+		client.mu.Unlock()
+		if err == nil {
+			count++
 		}
 	}
 	return count
