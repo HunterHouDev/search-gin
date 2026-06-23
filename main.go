@@ -118,7 +118,4 @@ func main() {
 		utils.InfoFormat("服务已停止")
 	}
 
-	// 服务退出后，通知后台任务停止
-	service.TaskCancel()
-	service.HeartBeatCancel()
 }
