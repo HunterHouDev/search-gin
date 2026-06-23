@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"search-gin/internal/model"
 	"search-gin/pkg/utils"
 	"strings"
@@ -10,71 +9,50 @@ import (
 	"time"
 )
 
-var (
-	TaskCtx, TaskCancel           = context.WithCancel(context.Background())
-	HeartBeatCtx, HeartBeatCancel = context.WithCancel(context.Background())
-)
-
 var PendingTaskCount atomic.Int32
 
 var FullScanInProgress atomic.Bool
 
-// TaskNotify 任务变更通知通道：有任务加入或完成时发送信号，消除空闲轮询
-var TaskNotify = make(chan struct{}, 1)
+// taskSignal 任务调度信号：有新任务创建或任务完成时唤醒调度器
+var taskSignal = make(chan struct{}, 1)
 
-// notifyTaskChange 非阻塞通知调度器有任务变更
-func notifyTaskChange() {
+// wakeTaskScheduler 非阻塞通知调度器检查任务
+func wakeTaskScheduler() {
 	select {
-	case TaskNotify <- struct{}{}:
+	case taskSignal <- struct{}{}:
 	default:
 	}
 }
 
-// HeartBeat 心跳定时扫描
+// HeartBeat 心跳定时扫描（goroutine 随进程退出，无需 cancel）
 func (s *searchService) HeartBeat() {
 	ticker := time.NewTicker(180 * time.Second)
 	defer ticker.Stop()
 
-	for {
-		select {
-		case <-HeartBeatCtx.Done():
-			return
-		case <-ticker.C:
-			if !s.settings.Get().EnableTimeScan || time.Since(GetLastScanTime()).Seconds() <= 180 {
-				continue
-			}
-			for _, dir := range s.settings.Get().Dirs {
-				removeWalk(dir, true)
-			}
+	for range ticker.C {
+		if !s.settings.Get().EnableTimeScan || time.Since(GetLastScanTime()).Seconds() <= 180 {
+			continue
+		}
+		for _, dir := range s.settings.Get().Dirs {
+			removeWalk(dir, true)
 		}
 	}
 }
 
-// TaskExecuting 任务执行调度器
-func (s *searchService) TaskExecuting() {
+// TaskScheduler 任务调度器：有信号则检查并启动待处理任务，无信号则阻塞休眠
+// goroutine 随进程退出自动清理，无需 cancel
+func (s *searchService) TaskScheduler() {
 	if s == nil {
-		utils.ErrorFormat("TaskExecuting: s 为 nil，调度器无法启动")
+		utils.ErrorFormat("TaskScheduler: s 为 nil，调度器无法启动")
 		return
 	}
-	utils.InfoFormat("TaskExecuting: 调度器已启动")
+	utils.InfoFormat("TaskScheduler: 调度器已启动")
 
-	// 启动时立即扫描一次，处理可能已有任务
+	// 启动时立即检查一次，处理可能已有任务
 	s.pollTasks()
 
-	// fallback ticker：channel 通知为主信号，ticker 作为兜底（任务完成通知等边界情况）
-	fallback := time.NewTicker(10 * time.Second)
-	defer fallback.Stop()
-
-	for {
-		select {
-		case <-TaskCtx.Done():
-			utils.InfoFormat("TaskExecuting: 调度器已停止")
-			return
-		case <-TaskNotify:
-			s.pollTasks()
-		case <-fallback.C:
-			s.pollTasks()
-		}
+	for range taskSignal {
+		s.pollTasks()
 	}
 }
 
@@ -99,7 +77,7 @@ func (s *searchService) pollTasks() {
 			switch {
 			case strings.EqualFold(t.Type, model.TaskTypeCut):
 				if pendingCut == nil {
-					task := t // 复制，range 变量在下一轮会变
+					task := t
 					pendingCut = &task
 				}
 			case strings.EqualFold(t.Type, model.TaskTypeMerge):
@@ -113,7 +91,6 @@ func (s *searchService) pollTasks() {
 					pendingTrans = &task
 				}
 			}
-			// 3 个 pending 都找到了？
 			hasAllPending = pendingTrans != nil && pendingCut != nil && pendingMerge != nil
 
 		case strings.EqualFold(t.Status, model.StatusExecuting):
@@ -125,18 +102,15 @@ func (s *searchService) pollTasks() {
 			case strings.EqualFold(t.Type, model.TaskTypeTrans):
 				hasExecTrans = true
 			}
-			// 3 个 executing 状态都知道了？
 			hasAllExec = hasExecTrans && hasExecCut && hasExecMerge
 		}
 
-		// 信息收集完毕，提前退出遍历
 		if hasAllPending && hasAllExec {
 			break
 		}
 	}
 	TransferTaskMutex.RUnlock()
 
-	// 按类别启动第一个待处理任务（无同类执行中任务时）
 	if pendingTrans != nil && !hasExecTrans {
 		LogMem.Add("pollTasks: 启动转码任务 CreateTime=%v, path=%s", pendingTrans.CreateTime, pendingTrans.Path)
 		markTaskExecuting(pendingTrans.CreateTime)
@@ -155,7 +129,6 @@ func (s *searchService) pollTasks() {
 }
 
 // markTaskExecuting 在 TransferTask map 中原子地将任务标记为执行中
-// 在启动 goroutine 之前调用，消除 pollTasks 竞态窗口
 func markTaskExecuting(key time.Time) {
 	TransferTaskMutex.Lock()
 	if t, ok := TransferTask[key]; ok {
@@ -168,7 +141,6 @@ func markTaskExecuting(key time.Time) {
 
 // ── 扫描任务队列 ──────────────────────────────────────────────────
 
-// 扫描任务
 type scanTask struct {
 	baseDir   string
 	cancel    chan struct{}
@@ -177,7 +149,7 @@ type scanTask struct {
 }
 
 type taskQueue struct {
-	tasks     map[string]*scanTask // baseDir -> task
+	tasks     map[string]*scanTask
 	mutex     sync.Mutex
 	taskChan  chan *scanTask
 	engine    *searchEngineCore
@@ -187,7 +159,6 @@ type taskQueue struct {
 
 var scanQueue *taskQueue
 
-// NewScanQueue 创建扫描任务队列（由 main.go 显式调用）
 func NewScanQueue(engine *searchEngineCore, settings Settings) *taskQueue {
 	q := &taskQueue{
 		tasks:    make(map[string]*scanTask),
@@ -199,14 +170,12 @@ func NewScanQueue(engine *searchEngineCore, settings Settings) *taskQueue {
 	return q
 }
 
-// SetScanWalkInner 设置扫描队列的 WalkInner 回调（需要 searchService 实例化后才能调用）
 func SetScanWalkInner(walkInner func(string, []string, bool, string) ([]model.FileItem, int64)) {
 	if scanQueue != nil {
 		scanQueue.walkInner = walkInner
 	}
 }
 
-// processTasks 处理任务队列
 func (q *taskQueue) processTasks() {
 	defer utils.RecoverPanic()
 	for task := range q.taskChan {
@@ -217,7 +186,6 @@ func (q *taskQueue) processTasks() {
 	}
 }
 
-// executeTask 执行单个扫描任务
 func (q *taskQueue) executeTask(task *scanTask) {
 	if task.canceled.Load() {
 		LogMem.Add("扫描任务已取消: %s", task.baseDir)
@@ -230,13 +198,11 @@ func (q *taskQueue) executeTask(task *scanTask) {
 	default:
 	}
 
-	// 全量扫描互斥检查
 	if FullScanInProgress.Load() {
 		LogMem.Add("全量扫描中，跳过队列任务: %s", task.baseDir)
 		return
 	}
 
-	// 设置索引构建状态
 	IndexNumber.Add(1)
 	defer IndexNumber.Add(-1)
 
@@ -248,7 +214,6 @@ func (q *taskQueue) executeTask(task *scanTask) {
 	queryTypes = utils.ExtendsItems(queryTypes, setting.DocsTypes)
 	queryTypes = utils.ExtendsItems(queryTypes, setting.ImageTypes)
 
-	// 执行扫描
 	files, _ := q.walkInner(task.baseDir, queryTypes, true, task.baseDir)
 	newBucket := newInstanceWithFiles(task.baseDir, files)
 	q.engine.rebuildWithBucketIncremental(task.baseDir, newBucket)
@@ -260,7 +225,6 @@ func (q *taskQueue) executeTask(task *scanTask) {
 	LogMem.Add("扫描完成: %s", task.baseDir)
 }
 
-// AddTask 添加扫描任务到队列
 func (q *taskQueue) AddTask(baseDir string) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -283,7 +247,6 @@ func (q *taskQueue) AddTask(baseDir string) {
 	LogMem.Add("添加扫描任务到队列: %s", baseDir)
 }
 
-// GetTaskCount 获取队列中的任务数
 func (q *taskQueue) GetTaskCount() int {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()

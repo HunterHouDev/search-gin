@@ -105,7 +105,7 @@ func StartBackgroundTasks() {
 	}()
 	go func() {
 		defer utils.RecoverPanic()
-		search.TaskExecuting()
+		search.TaskScheduler()
 	}()
 }
 

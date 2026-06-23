@@ -58,8 +58,6 @@ func GracefulShutdown(sigChan <-chan os.Signal, servers []*http.Server) {
 			}
 			cancel()
 		}
-		service.TaskCancel()
-		service.HeartBeatCancel()
 		log.Println("服务已全部关闭")
 	}()
 }

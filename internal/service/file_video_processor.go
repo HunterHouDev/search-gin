@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -187,50 +188,57 @@ func ffmpegBinPath() string {
 	return "ffmpeg.exe"
 }
 
-// ffmpegExec 执行ffmpeg命令
-func ffmpegExec(args []string, thisNow time.Time) utils.Result {
+// updateTaskStatus 集中管理任务状态变更
+func updateTaskStatus(key time.Time, status, log string) {
 	TransferTaskMutex.Lock()
-	task, exists := TransferTask[thisNow]
+	defer TransferTaskMutex.Unlock()
+	t, ok := TransferTask[key]
+	if !ok {
+		return
+	}
+	t.Status = status
+	t.FinishTime = time.Now()
+	if log != "" {
+		t.Log = log
+	}
+	TransferTask[key] = t
+	wakeTaskScheduler()
+}
+
+// ffmpegRun 纯执行层：只跑 ffmpeg 命令，不关心任务状态
+func ffmpegRun(ctx context.Context, args []string) ([]byte, error) {
+	ffmpegPath := ffmpegBinPath()
+	cmd := exec.CommandContext(ctx, ffmpegPath, args...)
+	if runtime.GOOS == "windows" {
+		utils.FixOnWin(cmd)
+	}
+	return cmd.CombinedOutput()
+}
+
+// ffmpegExec 编排层：管理任务生命周期 + 执行 ffmpeg + 回写结果
+func ffmpegExec(args []string, taskKey time.Time) utils.Result {
+	TransferTaskMutex.Lock()
+	task, exists := TransferTask[taskKey]
 	if !exists {
 		TransferTaskMutex.Unlock()
 		return utils.NewFailByMsg("任务不存在")
 	}
-
-	ffmpegPath := ffmpegBinPath()
-
-	// 直接赋值：SetStatus/SetLog 是值接收器，对局部副本操作无效
 	task.Status = model.StatusExecuting
-	task.Command = ffmpegPath + " " + strings.Join(args, " ")
-	TransferTask[thisNow] = task
+	task.Command = ffmpegBinPath() + " " + strings.Join(args, " ")
+	TransferTask[taskKey] = task
 	TransferTaskMutex.Unlock()
 
-	utils.InfoFormat("执行命令: %v", task.Command)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
 
-	cmd := exec.Command(ffmpegPath, args...)
-	if runtime.GOOS == "windows" {
-		utils.FixOnWin(cmd)
-	}
-
-	out, cmdErr := cmd.CombinedOutput()
-
-	TransferTaskMutex.Lock()
-	task.Log = string(out)
-	task.FinishTime = time.Now()
+	out, cmdErr := ffmpegRun(ctx, args)
 
 	if cmdErr != nil {
-		task.Status = model.StatusFailed
-		TransferTask[thisNow] = task
-		TransferTaskMutex.Unlock()
-		notifyTaskChange()
-
+		updateTaskStatus(taskKey, model.StatusFailed, string(out))
 		utils.InfoFormat("命令执行失败: %v, 错误: %v, 参数: %v", string(out), cmdErr, args)
 		return utils.NewFailByMsg("转换失败")
 	}
 
-	task.Status = model.StatusCompleted
-	TransferTask[thisNow] = task
-	TransferTaskMutex.Unlock()
-	notifyTaskChange()
-
+	updateTaskStatus(taskKey, model.StatusCompleted, "")
 	return utils.NewSuccessByMsg("转换成功")
 }
