@@ -16,8 +16,8 @@ type Author struct {
 }
 
 // NewAuthor 创建作者聚合对象
-func NewAuthor(name string, url string, size int64) Author {
-	return Author{
+func NewAuthor(name string, url string, size int64) *Author {
+	return &Author{
 		Name:    name,
 		Url:     url,
 		Cnt:     1,

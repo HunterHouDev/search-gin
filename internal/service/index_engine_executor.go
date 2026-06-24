@@ -217,13 +217,13 @@ func (se *searchEngineCore) PageAuthor(searchParam model.SearchParam) model.Page
 	if searchParam.Keyword == "" {
 		result = make([]model.Author, 0, len(index.authorMap))
 		for _, author := range index.authorMap {
-			result = append(result, author)
+			result = append(result, *author)
 		}
 	} else {
 		result = make([]model.Author, 0)
 		for _, author := range index.authorMap {
 			if strings.Contains(author.Name, searchParam.Keyword) {
-				result = append(result, author)
+				result = append(result, *author)
 			}
 		}
 	}
@@ -273,7 +273,7 @@ func (se *searchEngineCore) FindById(id string) model.FileItem {
 func (se *searchEngineCore) FindAuthorByName(name string) model.Author {
 	index := se.loadIndex()
 	if a, ok := index.authorMap[name]; ok {
-		return a
+		return *a
 	}
 	return model.Author{}
 }

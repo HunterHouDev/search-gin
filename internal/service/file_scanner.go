@@ -1,8 +1,6 @@
 package service
 
 import (
-	"os"
-	"path/filepath"
 	"search-gin/internal/model"
 	"search-gin/pkg/utils"
 	"sync"
@@ -155,7 +153,7 @@ func (s *searchService) goWalkWithResult(baseDir string, types []string, resultC
 
 	LogMem.Add("goWalkWithResult: 开始扫描目录 %s", baseDir)
 	start := time.Now()
-	files, size := s.WalkInner(baseDir, types, true, baseDir)
+	files, size := WalkInner(baseDir, WalkOptions{Recursive: true, Types: types, RootDirs: []string{baseDir}})
 
 	LogMem.Add("goWalkWithResult: 扫描完成 %s, 发现 %d 个文件", baseDir, len(files))
 	// 更新已扫描文件计数
@@ -184,78 +182,14 @@ func (s *searchService) goWalkWithResult(baseDir string, types []string, resultC
 
 // Walk 遍历目录，获取指定类型文件列表（轻量版，不建索引）
 func (s *searchService) Walk(dirPath string, types []string, deep bool) []model.FileItem {
-	files, _ := s.WalkInner(dirPath, types, deep, dirPath)
+	files, _ := s.WalkDirWithCfg(dirPath, types, deep, dirPath)
 	return files
 }
 
-// WalkInner 递归遍历目录获取文件列表
-func (s *searchService) WalkInner(currentDir string, types []string, queryChild bool, basePath string) ([]model.FileItem, int64) {
-	typeSet := utils.ToSet(types)
-
-	// 预获取配置，避免循环内每次调用 s.settings.Get()（加锁 + 结构体拷贝）
+// WalkDirWithCfg 适配旧调用方，注入 settings.Dirs 后转发到包级 WalkInner。
+func (s *searchService) WalkDirWithCfg(currentDir string, types []string, queryChild bool, basePath string) ([]model.FileItem, int64) {
 	rootDirs := s.settings.Get().Dirs
-
-	dirStack := []stackItem{{path: currentDir, queryChild: queryChild, visited: false}}
-
-	var allFiles []model.FileItem
-	sizeMap := make(map[string]int64)
-	sizeMap[currentDir] = 0
-
-	for len(dirStack) > 0 {
-		current := dirStack[len(dirStack)-1]
-		dirStack = dirStack[:len(dirStack)-1]
-		currentPath := current.path
-		currentQueryChild := current.queryChild
-		visited := current.visited
-
-		if !visited {
-			files, err := os.ReadDir(currentPath)
-			if err != nil {
-				utils.InfoFormat("读取目录失败: %s, 错误: %v", currentPath, err)
-				continue
-			}
-
-			dirStack = append(dirStack, stackItem{path: currentPath, queryChild: currentQueryChild, visited: true})
-
-			for i := len(files) - 1; i >= 0; i-- {
-				f := files[i]
-				p := filepath.Join(currentPath, f.Name())
-
-				if f.IsDir() && currentQueryChild {
-					dirStack = append(dirStack, stackItem{path: p, queryChild: currentQueryChild, visited: false})
-					sizeMap[p] = 0
-				} else if !f.IsDir() {
-					name := f.Name()
-					suffix := utils.GetSuffix(name)
-
-					info, err := f.Info()
-					if err != nil {
-						utils.InfoFormat("获取文件信息失败: %s, 错误: %v", p, err)
-						continue
-					}
-					if utils.HasItemSet(typeSet, suffix) {
-						movie := model.EasyFile(currentPath, p, name, suffix,
-							info.Size(), info.ModTime(), basePath)
-						SetMovieNode(&movie)
-						allFiles = append(allFiles, movie)
-					}
-					sizeMap[currentPath] += info.Size()
-				}
-			}
-
-
-		} else {
-			currentSize := sizeMap[currentPath]
-			if currentSize <= 20000000 && utils.IndexOf(rootDirs, currentPath) < 0 {
-				AppendSmallDir(model.NewFileInfoFold(currentPath, currentSize, true))
-			}
-
-			if currentPath != currentDir {
-				parentPath := filepath.Dir(currentPath)
-				sizeMap[parentPath] += currentSize
-			}
-		}
-	}
-
-	return allFiles, sizeMap[currentDir]
+	return WalkInner(currentDir, WalkOptions{Recursive: queryChild, Types: types, RootDirs: rootDirs})
 }
+
+

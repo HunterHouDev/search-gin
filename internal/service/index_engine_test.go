@@ -494,7 +494,7 @@ func Test_returnRepeatSearch(t *testing.T) {
 func emptySearchIndex() *searchIndex {
 	return &searchIndex{
 		buckets:   make(map[string]*bucketFile),
-		authorMap: make(map[string]model.Author),
+		authorMap: make(map[string]*model.Author),
 	}
 }
 

@@ -23,7 +23,8 @@ func PostMovies(c *gin.Context) {
 	isRemote := c.GetHeader("X-Search-Gin-Remote") == "true"
 
 	if !isRemote && UseApp().search.IsEmpty() {
-		UseApp().files.ScanAll()
+		// 异步触发扫描，不阻塞当前请求——用户发起首搜时无需等待扫描完成
+		go UseApp().files.ScanAll()
 	}
 
 	searchParam := model.SearchParam{}

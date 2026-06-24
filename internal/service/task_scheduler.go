@@ -24,7 +24,7 @@ func wakeTaskScheduler() {
 	}
 }
 
-// HeartBeat 心跳定时扫描（goroutine 随进程退出，无需 cancel）
+// HeartBeat 心跳定时触发增量扫描（goroutine 随进程退出，无需 cancel）
 func (s *searchService) HeartBeat() {
 	ticker := time.NewTicker(180 * time.Second)
 	defer ticker.Stop()
@@ -34,7 +34,7 @@ func (s *searchService) HeartBeat() {
 			continue
 		}
 		for _, dir := range s.settings.Get().Dirs {
-			removeWalk(dir, true, s.settings.Get().Dirs)
+			s.ScanTarget(dir)
 		}
 	}
 }
@@ -158,11 +158,11 @@ type scanTask struct {
 }
 
 type taskQueue struct {
-	tasks     map[string]*scanTask
-	mutex     sync.Mutex
-	taskChan  chan *scanTask
-	engine    *searchEngineCore
-	settings  Settings
+	tasks    map[string]*scanTask
+	mutex    sync.Mutex
+	taskChan chan *scanTask
+	engine   *searchEngineCore
+	settings Settings
 	walkInner func(string, []string, bool, string) ([]model.FileItem, int64)
 }
 
@@ -223,7 +223,10 @@ func (q *taskQueue) executeTask(task *scanTask) {
 	queryTypes = utils.ExtendsItems(queryTypes, setting.DocsTypes)
 	queryTypes = utils.ExtendsItems(queryTypes, setting.ImageTypes)
 
-	files, _ := q.walkInner(task.baseDir, queryTypes, true, task.baseDir)
+	// 一次遍历：收集文件 + 清理空目录
+	dirs := setting.Dirs
+	files, _ := WalkInner(task.baseDir,
+		WalkOptions{Recursive: true, Types: queryTypes, RootDirs: dirs, IsCleanEmpty: true})
 	newBucket := newInstanceWithFiles(task.baseDir, files)
 	q.engine.rebuildWithBucketIncremental(task.baseDir, newBucket)
 

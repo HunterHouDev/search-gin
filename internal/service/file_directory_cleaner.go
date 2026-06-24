@@ -4,58 +4,104 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"search-gin/internal/model"
 	"search-gin/pkg/utils"
 	"strings"
 )
+
+// WalkOptions WalkInner 的控制参数
+type WalkOptions struct {
+	// 是否递归子目录
+	Recursive bool
+	// 文件类型白名单
+	Types    []string
+	// 根扫描目录列表（小目录检测 / 空目录清理时跳过这些目录自身）
+	RootDirs []string
+	// 是否清理空目录
+	IsCleanEmpty bool
+}
+
+// WalkInner 栈式后序遍历目录树，默认收集匹配文件，opts 控制是否递归和清理空目录。
+func WalkInner(baseDir string, opts WalkOptions) (allFiles []model.FileItem, dirSize int64) {
+	typeSet := utils.ToSet(opts.Types)
+	sizeMap := make(map[string]int64)
+
+	type dirState struct {
+		path      string
+		visited   bool
+		fileCount int
+	}
+	stack := []dirState{{path: baseDir, visited: false}}
+
+	for len(stack) > 0 {
+		cur := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+
+		if !cur.visited {
+			files, err := os.ReadDir(cur.path)
+			if err != nil {
+				utils.InfoFormat("读取目录失败: %s, 错误: %v", cur.path, err)
+				continue
+			}
+
+			var fileCount int
+			var subDirs []string
+			for _, f := range files {
+				p := filepath.Join(cur.path, f.Name())
+				if f.IsDir() {
+					subDirs = append(subDirs, p)
+				} else {
+					fileCount++
+					sizeMap[cur.path] = 0
+					name := f.Name()
+					suffix := utils.GetSuffix(name)
+					info, err := f.Info()
+					if err != nil {
+						utils.InfoFormat("获取文件信息失败: %s, 错误: %v", p, err)
+						continue
+					}
+					if utils.HasItemSet(typeSet, suffix) {
+						movie := model.EasyFile(cur.path, p, name, suffix,
+							info.Size(), info.ModTime(), baseDir)
+						SetMovieNode(&movie)
+						allFiles = append(allFiles, movie)
+					}
+					sizeMap[cur.path] += info.Size()
+				}
+			}
+
+			stack = append(stack, dirState{path: cur.path, visited: true, fileCount: fileCount})
+
+			if opts.Recursive && len(subDirs) > 0 {
+				for i := len(subDirs) - 1; i >= 0; i-- {
+					stack = append(stack, dirState{path: subDirs[i], visited: false})
+				}
+			}
+		} else {
+			if opts.IsCleanEmpty && cur.fileCount == 0 && utils.IndexOf(opts.RootDirs, cur.path) < 0 {
+				if err := os.Remove(cur.path); err != nil {
+					utils.InfoFormat("删除空目录失败: %s, 错误: %v", cur.path, err)
+				}
+			}
+			currentSize := sizeMap[cur.path]
+			if currentSize <= 20000000 && utils.IndexOf(opts.RootDirs, cur.path) < 0 {
+				AppendSmallDir(model.NewFileInfoFold(cur.path, currentSize, true))
+			}
+			if cur.path != baseDir {
+				parentPath := filepath.Dir(cur.path)
+				sizeMap[parentPath] += currentSize
+			}
+		}
+	}
+
+	return allFiles, sizeMap[baseDir]
+}
 
 // stackItem 目录遍历栈项
 type stackItem struct {
 	path       string
 	queryChild bool
 	visited    bool
-	fileCount  int // 缓存首次 ReadDir 结果，避免重复系统调用
-}
-
-// removeWalk 迭代方式删除空目录，跳过 excludeDirs 中的目录
-func removeWalk(baseDir string, deep bool, excludeDirs []string) {
-	dirStack := []stackItem{{path: baseDir, queryChild: deep, visited: false}}
-
-	for len(dirStack) > 0 {
-		current := dirStack[len(dirStack)-1]
-		dirStack = dirStack[:len(dirStack)-1]
-		currentDir := current.path
-		visited := current.visited
-
-		if !visited {
-			files, err := os.ReadDir(currentDir)
-			if err != nil {
-				utils.InfoFormat("读取目录失败: %s, 错误: %v", currentDir, err)
-				continue
-			}
-
-			if len(files) > 0 && current.queryChild {
-				dirStack = append(dirStack, stackItem{path: currentDir, queryChild: current.queryChild, visited: true, fileCount: len(files)})
-
-				for _, fi := range files {
-					pathAbs := filepath.Join(currentDir, fi.Name())
-					if fi.IsDir() {
-						dirStack = append(dirStack, stackItem{path: pathAbs, queryChild: current.queryChild, visited: false})
-					}
-				}
-			} else if len(files) == 0 && utils.IndexOf(excludeDirs, currentDir) < 0 {
-				if err := os.Remove(currentDir); err != nil {
-					utils.InfoFormat("删除空目录失败: %s, 错误: %v", currentDir, err)
-				}
-			}
-		} else {
-			// 使用缓存的 fileCount 判断，避免重复 ReadDir 系统调用
-			if current.fileCount == 0 && utils.IndexOf(excludeDirs, currentDir) < 0 {
-				if err := os.Remove(currentDir); err != nil {
-					utils.InfoFormat("删除空目录失败: %s, 错误: %v", currentDir, err)
-				}
-			}
-		}
-	}
 }
 
 // DeleteOne 删除指定文件夹下的指定文件名的文件

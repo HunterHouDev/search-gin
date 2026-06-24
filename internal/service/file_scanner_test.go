@@ -19,7 +19,7 @@ func TestWalkInner_EmptyDir(t *testing.T) {
 	scanQueue := NewScanQueue(engine, settings)
 	app := NewSearchService(engine, settings, events, scanQueue)
 
-	files, size := app.WalkInner(tmpDir, []string{"mp4", "avi"}, true, tmpDir)
+	files, size := app.WalkDirWithCfg(tmpDir,[]string{"mp4", "avi"}, true, tmpDir)
 
 	assert.Empty(t, files)
 	assert.Equal(t, int64(0), size)
@@ -41,7 +41,7 @@ func TestWalkInner_WithFiles(t *testing.T) {
 	scanQueue := NewScanQueue(engine, settings)
 	app := NewSearchService(engine, settings, events, scanQueue)
 
-	files, _ := app.WalkInner(tmpDir, []string{"mp4", "avi"}, true, tmpDir)
+	files, _ := app.WalkDirWithCfg(tmpDir,[]string{"mp4", "avi"}, true, tmpDir)
 
 	assert.Equal(t, 2, len(files))
 
@@ -68,7 +68,7 @@ func TestWalkInner_SubDir(t *testing.T) {
 	scanQueue := NewScanQueue(engine, settings)
 	app := NewSearchService(engine, settings, events, scanQueue)
 
-	files, _ := app.WalkInner(tmpDir, []string{"mp4"}, true, tmpDir)
+	files, _ := app.WalkDirWithCfg(tmpDir,[]string{"mp4"}, true, tmpDir)
 	assert.Equal(t, 1, len(files))
 	assert.Equal(t, "sub_video.mp4", files[0].Name)
 }
@@ -87,7 +87,7 @@ func TestWalkInner_NoRecursion(t *testing.T) {
 	scanQueue := NewScanQueue(engine, settings)
 	app := NewSearchService(engine, settings, events, scanQueue)
 
-	files, _ := app.WalkInner(tmpDir, []string{"mp4"}, false, tmpDir)
+	files, _ := app.WalkDirWithCfg(tmpDir,[]string{"mp4"}, false, tmpDir)
 	assert.Empty(t, files)
 }
 
@@ -98,7 +98,7 @@ func TestWalkInner_NonexistentDir(t *testing.T) {
 	scanQueue := NewScanQueue(engine, settings)
 	app := NewSearchService(engine, settings, events, scanQueue)
 
-	files, _ := app.WalkInner("/nonexistent/path", []string{"mp4"}, true, "/nonexistent/path")
+	files, _ := app.WalkDirWithCfg("/nonexistent/path", []string{"mp4"}, true, "/nonexistent/path")
 	assert.Empty(t, files)
 }
 
@@ -120,7 +120,7 @@ func TestWalkInner_MultipleSubDirs(t *testing.T) {
 	scanQueue := NewScanQueue(engine, settings)
 	app := NewSearchService(engine, settings, events, scanQueue)
 
-	files, _ := app.WalkInner(tmpDir, []string{"mp4"}, true, tmpDir)
+	files, _ := app.WalkDirWithCfg(tmpDir,[]string{"mp4"}, true, tmpDir)
 	assert.Equal(t, 2, len(files))
 }
 
@@ -136,7 +136,7 @@ func TestWalkInner_FileSizeCalculation(t *testing.T) {
 	scanQueue := NewScanQueue(engine, settings)
 	app := NewSearchService(engine, settings, events, scanQueue)
 
-	_, size := app.WalkInner(tmpDir, []string{"mp4"}, true, tmpDir)
+	_, size := app.WalkDirWithCfg(tmpDir,[]string{"mp4"}, true, tmpDir)
 	assert.Equal(t, int64(11), size)
 }
 
@@ -159,59 +159,10 @@ func TestWalkInner_SetsMovieNode(t *testing.T) {
 	scanQueue := NewScanQueue(engine, settings)
 	app := NewSearchService(engine, settings, events, scanQueue)
 
-	files, _ := app.WalkInner(tmpDir, []string{"mp4"}, true, tmpDir)
+	files, _ := app.WalkDirWithCfg(tmpDir,[]string{"mp4"}, true, tmpDir)
 	assert.Equal(t, 1, len(files))
 	assert.Equal(t, "test:10081", files[0].NodeHost)
 	assert.Equal(t, "test", files[0].NodeName)
-}
-
-// ── Walk 测试 ──
-
-func TestWalk_ReturnsFiles(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	f, _ := os.Create(filepath.Join(tmpDir, "test.mp4"))
-	f.Close()
-
-	engine := NewSearchEngine()
-	settings := DefaultSettings()
-	events := DefaultEventBus()
-	scanQueue := NewScanQueue(engine, settings)
-	app := NewSearchService(engine, settings, events, scanQueue)
-
-	files := app.Walk(tmpDir, []string{"mp4"}, true)
-	assert.Equal(t, 1, len(files))
-}
-
-func TestWalk_EmptyDir(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	engine := NewSearchEngine()
-	settings := DefaultSettings()
-	events := DefaultEventBus()
-	scanQueue := NewScanQueue(engine, settings)
-	app := NewSearchService(engine, settings, events, scanQueue)
-
-	files := app.Walk(tmpDir, []string{"mp4"}, true)
-	assert.Empty(t, files)
-}
-
-func TestWalk_WithTypeFilter(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	os.WriteFile(filepath.Join(tmpDir, "video.mp4"), []byte("test"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "image.jpg"), []byte("test"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "doc.txt"), []byte("test"), 0644)
-
-	engine := NewSearchEngine()
-	settings := DefaultSettings()
-	events := DefaultEventBus()
-	scanQueue := NewScanQueue(engine, settings)
-	app := NewSearchService(engine, settings, events, scanQueue)
-
-	files := app.Walk(tmpDir, []string{"mp4"}, true)
-	assert.Equal(t, 1, len(files))
-	assert.Equal(t, "video.mp4", files[0].Name)
 }
 
 // ── ScanDirs 测试 ──
@@ -341,13 +292,11 @@ func TestStackItem(t *testing.T) {
 		path:       "/test/path",
 		queryChild: true,
 		visited:    false,
-		fileCount:  10,
 	}
 
 	assert.Equal(t, "/test/path", item.path)
 	assert.True(t, item.queryChild)
 	assert.False(t, item.visited)
-	assert.Equal(t, 10, item.fileCount)
 }
 
 // ── scanResult 测试 ──

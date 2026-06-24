@@ -155,7 +155,7 @@ func (se *searchEngineCore) rebuildWithBucketIncremental(baseDir string, newBuck
 func buildIndexFromBuckets(buckets map[string]*bucketFile) *searchIndex {
 	index := &searchIndex{
 		buckets:     make(map[string]*bucketFile, len(buckets)),
-		authorMap:   make(map[string]model.Author),
+		authorMap:   make(map[string]*model.Author),
 		idIndex:     make(map[string]*model.FileItem, 5000),
 		typeMenu:    make(map[string]model.FileInfo),
 		tagMenu:     make(map[string]model.FileInfo),
@@ -224,12 +224,12 @@ func buildIndexFromBuckets(buckets map[string]*bucketFile) *searchIndex {
 
 // ── 增量操作辅助函数 ──────────────────────────────────────────────
 
-func cloneActorMap(src map[string]model.Author) map[string]model.Author {
-	dst := make(map[string]model.Author, len(src))
+func cloneActorMap(src map[string]*model.Author) map[string]*model.Author {
+	dst := make(map[string]*model.Author, len(src))
 	for k, v := range src {
 		images := make([]string, len(v.Images))
 		copy(images, v.Images)
-		dst[k] = model.Author{
+		dst[k] = &model.Author{
 			Name:    v.Name,
 			Url:     v.Url,
 			Cnt:     v.Cnt,
@@ -333,8 +333,6 @@ func subtractFileFromIndex(index *searchIndex, movie *model.FileItem) {
 			cur.MinusSize(movie.Size)
 			if cur.Cnt <= 0 {
 				delete(index.authorMap, movie.Author)
-			} else {
-				index.authorMap[movie.Author] = cur
 			}
 		}
 	}
@@ -398,7 +396,6 @@ func addFileToIndex(index *searchIndex, movie *model.FileItem) {
 			cur.PlusSize(movie.Size)
 			cur.AddImage(movie.Png)
 			cur.AddImage(movie.Jpg)
-			index.authorMap[movie.Author] = cur
 		} else {
 			index.authorMap[movie.Author] = model.NewAuthor(movie.Author, movie.Jpg, movie.Size)
 		}
@@ -570,7 +567,7 @@ func shallowCopyIndex(index *searchIndex) *searchIndex {
 		newBuckets[k] = v
 	}
 
-	newAuthorMap := make(map[string]model.Author, len(index.authorMap))
+	newAuthorMap := make(map[string]*model.Author, len(index.authorMap))
 	for k, v := range index.authorMap {
 		newAuthorMap[k] = v
 	}

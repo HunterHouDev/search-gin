@@ -27,7 +27,7 @@ type cacheBucket struct {
 type cacheData struct {
 	Buckets     []cacheBucket
 	RepeatFiles []model.FileItem
-	AuthorMap   map[string]model.Author
+	AuthorMap   map[string]*model.Author
 	TypeMenu    map[string]model.FileInfo
 	TagMenu     map[string]model.FileInfo
 	SeriesCount map[string]model.FileInfo
@@ -193,6 +193,7 @@ func (se *searchEngineCore) LoadCachedIndex() bool {
 	buckets := make(map[string]*bucketFile, len(data.Buckets))
 	var totalSize int64
 	var totalCount int
+	idIndex := make(map[string]*model.FileItem, 5000)
 	for _, cb := range data.Buckets {
 		b := &bucketFile{
 			InstanceName: cb.InstanceName,
@@ -204,6 +205,10 @@ func (se *searchEngineCore) LoadCachedIndex() bool {
 		buckets[cb.InstanceName] = b
 		totalSize += cb.TotalSize
 		totalCount += cb.TotalCount
+		// 重建 idIndex（O(n)，缓存启动时一次性执行）
+		for id, f := range cb.FileLib {
+			idIndex[id] = f
+		}
 	}
 
 	index := &searchIndex{
@@ -213,6 +218,7 @@ func (se *searchEngineCore) LoadCachedIndex() bool {
 		totalCount:  totalCount,
 		repeatFiles: data.RepeatFiles,
 		authorMap:   data.AuthorMap,
+		idIndex:     idIndex,
 		typeMenu:    data.TypeMenu,
 		tagMenu:     data.TagMenu,
 		seriesCount: data.SeriesCount,

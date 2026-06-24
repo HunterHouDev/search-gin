@@ -22,7 +22,7 @@ type searchIndex struct {
 	totalSize   int64
 	totalCount  int
 	repeatFiles []model.FileItem
-	authorMap   map[string]model.Author
+	authorMap   map[string]*model.Author
 
 	// idIndex 全局 ID → FileItem 指针，O(1) 查找（FindById 用）
 	idIndex map[string]*model.FileItem
@@ -59,7 +59,7 @@ func (se *searchEngineCore) loadIndex() *searchIndex {
 	if s == nil {
 		return &searchIndex{
 			buckets:     make(map[string]*bucketFile),
-			authorMap:   make(map[string]model.Author),
+			authorMap:   make(map[string]*model.Author),
 			idIndex:     make(map[string]*model.FileItem),
 			typeMenu:    make(map[string]model.FileInfo),
 			tagMenu:     make(map[string]model.FileInfo),
@@ -70,7 +70,7 @@ func (se *searchEngineCore) loadIndex() *searchIndex {
 	if !ok {
 		return &searchIndex{
 			buckets:     make(map[string]*bucketFile),
-			authorMap:   make(map[string]model.Author),
+			authorMap:   make(map[string]*model.Author),
 			idIndex:     make(map[string]*model.FileItem),
 			typeMenu:    make(map[string]model.FileInfo),
 			tagMenu:     make(map[string]model.FileInfo),

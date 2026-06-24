@@ -20,7 +20,6 @@ import (
 const (
 	maxConcurrentPeers  = 5
 	remoteSearchTimeout = 2 * time.Second
-	maxPageSize         = 99999 // 远程搜索获取全部结果
 )
 
 // PeerSearchResult 远程节点搜索结果
@@ -76,12 +75,7 @@ func SearchPeers(searchParam model.SearchParam) ([]model.FileItem, int, int64) {
 
 // searchPeer 向单个远程节点发送搜索请求
 func (p *Peer) searchPeer(searchParam model.SearchParam) (*PeerSearchResult, error) {
-	// 远程也用大 pageSize 获取全部结果，由请求端做最终分页
-	remoteParam := searchParam
-	remoteParam.Page = 1
-	remoteParam.PageSize = maxPageSize
-
-	reqBody, err := json.Marshal(remoteParam)
+	reqBody, err := json.Marshal(searchParam)
 	if err != nil {
 		return nil, fmt.Errorf("序列化请求参数失败: %w", err)
 	}

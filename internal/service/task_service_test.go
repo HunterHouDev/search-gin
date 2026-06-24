@@ -14,7 +14,7 @@ func TestMain(m *testing.M) {
 	events := DefaultEventBus()
 	scanQueue := NewScanQueue(engine, settings)
 	app := NewSearchService(engine, settings, events, scanQueue)
-	SetScanWalkInner(app.WalkInner)
+	SetScanWalkInner(app.WalkDirWithCfg)
 	InitService(engine, app)
 	os.Exit(m.Run())
 }

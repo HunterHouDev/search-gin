@@ -47,7 +47,7 @@ func main() {
 	// ── 3. 创建扫描队列并关联 searchService ──
 	scanQueue := service.NewScanQueue(engine, settings)
 	search := service.NewSearchService(engine, settings, events, scanQueue)
-	service.SetScanWalkInner(search.WalkInner)
+	service.SetScanWalkInner(search.WalkDirWithCfg)
 
 	// ── 4. 注册全局（内部函数仍需通过 getter 访问） ──
 	service.InitService(engine, search)
