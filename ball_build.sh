@@ -14,7 +14,7 @@ clean_dirs() {
 
     log "INFO" "清理 qapp/dist 和 qapp/log..."
     rm -rf qapp/dist qapp/log
-	cd .. || { log "ERROR" "无法返回上级目录"; exit 1;
+	cd .. || { log "ERROR" "无法返回上级目录"; exit 1; }
 }
 
 build_frontend() {
