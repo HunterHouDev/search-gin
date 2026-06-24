@@ -35,6 +35,8 @@ func (s *searchService) ScanAll() int {
 
 	ClearSmallDir()
 	InitFolderTime()
+	// 清空搜索引擎缓存
+	s.engine.ClearCache()
 
 	queryTypes := make([]string, 0)
 	queryTypes = utils.ExtendsItems(queryTypes, setting.VideoTypes)
@@ -119,28 +121,28 @@ func (s *searchService) ScanDirs(baseDir []string, types []string) map[string]*b
 }
 
 // Walks 并发扫描多文件夹并返回所有文件（扫描 + 重建索引）
-func (s *searchService) Walks(baseDir []string, types []string) []model.FileItem {
-	dirSize := len(baseDir)
+// func (s *searchService) Walks(baseDir []string, types []string) []model.FileItem {
+// 	dirSize := len(baseDir)
 
-	if dirSize == 0 {
-		return nil
-	}
+// 	if dirSize == 0 {
+// 		return nil
+// 	}
 
-	buckets := s.ScanDirs(baseDir, types)
+// 	buckets := s.ScanDirs(baseDir, types)
 
-	var result []model.FileItem
-	for _, b := range buckets {
-		for _, m := range b.FileLib {
-			result = append(result, *m)
-		}
-	}
+// 	var result []model.FileItem
+// 	for _, b := range buckets {
+// 		for _, m := range b.FileLib {
+// 			result = append(result, *m)
+// 		}
+// 	}
 
-	LogMem.Add("Walks: 准备重建索引")
-	s.engine.rebuildWithBuckets(buckets)
-	LogMem.Add("Walks: 索引重建完成")
+// 	LogMem.Add("Walks: 准备重建索引")
+// 	s.engine.rebuildWithBuckets(buckets)
+// 	LogMem.Add("Walks: 索引重建完成")
 
-	return result
-}
+// 	return result
+// }
 
 // goWalkWithResult 协程方法扫描单个文件夹并返回结果
 func (s *searchService) goWalkWithResult(baseDir string, types []string, resultChan chan<- scanResult) {
@@ -191,5 +193,3 @@ func (s *searchService) WalkDirWithCfg(currentDir string, types []string, queryC
 	rootDirs := s.settings.Get().Dirs
 	return WalkInner(currentDir, WalkOptions{Recursive: queryChild, Types: types, RootDirs: rootDirs})
 }
-
-

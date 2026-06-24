@@ -145,3 +145,15 @@ func (se *searchEngineCore) GetTotalSize() int64 {
 func (se *searchEngineCore) BucketCount() int32 {
 	return se.loadIndex().bucketCount
 }
+
+// ClearCache 清空所有运行时缓存：LRU 搜索结果缓存 + epoch + author 缓存 + repeats 脏标记
+// 不修改索引，只清除缓存数据，适用于 token 过期等场景
+func (se *searchEngineCore) ClearCache() {
+	se.KeywordHistoryCache.Clear()
+	se.cacheEpoch.Add(1)
+	se.authorCacheMu.Lock()
+	se.authorSizeCache = nil
+	se.authorCountCache = nil
+	se.authorCacheMu.Unlock()
+	se.repeatsDirty.Store(true)
+}

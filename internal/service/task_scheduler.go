@@ -158,11 +158,11 @@ type scanTask struct {
 }
 
 type taskQueue struct {
-	tasks    map[string]*scanTask
-	mutex    sync.Mutex
-	taskChan chan *scanTask
-	engine   *searchEngineCore
-	settings Settings
+	tasks     map[string]*scanTask
+	mutex     sync.Mutex
+	taskChan  chan *scanTask
+	engine    *searchEngineCore
+	settings  Settings
 	walkInner func(string, []string, bool, string) ([]model.FileItem, int64)
 }
 
@@ -216,6 +216,8 @@ func (q *taskQueue) executeTask(task *scanTask) {
 	defer IndexNumber.Add(-1)
 
 	LogMem.Add("开始扫描文件夹: %s", task.baseDir)
+	// 清空搜索引擎缓存
+	q.engine.ClearCache()
 
 	setting := q.settings.Get()
 	queryTypes := make([]string, 0)

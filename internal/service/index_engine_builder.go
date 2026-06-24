@@ -35,50 +35,50 @@ func (se *searchEngineCore) rebuildWithBuckets(entries map[string]*bucketFile) {
 }
 
 // rebuildWithBucket 用指定目录的新 bucket 构造新快照并原子替换
-func (se *searchEngineCore) rebuildWithBucket(baseDir string, newBucket *bucketFile) {
-	defer func() {
-		if r := recover(); r != nil {
-			LogMem.Add("rebuildWithBucket 异常: %v", r)
-			LogMem.Add("堆栈: %s", string(debug.Stack()))
-		}
-	}()
+// func (se *searchEngineCore) rebuildWithBucket(baseDir string, newBucket *bucketFile) {
+// 	defer func() {
+// 		if r := recover(); r != nil {
+// 			LogMem.Add("rebuildWithBucket 异常: %v", r)
+// 			LogMem.Add("堆栈: %s", string(debug.Stack()))
+// 		}
+// 	}()
 
-	se.rebuildMu.Lock()
-	defer se.rebuildMu.Unlock()
+// 	se.rebuildMu.Lock()
+// 	defer se.rebuildMu.Unlock()
 
-	LogMem.Add("rebuildWithBucket: 开始处理目录 %s", baseDir)
-	start := time.Now()
+// 	LogMem.Add("rebuildWithBucket: 开始处理目录 %s", baseDir)
+// 	start := time.Now()
 
-	dirs := GetOSSetting().Dirs
-	dirSet := make(map[string]struct{}, len(dirs))
-	for _, d := range dirs {
-		dirSet[d] = struct{}{}
-	}
+// 	dirs := GetOSSetting().Dirs
+// 	dirSet := make(map[string]struct{}, len(dirs))
+// 	for _, d := range dirs {
+// 		dirSet[d] = struct{}{}
+// 	}
 
-	old := se.loadIndex()
-	newBuckets := make(map[string]*bucketFile, len(old.buckets)+1)
-	for k, v := range old.buckets {
-		if k == baseDir {
-			continue
-		}
-		if _, ok := dirSet[k]; !ok {
-			continue
-		}
-		newBuckets[k] = v
-	}
-	if newBucket != nil && !newBucket.isEmpty() {
-		newBuckets[baseDir] = newBucket
-	}
+// 	old := se.loadIndex()
+// 	newBuckets := make(map[string]*bucketFile, len(old.buckets)+1)
+// 	for k, v := range old.buckets {
+// 		if k == baseDir {
+// 			continue
+// 		}
+// 		if _, ok := dirSet[k]; !ok {
+// 			continue
+// 		}
+// 		newBuckets[k] = v
+// 	}
+// 	if newBucket != nil && !newBucket.isEmpty() {
+// 		newBuckets[baseDir] = newBucket
+// 	}
 
-	LogMem.Add("rebuildWithBucket: bucket 数量 %d -> %d", len(old.buckets), len(newBuckets))
+// 	LogMem.Add("rebuildWithBucket: bucket 数量 %d -> %d", len(old.buckets), len(newBuckets))
 
-	newIndex := buildIndexFromBuckets(newBuckets)
-	se.installIndex(newIndex)
-	se.repeatsDirty.Store(false) // 全量重建已计算最新重复列表，清除脏标记
+// 	newIndex := buildIndexFromBuckets(newBuckets)
+// 	se.installIndex(newIndex)
+// 	se.repeatsDirty.Store(false) // 全量重建已计算最新重复列表，清除脏标记
 
-	ti := time.Since(start)
-	LogMem.Add("rebuildWithBucket: 完成, 耗时 %dms, 文件数 %d", ti.Milliseconds(), newIndex.totalCount)
-}
+// 	ti := time.Since(start)
+// 	LogMem.Add("rebuildWithBucket: 完成, 耗时 %dms, 文件数 %d", ti.Milliseconds(), newIndex.totalCount)
+// }
 
 // rebuildWithBucketIncremental 增量重建：只遍历变化的 bucket（O(变化量)）
 func (se *searchEngineCore) rebuildWithBucketIncremental(baseDir string, newBucket *bucketFile) {
@@ -497,8 +497,8 @@ func (se *searchEngineCore) flushPendingOps(ops []fileOp) {
 					continue
 				}
 				// 更新 bucket 数据
-					f := op.newFile
-					newBucket.FileLib[op.oldFile.Id] = &f
+				f := op.newFile
+				newBucket.FileLib[op.oldFile.Id] = &f
 				sizeDiff := op.newFile.Size - op.oldFile.Size
 				newBucket.TotalSize += sizeDiff
 				// 更新 TypeIndex
@@ -519,8 +519,8 @@ func (se *searchEngineCore) flushPendingOps(ops []fileOp) {
 					}
 				}
 				// 更新 index 级聚合
-					subtractFileFromIndex(newIndex, &op.oldFile)
-					addFileToIndex(newIndex, &op.newFile)
+				subtractFileFromIndex(newIndex, &op.oldFile)
+				addFileToIndex(newIndex, &op.newFile)
 				applied = true
 
 			case "delete":
