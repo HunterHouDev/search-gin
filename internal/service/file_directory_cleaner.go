@@ -13,10 +13,11 @@ type stackItem struct {
 	path       string
 	queryChild bool
 	visited    bool
+	fileCount  int // 缓存首次 ReadDir 结果，避免重复系统调用
 }
 
-// removeWalk 迭代方式删除空目录
-func removeWalk(baseDir string, deep bool) {
+// removeWalk 迭代方式删除空目录，跳过 excludeDirs 中的目录
+func removeWalk(baseDir string, deep bool, excludeDirs []string) {
 	dirStack := []stackItem{{path: baseDir, queryChild: deep, visited: false}}
 
 	for len(dirStack) > 0 {
@@ -33,7 +34,7 @@ func removeWalk(baseDir string, deep bool) {
 			}
 
 			if len(files) > 0 && current.queryChild {
-				dirStack = append(dirStack, stackItem{path: currentDir, queryChild: current.queryChild, visited: true})
+				dirStack = append(dirStack, stackItem{path: currentDir, queryChild: current.queryChild, visited: true, fileCount: len(files)})
 
 				for _, fi := range files {
 					pathAbs := filepath.Join(currentDir, fi.Name())
@@ -41,13 +42,14 @@ func removeWalk(baseDir string, deep bool) {
 						dirStack = append(dirStack, stackItem{path: pathAbs, queryChild: current.queryChild, visited: false})
 					}
 				}
-			} else if len(files) == 0 {
+			} else if len(files) == 0 && utils.IndexOf(excludeDirs, currentDir) < 0 {
 				if err := os.Remove(currentDir); err != nil {
 					utils.InfoFormat("删除空目录失败: %s, 错误: %v", currentDir, err)
 				}
 			}
 		} else {
-			if files, err := os.ReadDir(currentDir); err == nil && len(files) == 0 {
+			// 使用缓存的 fileCount 判断，避免重复 ReadDir 系统调用
+			if current.fileCount == 0 && utils.IndexOf(excludeDirs, currentDir) < 0 {
 				if err := os.Remove(currentDir); err != nil {
 					utils.InfoFormat("删除空目录失败: %s, 错误: %v", currentDir, err)
 				}

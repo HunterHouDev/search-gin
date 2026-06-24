@@ -38,10 +38,10 @@ func Login(c *gin.Context) {
 }
 
 func requireAdmin(c *gin.Context) bool {
-	role, _ := c.Get("role")
-	username, _ := c.Get("username")
-	r, _ := role.(string)
-	u, _ := username.(string)
+	roleVal, _ := c.Get("role")
+	usernameVal, _ := c.Get("username")
+	r, _ := roleVal.(string)
+	u, _ := usernameVal.(string)
 	utils.InfoFormat("requireAdmin 检查: role=%q(username=%q), RequireAdminWithName=%v", r, u, service.RequireAdminWithName(r, u))
 
 	// 兼容旧 token：中间件未设 role/username 时放行（已通过认证即合法）

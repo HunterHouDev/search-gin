@@ -34,7 +34,7 @@ func (s *searchService) HeartBeat() {
 			continue
 		}
 		for _, dir := range s.settings.Get().Dirs {
-			removeWalk(dir, true)
+			removeWalk(dir, true, s.settings.Get().Dirs)
 		}
 	}
 }
@@ -114,17 +114,26 @@ func (s *searchService) pollTasks() {
 	if pendingTrans != nil && !hasExecTrans {
 		LogMem.Add("pollTasks: 启动转码任务 CreateTime=%v, path=%s", pendingTrans.CreateTime, pendingTrans.Path)
 		markTaskExecuting(pendingTrans.CreateTime)
-		go TransferFormatter(*pendingTrans)
+		go func() {
+			defer utils.RecoverPanic()
+			TransferFormatter(*pendingTrans)
+		}()
 	}
 	if pendingCut != nil && !hasExecCut {
 		LogMem.Add("pollTasks: 启动分切任务 CreateTime=%v, path=%s", pendingCut.CreateTime, pendingCut.Path)
 		markTaskExecuting(pendingCut.CreateTime)
-		go CutFormatter(*pendingCut)
+		go func() {
+			defer utils.RecoverPanic()
+			CutFormatter(*pendingCut)
+		}()
 	}
 	if pendingMerge != nil && !hasExecMerge {
 		LogMem.Add("pollTasks: 启动合并任务 CreateTime=%v, path=%s", pendingMerge.CreateTime, pendingMerge.Path)
 		markTaskExecuting(pendingMerge.CreateTime)
-		go MergeFiles(*pendingMerge)
+		go func() {
+			defer utils.RecoverPanic()
+			MergeFiles(*pendingMerge)
+		}()
 	}
 }
 

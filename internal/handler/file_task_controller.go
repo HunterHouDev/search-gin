@@ -117,3 +117,18 @@ func GetCutMovie(c *gin.Context) {
 	utils.InfoFormat("GetCutMovie [%v][%v][%v]", id, start, end)
 	c.JSON(http.StatusOK, service.CreateCutTask(id, start, end))
 }
+
+// PostClearCompletedTasks 清除所有已完成任务
+func PostClearCompletedTasks(c *gin.Context) {
+	c.JSON(http.StatusOK, service.ClearCompletedTasks())
+}
+
+// PostClearFailedTasks 清除所有失败任务
+func PostClearFailedTasks(c *gin.Context) {
+	c.JSON(http.StatusOK, service.ClearFailedTasks())
+}
+
+// PostClearAllTasks 清除所有任务（执行中的除外）
+func PostClearAllTasks(c *gin.Context) {
+	c.JSON(http.StatusOK, service.ClearAllTasks())
+}

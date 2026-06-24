@@ -192,6 +192,9 @@ func (s *searchService) Walk(dirPath string, types []string, deep bool) []model.
 func (s *searchService) WalkInner(currentDir string, types []string, queryChild bool, basePath string) ([]model.FileItem, int64) {
 	typeSet := utils.ToSet(types)
 
+	// 预获取配置，避免循环内每次调用 s.settings.Get()（加锁 + 结构体拷贝）
+	rootDirs := s.settings.Get().Dirs
+
 	dirStack := []stackItem{{path: currentDir, queryChild: queryChild, visited: false}}
 
 	var allFiles []model.FileItem
@@ -240,23 +243,10 @@ func (s *searchService) WalkInner(currentDir string, types []string, queryChild 
 				}
 			}
 
-			if len(files) == 0 {
-				if emptyFile, err := os.Stat(currentPath); err == nil {
-					yesterday := time.Now().AddDate(0, 0, -1)
-					modDate := time.Date(emptyFile.ModTime().Year(), emptyFile.ModTime().Month(), emptyFile.ModTime().Day(), 0, 0, 0, 0, time.Local)
-					yesterdayDate := time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), 0, 0, 0, 0, time.Local)
-					if modDate.Equal(yesterdayDate) {
-						if utils.IndexOf(s.settings.Get().Dirs, currentPath) < 0 {
-							if err := os.RemoveAll(currentPath); err != nil {
-								utils.InfoFormat("删除空目录失败: %s, 错误: %v", currentPath, err)
-							}
-						}
-					}
-				}
-			}
+
 		} else {
 			currentSize := sizeMap[currentPath]
-			if currentSize <= 20000000 && utils.IndexOf(s.settings.Get().Dirs, currentPath) < 0 {
+			if currentSize <= 20000000 && utils.IndexOf(rootDirs, currentPath) < 0 {
 				AppendSmallDir(model.NewFileInfoFold(currentPath, currentSize, true))
 			}
 

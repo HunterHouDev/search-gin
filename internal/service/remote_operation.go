@@ -73,7 +73,7 @@ func forwardRequest(targetURL string, c *gin.Context) (*http.Response, error) {
 	}
 
 	for k, v := range c.Request.Header {
-		if k != "Host" {
+		if k != "Host" && k != "Content-Length" && k != "Transfer-Encoding" {
 			req.Header[k] = v
 		}
 	}
@@ -82,6 +82,9 @@ func forwardRequest(targetURL string, c *gin.Context) (*http.Response, error) {
 	if token := c.GetHeader("Authorization"); token != "" {
 		req.Header.Set("Authorization", token)
 	}
+
+	// 设置正确的 Content-Length
+	req.ContentLength = int64(len(bodyBytes))
 
 	req.URL.RawQuery = c.Request.URL.RawQuery
 

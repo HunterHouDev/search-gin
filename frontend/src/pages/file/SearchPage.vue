@@ -738,7 +738,7 @@
     <Screenshot ref="fileCutImageRef" @next-one="viewNextOne('cut')" @prev-one="viewPrevOne('cut')"
       @hide="view.currentDataInEditor = {}" @close="
         () => {
-          window.location.reload();
+          fetchSearch();
         }
       " />
     <q-dialog v-model="moveView.targetPathDialog" title="移动文件">
@@ -1264,10 +1264,16 @@ const playByPage = (item) => {
 
 const searchCode = (item) => {
   let vcode = item.Code;
+  if (!vcode) {
+    return;
+  }
   vcode = vcode.replace(/[\r\n\t]+/g, '');
   vcode = vcode.replace(/&nbsp;/g, '');
   vcode = vcode.trimEnd();
   const itemCode = vcode.match(reg);
+  if (!itemCode) {
+    return;
+  }
   if (itemCode.indexOf('-C') > 0) {
     itemCode = itemCode.substring(0, itemCode.indexOf('-C'));
   }

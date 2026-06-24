@@ -81,6 +81,8 @@ func (se *searchEngineCore) doSearch(index *searchIndex, p model.SearchParam) mo
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	// stopped 在 collectResults 返回后关闭，通知所有生产者停止发送结果
+	stopped := make(chan struct{})
 	resultChan := make(chan model.PageResultWrapper, bucketCount*2)
 
 	// 分发搜索
@@ -100,6 +102,7 @@ func (se *searchEngineCore) doSearch(index *searchIndex, p model.SearchParam) mo
 				select {
 				case resultChan <- w:
 				case <-ctx.Done():
+				case <-stopped:
 				}
 			}
 		})
@@ -108,11 +111,17 @@ func (se *searchEngineCore) doSearch(index *searchIndex, p model.SearchParam) mo
 	go func() {
 		defer utils.RecoverPanic()
 		se.searchPool.Wait()
-		close(resultChan)
+		// 若已超时（stopped 已关闭），不再关闭 resultChan
+		select {
+		case <-stopped:
+		default:
+			close(resultChan)
+		}
 	}()
 
 	// 收集结果
 	se.collectResults(&wrapper, resultChan, ctx)
+	close(stopped) // 通知所有生产者停止发送
 
 	model.SortFileItems(wrapper.FileList, p.SortField, p.SortType)
 
@@ -137,21 +146,21 @@ loop:
 			w.SearchCount += len(data.FileList)
 			w.SearchSize += data.Size
 		case <-ctx.Done():
-			LogMem.Add("搜索超时，部分结果可能未返回")
-			drainDone := make(chan struct{})
-			go func() {
-				defer utils.RecoverPanic()
-				se.searchPool.Wait()
-				close(drainDone)
-			}()
-			select {
-			case <-drainDone:
-			case <-time.After(5 * time.Second):
-			}
-			for data := range ch {
-				w.FileList = append(w.FileList, data.FileList...)
-				w.SearchCount += len(data.FileList)
-				w.SearchSize += data.Size
+			LogMem.Add("搜索超时，返回部分结果")
+			// 超时后尽力收集已在 channel 中的结果，不等待正在执行的 goroutine
+			for done := false; !done; {
+				select {
+				case data, ok := <-ch:
+					if !ok {
+						done = true
+						break
+					}
+					w.FileList = append(w.FileList, data.FileList...)
+					w.SearchCount += len(data.FileList)
+					w.SearchSize += data.Size
+				default:
+					done = true
+				}
 			}
 			break loop
 		}
@@ -251,17 +260,11 @@ func buildAuthorResult(authors []model.Author, param model.SearchParam) model.Pa
 
 // ── 查询方法 ──────────────────────────────────────────────────────
 
-// FindById 查找文件
+// FindById O(1) 查找文件，使用 idIndex 全局索引替代全桶线性扫描
 func (se *searchEngineCore) FindById(id string) model.FileItem {
 	index := se.loadIndex()
-	for _, bucket := range index.buckets {
-		if bucket.isEmpty() {
-			continue
-		}
-		result := bucket.get(id)
-		if result != nil {
-			return *result
-		}
+	if f, ok := index.idIndex[id]; ok {
+		return *f
 	}
 	return model.FileItem{}
 }

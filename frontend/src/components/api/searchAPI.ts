@@ -70,6 +70,21 @@ export const DelTransferTasksInfo = async (create: string) => {
   return res && res.data;
 };
 
+export const ClearCompletedTasks = async () => {
+  const res = await commonAxios().post('/api/clearCompletedTasks');
+  return res && res.data;
+};
+
+export const ClearFailedTasks = async () => {
+  const res = await commonAxios().post('/api/clearFailedTasks');
+  return res && res.data;
+};
+
+export const ClearAllTasks = async () => {
+  const res = await commonAxios().post('/api/clearAllTasks');
+  return res && res.data;
+};
+
 export const TansferFileVcode = async (data: string, vcode: string) => {
   const res = await commonAxios().get(`/api/tranferToMp4/${data}/${vcode}`);
   return res && res.data;

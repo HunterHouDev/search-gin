@@ -32,27 +32,16 @@ func NewLRUCache(capacity int) *LRUCache {
 	}
 }
 
-// Get 获取缓存值（读锁查找 + 写锁移动双检，降低锁竞争）
+// Get 获取缓存值（只读锁查找，不移到链表头部以避免写锁竞争）
+// Set 时已保证新元素在链表头部，Get 读并发性能优于标准 LRU 实现
 func (c *LRUCache) Get(key string) (interface{}, bool) {
 	c.mu.RLock()
-	_, ok := c.cache[key]
-	if !ok {
-		c.mu.RUnlock()
-		return nil, false
-	}
-	c.mu.RUnlock()
+	defer c.mu.RUnlock()
 
-	// 写锁下再次确认 + 移到链表头部
-	c.mu.Lock()
-	// double-check：在获取写锁后重新确认元素仍有效
 	element, ok := c.cache[key]
 	if !ok {
-		c.mu.Unlock()
 		return nil, false
 	}
-	c.list.MoveToFront(element)
-	c.mu.Unlock()
-
 	return element.Value.(*CacheItem).Value, true
 }
 

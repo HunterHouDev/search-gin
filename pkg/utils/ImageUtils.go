@@ -30,7 +30,7 @@ func ImageToPng(src string) error {
 	defer func(fin *os.File) {
 		err := fin.Close()
 		if err != nil {
-
+			InfoFormat("ImageToPng: 关闭源文件失败: %v", err)
 		}
 	}(fin)
 	fout, createErr := os.Create(des)
@@ -41,7 +41,7 @@ func ImageToPng(src string) error {
 	defer func(fout *os.File) {
 		err := fout.Close()
 		if err != nil {
-
+			InfoFormat("ImageToPng: 关闭目标文件失败: %v", err)
 		}
 	}(fout)
 	srcImage, fm, err := image.Decode(fin)
@@ -71,14 +71,22 @@ func ImageToPng(src string) error {
 	case "png":
 		switch srcImage.(type) {
 		case *image.NRGBA:
-			img := srcImage.(*image.NRGBA)
+			img, ok := srcImage.(*image.NRGBA)
+			if !ok {
+				InfoFormat("ImageToPng: png NRGBA 类型断言失败")
+				return nil
+			}
 			subImg, ok := img.SubImage(image.Rect(left, 0, width, height)).(*image.NRGBA)
 			if !ok {
 				return nil
 			}
 			return png.Encode(fout, subImg)
 		case *image.RGBA:
-			img := srcImage.(*image.RGBA)
+			img, ok := srcImage.(*image.RGBA)
+			if !ok {
+				InfoFormat("ImageToPng: png RGBA 类型断言失败")
+				return nil
+			}
 			subImg, ok := img.SubImage(image.Rect(left, 0, width, height)).(*image.RGBA)
 			if !ok {
 				return nil

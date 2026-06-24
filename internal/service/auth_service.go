@@ -135,18 +135,6 @@ func CleanExpiredTokens() {
 	}
 }
 
-// startTokenCleanup 启动定时清理过期 token
-func startTokenCleanup() {
-	go func() {
-		defer utils.RecoverPanic()
-		ticker := time.NewTicker(30 * time.Minute)
-		defer ticker.Stop()
-		for range ticker.C {
-			CleanExpiredTokens()
-		}
-	}()
-}
-
 // ─── 登录服务 ───────────────────────────────────────────────────
 
 // LoginResult 登录结果

@@ -58,7 +58,7 @@ func InitSearchPool() {
 		poolSize = 50
 	}
 	GetEngine().searchPool = utils.NewGoroutinePool(poolSize)
-	GetEngine().KeywordHistoryCache = utils.NewLRUCache(20)
+	GetEngine().KeywordHistoryCache = utils.NewLRUCache(500)
 }
 
 // InitPeerManager 初始化节点管理器，从配置加载静态节点
@@ -123,7 +123,10 @@ func StartTorrentCleanup(workDir string) func() {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go TorrentApp.StartCleanup(ctx)
+	go func() {
+		defer utils.RecoverPanic()
+		TorrentApp.StartCleanup(ctx)
+	}()
 
 	return func() {
 		cancel()

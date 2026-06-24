@@ -156,6 +156,7 @@ func buildIndexFromBuckets(buckets map[string]*bucketFile) *searchIndex {
 	index := &searchIndex{
 		buckets:     make(map[string]*bucketFile, len(buckets)),
 		authorMap:   make(map[string]model.Author),
+		idIndex:     make(map[string]*model.FileItem, 5000),
 		typeMenu:    make(map[string]model.FileInfo),
 		tagMenu:     make(map[string]model.FileInfo),
 		seriesCount: make(map[string]model.FileInfo),
@@ -323,6 +324,9 @@ func subtractFileFromIndex(index *searchIndex, movie *model.FileItem) {
 	index.totalCount--
 	index.totalSize -= movie.Size
 
+	// 维护全局 ID 索引
+	delete(index.idIndex, movie.Id)
+
 	if len(movie.Author) > 0 {
 		if cur, ok := index.authorMap[movie.Author]; ok {
 			cur.MinusCnt()
@@ -382,6 +386,11 @@ func subtractFileFromIndex(index *searchIndex, movie *model.FileItem) {
 func addFileToIndex(index *searchIndex, movie *model.FileItem) {
 	index.totalCount++
 	index.totalSize += movie.Size
+
+	// 维护全局 ID 索引
+	if movie.Id != "" {
+		index.idIndex[movie.Id] = movie
+	}
 
 	if len(movie.Author) > 0 {
 		if cur, ok := index.authorMap[movie.Author]; ok {
@@ -581,6 +590,12 @@ func shallowCopyIndex(index *searchIndex) *searchIndex {
 		newSeriesCount[k] = v
 	}
 
+	// 浅拷贝 idIndex：共享底层 FileItem 指针（bucket 未 clone 时数据一致）
+	newIdIndex := make(map[string]*model.FileItem, len(index.idIndex))
+	for k, v := range index.idIndex {
+		newIdIndex[k] = v
+	}
+
 	return &searchIndex{
 		buckets:     newBuckets,
 		bucketCount: index.bucketCount,
@@ -588,6 +603,7 @@ func shallowCopyIndex(index *searchIndex) *searchIndex {
 		totalCount:  index.totalCount,
 		repeatFiles: index.repeatFiles,
 		authorMap:   newAuthorMap,
+		idIndex:     newIdIndex,
 		typeMenu:    newTypeMenu,
 		tagMenu:     newTagMenu,
 		seriesCount: newSeriesCount,

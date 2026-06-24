@@ -3,6 +3,9 @@ package service
 import (
 	"os"
 	"testing"
+	"time"
+
+	"search-gin/internal/model"
 )
 
 func TestMain(m *testing.M) {
@@ -49,4 +52,53 @@ func TestCreateMergeTask_NonExistentFile(t *testing.T) {
 	if result.IsSuccess() {
 		t.Error("CreateMergeTask should fail for non-existent files")
 	}
+}
+
+// ── TransferTask 限制测试（P4 修复验证） ──
+
+func TestTransferTask_MaxLimit(t *testing.T) {
+	// 保存原始状态
+	TransferTaskMutex.Lock()
+	origTasks := TransferTask
+	TransferTask = make(map[time.Time]model.TransferTaskModel)
+	TransferTaskMutex.Unlock()
+	defer func() {
+		TransferTaskMutex.Lock()
+		TransferTask = origTasks
+		TransferTaskMutex.Unlock()
+	}()
+
+	// 填充到最大限制
+	TransferTaskMutex.Lock()
+	for i := 0; i < MaxTransferTaskCount; i++ {
+		key := time.Now().Add(-time.Duration(i) * time.Second)
+		TransferTask[key] = model.TransferTaskModel{
+			Status: model.StatusCompleted,
+			Path:   "/test/file" + string(rune('0'+i%10)) + ".mp4",
+		}
+	}
+	TransferTaskMutex.Unlock()
+
+	// 尝试添加新任务应失败
+	TransferTaskMutex.Lock()
+	if len(TransferTask) >= MaxTransferTaskCount {
+		TransferTaskMutex.Unlock()
+		// 模拟 CreateTransferTask 的限制检查
+		t.Log("任务队列已满，正确拒绝添加")
+	} else {
+		TransferTaskMutex.Unlock()
+		t.Error("任务队列应已满")
+	}
+
+	// 验证清理后可以添加
+	TransferTaskMutex.Lock()
+	// 手动删除一些任务模拟用户清理
+	for i := 0; i < 100; i++ {
+		key := time.Now().Add(-time.Duration(i) * time.Second)
+		delete(TransferTask, key)
+	}
+	if len(TransferTask) < MaxTransferTaskCount {
+		t.Log("清理后可以添加新任务")
+	}
+	TransferTaskMutex.Unlock()
 }

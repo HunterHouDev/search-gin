@@ -174,6 +174,14 @@ export const useSystemProperty = defineStore({
       } else {
         this.SearchWords[Keyword] = 1;
       }
+      // 限制 SearchWords 大小，保留最近 200 个关键词
+      const keys = Object.keys(this.SearchWords);
+      if (keys.length > 200) {
+        const sorted = keys.sort((a, b) => this.SearchWords[a] - this.SearchWords[b]);
+        for (let i = 0; i < 50; i++) {
+          delete this.SearchWords[sorted[i]];
+        }
+      }
     },
     setSettingInfo(settingInfo: SettingInfo) {
       this.SettingInfo = settingInfo;
@@ -238,6 +246,14 @@ export const useSystemProperty = defineStore({
     },
     savePlayTime(id: string) {
       this.videoPlayTimes[id] = Date.now();
+      // 限制 videoPlayTimes 大小，保留最近 500 条
+      const keys = Object.keys(this.videoPlayTimes);
+      if (keys.length > 500) {
+        const sorted = keys.sort((a, b) => this.videoPlayTimes[a] - this.videoPlayTimes[b]);
+        for (let i = 0; i < 100; i++) {
+          delete this.videoPlayTimes[sorted[i]];
+        }
+      }
     },
     getPlayTime(id: string) {
       return this.videoPlayTimes[id] || null;

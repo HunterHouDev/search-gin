@@ -85,7 +85,10 @@ func main() {
 	fileRouter := router.BuildFileRouter()
 
 	// ── 14. 加载前端静态文件（等待解压完成） ──
-	go loadStaticFiles(apiRouter, workDir, assetsExtracted)
+	go func() {
+		defer utils.RecoverPanic()
+		loadStaticFiles(apiRouter, workDir, assetsExtracted)
+	}()
 
 	// ── 15. 启动后台任务 ──
 	service.StartBackgroundTasks()

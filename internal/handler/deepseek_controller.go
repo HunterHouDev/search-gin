@@ -91,7 +91,10 @@ func PostChatDeepSeek(c *gin.Context) {
 		c.Data(resp.StatusCode, "application/json; charset=utf-8", respBytes)
 		return
 	}
-	content, _ := message["content"].(string)
+	content, ok := message["content"].(string)
+	if !ok {
+		content = ""
+	}
 
 	result := utils.NewSuccess()
 	result.Data = content

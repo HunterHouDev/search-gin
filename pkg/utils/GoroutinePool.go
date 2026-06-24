@@ -29,7 +29,14 @@ func NewGoroutinePool(capacity int) *GoroutinePool {
 	for i := 0; i < capacity; i++ {
 		go func() {
 			for job := range pool.jobs {
-				job()
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							InfoFormat("GoroutinePool: 任务 panic 已恢复: %v", r)
+						}
+					}()
+					job()
+				}()
 			}
 		}()
 	}

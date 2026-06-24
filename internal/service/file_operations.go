@@ -82,6 +82,13 @@ func (s *searchService) AddTag(id string, tag string) utils.Result {
 		return s.notifyFileChanged(movie, updated, "tag_change")
 	}
 
+	tag = strings.TrimSpace(tag)
+	if tag == "" {
+		res := utils.NewSuccessByMsg("标签为空，跳过")
+		res.Data = movie
+		return res
+	}
+
 	suffix := "." + utils.GetSuffix(movie.Path)
 	newFilePath := strings.ReplaceAll(movie.Path, suffix, "《"+tag+"》"+suffix)
 	newFilePath = strings.ReplaceAll(newFilePath, "《》", "")
@@ -103,13 +110,21 @@ func (s *searchService) ClearTag(id string, tag string) utils.Result {
 		return res
 	}
 
+	// 按逗号分割后精确匹配，避免子串误删（如清除 "comedy" 时误伤 "comedy-drama"）
 	originTagStr := utils.GetTagStr(movie.Path)
-	newTagStr := strings.ReplaceAll(originTagStr, tag, "")
-	if len(movie.Tags) == 1 {
-		newTagStr = ""
+	originalTags := strings.Split(originTagStr, ",")
+	var remaining []string
+	for _, t := range originalTags {
+		if strings.TrimSpace(t) != strings.TrimSpace(tag) {
+			remaining = append(remaining, t)
+		}
 	}
-	newTagStr = strings.TrimSuffix(newTagStr, ",")
-	newTagStr = strings.TrimPrefix(newTagStr, ",")
+
+	var newTagStr string
+	if len(remaining) > 0 {
+		newTagStr = strings.Join(remaining, ",")
+	}
+
 	var path string
 	if newTagStr == "" {
 		suffix := "." + utils.GetSuffix(movie.Path)

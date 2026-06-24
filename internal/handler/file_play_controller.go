@@ -57,7 +57,9 @@ func GetPlay(c *gin.Context) {
 			cmd := exec.Command(ffplayPath, params...)
 			if err := cmd.Start(); err != nil {
 				utils.InfoFormat("播放失败: %v, 错误: %v", sanitizePath, err)
+				return
 			}
+			_ = cmd.Wait()
 		}()
 		c.JSON(http.StatusOK, utils.NewSuccessByMsg("播放成功"))
 	} else if setting.SystemPlayer != "" {

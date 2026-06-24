@@ -97,6 +97,8 @@ func detectHwAccel() {
 func getH264Encoder() string {
 	if GetOSSetting().HardwareAcceleration {
 		detectHwAccel()
+		hwAccel.mu.Lock()
+		defer hwAccel.mu.Unlock()
 		if hwAccel.h264 != "" {
 			return hwAccel.h264
 		}
@@ -108,6 +110,8 @@ func getH264Encoder() string {
 func getH265Encoder() string {
 	if GetOSSetting().HardwareAcceleration {
 		detectHwAccel()
+		hwAccel.mu.Lock()
+		defer hwAccel.mu.Unlock()
 		if hwAccel.h265 != "" {
 			return hwAccel.h265
 		}
@@ -117,6 +121,8 @@ func getH265Encoder() string {
 
 // GetHwAccelModeName 暴露硬件加速模式名称给外部
 func GetHwAccelModeName() string {
+	hwAccel.mu.Lock()
+	defer hwAccel.mu.Unlock()
 	return hwAccel.mode
 }
 
@@ -124,6 +130,8 @@ func GetHwAccelModeName() string {
 func getHwDecodeParams() string {
 	if GetOSSetting().HardwareAcceleration {
 		detectHwAccel()
+		hwAccel.mu.Lock()
+		defer hwAccel.mu.Unlock()
 		if hwAccel.dec != "" {
 			return hwAccel.dec
 		}
@@ -135,6 +143,8 @@ func getHwDecodeParams() string {
 func getHwQualityParam() string {
 	if GetOSSetting().HardwareAcceleration {
 		detectHwAccel()
+		hwAccel.mu.Lock()
+		defer hwAccel.mu.Unlock()
 		if hwAccel.h264 != "" || hwAccel.h265 != "" {
 			return "-q"
 		}

@@ -136,9 +136,32 @@ func (fs *bucketFile) searchBucket(searchParam model.SearchParam) model.PageResu
 		keywords = strings.Fields(strings.ToUpper(keyWord))
 	}
 
+	// 预解析日期过滤器（避免每个文件都解析一次）
+	var dateFrom, dateTo *time.Time
+	if searchParam.DateFrom != "" {
+		if t, err := time.Parse("2006-01-02", searchParam.DateFrom); err == nil {
+			dateFrom = &t
+		}
+	}
+	if searchParam.DateTo != "" {
+		if t, err := time.Parse("2006-01-02", searchParam.DateTo); err == nil {
+			toEnd := t.Add(24*time.Hour - time.Nanosecond)
+			dateTo = &toEnd
+		}
+	}
+
+	// 预处理扩展名集合（O(1) 查找替代线性扫描）
+	var extSet map[string]struct{}
+	if len(searchParam.FileExts) > 0 {
+		extSet = make(map[string]struct{}, len(searchParam.FileExts))
+		for _, ext := range searchParam.FileExts {
+			extSet[strings.ToLower(ext)] = struct{}{}
+		}
+	}
+
 	// 定义公共过滤函数：同时检查关键词 + 高级过滤
 	filter := func(file *model.FileItem) bool {
-		if !matchAdvancedFilters(file, searchParam) {
+		if !matchAdvancedFiltersFast(file, searchParam.MinSize, searchParam.MaxSize, dateFrom, dateTo, extSet) {
 			return false
 		}
 		if keywords == nil {
@@ -147,9 +170,10 @@ func (fs *bucketFile) searchBucket(searchParam model.SearchParam) model.PageResu
 		return matchKeywords(file, keywords)
 	}
 
-	fs.mu.RLock()
-
+	// 快照模式：先拷贝指针列表后释放锁，过滤在锁外执行
+	// 避免搜索持读锁时间过长阻塞文件操作（clone 需写锁）
 	if movieType != "" && movieType != model.UndefinedStr {
+		fs.mu.RLock()
 		if fileIds, ok := fs.TypeIndex[movieType]; ok {
 			for id := range fileIds {
 				if file, ok := fs.FileLib[id]; ok {
@@ -159,15 +183,27 @@ func (fs *bucketFile) searchBucket(searchParam model.SearchParam) model.PageResu
 				}
 			}
 		}
+		fs.mu.RUnlock()
 	} else {
+		// 无类型过滤时，拷贝指针列表到本地快照
+		fs.mu.RLock()
+		snapshot := make([]*model.FileItem, 0, len(fs.FileLib))
 		for _, file := range fs.FileLib {
+			snapshot = append(snapshot, file)
+		}
+		fs.mu.RUnlock()
+
+		// 预分配 FileList 容量，避免 append 多次扩容
+		resultWrapper.FileList = make([]model.FileItem, 0, len(snapshot))
+		for _, file := range snapshot {
 			if filter(file) {
-				resultWrapper.AddWrapperItem(file)
+				resultWrapper.FileList = append(resultWrapper.FileList, *file)
+				resultWrapper.Size += file.Size
 			}
 		}
+		return resultWrapper
 	}
 
-	fs.mu.RUnlock()
 	return resultWrapper
 }
 
@@ -182,49 +218,43 @@ func matchKeywords(file *model.FileItem, keywords []string) bool {
 	return true
 }
 
-// matchAdvancedFilters 检查高级过滤条件：大小范围、日期范围、扩展名
-func matchAdvancedFilters(file *model.FileItem, p model.SearchParam) bool {
-	if p.MinSize > 0 && file.Size < p.MinSize {
+// matchAdvancedFiltersFast 优化版：使用预解析参数避免每文件重复计算
+func matchAdvancedFiltersFast(file *model.FileItem, minSize, maxSize int64, dateFrom, dateTo *time.Time, extSet map[string]struct{}) bool {
+	if minSize > 0 && file.Size < minSize {
 		return false
 	}
-	if p.MaxSize > 0 && file.Size > p.MaxSize {
+	if maxSize > 0 && file.Size > maxSize {
 		return false
 	}
-	if len(p.FileExts) > 0 {
-		suffix := utils.GetSuffix(file.Name)
-		matched := false
-		for _, ext := range p.FileExts {
-			if strings.EqualFold(suffix, ext) {
-				matched = true
-				break
-			}
-		}
-		if !matched {
+	if extSet != nil {
+		suffix := strings.ToLower(utils.GetSuffix(file.Name))
+		if _, ok := extSet[suffix]; !ok {
 			return false
 		}
 	}
-	if p.DateFrom != "" || p.DateTo != "" {
-		// MTime 格式示例: "2006-01-02 15:04:05"
-		fileTime, err := time.Parse("2006-01-02 15:04:05", file.MTime)
-		if err != nil {
-			return true // 无法解析日期时不过滤
-		}
-		if p.DateFrom != "" {
-			from, err := time.Parse("2006-01-02", p.DateFrom)
-			if err == nil && fileTime.Before(from) {
-				return false
+	if dateFrom != nil || dateTo != nil {
+		var fileTime time.Time
+		// 优先使用预计算的 Unix 时间戳，回退到字符串解析
+		if file.MTimeUnix > 0 {
+			fileTime = time.Unix(file.MTimeUnix, 0)
+		} else if file.MTime != "" {
+			var err error
+			fileTime, err = time.Parse("2006-01-02 15:04:05", file.MTime)
+			if err != nil {
+				return true
 			}
+		} else {
+			return true
 		}
-		if p.DateTo != "" {
-			to, err := time.Parse("2006-01-02", p.DateTo)
-			if err == nil {
-				// 包含截止日期当天
-				toEnd := to.Add(24*time.Hour - time.Nanosecond)
-				if fileTime.After(toEnd) {
-					return false
-				}
-			}
+		if dateFrom != nil && fileTime.Before(*dateFrom) {
+			return false
+		}
+		if dateTo != nil && fileTime.After(*dateTo) {
+			return false
 		}
 	}
 	return true
 }
+
+// matchAdvancedFilters 已废弃，请使用 matchAdvancedFiltersFast
+// 保留仅用于编译兼容，实际已无调用点

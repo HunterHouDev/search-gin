@@ -35,7 +35,15 @@ var DefaultHub *Hub
 
 func init() {
 	DefaultHub = NewHub()
-	go DefaultHub.Run()
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				// SSE Hub 主循环 panic 时重启
+				go DefaultHub.Run()
+			}
+		}()
+		DefaultHub.Run()
+	}()
 }
 
 func NewHub() *Hub {
@@ -108,6 +116,12 @@ func (h *Hub) Broadcast(event Event) {
 	select {
 	case h.broadcast <- event:
 	default:
+		// 广播 channel 满时丢弃最早的事件，保障最新事件能送达
+		select {
+		case <-h.broadcast:
+		default:
+		}
+		h.broadcast <- event
 	}
 }
 

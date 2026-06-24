@@ -4,6 +4,7 @@ import (
 	"search-gin/internal/model"
 	"search-gin/pkg/utils"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -591,4 +592,348 @@ func TestGetMenu_EmptyIndex(t *testing.T) {
 	if len(menu) != 0 {
 		t.Errorf("expected empty menu, got %d items", len(menu))
 	}
+}
+
+// ── matchAdvancedFiltersFast 测试（P3 修复验证） ──
+
+func TestMatchAdvancedFiltersFast_DateRange(t *testing.T) {
+	file := &model.FileItem{
+		Size:  100,
+		MTime: "2025-06-15 10:30:00",
+		Name:  "test.mp4",
+	}
+
+	from := time.Date(2025, 6, 1, 0, 0, 0, 0, time.Local)
+	to := time.Date(2025, 6, 30, 23, 59, 59, 999999999, time.Local)
+
+	// 文件在范围内
+	assert.True(t, matchAdvancedFiltersFast(file, 0, 0, &from, &to, nil))
+
+	// 文件在范围前（2025-05-01 到 2025-05-31）
+	beforeFrom := time.Date(2025, 5, 1, 0, 0, 0, 0, time.Local)
+	beforeTo := time.Date(2025, 5, 31, 23, 59, 59, 999999999, time.Local)
+	assert.False(t, matchAdvancedFiltersFast(file, 0, 0, &beforeFrom, &beforeTo, nil))
+
+	// 文件在范围后（2025-07-01 到 2025-07-31）
+	afterFrom := time.Date(2025, 7, 1, 0, 0, 0, 0, time.Local)
+	afterTo := time.Date(2025, 7, 31, 23, 59, 59, 999999999, time.Local)
+	assert.False(t, matchAdvancedFiltersFast(file, 0, 0, &afterFrom, &afterTo, nil))
+}
+
+func TestMatchAdvancedFiltersFast_ExtSet(t *testing.T) {
+	file := &model.FileItem{
+		Size: 100,
+		Name: "test.mp4",
+	}
+
+	extSet := map[string]struct{}{
+		"mp4": {},
+		"avi": {},
+	}
+
+	// 匹配
+	assert.True(t, matchAdvancedFiltersFast(file, 0, 0, nil, nil, extSet))
+
+	// 不匹配
+	file.Name = "test.mkv"
+	assert.False(t, matchAdvancedFiltersFast(file, 0, 0, nil, nil, extSet))
+}
+
+func TestMatchAdvancedFiltersFast_SizeRange(t *testing.T) {
+	file := &model.FileItem{
+		Size: 500,
+		Name: "test.mp4",
+	}
+
+	assert.True(t, matchAdvancedFiltersFast(file, 100, 1000, nil, nil, nil))
+	assert.False(t, matchAdvancedFiltersFast(file, 600, 1000, nil, nil, nil))
+	assert.False(t, matchAdvancedFiltersFast(file, 100, 400, nil, nil, nil))
+}
+
+// ── searchBucket 日期过滤测试（P3 修复验证） ──
+
+func TestSearchBucket_DateFilter(t *testing.T) {
+	b := makeBucket("dir",
+		model.FileItem{Id: "1", Name: "old.mp4", Path: "/test/old.mp4", MTime: "2025-01-15 10:00:00", Size: 100},
+		model.FileItem{Id: "2", Name: "new.mp4", Path: "/test/new.mp4", MTime: "2025-06-15 10:00:00", Size: 200},
+		model.FileItem{Id: "3", Name: "mid.mp4", Path: "/test/mid.mp4", MTime: "2025-03-20 10:00:00", Size: 300},
+	)
+
+	// 只筛选 2025-06 之后的文件
+	param := model.SearchParam{
+		Keyword:  "",
+		Page:     1,
+		PageSize: 10,
+		DateFrom: "2025-06-01",
+	}
+	result := b.searchBucket(param)
+	assert.Equal(t, 1, len(result.FileList))
+	assert.Equal(t, "new.mp4", result.FileList[0].Name)
+
+	// 筛选 2025-01-01 到 2025-03-31
+	param2 := model.SearchParam{
+		Keyword:  "",
+		Page:     1,
+		PageSize: 10,
+		DateFrom: "2025-01-01",
+		DateTo:   "2025-03-31",
+	}
+	result2 := b.searchBucket(param2)
+	assert.Equal(t, 2, len(result2.FileList))
+}
+
+// ── installIndexSkipDisk 缓存保持测试（P9 修复验证） ──
+
+func TestInstallIndexSkipDisk_DoesNotClearCache(t *testing.T) {
+	core := newTestEngine()
+	defer core.installIndexSkipDisk(emptySearchIndex())
+
+	// 安装初始索引
+	b := makeBucket("dir", makeMovie("1", "f.mp4", "/f.mp4", "", "", "", 100))
+	index := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
+	core.installIndex(index)
+
+	// 向缓存写入一些数据
+	core.KeywordHistoryCache.Set("test_key", "test_value")
+	core.KeywordHistoryCache.Set("another_key", "another_value")
+
+	// 用 installIndexSkipDisk 更新索引（模拟单文件操作）
+	b2 := makeBucket("dir", makeMovie("2", "g.mp4", "/g.mp4", "", "", "", 200))
+	index2 := buildIndexFromBuckets(map[string]*bucketFile{"dir": b2})
+	core.installIndexSkipDisk(index2)
+
+	// 验证缓存未被清空
+	v1, ok1 := core.KeywordHistoryCache.Get("test_key")
+	assert.True(t, ok1, "installIndexSkipDisk 不应清空 LRU 缓存")
+	assert.Equal(t, "test_value", v1)
+
+	v2, ok2 := core.KeywordHistoryCache.Get("another_key")
+	assert.True(t, ok2)
+	assert.Equal(t, "another_value", v2)
+}
+
+func TestInstallIndex_DoesClearCache(t *testing.T) {
+	core := newTestEngine()
+	defer core.installIndexSkipDisk(emptySearchIndex())
+
+	// 安装初始索引
+	b := makeBucket("dir", makeMovie("1", "f.mp4", "/f.mp4", "", "", "", 100))
+	index := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
+	core.installIndex(index)
+
+	// 向缓存写入数据
+	core.KeywordHistoryCache.Set("test_key", "test_value")
+
+	// 用 installIndex 更新索引（模拟全量重建）
+	b2 := makeBucket("dir", makeMovie("2", "g.mp4", "/g.mp4", "", "", "", 200))
+	index2 := buildIndexFromBuckets(map[string]*bucketFile{"dir": b2})
+	core.installIndex(index2)
+
+	// 验证缓存已被清空
+	_, ok := core.KeywordHistoryCache.Get("test_key")
+	assert.False(t, ok, "installIndex 应清空 LRU 缓存")
+}
+
+// ── FindById O(1) 查找测试（P1 修复验证） ──
+
+func TestFindById_UsesIdIndex(t *testing.T) {
+	core := newTestEngine()
+	defer core.installIndexSkipDisk(emptySearchIndex())
+
+	// 创建多个 bucket
+	b1 := makeBucket("dir-a",
+		makeMovie("id-1", "a.mp4", "/a.mp4", "", "", "", 100),
+		makeMovie("id-2", "b.mp4", "/b.mp4", "", "", "", 200),
+	)
+	b2 := makeBucket("dir-b",
+		makeMovie("id-3", "c.mp4", "/c.mp4", "", "", "", 300),
+	)
+
+	index := buildIndexFromBuckets(map[string]*bucketFile{"dir-a": b1, "dir-b": b2})
+	core.installIndex(index)
+
+	// 验证 idIndex 包含所有文件
+	assert.Equal(t, 3, len(index.idIndex))
+
+	// O(1) 查找
+	f1 := core.FindById("id-1")
+	assert.Equal(t, "a.mp4", f1.Name)
+
+	f3 := core.FindById("id-3")
+	assert.Equal(t, "c.mp4", f3.Name)
+
+	// 不存在的 ID
+	empty := core.FindById("nonexist")
+	assert.True(t, empty.IsNull())
+}
+
+// ── BucketFile clone 测试 ──
+
+func TestBucketFile_Clone_PreservesData(t *testing.T) {
+	b := makeBucket("dir",
+		makeMovie("1", "a.mp4", "/a.mp4", "ABC", "骑兵", "田中", 100),
+		makeMovie("2", "b.mp4", "/b.mp4", "DEF", "步兵", "佐藤", 200),
+	)
+
+	cloned := b.clone()
+
+	// 验证克隆保留所有数据
+	assert.Equal(t, b.InstanceName, cloned.InstanceName)
+	assert.Equal(t, b.TotalSize, cloned.TotalSize)
+	assert.Equal(t, b.TotalCount, cloned.TotalCount)
+	assert.Equal(t, len(b.FileLib), len(cloned.FileLib))
+	assert.Equal(t, len(b.TypeIndex), len(cloned.TypeIndex))
+
+	// 验证数据独立（修改克隆不影响原）
+	clonedFile := cloned.get("1")
+	assert.NotNil(t, clonedFile)
+	clonedFile.Name = "modified.mp4"
+	origFile := b.get("1")
+	assert.Equal(t, "a.mp4", origFile.Name, "原 bucket 不应被修改")
+}
+
+func TestBucketFile_Clone_EmptyBucket(t *testing.T) {
+	b := newInstance("empty")
+	cloned := b.clone()
+
+	assert.Equal(t, 0, cloned.TotalCount)
+	assert.Equal(t, int64(0), cloned.TotalSize)
+	assert.Empty(t, cloned.FileLib)
+}
+
+// ── searchBucket 扩展名过滤测试（P3 优化验证） ──
+
+func TestSearchBucket_ExtFilter(t *testing.T) {
+	b := makeBucket("dir",
+		model.FileItem{Id: "1", Name: "video.mp4", Path: "/test/video.mp4", Size: 100, PathUpper: "/TEST/VIDEO.MP4"},
+		model.FileItem{Id: "2", Name: "image.jpg", Path: "/test/image.jpg", Size: 50, PathUpper: "/TEST/IMAGE.JPG"},
+		model.FileItem{Id: "3", Name: "movie.mkv", Path: "/test/movie.mkv", Size: 200, PathUpper: "/TEST/MOVIE.MKV"},
+	)
+
+	// 只筛选 mp4
+	param := model.SearchParam{
+		Keyword:  "",
+		Page:     1,
+		PageSize: 10,
+		FileExts: []string{"mp4"},
+	}
+	result := b.searchBucket(param)
+	assert.Equal(t, 1, len(result.FileList))
+	assert.Equal(t, "video.mp4", result.FileList[0].Name)
+
+	// 筛选 mp4 和 mkv
+	param2 := model.SearchParam{
+		Keyword:  "",
+		Page:     1,
+		PageSize: 10,
+		FileExts: []string{"mp4", "mkv"},
+	}
+	result2 := b.searchBucket(param2)
+	assert.Equal(t, 2, len(result2.FileList))
+}
+
+// ── author 缓存失效测试 ──
+
+func TestAuthorCache_InvalidatedOnInstallIndex(t *testing.T) {
+	core := newTestEngine()
+	defer core.installIndexSkipDisk(emptySearchIndex())
+
+	// 安装初始索引
+	b1 := makeBucket("dir", makeMovie("1", "a.mp4", "/a.mp4", "", "骑兵", "田中", 100))
+	index1 := buildIndexFromBuckets(map[string]*bucketFile{"dir": b1})
+	core.installIndex(index1)
+
+	// 手动设置 author 缓存
+	core.authorCacheMu.Lock()
+	core.authorSizeCache = []model.Author{{Name: "old_author", Cnt: 1, Size: 100}}
+	core.authorCountCache = []model.Author{{Name: "old_author", Cnt: 1, Size: 100}}
+	core.authorCacheMu.Unlock()
+
+	// 安装新索引
+	b2 := makeBucket("dir", makeMovie("2", "b.mp4", "/b.mp4", "", "步兵", "佐藤", 200))
+	index2 := buildIndexFromBuckets(map[string]*bucketFile{"dir": b2})
+	core.installIndex(index2)
+
+	// 验证缓存已清空
+	core.authorCacheMu.RLock()
+	assert.Nil(t, core.authorSizeCache, "installIndex 应清空 authorSizeCache")
+	assert.Nil(t, core.authorCountCache, "installIndex 应清空 authorCountCache")
+	core.authorCacheMu.RUnlock()
+}
+
+// ── hw_accel getter 函数测试（B3 修复验证） ──
+
+func TestHwAccel_Getters_ReturnValidValues(t *testing.T) {
+	// 保存原始设置
+	orig := GetOSSetting()
+	defer SetOSSetting(orig)
+
+	// 禁用硬件加速时应返回软件编码器
+	SetOSSetting(model.Setting{HardwareAcceleration: false})
+
+	h264 := getH264Encoder()
+	h265 := getH265Encoder()
+	dec := getHwDecodeParams()
+	qual := getHwQualityParam()
+	mode := GetHwAccelModeName()
+
+	assert.Equal(t, "libx264", h264, "禁用时应返回 libx264")
+	assert.Equal(t, "libx265", h265, "禁用时应返回 libx265")
+	assert.Equal(t, "", dec, "禁用时解码参数应为空")
+	assert.Equal(t, "-crf", qual, "禁用时应返回 -crf")
+	assert.Equal(t, "", mode, "禁用时模式应为空")
+}
+
+// ── searchBucket 组合过滤测试 ──
+
+func TestSearchBucket_CombinedFilters(t *testing.T) {
+	b := makeBucket("dir",
+		model.FileItem{Id: "1", Name: "alpha.mp4", Path: "/test/alpha.mp4", Size: 100, MTime: "2025-06-15 10:00:00", PathUpper: "/TEST/ALPHA.MP4"},
+		model.FileItem{Id: "2", Name: "beta.mkv", Path: "/test/beta.mkv", Size: 200, MTime: "2025-07-20 10:00:00", PathUpper: "/TEST/BETA.MKV"},
+		model.FileItem{Id: "3", Name: "gamma.mp4", Path: "/test/gamma.mp4", Size: 50, MTime: "2025-03-10 10:00:00", PathUpper: "/TEST/GAMMA.MP4"},
+	)
+
+	// 关键词 + 扩展名 + 日期范围
+	param := model.SearchParam{
+		Keyword:  "alpha",
+		Page:     1,
+		PageSize: 10,
+		FileExts: []string{"mp4"},
+		DateFrom: "2025-01-01",
+		DateTo:   "2025-12-31",
+	}
+	result := b.searchBucket(param)
+	assert.Equal(t, 1, len(result.FileList))
+	assert.Equal(t, "alpha.mp4", result.FileList[0].Name)
+
+	// 无匹配（扩展名不匹配）
+	param2 := model.SearchParam{
+		Keyword:  "alpha",
+		Page:     1,
+		PageSize: 10,
+		FileExts: []string{"mkv"},
+	}
+	result2 := b.searchBucket(param2)
+	assert.Equal(t, 0, len(result2.FileList))
+}
+
+// ── cacheEpoch 递增测试 ──
+
+func TestCacheEpoch_IncrementsOnInstall(t *testing.T) {
+	core := newTestEngine()
+	defer core.installIndexSkipDisk(emptySearchIndex())
+
+	b := makeBucket("dir", makeMovie("1", "f.mp4", "/f.mp4", "", "", "", 100))
+	index := buildIndexFromBuckets(map[string]*bucketFile{"dir": b})
+
+	epoch1 := core.cacheEpoch.Load()
+	core.installIndex(index)
+	epoch2 := core.cacheEpoch.Load()
+
+	assert.Greater(t, epoch2, epoch1, "installIndex 应递增 cacheEpoch")
+
+	core.installIndexSkipDisk(emptySearchIndex())
+	epoch3 := core.cacheEpoch.Load()
+
+	assert.Greater(t, epoch3, epoch2, "installIndexSkipDisk 应递增 cacheEpoch")
 }

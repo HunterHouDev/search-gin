@@ -72,7 +72,15 @@ var DefaultHub *Hub
 
 func init() {
 	DefaultHub = NewHub(100)
-	go DefaultHub.Run()
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				// Hub 主循环 panic 时记录并重启
+				go DefaultHub.Run()
+			}
+		}()
+		DefaultHub.Run()
+	}()
 }
 
 // NewHub 创建 Hub

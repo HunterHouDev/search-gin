@@ -13,6 +13,8 @@ import (
 var TransferTask = map[time.Time]model.TransferTaskModel{}
 var TransferTaskMutex sync.RWMutex // 保护 TransferTask 的并发访问
 
+const MaxTransferTaskCount = 1000
+
 // pendingExecutingCount 统计当前等待中和执行中的任务数量
 func pendingExecutingCount() (pending, executing int) {
 	TransferTaskMutex.RLock()
@@ -26,6 +28,58 @@ func pendingExecutingCount() (pending, executing int) {
 		}
 	}
 	return
+}
+
+// ClearCompletedTasks 清除所有已完成的任务
+func ClearCompletedTasks() utils.Result {
+	TransferTaskMutex.Lock()
+	defer TransferTaskMutex.Unlock()
+
+	count := 0
+	for key, task := range TransferTask {
+		if task.Status == model.StatusCompleted {
+			delete(TransferTask, key)
+			count++
+		}
+	}
+	return utils.NewSuccessByMsg(fmt.Sprintf("已清除 %d 个已完成任务", count))
+}
+
+// ClearFailedTasks 清除所有失败的任务
+func ClearFailedTasks() utils.Result {
+	TransferTaskMutex.Lock()
+	defer TransferTaskMutex.Unlock()
+
+	count := 0
+	for key, task := range TransferTask {
+		if task.Status == model.StatusFailed {
+			delete(TransferTask, key)
+			count++
+		}
+	}
+	return utils.NewSuccessByMsg(fmt.Sprintf("已清除 %d 个失败任务", count))
+}
+
+// ClearAllTasks 清除所有任务（执行中的除外）
+func ClearAllTasks() utils.Result {
+	TransferTaskMutex.Lock()
+	defer TransferTaskMutex.Unlock()
+
+	count := 0
+	for key, task := range TransferTask {
+		if task.Status != model.StatusExecuting {
+			delete(TransferTask, key)
+			count++
+		}
+	}
+	PendingTaskCount.Store(0)
+	// 重新统计 pending 任务
+	for _, task := range TransferTask {
+		if task.Status == model.StatusPending {
+			PendingTaskCount.Add(1)
+		}
+	}
+	return utils.NewSuccessByMsg(fmt.Sprintf("已清除 %d 个任务", count))
 }
 
 // DeleteFileByPath 按路径删除文件：索引移除 + 物理删除 + 附属文件清理 + 空目录清理
@@ -98,6 +152,10 @@ func CreateMergeTask(fileIds []string, dest string, deleteSource bool) utils.Res
 	task := model.NewMergeTask(paths, dest, listPath, deleteSource)
 	task.SetStatus(model.StatusPending)
 	TransferTaskMutex.Lock()
+	if len(TransferTask) >= MaxTransferTaskCount {
+		TransferTaskMutex.Unlock()
+		return utils.NewFailByMsg("任务队列已满（最多1000个），请清理已完成任务后再试")
+	}
 	TransferTask[task.CreateTime] = task
 	PendingTaskCount.Add(1)
 	TransferTaskMutex.Unlock()
@@ -135,6 +193,10 @@ func CreateTransferTask(id string, xcode string) utils.Result {
 		task.VCode = xcode
 	}
 	TransferTaskMutex.Lock()
+	if len(TransferTask) >= MaxTransferTaskCount {
+		TransferTaskMutex.Unlock()
+		return utils.NewFailByMsg("任务队列已满（最多1000个），请清理已完成任务后再试")
+	}
 	TransferTask[task.CreateTime] = task
 	PendingTaskCount.Add(1)
 	TransferTaskMutex.Unlock()
@@ -155,6 +217,10 @@ func CreateCutTask(id string, start string, end string) utils.Result {
 	task := model.NewCutTask(movieFile.Path, movieFile.Name, start, end, from)
 	task.SetStatus(model.StatusPending)
 	TransferTaskMutex.Lock()
+	if len(TransferTask) >= MaxTransferTaskCount {
+		TransferTaskMutex.Unlock()
+		return utils.NewFailByMsg("任务队列已满（最多1000个），请清理已完成任务后再试")
+	}
 	TransferTask[task.CreateTime] = task
 	PendingTaskCount.Add(1)
 	TransferTaskMutex.Unlock()

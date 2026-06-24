@@ -24,6 +24,9 @@ type searchIndex struct {
 	repeatFiles []model.FileItem
 	authorMap   map[string]model.Author
 
+	// idIndex 全局 ID → FileItem 指针，O(1) 查找（FindById 用）
+	idIndex map[string]*model.FileItem
+
 	// 预聚合的菜单数据（写入 consts.* 前暂存）
 	typeMenu    map[string]model.FileInfo
 	tagMenu     map[string]model.FileInfo
@@ -57,6 +60,7 @@ func (se *searchEngineCore) loadIndex() *searchIndex {
 		return &searchIndex{
 			buckets:     make(map[string]*bucketFile),
 			authorMap:   make(map[string]model.Author),
+			idIndex:     make(map[string]*model.FileItem),
 			typeMenu:    make(map[string]model.FileInfo),
 			tagMenu:     make(map[string]model.FileInfo),
 			seriesCount: make(map[string]model.FileInfo),
@@ -67,6 +71,7 @@ func (se *searchEngineCore) loadIndex() *searchIndex {
 		return &searchIndex{
 			buckets:     make(map[string]*bucketFile),
 			authorMap:   make(map[string]model.Author),
+			idIndex:     make(map[string]*model.FileItem),
 			typeMenu:    make(map[string]model.FileInfo),
 			tagMenu:     make(map[string]model.FileInfo),
 			seriesCount: make(map[string]model.FileInfo),
@@ -81,9 +86,16 @@ func (se *searchEngineCore) installIndex(index *searchIndex) {
 	saveIndexToCache(index)
 }
 
-// installIndexSkipDisk 原子替换索引 + 清 LRU 缓存（跳过磁盘持久化，单文件操作用）
+// installIndexSkipDisk 原子替换索引 + 递增 epoch（跳过磁盘持久化，单文件操作用）
+// 不清空 LRU 缓存：单文件操作只影响少量数据，其余缓存仍然有效
 func (se *searchEngineCore) installIndexSkipDisk(index *searchIndex) {
-	se.syncIndex(index)
+	se.index.Store(index)
+	se.cacheEpoch.Add(1)
+	se.authorCacheMu.Lock()
+	se.authorSizeCache = nil
+	se.authorCountCache = nil
+	se.authorCacheMu.Unlock()
+	SetLastScanTime(time.Now())
 }
 
 // syncIndex 原子替换索引 + 清 LRU 缓存 + 递增 epoch

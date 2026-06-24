@@ -116,6 +116,9 @@ func BuildAPIRouter(sigChan chan os.Signal) *gin.Engine {
 
 	router.GET("/api/transferTasks", handler.GetTransferTask)
 	router.GET("/api/delTransferTasks/:create", handler.GetDelTransferTask)
+	router.POST("/api/clearCompletedTasks", handler.PostClearCompletedTasks)
+	router.POST("/api/clearFailedTasks", handler.PostClearFailedTasks)
+	router.POST("/api/clearAllTasks", handler.PostClearAllTasks)
 	router.POST("/api/authorList", handler.PostAuthor)
 	router.GET("/api/authorImage/:path", handler.GetAuthorImage)
 

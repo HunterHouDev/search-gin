@@ -631,165 +631,213 @@
                 v-model="tabTask"
                 align="justify"
                 class="shadow-2 w100"
+                dense
+                no-caps
               >
                 <q-tab name="等待" label="等待">
-                  <q-badge color="red" floating>{{
+                  <q-badge color="orange" floating>{{
                     view.totalCount[3] + view.totalCount[4]
                   }}</q-badge>
                 </q-tab>
                 <q-tab name="完成" label="成功">
-                  <q-badge color="red" floating>{{
+                  <q-badge color="green" floating>{{
                     view.totalCount[1]
                   }}</q-badge>
                 </q-tab>
-                <q-tab alert name="失败" label="失败">
+                <q-tab name="失败" label="失败">
                   <q-badge color="red" floating>{{
                     view.totalCount[2]
-                  }}</q-badge></q-tab
-                >
-
-                <q-tab alert name="全部" label="全部">
-                  <q-badge color="red" floating>{{
+                  }}</q-badge>
+                </q-tab>
+                <q-tab name="全部" label="全部">
+                  <q-badge color="grey" floating>{{
                     view.totalCount[0]
-                  }}</q-badge></q-tab
-                >
-                <q-tab name="日志" label="日志"> </q-tab>
+                  }}</q-badge>
+                </q-tab>
+                <q-tab name="日志" label="日志" />
+                <q-separator vertical />
                 <q-tab name="all" label="" class="justify-center">
                   <q-toggle
-                    color="red"
+                    color="green"
                     v-model="view.autoRefresh"
-                    label="刷新"
-                  ></q-toggle>
+                    label="自动"
+                    dense
+                  />
                 </q-tab>
               </q-tabs>
 
-              <q-list bordered separator>
-                <div v-for="v in view.tasking" :key="v">
-                  <q-expansion-item
-                    dense
-                    hideExpandIcon
-                    v-if="v.Status == '执行中'"
-                    style="border: 1px dotted grey"
-                  >
-                    <template v-slot:header>
-                      <q-item-section
-                        :style="{
-                          color: getColor(v.Status),
-                        }"
-                      >
-                        <p
-                          style="
-                            display: -webkit-box; /* 将对象作为弹性伸缩盒子模型显示 */
-                            -webkit-box-orient: vertical; /* 设置子元素的排列方式为垂直方向 */
-                            line-clamp: 2; /* 设置显示的行数 */
-                            overflow: hidden; /* 隐藏溢出文本 */
-                            text-overflow: ellipsis; /* 显示省略号 */
-                          "
-                        >
-                          {{ v.Name }} {{ v.Files }}
-                        </p>
+              <div
+                class="row items-center q-pa-xs q-gutter-xs"
+                v-if="tabTask !== '日志'"
+                style="min-height: 36px"
+              >
+                <q-space />
+                <q-btn
+                  v-if="tabTask === '完成'"
+                  outline
+                  color="orange"
+                  icon="delete_sweep"
+                  label="清除已完成"
+                  size="sm"
+                  dense
+                  @click="clearCompletedTasks"
+                />
+                <q-btn
+                  v-if="tabTask === '失败'"
+                  outline
+                  color="red"
+                  icon="delete_sweep"
+                  label="清除失败"
+                  size="sm"
+                  dense
+                  @click="clearFailedTasks"
+                />
+                <q-btn
+                  v-if="tabTask === '全部'"
+                  outline
+                  color="negative"
+                  icon="delete_sweep"
+                  label="清除所有"
+                  size="sm"
+                  dense
+                  @click="clearAllTasks"
+                />
+              </div>
 
-                        <div class="row justify-between">
-                          <div>
-                            {{ v.Status == '执行失败' ? '失败' : v.Status }}：{{
-                              parseTimeZH(
-                                Number(
-                                  showTimeUse(v.FinishTime, v.CreateTime)
-                                ).toFixed(0)
-                              )
-                            }}
-                          </div>
-                          创建于：{{
-                            date.formatDate(
-                              new Date(v.CreateTime),
-                              'MM/DD HH:mm'
-                            )
-                          }}
-                        </div>
-                      </q-item-section>
-                      <q-item-section side>
-                        <div class="justify-end">
-                          <q-btn class="q-mr-sm" :color="getColor(v.Status)"
-                            >{{ v.Type }}
-                          </q-btn>
-                          <div v-if="v.Start">
-                            {{ `开始：${v.Start} ` }}
-                            {{ ` 结束：${v.End} ` }}
-                          </div>
-                        </div>
-                      </q-item-section>
-                    </template>
-                  </q-expansion-item>
-                </div>
-              </q-list>
-              <q-list bordered separator>
-                <div v-for="v in view.tasking" :key="v">
-                  <q-expansion-item
-                    dense
-                    hideExpandIcon
-                    v-if="tabTask == '全部' || v.Status == tabTask"
-                    style="border: 1px dotted grey"
+              <!-- 执行中的任务 -->
+              <q-list dense bordered separator class="rounded-borders" v-if="tabTask !== '日志'">
+                <template v-for="v in view.tasking" :key="v.CreateTime">
+                  <q-item
+                    v-if="v.Status === '执行中'"
+                    class="q-py-xs"
                   >
-                    <template v-slot:header>
-                      <q-item-section
-                        :style="{
-                          color: getColor(v.Status),
-                        }"
+                    <q-item-section avatar>
+                      <q-spinner color="orange" size="20px" />
+                    </q-item-section>
+                    <q-item-section>
+                      <q-item-label
+                        class="text-weight-medium"
+                        style="
+                          display: -webkit-box;
+                          -webkit-box-orient: vertical;
+                          line-clamp: 1;
+                          overflow: hidden;
+                          text-overflow: ellipsis;
+                        "
                       >
-                        <div>{{ v.Name }} {{ v.Files }}</div>
-
-                        <div class="row justify-between">
-                          <div>
-                            {{ v.Status == '执行失败' ? '失败' : v.Status }}：{{
-                              parseTimeZH(
-                                Number(
-                                  showTimeUse(v.FinishTime, v.CreateTime)
-                                ).toFixed(0)
-                              )
-                            }}
-                          </div>
-                          创建于：{{
-                            date.formatDate(
-                              new Date(v.CreateTime),
-                              'MM/DD HH:mm'
-                            )
-                          }}
-                        </div>
-                      </q-item-section>
-                      <q-item-section side>
-                        <div class="justify-end">
-                          <q-btn
-                            class="q-mr-sm"
-                            dense
-                            :color="getColor(v.Status)"
-                            @click="
-                              view.vLog = v.Log;
-                              tabTask = '日志';
-                            "
-                            >{{ v.Type }}
-                          </q-btn>
-                          <q-btn
-                            dense
-                            color="red"
-                            class="q-mr-sm"
-                            @click="removeTask(v.CreateTime)"
-                          >
-                            清除
-                          </q-btn>
-                          <div v-if="v.Start">
-                            {{ `开始：${v.Start} ` }}
-                          </div>
-                          <div v-if="v.Start">
-                            {{ ` 结束：${v.End} ` }}
-                          </div>
-                        </div>
-                      </q-item-section>
-                    </template>
-                  </q-expansion-item>
-                </div>
+                        {{ v.Name || v.Files }}
+                      </q-item-label>
+                      <q-item-label caption class="row q-gutter-sm">
+                        <span class="text-orange">{{ v.Type }}</span>
+                        <span v-if="v.Start">开始 {{ v.Start }}</span>
+                        <span v-if="v.End">结束 {{ v.End }}</span>
+                        <span>{{
+                          date.formatDate(new Date(v.CreateTime), 'MM/DD HH:mm')
+                        }}</span>
+                      </q-item-label>
+                    </q-item-section>
+                  </q-item>
+                </template>
               </q-list>
-              <div v-if="tabTask == '日志'">
-                <p>{{ view.vLog }}</p>
+
+              <!-- 等待/完成/失败/全部 任务列表 -->
+              <q-list
+                dense
+                bordered
+                separator
+                class="rounded-borders"
+                v-if="tabTask !== '日志'"
+                style="max-height: calc(100% - 120px); overflow-y: auto"
+              >
+                <template v-for="v in view.tasking" :key="v.CreateTime">
+                  <q-item
+                    v-if="
+                      v.Status !== '执行中' &&
+                      (tabTask === '全部' || v.Status === tabTask)
+                    "
+                    class="q-py-xs"
+                  >
+                    <q-item-section avatar>
+                      <q-badge
+                        :color="getColor(v.Status)"
+                        :label="v.Type"
+                      />
+                    </q-item-section>
+                    <q-item-section>
+                      <q-item-label
+                        class="text-weight-medium"
+                        style="
+                          display: -webkit-box;
+                          -webkit-box-orient: vertical;
+                          line-clamp: 1;
+                          overflow: hidden;
+                          text-overflow: ellipsis;
+                        "
+                      >
+                        {{ v.Name || v.Files }}
+                      </q-item-label>
+                      <q-item-label caption class="row q-gutter-sm">
+                        <span :class="'text-' + getColor(v.Status)">
+                          {{ v.Status === '执行失败' ? '失败' : v.Status }}
+                        </span>
+                        <span v-if="v.FinishTime">
+                          耗时 {{ parseTimeZH(Number(showTimeUse(v.FinishTime, v.CreateTime)).toFixed(0)) }}
+                        </span>
+                        <span>
+                          {{ date.formatDate(new Date(v.CreateTime), 'MM/DD HH:mm') }}
+                        </span>
+                      </q-item-label>
+                    </q-item-section>
+                    <q-item-section side>
+                      <div class="row q-gutter-xs items-center">
+                        <q-btn
+                          v-if="v.Log"
+                          dense
+                          flat
+                          size="sm"
+                          icon="article"
+                          color="grey"
+                          @click="view.vLog = v.Log; tabTask = '日志'"
+                        />
+                        <q-btn
+                          dense
+                          flat
+                          size="sm"
+                          icon="close"
+                          color="red"
+                          @click="removeTask(v.CreateTime)"
+                        />
+                      </div>
+                    </q-item-section>
+                  </q-item>
+                </template>
+                <q-item v-if="view.tasking.length === 0">
+                  <q-item-section class="text-grey text-center">
+                    暂无任务
+                  </q-item-section>
+                </q-item>
+              </q-list>
+
+              <!-- 日志面板 -->
+              <div v-if="tabTask === '日志'" class="q-pa-sm">
+                <q-btn
+                  flat
+                  dense
+                  icon="arrow_back"
+                  label="返回"
+                  size="sm"
+                  @click="tabTask = '全部'"
+                  class="q-mb-sm"
+                />
+                <pre
+                  class="text-caption bg-grey-1 q-pa-sm rounded-borders"
+                  style="
+                    max-height: calc(100% - 50px);
+                    overflow-y: auto;
+                    white-space: pre-wrap;
+                    word-break: break-all;
+                  "
+                >{{ view.vLog || '暂无日志' }}</pre>
               </div>
             </q-tab-panel>
             <q-tab-panel name="history" style="padding: 6px; height: 100%">
@@ -934,6 +982,9 @@ import {
   DelTransferTasksInfo,
   AddTag,
   FileRename,
+  ClearCompletedTasks,
+  ClearFailedTasks,
+  ClearAllTasks,
 } from 'components/api/searchAPI';
 
 import Sortable from 'sortablejs';
@@ -1048,6 +1099,21 @@ const getColor = (status) => {
 
 const removeTask = async (createTime) => {
   commonExec(() => DelTransferTasksInfo(createTime));
+};
+
+const clearCompletedTasks = async () => {
+  await commonExec(() => ClearCompletedTasks());
+  fetchTasking();
+};
+
+const clearFailedTasks = async () => {
+  await commonExec(() => ClearFailedTasks());
+  fetchTasking();
+};
+
+const clearAllTasks = async () => {
+  await commonExec(() => ClearAllTasks());
+  fetchTasking();
 };
 
 const doSetMovieType = async (item, type) => {

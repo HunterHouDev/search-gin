@@ -12,6 +12,7 @@ declare module '@vue/runtime-core' {
 // Electron 下直连后端，浏览器下用相对路径走 devServer proxy
 const api = axios.create({
   baseURL: isElectron() ? 'http://localhost:10081' : '',
+  timeout: 30000,
 });
 
 // 请求拦截器：自动添加token

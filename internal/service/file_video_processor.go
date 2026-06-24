@@ -37,7 +37,7 @@ func transferWithEncoder(task model.TransferTaskModel, encoder, crf string) util
 		}
 	}
 
-	dest := strings.ReplaceAll(task.Path, "."+suffix, "."+task.To)
+	dest := replaceSuffix(task.Path, suffix, task.To)
 	decodeParams := getHwDecodeParams()
 	qualityParam := getHwQualityParam()
 
@@ -56,7 +56,13 @@ func transferWithEncoder(task model.TransferTaskModel, encoder, crf string) util
 	return res
 }
 
-// cleanupSourceIfNeeded 如果配置了转码后删除源文件，则执行删除
+func replaceSuffix(path, oldSuffix, newSuffix string) string {
+	// 只替换文件名的最后一个后缀（扩展名），不替换路径中间的重名字符串
+	if extLen := len(oldSuffix); extLen > 0 && len(path) > extLen && path[len(path)-extLen-1] == '.' {
+		return path[:len(path)-extLen-1] + "." + newSuffix
+	}
+	return path + "." + newSuffix
+}
 func cleanupSourceIfNeeded(path string) {
 	if GetOSSetting().CutThenDelete {
 		if err := os.Remove(path); err != nil {
@@ -78,7 +84,7 @@ func transferFormatWithCopy(task model.TransferTaskModel) utils.Result {
 		}
 	}
 
-	dest := strings.ReplaceAll(task.Path, "."+suffix, "."+task.To)
+	dest := replaceSuffix(task.Path, suffix, task.To)
 	args := []string{"-i", from, "-c", "copy", dest}
 	res := ffmpegExec(args, task.CreateTime)
 
@@ -122,8 +128,8 @@ func CutFormatter(task model.TransferTaskModel) utils.Result {
 		}
 	}
 
-	dest := strings.ReplaceAll(task.Path, "."+suffix, "."+toSuffix)
-	args := []string{"-i", from, "-ss", task.Start, "-t", task.End, "-c", "copy", dest}
+	dest := replaceSuffix(task.Path, suffix, toSuffix)
+	args := []string{"-i", from, "-ss", task.Start, "-to", task.End, "-c", "copy", dest}
 	res := ffmpegExec(args, task.CreateTime)
 
 	if res.IsSuccess() && GetOSSetting().CutThenDelete {

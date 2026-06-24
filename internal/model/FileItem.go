@@ -27,6 +27,7 @@ type FileItem struct {
 	Flag      int64
 	SizeStr   string
 	MTime     string
+	MTimeUnix int64  // Unix 时间戳，用于过滤器快速比较，避免每次查询都 time.Parse
 	MovieType string
 	PathUpper string
 	Tags      []string
@@ -76,6 +77,7 @@ func EasyFile(dir string, path string, name string, fileType string, size int64,
 		Studio:    utils.GetSeriesByCode(code),
 		SizeStr:   utils.GetSizeStr(size),
 		MTime:     modTime.Format("2006-01-02 15:04:05"),
+		MTimeUnix: modTime.Unix(),
 		MovieType: movieType,
 		BaseDir:   baseDir,
 	}
@@ -106,6 +108,7 @@ func NewFile(dir string, path string, name string, fileType string, size int64, 
 		Studio:    utils.GetSeriesByCode(code),
 		SizeStr:   utils.GetSizeStr(size),
 		MTime:     modTime.Format("2006-01-02 15:04:05"),
+		MTimeUnix: modTime.Unix(),
 		MovieType: movieType,
 		BaseDir:   baseDir,
 	}
@@ -180,13 +183,13 @@ func GetPageOfFiles(files []FileItem, pageNo int, pageSize int) ([]FileItem, int
 	return data, volume
 }
 
-// RenameAll 重命名主文件 + 附属图片文件（jpg/png/gif），含回滚
+// RenameAll 重命名主文件 + 附属图片 + 字幕文件（jpg/png/gif/srt），含回滚
 // newMainPath: 主文件新路径
 // newBaseName: 附属文件不含后缀的新基本名（如 "/path/to/newfile"）
 // 返回改名后的新 FileItem（Id 不变），失败返回空 FileItem + error
 func (f FileItem) RenameAll(newMainPath, newBaseName string) (FileItem, error) {
-	originalPaths := []string{f.Path, f.Jpg, f.Png, f.Gif}
-	newPaths := make([]string, 4)
+	originalPaths := []string{f.Path, f.Jpg, f.Png, f.Gif, f.Srt}
+	newPaths := make([]string, 5)
 	newPaths[0] = newMainPath
 	if f.Jpg != "" {
 		newPaths[1] = newBaseName + "." + utils.GetSuffix(f.Jpg)
@@ -197,8 +200,11 @@ func (f FileItem) RenameAll(newMainPath, newBaseName string) (FileItem, error) {
 	if f.Gif != "" {
 		newPaths[3] = newBaseName + "." + utils.GetSuffix(f.Gif)
 	}
+	if f.Srt != "" {
+		newPaths[4] = newBaseName + "." + utils.GetSuffix(f.Srt)
+	}
 
-	successIndices := make([]int, 0, 4)
+	successIndices := make([]int, 0, 5)
 	for i := range originalPaths {
 		if originalPaths[i] == "" || !utils.ExistsFiles(originalPaths[i]) {
 			continue

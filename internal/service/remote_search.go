@@ -104,37 +104,22 @@ func (p *Peer) searchPeer(searchParam model.SearchParam) (*PeerSearchResult, err
 		return nil, fmt.Errorf("远程节点返回错误: %d", resp.StatusCode)
 	}
 
-	var result utils.Page
+	var result struct {
+		Data       json.RawMessage `json:"Data"`
+		TotalCnt   int             `json:"TotalCnt"`
+		ResultSize string          `json:"ResultSize"`
+		TotalSize  string          `json:"TotalSize"`
+	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("解析响应失败: %w", err)
 	}
 
-	movies, ok := result.Data.([]interface{})
-	if !ok {
-		moviesTyped, ok2 := result.Data.([]model.FileItem)
-		if !ok2 {
-			return nil, fmt.Errorf("远程节点返回的数据类型非预期: %T", result.Data)
-		}
-		return &PeerSearchResult{Movies: moviesTyped, TotalCnt: result.TotalCnt, TotalSize: ParseTotalSize(result.TotalSize)}, nil
+	var movies []model.FileItem
+	if err := json.Unmarshal(result.Data, &movies); err != nil {
+		return nil, fmt.Errorf("解析响应数据失败: %w", err)
 	}
 
-	out := make([]model.FileItem, 0, len(movies))
-	for _, item := range movies {
-		if fileItem, ok := item.(model.FileItem); ok {
-			out = append(out, fileItem)
-		} else if m, ok := item.(map[string]interface{}); ok {
-			data, err := json.Marshal(m)
-			if err != nil {
-				continue
-			}
-			var fileItem model.FileItem
-			if err := json.Unmarshal(data, &fileItem); err != nil {
-				continue
-			}
-			out = append(out, fileItem)
-		}
-	}
-	return &PeerSearchResult{Movies: out, TotalCnt: result.TotalCnt, TotalSize: ParseTotalSize(result.TotalSize)}, nil
+	return &PeerSearchResult{Movies: movies, TotalCnt: result.TotalCnt, TotalSize: ParseTotalSize(result.TotalSize)}, nil
 }
 
 // SearchRemotePeer 搜索指定远程节点，返回完整 Page 结果
@@ -162,32 +147,33 @@ func SearchRemotePeer(peer *Peer, searchParam model.SearchParam) (utils.Page, er
 		return utils.Page{}, fmt.Errorf("远程节点返回错误: %d", resp.StatusCode)
 	}
 
-	var result utils.Page
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	var rawResult struct {
+		Data       json.RawMessage `json:"Data"`
+		TotalCnt   int             `json:"TotalCnt"`
+		ResultSize string          `json:"ResultSize"`
+		TotalSize  string          `json:"TotalSize"`
+		ResultCnt  int             `json:"ResultCnt"`
+		CurCnt     int             `json:"CurCnt"`
+		CurSize    string          `json:"CurSize"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&rawResult); err != nil {
 		return utils.Page{}, fmt.Errorf("解析响应失败: %w", err)
 	}
 
+	var fileItems []model.FileItem
+	if err := json.Unmarshal(rawResult.Data, &fileItems); err != nil {
+		return utils.Page{}, fmt.Errorf("解析响应数据失败: %w", err)
+	}
+
 	// 填充流媒体 URL
-	if movies, ok := result.Data.([]interface{}); ok {
-		fileItems := make([]model.FileItem, 0, len(movies))
-		for _, item := range movies {
-			if fileItem, ok := item.(model.FileItem); ok {
-				fileItems = append(fileItems, fileItem)
-			} else if m, ok := item.(map[string]interface{}); ok {
-				data, err := json.Marshal(m)
-				if err != nil {
-					continue
-				}
-				var fileItem model.FileItem
-				if err := json.Unmarshal(data, &fileItem); err != nil {
-					continue
-				}
-				fileItems = append(fileItems, fileItem)
-			}
-		}
-		result.Data = fileItems
-	} else if movies, ok := result.Data.([]model.FileItem); ok {
-		result.Data = movies
+	result := utils.Page{
+		Data:       fileItems,
+		TotalCnt:   rawResult.TotalCnt,
+		ResultSize: rawResult.ResultSize,
+		TotalSize:  rawResult.TotalSize,
+		ResultCnt:  rawResult.ResultCnt,
+		CurCnt:     rawResult.CurCnt,
+		CurSize:    rawResult.CurSize,
 	}
 
 	return result, nil
@@ -259,13 +245,18 @@ func FillURLs(c *gin.Context, movies []model.FileItem) {
 	localNode := LocalNodeHost
 	filePort := strings.TrimPrefix(FilePortNo, ":")
 
+	// 预构建本机 base URL，避免每文件重复拼接
+	localBase := "http://" + localIP + ":" + filePort
+	streamPath := "/api/stream/GetFileByPathUseEncode/"
+	pngPath := "/api/stream/png/"
+	jpgPath := "/api/stream/jpg/"
+
 	for i := range movies {
 		m := &movies[i]
 		if m.NodeHost == localNode || m.NodeHost == "" {
-			base := fmt.Sprintf("http://%s:%s", localIP, filePort)
-			m.StreamUrl = utils.SignURL(base, fmt.Sprintf("/api/stream/GetFileByPathUseEncode/%s", url.QueryEscape(m.Path)), signedURLTTL)
-			m.PngUrl = utils.SignURL(base, fmt.Sprintf("/api/stream/png/%s", m.Id), signedURLTTL)
-			m.JpgUrl = utils.SignURL(base, fmt.Sprintf("/api/stream/jpg/%s", m.Id), signedURLTTL)
+			m.StreamUrl = utils.SignURL(localBase, streamPath+url.QueryEscape(m.Path), signedURLTTL)
+			m.PngUrl = utils.SignURL(localBase, pngPath+m.Id, signedURLTTL)
+			m.JpgUrl = utils.SignURL(localBase, jpgPath+m.Id, signedURLTTL)
 			m.NodeHost = localNode
 			m.NodeName = LocalNodeName
 		} else {
@@ -274,10 +265,10 @@ func FillURLs(c *gin.Context, movies []model.FileItem) {
 				peerFilePort = p.FilePort
 			}
 			if peerIP := ResolvePeerIP(m.NodeHost); peerIP != "" {
-				base := fmt.Sprintf("http://%s:%s", peerIP, peerFilePort)
-				m.StreamUrl = utils.SignURL(base, fmt.Sprintf("/api/stream/GetFileByPathUseEncode/%s", url.QueryEscape(m.Path)), signedURLTTL)
-				m.PngUrl = utils.SignURL(base, fmt.Sprintf("/api/stream/png/%s", m.Id), signedURLTTL)
-				m.JpgUrl = utils.SignURL(base, fmt.Sprintf("/api/stream/jpg/%s", m.Id), signedURLTTL)
+				peerBase := "http://" + peerIP + ":" + peerFilePort
+				m.StreamUrl = utils.SignURL(peerBase, streamPath+url.QueryEscape(m.Path), signedURLTTL)
+				m.PngUrl = utils.SignURL(peerBase, pngPath+m.Id, signedURLTTL)
+				m.JpgUrl = utils.SignURL(peerBase, jpgPath+m.Id, signedURLTTL)
 			}
 		}
 	}

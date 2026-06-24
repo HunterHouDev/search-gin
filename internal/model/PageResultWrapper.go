@@ -16,6 +16,13 @@ func NewPageWrapper() PageResultWrapper {
 	return PageResultWrapper{}
 }
 
+// NewPageWrapperWithCap 创建指定初始容量的搜索结果包装器
+func NewPageWrapperWithCap(capacity int) PageResultWrapper {
+	return PageResultWrapper{
+		FileList: make([]FileItem, 0, capacity),
+	}
+}
+
 func (fsw PageResultWrapper) IsNotEmpty() bool {
 	return len(fsw.FileList) > 0
 }

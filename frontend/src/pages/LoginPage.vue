@@ -68,6 +68,7 @@ import { useSystemProperty } from 'src/stores/System';
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
+import { commonAxios } from 'src/boot/axios';
 
 const router = useRouter();
 const systemProperty = useSystemProperty();
@@ -90,18 +91,12 @@ const login = async () => {
   errorMsg.value = '';
   
   try {
-    const response = await fetch('/api/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ 
-        username: username.value,
-        password: password.value 
-      }),
+    const response = await commonAxios().post('/api/login', {
+      username: username.value,
+      password: password.value,
     });
     
-    const result = await response.json();
+    const result = response.data;
     
     if (result.Code === 200) {
       // 验证通过，将用户信息存储到sessionStorage中
