@@ -540,6 +540,234 @@ func TestRename_NonExistentFile(t *testing.T) {
 	assert.False(t, res.IsSuccess())
 }
 
+func TestRename_FileNotExist(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	engine := NewSearchEngine()
+	settings := DefaultSettings()
+	events := DefaultEventBus()
+	scanQueue := NewScanQueue(engine, settings)
+	app := NewSearchService(engine, settings, events, scanQueue)
+
+	movie := model.FileItem{
+		Id:       "rename-ne",
+		Name:     "nonexistent.mp4",
+		Path:     filepath.Join(tmpDir, "nonexistent.mp4"),
+		DirPath:  tmpDir,
+		FileType: "mp4",
+		Size:     100,
+		BaseDir:  tmpDir,
+	}
+	engine.installIndex(buildIndexFromBuckets(map[string]*bucketFile{
+		tmpDir: makeBucket(tmpDir, movie),
+	}))
+
+	edit := model.FileEdit{
+		FileItem: model.FileItem{
+			Id:   "rename-ne",
+			Name: "new_name.mp4",
+		},
+	}
+	res := app.Rename(edit)
+	assert.False(t, res.IsSuccess())
+}
+
+// ── Rename MoveOut 测试 ──
+
+func TestRename_MoveOutWithAuthor(t *testing.T) {
+	tmpDir := t.TempDir()
+	origPath := filepath.Join(tmpDir, "video.mp4")
+	os.WriteFile(origPath, []byte("test"), 0644)
+
+	engine := NewSearchEngine()
+	settings := DefaultSettings()
+	events := DefaultEventBus()
+	scanQueue := NewScanQueue(engine, settings)
+	app := NewSearchService(engine, settings, events, scanQueue)
+
+	movie := model.FileItem{
+		Id:       "rename-mo",
+		Name:     "video.mp4",
+		Path:     origPath,
+		DirPath:  tmpDir,
+		FileType: "mp4",
+		Size:     100,
+		BaseDir:  tmpDir,
+	}
+	engine.installIndex(buildIndexFromBuckets(map[string]*bucketFile{
+		tmpDir: makeBucket(tmpDir, movie),
+	}))
+
+	edit := model.FileEdit{
+		FileItem: model.FileItem{
+			Id:     "rename-mo",
+			Name:   "video.mp4",
+			Author: "张三",
+			Title:  "电影标题",
+		},
+		MoveOut: true,
+	}
+	res := app.Rename(edit)
+	assert.True(t, res.IsSuccess())
+}
+
+func TestRename_MoveOutWithCode(t *testing.T) {
+	tmpDir := t.TempDir()
+	origPath := filepath.Join(tmpDir, "video.mp4")
+	os.WriteFile(origPath, []byte("test"), 0644)
+
+	engine := NewSearchEngine()
+	settings := DefaultSettings()
+	events := DefaultEventBus()
+	scanQueue := NewScanQueue(engine, settings)
+	app := NewSearchService(engine, settings, events, scanQueue)
+
+	movie := model.FileItem{
+		Id:       "rename-mc",
+		Name:     "video.mp4",
+		Path:     origPath,
+		DirPath:  tmpDir,
+		FileType: "mp4",
+		Size:     100,
+		BaseDir:  tmpDir,
+	}
+	engine.installIndex(buildIndexFromBuckets(map[string]*bucketFile{
+		tmpDir: makeBucket(tmpDir, movie),
+	}))
+
+	edit := model.FileEdit{
+		FileItem: model.FileItem{
+			Id:    "rename-mc",
+			Name:  "video.mp4",
+			Title: "电影标题",
+			Code:  "ABC-123",
+		},
+		MoveOut: true,
+	}
+	res := app.Rename(edit)
+	assert.True(t, res.IsSuccess())
+}
+
+// ── notifyFileChanged 测试 ──
+
+func TestNotifyFileChanged_UpdatesIndex(t *testing.T) {
+	tmpDir := t.TempDir()
+	origPath := filepath.Join(tmpDir, "old.mp4")
+	newPath := filepath.Join(tmpDir, "new.mp4")
+	os.WriteFile(origPath, []byte("test"), 0644)
+
+	engine := NewSearchEngine()
+	settings := DefaultSettings()
+	events := DefaultEventBus()
+	scanQueue := NewScanQueue(engine, settings)
+	app := NewSearchService(engine, settings, events, scanQueue)
+
+	oldFile := model.FileItem{
+		Id:       "notify-1",
+		Name:     "old.mp4",
+		Path:     origPath,
+		DirPath:  tmpDir,
+		FileType: "mp4",
+		Size:     100,
+		BaseDir:  tmpDir,
+	}
+	newFile := model.FileItem{
+		Id:       "notify-1",
+		Name:     "new.mp4",
+		Path:     newPath,
+		DirPath:  tmpDir,
+		FileType: "mp4",
+		Size:     100,
+		BaseDir:  tmpDir,
+	}
+
+	engine.installIndex(buildIndexFromBuckets(map[string]*bucketFile{
+		tmpDir: makeBucket(tmpDir, oldFile),
+	}))
+
+	res := app.notifyFileChanged(oldFile, newFile, "rename")
+	assert.True(t, res.IsSuccess())
+	assert.Equal(t, "new.mp4", res.Data.(model.FileItem).Name)
+}
+
+// ── Delete 带附属文件测试 ──
+
+func TestDelete_WithCompanionFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	origPath := filepath.Join(tmpDir, "video.mp4")
+	jpgPath := filepath.Join(tmpDir, "video.jpg")
+	pngPath := filepath.Join(tmpDir, "video.png")
+	os.WriteFile(origPath, []byte("test"), 0644)
+	os.WriteFile(jpgPath, []byte("jpg"), 0644)
+	os.WriteFile(pngPath, []byte("png"), 0644)
+
+	engine := NewSearchEngine()
+	settings := DefaultSettings()
+	events := DefaultEventBus()
+	scanQueue := NewScanQueue(engine, settings)
+	app := NewSearchService(engine, settings, events, scanQueue)
+
+	movie := model.FileItem{
+		Id:       "del-comp",
+		Name:     "video.mp4",
+		Path:     origPath,
+		Jpg:      jpgPath,
+		Png:      pngPath,
+		DirPath:  tmpDir,
+		FileType: "mp4",
+		Size:     100,
+		BaseDir:  tmpDir,
+		Title:    "video",
+	}
+	engine.installIndex(buildIndexFromBuckets(map[string]*bucketFile{
+		tmpDir: makeBucket(tmpDir, movie),
+	}))
+
+	app.Delete("del-comp")
+
+	_, err1 := os.Stat(origPath)
+	_, err2 := os.Stat(jpgPath)
+	_, err3 := os.Stat(pngPath)
+	assert.True(t, os.IsNotExist(err1))
+	assert.True(t, os.IsNotExist(err2))
+	assert.True(t, os.IsNotExist(err3))
+}
+
+// ── SetMovieType "无" 类型测试 ──
+
+func TestSetMovieType_TypeIsWu(t *testing.T) {
+	tmpDir := t.TempDir()
+	origPath := filepath.Join(tmpDir, "video.mp4")
+	os.WriteFile(origPath, []byte("test"), 0644)
+
+	engine := NewSearchEngine()
+	settings := DefaultSettings()
+	events := DefaultEventBus()
+	scanQueue := NewScanQueue(engine, settings)
+	app := NewSearchService(engine, settings, events, scanQueue)
+
+	movie := model.FileItem{
+		Id:        "test-wu",
+		Name:      "video.mp4",
+		Path:      origPath,
+		DirPath:   tmpDir,
+		FileType:  "mp4",
+		Size:      100,
+		BaseDir:   tmpDir,
+		MovieType: "无",
+	}
+	engine.installIndex(buildIndexFromBuckets(map[string]*bucketFile{
+		tmpDir: makeBucket(tmpDir, movie),
+	}))
+
+	res := app.SetMovieType(movie, "骑兵")
+	assert.True(t, res.IsSuccess())
+
+	newPath := filepath.Join(tmpDir, "video{{骑兵}}.mp4")
+	_, err := os.Stat(newPath)
+	assert.NoError(t, err)
+}
+
 // ── 辅助函数 ──
 
 func splitAndTrim(s string) []string {
