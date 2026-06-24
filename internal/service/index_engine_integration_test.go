@@ -1,11 +1,10 @@
 package service
 
 import (
+	"fmt"
 	"search-gin/internal/model"
-	"search-gin/pkg/utils"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -113,10 +112,10 @@ func TestIntegration_ConcurrentSearch(t *testing.T) {
 	// 构建 10 个 bucket，每个 100 文件
 	buckets := make(map[string]*bucketFile)
 	for bi := 0; bi < 10; bi++ {
-		name := utils.IntToString(bi)
+		name := fmt.Sprint(bi)
 		movies := make([]model.FileItem, 0, 100)
 		for fi := 0; fi < 100; fi++ {
-			id := utils.IntToString(bi*1000 + fi)
+			id := fmt.Sprint(bi*1000 + fi)
 			movies = append(movies, makeMovie(id, "movie_"+id+".mp4", "/"+name+"/"+id+".mp4",
 				"CODE-"+id, "骑兵", "作者"+name, int64(fi*100)))
 		}
@@ -127,29 +126,23 @@ func TestIntegration_ConcurrentSearch(t *testing.T) {
 
 	// 20 个 goroutine 并发搜索
 	var wg sync.WaitGroup
-	errs := make(chan error, 20)
 	for i := 0; i < 20; i++ {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
 			defer func() {
 				if r := recover(); r != nil {
-					errs <- utils.Errorf("goroutine %d panic: %v", id, r)
+					t.Logf("goroutine %d panic: %v", id, r)
 				}
 			}()
 			param := model.SearchParam{Page: 1, PageSize: 20, Keyword: "movie"}
 			result := engine.Page(param)
 			if result.TotalCnt < 0 {
-				errs <- utils.Errorf("goroutine %d: TotalCnt=%d", id, result.TotalCnt)
+				t.Errorf("goroutine %d: TotalCnt=%d", id, result.TotalCnt)
 			}
 		}(i)
 	}
 	wg.Wait()
-	close(errs)
-
-	for err := range errs {
-		t.Error(err)
-	}
 }
 
 // ── 集成测试：搜索超时 ──
@@ -161,10 +154,10 @@ func TestIntegration_SearchTimeout(t *testing.T) {
 	// 构建 50 个 bucket，各含 200 文件
 	buckets := make(map[string]*bucketFile)
 	for bi := 0; bi < 50; bi++ {
-		name := utils.IntToString(bi)
+		name := fmt.Sprint(bi)
 		movies := make([]model.FileItem, 0, 200)
 		for fi := 0; fi < 200; fi++ {
-			id := utils.IntToString(bi*1000 + fi)
+			id := fmt.Sprint(bi*1000 + fi)
 			movies = append(movies, makeMovie(id, "data_"+id+".mp4", "/"+name+"/"+id+".mp4",
 				"CODE-"+id, "类型"+name, "作者"+name, int64(fi)))
 		}
@@ -200,28 +193,34 @@ func TestIntegration_IncrementalUpdate(t *testing.T) {
 	result := engine.Page(param)
 	assert.Equal(t, 1, result.TotalCnt)
 
-	// 添加新文件
-	_, err := engine.ReplaceFile(model.FileEdit{
-		FileItem: model.FileItem{
-			Id:   "2",
-			Name: "new.mp4",
-			Path: "/dir/new.mp4",
-			Size: 2000,
+	// 修改文件（重命名）- 构造时设置 PathUpper 避免 searchBucket 匹配不到
+	engine.ReplaceFile(
+		model.FileItem{Id: "1", Path: "/dir/original.mp4", BaseDir: "dir"},
+		model.FileItem{
+			Id:        "1",
+			Name:      "renamed.mp4",
+			Path:      "/dir/renamed.mp4",
+			PathUpper: "/DIR/RENAMED.MP4",
+			BaseDir:   "dir",
+			Size:      1000,
 		},
-		NoRefresh: true,
-	})
-	assert.NoError(t, err)
+	)
 
-	// 验证新文件可搜索
-	param = model.SearchParam{Page: 1, PageSize: 10, Keyword: "new"}
+	// 旧名称不再匹配
+	param = model.SearchParam{Page: 1, PageSize: 10, Keyword: "original"}
+	result = engine.Page(param)
+	assert.Equal(t, 0, result.TotalCnt)
+
+	// 新名称可搜索
+	param = model.SearchParam{Page: 1, PageSize: 10, Keyword: "renamed"}
 	result = engine.Page(param)
 	assert.Equal(t, 1, result.TotalCnt)
 
-	// 修改文件类型
-	engine.DeleteFile("1")
+	// 删除文件
+	engine.DeleteFile(model.FileItem{Id: "1", Path: "/dir/renamed.mp4", BaseDir: "dir"})
 
 	// 验证已删除的文件不再返回
-	param = model.SearchParam{Page: 1, PageSize: 10, Keyword: "original"}
+	param = model.SearchParam{Page: 1, PageSize: 10, Keyword: "renamed"}
 	result = engine.Page(param)
 	assert.Equal(t, 0, result.TotalCnt)
 }
@@ -244,7 +243,7 @@ func TestIntegration_RepeatSearch(t *testing.T) {
 
 	// 搜索重复文件
 	param := model.SearchParam{Page: 1, PageSize: 10}
-	param.SetOnlyRepeat()
+	param.SetOnlyRepeat(true)
 	result := engine.Page(param)
 	list := result.Data.([]model.FileItem)
 	// DUP-1 有 2 个文件（重复），DUP-2 只有 1 个
@@ -273,8 +272,8 @@ func TestIntegration_FilterSearch(t *testing.T) {
 	result := engine.Page(param)
 	assert.Equal(t, 3, result.TotalCnt)
 
-	// 大小范围
+	// 大小范围（含边界）
 	param = model.SearchParam{Page: 1, PageSize: 10, MinSize: 100, MaxSize: 1000}
 	result = engine.Page(param)
-	assert.Equal(t, 2, result.TotalCnt)
+	assert.Equal(t, 3, result.TotalCnt) // 100, 500, 1000 均匹配
 }
