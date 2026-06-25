@@ -364,7 +364,7 @@ func TestRebuildWithBucket_ReplacesExisting(t *testing.T) {
 
 	// 替换 dir-a 为新文件
 	b2 := makeBucket("dir-a", makeMovie("2", "new.mp4", "/new.mp4", "", "", "", 200))
-	core.rebuildWithBucket("dir-a", b2)
+	core.rebuildWithBucketIncremental("dir-a", b2)
 
 	assert.Equal(t, 1, core.GetTotalCount())
 	assert.Equal(t, int64(200), core.GetTotalSize())
@@ -393,7 +393,7 @@ func TestRebuildWithBucket_KeepsOtherBuckets(t *testing.T) {
 
 	// 只替换 dir-a 不影响 dir-b
 	bA2 := makeBucket("dir-a", makeMovie("3", "a2.mp4", "/a2.mp4", "", "", "", 300))
-	core.rebuildWithBucket("dir-a", bA2)
+	core.rebuildWithBucketIncremental("dir-a", bA2)
 
 	assert.Equal(t, int32(2), core.BucketCount())
 	assert.Equal(t, int64(500), core.GetTotalSize())
