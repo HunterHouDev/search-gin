@@ -335,8 +335,4 @@ func GetPeer(nodeHost string) *Peer {
 	return nil
 }
 
-// SetMovieNode 为 Movie 设置节点信息
-func SetMovieNode(m *model.FileItem) {
-	m.NodeHost = LocalNodeHost
-	m.NodeName = LocalNodeName
-}
+

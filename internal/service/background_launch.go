@@ -93,6 +93,9 @@ func StartPprof() {
 func StartBackgroundTasks() {
 	utils.InfoFormat("StartBackgroundTasks: 正在启动后台任务...")
 
+	setting := GetOSSetting()
+	InitTaskSlots(setting.TaskMaxConcurrent)
+
 	search := GetSearch()
 	if search == nil {
 		utils.ErrorFormat("StartBackgroundTasks: GetSearch() 返回 nil，后台任务无法启动")

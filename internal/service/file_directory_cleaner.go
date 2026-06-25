@@ -63,7 +63,7 @@ func WalkInner(baseDir string, opts WalkOptions) (allFiles []model.FileItem, dir
 					if utils.HasItemSet(typeSet, suffix) {
 						movie := model.EasyFile(cur.path, p, name, suffix,
 							info.Size(), info.ModTime(), baseDir)
-						SetMovieNode(&movie)
+						movie.SetNodeInfo(LocalNodeHost, LocalNodeName)
 						allFiles = append(allFiles, movie)
 					}
 					sizeMap[cur.path] += info.Size()
@@ -118,7 +118,7 @@ func (s *searchService) DeleteFilesOnDisk(dirName string, fileName string) {
 
 	deleted := false
 	for _, f := range files {
-		if strings.HasPrefix(f.Name(), fileName) {
+		if strings.EqualFold(f.Name(), fileName+filepath.Ext(f.Name())) {
 			path := filepath.Join(dirName, f.Name())
 			if err := os.Remove(path); err != nil {
 				utils.InfoFormat("删除文件失败: %s, 错误: %v", path, err)

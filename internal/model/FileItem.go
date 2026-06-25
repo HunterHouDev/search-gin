@@ -238,3 +238,9 @@ func (f FileItem) RenameAll(newMainPath, newBaseName string) (FileItem, error) {
 	newFile.Id = f.Id
 	return newFile, nil
 }
+
+// SetNodeInfo 设置文件所属节点信息
+func (f *FileItem) SetNodeInfo(nodeHost, nodeName string) {
+	f.NodeHost = nodeHost
+	f.NodeName = nodeName
+}

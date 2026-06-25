@@ -158,12 +158,12 @@ func (s *searchService) scanDir(baseDir string, types []string, resultChan chan<
 
 // Walk 遍历目录，获取指定类型文件列表（轻量版，不建索引）
 func (s *searchService) Walk(dirPath string, types []string, deep bool) []model.FileItem {
-	files, _ := s.WalkDirWithCfg(dirPath, types, deep, dirPath)
+	files, _ := s.WalkDirWithCfg(dirPath, types, deep)
 	return files
 }
 
 // WalkDirWithCfg 适配旧调用方，注入 settings.Dirs 后转发到包级 WalkInner。
-func (s *searchService) WalkDirWithCfg(currentDir string, types []string, queryChild bool, basePath string) ([]model.FileItem, int64) {
+func (s *searchService) WalkDirWithCfg(currentDir string, types []string, queryChild bool) ([]model.FileItem, int64) {
 	rootDirs := s.settings.Get().Dirs
 	return WalkInner(currentDir, WalkOptions{Recursive: queryChild, Types: types, RootDirs: rootDirs})
 }

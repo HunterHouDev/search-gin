@@ -44,4 +44,7 @@ type Setting struct {
 	DiscoveryPeers     []string `json:"discoveryPeers"`
 
 	Users []User `json:"users"`
+
+	// TaskMaxConcurrent 任务调度最大并发数（转码+剪辑+合并），默认 4，≤0 时不限制
+	TaskMaxConcurrent int `json:"taskMaxConcurrent"`
 }

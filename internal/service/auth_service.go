@@ -224,6 +224,7 @@ func defaultSetting() model.Setting {
 		Types:      []string{"avi", "mkv", "wmv", "mp4", "gif", "png", "jpg", "txt", "xlsx"},
 		MovieTypes: []string{"骑兵", "步兵", "国产", "漫动"},
 		Pages:      []string{"10", "12", "15", "27", "50", "100"},
+		TaskMaxConcurrent: 4,
 	}
 }
 
