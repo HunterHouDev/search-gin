@@ -61,8 +61,6 @@ func GetLocalLog(c *gin.Context) {
 		c.JSON(http.StatusOK, []string{})
 		return
 	}
-	// TODO: 读取整个 gin.log 直接返回，日志中可能包含含 `<script>` 的文件名、token、敏感路径。
-	//       应只返回末尾 N 行并对内容做 HTML-escape。参见 33.md P1-3 验证结论
 	lines := splitLines(string(content))
 	// 过滤包含 token/Authorization 的敏感行
 	filtered := make([]string, 0, len(lines))

@@ -44,9 +44,6 @@ func InitSetting() {
 	}
 
 	SetOSSetting(dict)
-	// 密码迁移放启动阶段，避免与 PostSetting 运行时并发写文件（migratePasswordsIfNeeded 在 Read 路径之外独立调用）
-	dict = migratePasswordsIfNeeded(settingPath, dict)
-	SetOSSetting(dict)
 }
 
 // InitSearchPool 初始化 goroutine 池，根据配置的目录数量动态调整
@@ -60,8 +57,7 @@ func InitSearchPool() {
 	if poolSize > 50 {
 		poolSize = 50
 	}
-	// TODO: 当前 GoroutinePool.Close() 从未调用，若未来添加热重配逻辑或多次初始化 InitSearchPool，旧池 worker 会泄漏。
-	//       参见 33.md P2-1 验证结论（当前仅 main.go 调用一次，无活跃泄漏）
+	// （当前仅 main.go 调用一次，无活跃泄漏）
 	GetEngine().searchPool = utils.NewGoroutinePool(poolSize)
 	GetEngine().KeywordHistoryCache = utils.NewLRUCache(500)
 }
