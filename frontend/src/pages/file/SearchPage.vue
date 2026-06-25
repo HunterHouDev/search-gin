@@ -784,7 +784,7 @@ import {
   SearchAPI,
   TransferTasksInfo,
 } from 'components/api/searchAPI';
-import { computed, onMounted, onUnmounted, provide, reactive, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, provide, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { GetSettingInfo, GetLanPeersWithStats } from 'components/api/settingAPI';
@@ -1634,8 +1634,8 @@ const pullNextPage = async (n) => {
       const data = await SearchAPI(view.queryParam, signal);
       if (signal?.aborted) return;
       view.resultData.Data.push(...(data?.Data || []));
-    } catch (e) {
-      if (e?.name === 'CanceledError' || e?.name === 'AbortError') return;
+	} catch (e) {
+    if (e?.name === 'CanceledError' || e?.name === 'AbortError') return;
       console.error('分页请求异常:', e);
     } finally {
       isMoreLoading.value = false;
@@ -1666,7 +1666,7 @@ const fetchSearch = async (replace = false) => {
   const currentController = new AbortController();
   searchAbortController.value = currentController;
 
-  try {
+ 	try {
     saveParam(replace);
     const { Keyword } = view.queryParam;
     if (!Keyword || Keyword == '') {
@@ -1728,29 +1728,6 @@ const fetchTasking = async () => {
 const thisRoute = useRoute();
 const { resolve, push } = useRouter();
 
-// 主动 push 后，短时间内跳过 watch 响应（避免重复 fetchSearch）
-let skipWatch = false;
-// 初始加载阶段跳过 watch，等 onMounted 中 queryParam 初始化完成后再响应
-let isInitializing = true;
-
-// 监听 URL query 变化（仅浏览器前进后退时触发）
-watch(
-  () => thisRoute.query,
-  () => {
-    if (skipWatch || isInitializing) return;
-    const { Page, PageSize, MovieType, SortField, SortType, Keyword, SearchNode } = thisRoute.query;
-    if (Object.keys(thisRoute.query).length === 0) return;
-    view.queryParam.Page = Number(Page) || 1;
-    view.queryParam.PageSize = Number(PageSize) || 10;
-    view.queryParam.MovieType = MovieType || '';
-    view.queryParam.SortField = SortField || 'publish_time';
-    view.queryParam.SortType = SortType || 'desc';
-    view.queryParam.Keyword = Keyword || '';
-    view.queryParam.SearchNode = SearchNode || '';
-    fetchSearch(true);
-  }
-);
-
 const saveParam = (skipPush = false) => {
   systemProperty.syncSearchParam(view.queryParam);
   systemProperty.expireTime = new Date().getTime() + 1000 * 60 * 60 * 2;
@@ -1770,7 +1747,6 @@ const saveParam = (skipPush = false) => {
     currentQuery.SortType !== SortType ||
     currentQuery.SearchNode !== SearchNode
   ) {
-    skipWatch = true;
     push({
       path: '/search',
       query: {
@@ -1783,7 +1759,6 @@ const saveParam = (skipPush = false) => {
         SearchNode,
       },
     });
-    setTimeout(() => { skipWatch = false; }, 100);
   }
 };
 
@@ -1871,8 +1846,6 @@ onMounted(async () => {
       }
     }
   }
-  // 提前设置标志位（IndexButton 的 heartBeat 有延迟，fetchSearch 是异步的）
-  isInitializing = false;
   // 恢复高级过滤 UI 状态（从 localStorage/pinia 恢复的 queryParam 中同步）
   ensureFilterDefaults();
   syncFilterUI();

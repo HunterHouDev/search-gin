@@ -79,8 +79,11 @@ func WalkInner(baseDir string, opts WalkOptions) (allFiles []model.FileItem, dir
 			}
 		} else {
 			if opts.IsCleanEmpty && cur.fileCount == 0 && utils.IndexOf(opts.RootDirs, cur.path) < 0 {
-				if err := os.Remove(cur.path); err != nil {
-					utils.InfoFormat("删除空目录失败: %s, 错误: %v", cur.path, err)
+				// 再次读取目录，确认真正为空（子目录可能未被删除）
+				if entries, err := os.ReadDir(cur.path); err == nil && len(entries) == 0 {
+					if err := os.Remove(cur.path); err != nil {
+						utils.InfoFormat("删除空目录失败: %s, 错误: %v", cur.path, err)
+					}
 				}
 			}
 			currentSize := sizeMap[cur.path]
@@ -197,8 +200,13 @@ func (s *searchService) UpDirClear(dirname string) {
 		}
 
 		if len(files) == 0 {
-			if err := os.Remove(currentDir); err != nil {
-				utils.InfoFormat("删除空目录失败: %s, 错误: %v", currentDir, err)
+			// 再次读取确认真正为空（防止并发写入或隐藏文件）
+			if recheck, err := os.ReadDir(currentDir); err == nil && len(recheck) == 0 {
+				if err := os.Remove(currentDir); err != nil {
+					utils.InfoFormat("删除空目录失败: %s, 错误: %v", currentDir, err)
+					break
+				}
+			} else {
 				break
 			}
 			currentDir = filepath.Dir(currentDir)

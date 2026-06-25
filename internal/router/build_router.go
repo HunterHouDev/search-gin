@@ -138,6 +138,7 @@ func BuildAPIRouter(sigChan chan os.Signal) *gin.Engine {
 	router.POST("/api/addFileTag/:id/:tag", handler.GetAddTag)
 	router.POST("/api/clearFileTag/:id/:tag", handler.GetClearTag)
 	router.GET("/api/dir/:id/:sort", handler.GetDirInfo)
+	router.GET("/api/delete/:id", handler.GetDelete)
 	router.DELETE("/api/delete/:id", handler.GetDelete)
 
 	router.GET("/api/openFolder/:id", handler.GetOpenFolder)

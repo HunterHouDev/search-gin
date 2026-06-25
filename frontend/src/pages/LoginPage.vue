@@ -31,7 +31,7 @@
             <q-form @submit="login" class="q-gutter-md">
               <q-input
                 v-model="username"
-                label="用户名（留空则用密码直接登录）"
+                label="用户名"
                 outlined
                 :disable="loading"
                 class="login-input"

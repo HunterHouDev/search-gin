@@ -40,7 +40,7 @@ func (p *Page) SetResultCnt(resultCnt int, pageNo int) {
 	if p.PageSize == 0 {
 		p.PageSize = 10
 	}
-	totalPage := resultCnt/p.PageSize + 1
+	totalPage := (resultCnt + p.PageSize - 1) / p.PageSize
 	p.TotalPage = totalPage
 	var pageList []int
 	var headNum = 7
