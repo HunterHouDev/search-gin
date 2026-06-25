@@ -245,8 +245,8 @@ func FillURLs(c *gin.Context, movies []model.FileItem) {
 	jpgPath := "/api/stream/jpg/"
 
 	// 生成加密的 streamToken（内含过期时间），:10082 解密后只校验有效期
-	// 图片预览 1分钟，视频流 4小时
-	imgExpire := time.Now().Add(1 * time.Minute).Unix()
+	// 图片预览 5分钟（防懒加载裂图），视频流 4小时
+	imgExpire := time.Now().Add(5 * time.Minute).Unix()
 	streamExpire := time.Now().Add(4 * time.Hour).Unix()
 	imgToken, err := utils.EncryptStreamToken(imgExpire)
 	streamToken, err2 := utils.EncryptStreamToken(streamExpire)
