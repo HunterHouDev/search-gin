@@ -14,10 +14,10 @@
     <template v-slot:loading>
       <q-spinner-facebook size="xs"></q-spinner-facebook>
       <template v-if="view.scanProgress && view.scanProgress.phase === 'scanning'">
-        {{ `扫描中 ${view.scanProgress.completedDirs}/${view.scanProgress.totalDirs}` }}
+        {{ `扫： ${view.scanProgress.completedDirs}/${view.scanProgress.totalDirs}` }}
       </template>
       <template v-else-if="view.scanProgress && view.scanProgress.phase === 'building'">
-        {{ `索引中 ${view.scanProgress.processedBuckets}/${view.scanProgress.totalBuckets}` }}
+        {{ `索: ${view.scanProgress.processedBuckets}/${view.scanProgress.totalBuckets}` }}
       </template>
       <template v-else>
         {{ `S:${view.indexNumber}` }}

@@ -100,7 +100,6 @@ func (se *searchEngineCore) rebuildWithBucketIncremental(baseDir string, newBuck
 	for _, d := range dirs {
 		dirSet[d] = struct{}{}
 	}
-
 	newBuckets := make(map[string]*bucketFile, len(old.buckets)+1)
 	for k, v := range old.buckets {
 		if k == baseDir {
@@ -124,6 +123,12 @@ func (se *searchEngineCore) rebuildWithBucketIncremental(baseDir string, newBuck
 		typeMenu:    cloneMenuMap(old.typeMenu),
 		tagMenu:     cloneMenuMap(old.tagMenu),
 		seriesCount: cloneMenuMap(old.seriesCount),
+	}
+
+	// 克隆旧 idIndex，后续 subtract/add 只修正当前 bucket 的条目，其他 bucket 的条目保持不变
+	index.idIndex = make(map[string]*model.FileItem, len(old.idIndex))
+	for k, v := range old.idIndex {
+		index.idIndex[k] = v
 	}
 
 	oldBucket := old.buckets[baseDir]
@@ -385,7 +390,10 @@ func addFileToIndex(index *searchIndex, movie *model.FileItem) {
 	index.totalCount++
 	index.totalSize += movie.Size
 
-	// 维护全局 ID 索引
+	// 维护全局 ID 索引（懒初始化，允许调用方未预先创建 map）
+	if index.idIndex == nil {
+		index.idIndex = make(map[string]*model.FileItem, 16)
+	}
 	if movie.Id != "" {
 		index.idIndex[movie.Id] = movie
 	}

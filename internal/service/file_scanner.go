@@ -94,11 +94,11 @@ func (s *searchService) ScanDirs(baseDir []string, types []string) map[string]*b
 	resultChan := make(chan scanResult, dirSize)
 
 	wg.Add(dirSize)
-	for i := 0; i < dirSize; i++ {
+	for i := range dirSize {
 		go func(dir string) {
 			defer wg.Done()
 			defer utils.RecoverPanic()
-			s.goWalkWithResult(dir, types, resultChan)
+			s.scanDir(dir, types, resultChan)
 
 		}(baseDir[i])
 	}
@@ -118,32 +118,8 @@ func (s *searchService) ScanDirs(baseDir []string, types []string) map[string]*b
 	return buckets
 }
 
-// Walks 并发扫描多文件夹并返回所有文件（扫描 + 重建索引）
-func (s *searchService) Walks(baseDir []string, types []string) []model.FileItem {
-	dirSize := len(baseDir)
-
-	if dirSize == 0 {
-		return nil
-	}
-
-	buckets := s.ScanDirs(baseDir, types)
-
-	var result []model.FileItem
-	for _, b := range buckets {
-		for _, m := range b.FileLib {
-			result = append(result, *m)
-		}
-	}
-
-	LogMem.Add("Walks: 准备重建索引")
-	s.engine.rebuildWithBuckets(buckets)
-	LogMem.Add("Walks: 索引重建完成")
-
-	return result
-}
-
-// goWalkWithResult 协程方法扫描单个文件夹并返回结果
-func (s *searchService) goWalkWithResult(baseDir string, types []string, resultChan chan<- scanResult) {
+// scanDir 协程方法扫描单个文件夹并返回结果
+func (s *searchService) scanDir(baseDir string, types []string, resultChan chan<- scanResult) {
 	defer func() {
 		Sp.IncrementCompletedDirs()
 	}()
@@ -151,11 +127,11 @@ func (s *searchService) goWalkWithResult(baseDir string, types []string, resultC
 	// 更新当前正在扫描的目录
 	Sp.SetCurrentDir(baseDir)
 
-	LogMem.Add("goWalkWithResult: 开始扫描目录 %s", baseDir)
+	LogMem.Add("scanDir: 开始扫描目录 %s", baseDir)
 	start := time.Now()
 	files, size := WalkInner(baseDir, WalkOptions{Recursive: true, Types: types, RootDirs: []string{baseDir}})
 
-	LogMem.Add("goWalkWithResult: 扫描完成 %s, 发现 %d 个文件", baseDir, len(files))
+	LogMem.Add("scanDir: 扫描完成 %s, 发现 %d 个文件", baseDir, len(files))
 	// 更新已扫描文件计数
 	Sp.AddScannedFiles(int64(len(files)))
 
@@ -191,5 +167,3 @@ func (s *searchService) WalkDirWithCfg(currentDir string, types []string, queryC
 	rootDirs := s.settings.Get().Dirs
 	return WalkInner(currentDir, WalkOptions{Recursive: queryChild, Types: types, RootDirs: rootDirs})
 }
-
-
