@@ -275,7 +275,49 @@ func ReadDictionaryFromJson(path string) model.Setting {
 		utils.InfoFormat("解析配置文件失败: %v", err)
 		return model.Setting{}
 	}
+	// 迁移明文密码到 bcrypt hash（启动时自动执行）
+	dict = migratePlaintextPasswords(dict)
 	return dict
+}
+
+// migratePlaintextPasswords 将用户列表中的明文密码迁移为 bcrypt hash。
+// 检测方式：bcrypt hash 以 $2a$ 或 $2b$ 开头，非此前缀则视为明文。
+func migratePlaintextPasswords(s model.Setting) model.Setting {
+	migrated := false
+	for i, u := range s.Users {
+		if u.Password == "" {
+			continue
+		}
+		// bcrypt hash 固定以 $2a$ 或 $2b$ 开头，否则是明文
+		if len(u.Password) < 4 || (u.Password[:4] != "$2a$" && u.Password[:4] != "$2b$") {
+			hash := HashPassword(u.Password)
+			if hash != "" {
+				s.Users[i].Password = hash
+				migrated = true
+				utils.InfoFormat("密码已迁移（bcrypt）: 用户 %s", u.Username)
+			}
+		}
+	}
+	if migrated {
+		count := migratedCount(s.Users)
+		utils.InfoFormat("有 %d 个用户密码已从明文迁移到 bcrypt", count)
+		// 立即持久化，避免明文残留在磁盘
+		if s.SelfPath != "" {
+			WriteDictionaryToJson(s.SelfPath, s)
+		}
+	}
+	return s
+}
+
+// migratedCount 统计迁移后的 bcrypt 用户数
+func migratedCount(users []model.User) int {
+	count := 0
+	for _, u := range users {
+		if len(u.Password) >= 4 && (u.Password[:4] == "$2a$" || u.Password[:4] == "$2b$") {
+			count++
+		}
+	}
+	return count
 }
 
 func WriteDictionaryToJson(path string, dict model.Setting) {
@@ -284,7 +326,7 @@ func WriteDictionaryToJson(path string, dict model.Setting) {
 		utils.InfoFormat("序列化配置文件失败: %v", err)
 		return
 	}
-	err = os.WriteFile(path, data, os.ModePerm)
+	err = os.WriteFile(path, data, 0600)
 	if err != nil {
 		utils.InfoFormat("写入配置文件失败: %v", err)
 		return

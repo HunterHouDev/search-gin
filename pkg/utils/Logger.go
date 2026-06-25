@@ -74,7 +74,7 @@ func (w *rotateWriter) truncateTail() {
 
 	// 原子替换：写临时文件 → 重命名
 	tmpPath := w.path + ".tmp"
-	if err := os.WriteFile(tmpPath, buf, 0644); err != nil {
+	if err := os.WriteFile(tmpPath, buf, 0600); err != nil {
 		return
 	}
 

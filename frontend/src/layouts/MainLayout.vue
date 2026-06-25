@@ -110,6 +110,7 @@ import { computed, onUnmounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useSystemProperty } from 'stores/System';
 import { useQuasar } from 'quasar';
+import { useBreakpoint } from 'src/composables/useBreakpoint';
 import EssentialLink from 'components/EssentialLink.vue';
 import ListEdit from 'pages/file/components/ListEditDialog.vue';
 import ShutdownComponent from 'components/ShutdownComponent.vue';
@@ -124,6 +125,7 @@ const chatRoomRef = ref(null);
 const systemProperty = useSystemProperty();
 const $q = useQuasar();
 const router = useRouter();
+const bp = useBreakpoint();
 
 // 同步主题到 body，确保弹窗/对话框等 body 级组件也能继承自然模式样式
 watch(() => systemProperty.theme, (theme) => {
@@ -150,10 +152,8 @@ const drawerStyle = computed(() => {
     : 'background-color: #181B27; color: #E8EAF2;';
 });
 
-// 响应式抽屉宽度
-const drawerWidth = computed(() => {
-  return $q.screen.width > 1200 ? 240 : 200;
-});
+// 响应式抽屉宽度 — 使用 composable
+const drawerWidth = computed(() => bp.drawerWidth.value);
 
 const timeLogout = ref('');
 const timeLogoutShow = ref('');
@@ -192,11 +192,20 @@ onUnmounted(() => {
   wsDisconnect();
 });
 
-const isWideScreen = computed(() => {
-  return $q.screen.width > 750;
-});
+// 响应式断点 — 使用 composable
+const isWideScreen = computed(() => bp.isWide.value);
 
 systemProperty.isElectron = $q.platform.is.electron;
+
+// 自动关闭抽屉（移动端导航后自动收回）
+watch(
+  () => router.currentRoute.value.path,
+  () => {
+    if (bp.isNarrow.value) {
+      drawerLeft.value = false;
+    }
+  }
+);
 
 const isDesktop = computed(() => {
   return $q.platform.is.electron;

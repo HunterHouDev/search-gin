@@ -3,14 +3,14 @@
     <!-- 头部 -->
     <div class="search-panel-header">
       <!-- tab 切换 -->
-      <q-tabs v-model="activeTab" dense active-color="indigo-4" indicator-color="indigo-4"
+      <q-tabs v-model="activeTab" dense active-color="primary" indicator-color="primary"
         class="sp-tabs" align="left">
         <q-tab name="search" label="搜索列表" no-caps />
         <q-tab name="images" label="本地图片" no-caps />
       </q-tabs>
       <div class="sp-header-actions">
-        <q-btn flat round dense size="sm" icon="refresh" @click="onRefresh" color="indigo-4" />
-        <q-btn flat round dense size="sm" icon="close" @click="$emit('close')" color="grey-4" />
+        <q-btn flat round dense size="sm" icon="refresh" @click="onRefresh" color="primary" />
+        <q-btn flat round dense size="sm" icon="close" @click="$emit('close')" color="grey" />
       </div>
     </div>
 
@@ -37,7 +37,7 @@
     <!-- 搜索列表 -->
     <div class="search-results" v-show="activeTab === 'search'" ref="searchResultsRef">
       <div v-if="searchLoading" class="search-loading">
-        <q-spinner-dots size="40px" color="indigo-4" />
+        <q-spinner-dots size="40px" color="primary" />
         <p class="text-grey-5 q-mt-sm text-caption">加载中...</p>
       </div>
 
@@ -132,7 +132,7 @@
     <!-- 本地图片 -->
     <div class="search-results" v-show="activeTab === 'images'">
       <div v-if="imagesLoading" class="search-loading">
-        <q-spinner-dots size="40px" color="indigo-4" />
+        <q-spinner-dots size="40px" color="primary" />
         <p class="text-grey-5 q-mt-sm text-caption">加载中...</p>
       </div>
       <template v-else-if="localImages && localImages.length > 0">

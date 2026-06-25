@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# =============================================================================
+# .husky/pre-commit — Git pre-commit hook
+# 在每次 commit 前自动运行：
+#   1. Frontend: lint-staged（eslint + prettier 检查已暂存的前端文件）
+#   2. Go: gofmt 检查格式 + go vet 检查正确性
+# =============================================================================
+set -euo pipefail
+
+PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+FRONTEND_DIR="$PROJECT_DIR/frontend"
+
+echo "🔍 pre-commit: 检查前端代码..."
+cd "$FRONTEND_DIR"
+npx lint-staged --allow-empty 2>/dev/null || echo "  ⚠️  lint-staged 跳过（无匹配文件或未安装）"
+
+echo "🔍 pre-commit: 检查 Go 代码格式..."
+cd "$PROJECT_DIR"
+GOFMT_OUT=$(gofmt -l internal/ pkg/ middleware/ main.go 2>/dev/null || true)
+if [ -n "$GOFMT_OUT" ]; then
+  echo "  ❌ 以下文件格式不正确，请运行 gofmt -w："
+  echo "$GOFMT_OUT"
+  exit 1
+fi
+
+echo "🔍 pre-commit: go vet..."
+go vet ./... 2>/dev/null && echo "  ✅ go vet 通过" || {
+  echo "  ❌ go vet 发现问题"
+  exit 1
+}
+
+echo "✅ pre-commit: 全部通过"

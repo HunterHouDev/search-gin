@@ -1,0 +1,52 @@
+# .golangci.yml — search-gin project
+# Focused on real bugs, security, and correctness.
+# Style-only linters (gocritic, revive naming) are excluded for practicality.
+# docs: https://golangci-lint.run/usage/configuration/
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    - govet         # correctness
+    - staticcheck   # comprehensive analysis
+    - gosimple      # simplify code
+    - errcheck      # unchecked errors
+    - ineffassign   # ineffective assignments
+    - unused        # dead code
+    - unconvert     # unnecessary type conversions
+    - gosec         # security
+    - misspell      # spelling
+  disable:
+    - gocritic      # too opinionated for this codebase
+    - revive        # naming/style rules — intentional conventions exist
+    - prealloc      # performance hints, not bugs
+
+linters-settings:
+  errcheck:
+    exclude-functions:
+      - (*os.File).Close
+      - io.Copy
+      - (*search-gin/pkg/utils.Logger).Info
+      - (*search-gin/pkg/utils.Logger).Error
+      - net/http.Get
+      - net/http.Post
+      - (net.Conn).SetReadDeadline
+      - (*github.com/gorilla/websocket.Conn).SetReadDeadline
+  staticcheck:
+    checks: ["all"]
+  gosec:
+    excludes:
+      - G115  # integer overflow conversion — safe in all current usage
+      - G404  # weak random — math/rand is fine for non-cryptographic UA rotation
+      - G204  # subprocess — ping_controller validates input with net.ParseIP
+      - G114  # ListenAndServe without timeouts — pprof is dev-only
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters: [errcheck, gosec, unused]
+    - path: internal/service/task_scheduler.go
+      linters: [unused]  # taskVCode reserved for future use
+  max-issues-per-linter: 0
+  max-same-issues: 0

@@ -3,6 +3,9 @@
 基于 Golang + Vue 3 的本地文件搜索、管理与媒体播放系统。通过 `//go:embed` 将前端嵌入 Go 二进制，单文件即可部署。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/hunter/search-gin/actions/workflows/ci.yml/badge.svg)](https://github.com/hunter/search-gin/actions/workflows/ci.yml)
+[![Go Version](https://img.shields.io/badge/Go-1.25-blue?logo=go)](https://go.dev/)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-lightgrey)](README.md)
 
 ## 功能
 

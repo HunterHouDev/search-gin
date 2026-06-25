@@ -235,7 +235,9 @@ func (s *searchService) Move(id string, newDir string, title string) utils.Resul
 		return res
 	}
 	if !utils.ExistsFiles(newDir) {
-		os.MkdirAll(newDir, 0755)
+		if err := os.MkdirAll(newDir, 0755); err != nil {
+			utils.ErrorFormat("创建目录失败 %s: %v", newDir, err)
+		}
 	}
 	newPath := newDir + utils.PathSeparator + title + "." + movieLib.FileType
 	newBaseName := newDir + utils.PathSeparator + title

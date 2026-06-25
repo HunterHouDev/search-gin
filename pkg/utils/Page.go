@@ -1,23 +1,23 @@
 package utils
 
 type Page struct {
-	PageNo    int
-	PageSize  int
-	StartNo   int
-	TotalPage int
-	EachPage  []int
+	PageNo    int         `json:"PageNo"`
+	PageSize  int         `json:"PageSize"`
+	StartNo   int         `json:"StartNo"`
+	TotalPage int         `json:"TotalPage"`
+	EachPage  []int       `json:"EachPage"`
 
-	Data      interface{}
-	KeyWord   string
-	TotalCnt  int
-	ResultCnt int
-	CurCnt    int
+	Data      interface{} `json:"Data"`
+	KeyWord   string      `json:"KeyWord"`
+	TotalCnt  int         `json:"TotalCnt"`
+	ResultCnt int         `json:"ResultCnt"`
+	CurCnt    int         `json:"CurCnt"`
 
-	ResultSize string
-	TotalSize  string
-	CurSize    string
+	ResultSize string `json:"ResultSize"`
+	TotalSize  string `json:"TotalSize"`
+	CurSize    string `json:"CurSize"`
 
-	IndexProgress int32
+	IndexProgress int32 `json:"IndexProgress"`
 }
 
 func NewPage() Page {

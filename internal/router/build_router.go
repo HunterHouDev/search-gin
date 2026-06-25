@@ -79,7 +79,9 @@ func buildShutdownRoutes(router *gin.Engine, sigChan chan os.Signal) {
 			cmd := exec.Command(exe, os.Args[1:]...)
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
-			cmd.Start()
+			if err := cmd.Start(); err != nil {
+				utils.ErrorFormat("重启自身失败: %v", err)
+			}
 		}()
 	})
 }

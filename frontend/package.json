@@ -12,7 +12,17 @@
     "dev": "quasar dev",
     "build": "quasar build",
     "start": "quasar dev -m electron",
-    "topc": "quasar build -m electron"
+    "topc": "quasar build -m electron",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{js,ts,vue}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{scss,css}": [
+      "prettier --write"
+    ]
   },
   "dependencies": {
     "@quasar/extras": "^1.18.0",
@@ -39,6 +49,8 @@
     "eslint": "^8.10.0",
     "eslint-config-prettier": "^8.1.0",
     "eslint-plugin-vue": "^9.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.8",
     "prettier": "^2.5.1",
     "typescript": "^4.5.4",
     "vitest": "^3.2.1"
