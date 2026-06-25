@@ -238,29 +238,32 @@ func FillURLs(c *gin.Context, movies []model.FileItem) {
 	localNode := LocalNodeHost
 	filePort := strings.TrimPrefix(FilePortNo, ":")
 
-	// 从当前请求提取 token（优先 Authorization header，兜底 query）
-	token := ""
-	if auth := c.GetHeader("Authorization"); auth != "" && strings.HasPrefix(auth, "Bearer ") {
-		token = strings.TrimPrefix(auth, "Bearer ")
-	}
-	if token == "" {
-		token = c.Query("token")
-	}
-
 	// 预构建本机 base URL，避免每文件重复拼接
 	localBase := "http://" + localIP + ":" + filePort
 	streamPath := "/api/stream/GetFileByPathUseEncode/"
 	pngPath := "/api/stream/png/"
 	jpgPath := "/api/stream/jpg/"
 
-	tokenParam := "?token=" + url.QueryEscape(token)
+	// 生成加密的 streamToken（内含过期时间），:10082 解密后只校验有效期
+	// 图片预览 1分钟，视频流 4小时
+	imgExpire := time.Now().Add(1 * time.Minute).Unix()
+	streamExpire := time.Now().Add(4 * time.Hour).Unix()
+	imgToken, err := utils.EncryptStreamToken(imgExpire)
+	streamToken, err2 := utils.EncryptStreamToken(streamExpire)
+	if err != nil || err2 != nil {
+		utils.ErrorFormat("生成 streamToken 失败: %v | %v", err, err2)
+		imgToken = ""
+		streamToken = ""
+	}
+	imgTokenParam := "?streamToken=" + url.QueryEscape(imgToken)
+	streamTokenParam := "?streamToken=" + url.QueryEscape(streamToken)
 
 	for i := range movies {
 		m := &movies[i]
 		if m.NodeHost == localNode || m.NodeHost == "" {
-			m.StreamUrl = localBase + streamPath + url.QueryEscape(m.Path) + tokenParam
-			m.PngUrl = localBase + pngPath + m.Id + tokenParam
-			m.JpgUrl = localBase + jpgPath + m.Id + tokenParam
+			m.StreamUrl = localBase + streamPath + url.QueryEscape(m.Path) + streamTokenParam
+			m.PngUrl = localBase + pngPath + m.Id + imgTokenParam
+			m.JpgUrl = localBase + jpgPath + m.Id + imgTokenParam
 			m.NodeHost = localNode
 			m.NodeName = LocalNodeName
 		} else {
@@ -270,9 +273,9 @@ func FillURLs(c *gin.Context, movies []model.FileItem) {
 			}
 			if peerIP := ResolvePeerIP(m.NodeHost); peerIP != "" {
 				peerBase := "http://" + peerIP + ":" + peerFilePort
-				m.StreamUrl = peerBase + streamPath + url.QueryEscape(m.Path) + tokenParam
-				m.PngUrl = peerBase + pngPath + m.Id + tokenParam
-				m.JpgUrl = peerBase + jpgPath + m.Id + tokenParam
+				m.StreamUrl = peerBase + streamPath + url.QueryEscape(m.Path) + streamTokenParam
+				m.PngUrl = peerBase + pngPath + m.Id + imgTokenParam
+				m.JpgUrl = peerBase + jpgPath + m.Id + imgTokenParam
 			}
 		}
 	}
