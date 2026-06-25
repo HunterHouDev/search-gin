@@ -45,6 +45,9 @@ func InitSetting() {
 
 	SetOSSetting(dict)
 
+	// 预缓存管理员密码的 bcrypt 哈希，避免每次登录时重复计算
+	CacheAdminPasswordHash()
+
 	// 如果 setting.json 配置了 streamSecret（hex 格式 64 字符），初始化流加密密钥
 	if dict.StreamSecret != "" {
 		utils.SetStreamSecret(dict.StreamSecret)
@@ -116,6 +119,8 @@ func StartBackgroundTasks() {
 		defer utils.RecoverPanic()
 		search.TaskScheduler()
 	}()
+	// 每天凌晨 3:00 清理过期 token
+	StartTokenCleanupLoop()
 }
 
 // StartTorrentCleanup 启动 Torrent 清理协程，返回关闭函数
