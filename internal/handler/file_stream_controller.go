@@ -70,7 +70,7 @@ func GetDeleteFileByPathUseEncode(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, service.DeleteFileByPath(validatedPath))
+	c.JSON(http.StatusOK, service.DeleteIndexByPath(validatedPath))
 }
 
 func GetFile(c *gin.Context) {

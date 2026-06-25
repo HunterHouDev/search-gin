@@ -14,7 +14,7 @@ type WalkOptions struct {
 	// 是否递归子目录
 	Recursive bool
 	// 文件类型白名单
-	Types    []string
+	Types []string
 	// 根扫描目录列表（小目录检测 / 空目录清理时跳过这些目录自身）
 	RootDirs []string
 	// 是否清理空目录
@@ -104,8 +104,8 @@ type stackItem struct {
 	visited    bool
 }
 
-// DeleteOne 删除指定文件夹下的指定文件名的文件
-func (s *searchService) DeleteOne(dirName string, fileName string) {
+// DeleteFilesOnDisk 删除指定文件夹下的指定文件名的文件
+func (s *searchService) DeleteFilesOnDisk(dirName string, fileName string) {
 	if len(fileName) == 0 {
 		return
 	}

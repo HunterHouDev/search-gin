@@ -19,10 +19,10 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestDeleteFileByPath_NonExistent(t *testing.T) {
-	result := DeleteFileByPath("/path/to/nonexistent/file.avi")
+func TestDeleteIndexByPath_NonExistent(t *testing.T) {
+	result := DeleteIndexByPath("/path/to/nonexistent/file.avi")
 	if !result.IsSuccess() {
-		t.Log("DeleteFileByPath on non-existent returns fail (expected)")
+		t.Log("DeleteIndexByPath on non-existent returns fail (expected)")
 	}
 }
 

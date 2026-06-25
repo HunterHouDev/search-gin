@@ -74,9 +74,6 @@ func (fs *bucketFile) isEmpty() bool {
 func (fs *bucketFile) put(m model.FileItem) {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
-	if m.PathUpper == "" {
-		m.PathUpper = strings.ToUpper(m.Path)
-	}
 	f := new(model.FileItem)
 	*f = m
 	fs.FileLib[f.Id] = f
@@ -92,9 +89,6 @@ func (fs *bucketFile) putBatch(files []model.FileItem) {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 	for _, file := range files {
-		if file.PathUpper == "" {
-			file.PathUpper = strings.ToUpper(file.Path)
-		}
 		f := new(model.FileItem)
 		*f = file
 		fs.FileLib[f.Id] = f

@@ -17,8 +17,8 @@ type IndexEngine interface {
 	GetTotalCount() int
 	GetTotalSize() int64
 	BucketCount() int32
-	DeleteFile(file model.FileItem)
-	ReplaceFile(oldFile, newFile model.FileItem)
+	DeleteOnIndex(file model.FileItem)
+	ReplaceFileOnIndex(oldFile, newFile model.FileItem)
 	GetTypeMenu() map[string]model.FileInfo
 	GetTagMenu() map[string]model.FileInfo
 	GetSeriesCount() map[string]model.FileInfo
@@ -32,11 +32,11 @@ type FileService interface {
 	ClearTag(id string, tag string) utils.Result
 	Rename(movie model.FileEdit) utils.Result
 	Move(id string, newDir string, title string) utils.Result
-	Delete(id string)
+	Delete(id string) utils.Result
 	ScanAll() int
 	ScanTarget(baseDir string)
 	Walk(dir string, types []string, withSub bool) []model.FileItem
-	DeleteOne(dirName string, fileName string)
+	DeleteFilesOnDisk(dirName string, fileName string)
 	DownDeleteDir(dirname string)
 }
 

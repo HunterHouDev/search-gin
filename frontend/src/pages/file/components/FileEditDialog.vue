@@ -28,6 +28,7 @@
         </span>
         <q-space />
         <q-btn style="margin-right: 10px" color="orange" align="evenly" label="移动" glossy @click="editMoveout" />
+        <q-btn style="margin-right: 10px" color="orange" align="evenly" label="改名" glossy @click="editItemSubmit" />
         <q-btn style="margin-right: 10px" icon="close" color="red" @click="onDialogCancel">
           <q-tooltip class="bg-white text-primary">关闭</q-tooltip>
         </q-btn>
@@ -44,8 +45,6 @@
             <q-toggle v-model="systemProperty.fileEditAutoJpg" color="green" glossy label="JPG自动" left-label dense
               class="taggle" />
             <q-toggle v-model="systemProperty.fileEditAutoRefresh" color="green" glossy label="刷新" left-label dense
-              class="taggle" />
-            <q-toggle color="primary" dense flat glossy label="仅改名" left-label v-model="systemProperty.onlyRename"
               class="taggle" />
             <q-toggle color="red" dense glossy flat label="下个" left-label v-model="systemProperty.fileEditAutoNext"
               class="taggle" />
@@ -270,14 +269,10 @@ const open = (item) => {
 };
 
 const editMoveout = async () => {
-  if (systemProperty.onlyRename) {
-    editItemSubmit(false);
-  } else {
-    await editItemSubmit(true);
-  }
+  await editItemSubmit(true);
 };
 
-const editItemSubmit = async (MoveOut) => {
+const editItemSubmit = async (MoveOut = false) => {
   const { Id, Title, Code, Author, FileType, MovieType, Jpg, Png, Tags } =
     view.item;
   let code = Code.trim().toUpperCase();

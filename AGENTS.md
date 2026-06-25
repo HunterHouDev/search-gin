@@ -118,7 +118,7 @@ main.go
 
 | 接口 | 主要方法 | 实现者 |
 |------|---------|--------|
-| `IndexEngine` | `Page`, `FindById`, `DeleteFile`, `ReplaceFile`, `GetTypeMenu` | `*searchEngineCore` |
+| `IndexEngine` | `Page`, `FindById`, `DeleteOnIndex`, `ReplaceFileOnIndex`, `GetTypeMenu` | `*searchEngineCore` |
 | `FileService` | `SetMovieType`, `AddTag`, `Rename`, `Move`, `Delete`, `ScanAll` | `*searchService` |
 | `Settings` | `Get`, `Set`, `Flush` | `settingsAdapter` |
 | `EventBus` | `Broadcast` | `sseAdapter` |

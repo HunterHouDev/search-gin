@@ -138,7 +138,7 @@ main.go
 
 | 接口 | 方法 | 说明 |
 |------|------|------|
-| `IndexEngine` | `Page`, `FindById`, `ReplaceFile`, `DeleteFile`, `GetTypeMenu` 等 | 搜索引擎抽象 |
+| `IndexEngine` | `Page`, `FindById`, `ReplaceFileOnIndex`, `DeleteOnIndex`, `GetTypeMenu` 等 | 搜索引擎抽象 |
 | `FileService` | `SetMovieType`, `AddTag`, `Rename`, `Move`, `Delete` 等 | 文件操作抽象 |
 | `Settings` | `Get`, `Set`, `Flush` | 配置读写抽象，替代全局 `GetOSSetting()` |
 | `EventBus` | `Broadcast` | 事件广播抽象，替代直接调用 `sse.BroadcastEvent()` |

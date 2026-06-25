@@ -3,6 +3,7 @@ package service
 import (
 	"search-gin/internal/model"
 	"search-gin/pkg/utils"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ func makeMovie(id, name, path, code, movieType, author string, size int64) model
 		Id:        id,
 		Name:      name,
 		Path:      path,
+		PathUpper: strings.ToUpper(path),
 		Code:      code,
 		MovieType: movieType,
 		Author:    author,

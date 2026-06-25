@@ -82,12 +82,12 @@ func ClearAllTasks() utils.Result {
 	return utils.NewSuccessByMsg(fmt.Sprintf("已清除 %d 个任务", count))
 }
 
-// DeleteFileByPath 按路径删除文件：索引移除 + 物理删除 + 附属文件清理 + 空目录清理
-func DeleteFileByPath(validatedPath string) utils.Result {
+// DeleteIndexByPath 按路径删除文件：索引移除 + 物理删除 + 附属文件清理 + 空目录清理
+func DeleteIndexByPath(validatedPath string) utils.Result {
 	id := utils.DirpathForId(validatedPath)
 	file := GetEngine().FindById(id)
 	if !file.IsNull() {
-		GetEngine().DeleteFile(file)
+		GetEngine().DeleteOnIndex(file)
 		utils.InfoFormat("已从索引中删除: %s", file.Path)
 	}
 
