@@ -24,6 +24,7 @@ func (se *searchEngineCore) Page(searchParam model.SearchParam) utils.Page {
 	result.TotalCnt = sr.SearchCount
 	result.TotalSize = utils.GetSizeStr(sr.SearchSize)
 	result.ResultSize = utils.GetSizeStr(sr.SearchSize)
+	result.PageSize = searchParam.PageSize
 	result.SetResultCnt(sr.SearchCount, searchParam.Page)
 	result.CurSize = utils.GetSizeStr(sr.ResultSize)
 	result.CurCnt = sr.ResultCount
