@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"search-gin/internal/service"
 	"search-gin/pkg/utils"
 	"strings"
 
@@ -19,6 +20,25 @@ func SignAuthMiddleware() gin.HandlerFunc {
 		path = stripQuery(path)
 		if !utils.VerifySignedRequest(path, c.Request.URL.Query()) {
 			c.JSON(http.StatusForbidden, gin.H{"fail": true, "msg": "签名无效或已过期"})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
+// StreamTokenAuth 文件流 token 校验中间件（用于 :10082 端口）
+// 校验 URL 中的 token 查询参数，复用 API 侧的 ValidateTokenWithInfo
+func StreamTokenAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token := c.Query("token")
+		if token == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"fail": true, "msg": "缺少 token"})
+			c.Abort()
+			return
+		}
+		if _, valid := service.ValidateTokenWithInfo(token); !valid {
+			c.JSON(http.StatusForbidden, gin.H{"fail": true, "msg": "token 无效或已过期"})
 			c.Abort()
 			return
 		}

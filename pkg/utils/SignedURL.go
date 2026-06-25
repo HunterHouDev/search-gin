@@ -17,6 +17,9 @@ func init() {
 	if _, err := rand.Read(signSecret); err != nil {
 		panic("生成签名密钥失败: " + err.Error())
 	}
+	// NOTE: 签名密钥每次进程启动随机生成，重启后已分发 URL 自动失效。
+	//       这是有意的设计——链接生命周期等于服务 session，服务关闭后旧链接不应再可访问。
+	//       若需要跨重启持久链接，可从 setting.json 读取持久化密钥。
 }
 
 // InitSignSecret 使用外部密钥初始化（仅测试用）

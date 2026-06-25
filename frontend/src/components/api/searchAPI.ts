@@ -51,7 +51,7 @@ export const OpenFileFolder = async (data: string) => {
 };
 
 export const DeleteFile = async (data: string) => {
-  const res = await commonAxios().get(`/api/delete/${data}`);
+  const res = await commonAxios().delete(`/api/delete/${data}`);
   return res && res.data;
 };
 
@@ -96,7 +96,7 @@ export const CutFile = async (id: string, start: string, end: string) => {
 };
 
 export const ResetMovieType = async (data: string, movieType: string) => {
-  const res = await commonAxios().get(`/api/setMovieType/${data}/${movieType}`);
+  const res = await commonAxios().post(`/api/setMovieType/${data}/${movieType}`);
   return res && res.data;
 };
 
@@ -111,12 +111,12 @@ export const IndexHealthQuery = async () => {
 };
 
 export const AddTag = async (clickId: string, title: string) => {
-  const res = await commonAxios().get(`/api/addFileTag/${clickId}/${title}`);
+  const res = await commonAxios().post(`/api/addFileTag/${clickId}/${title}`);
   return res && res.data;
 };
 
 export const CloseTag = async (id: string, title: string) => {
-  const res = await commonAxios().get(`/api/clearFileTag/${id}/${title}`);
+  const res = await commonAxios().post(`/api/clearFileTag/${id}/${title}`);
   return res && res.data;
 };
 

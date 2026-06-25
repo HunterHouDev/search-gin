@@ -2,7 +2,9 @@ package ws
 
 import (
 	"encoding/json"
+	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -68,19 +70,30 @@ type Hub struct {
 	maxHistory  int
 }
 
-var DefaultHub *Hub
+var (
+	DefaultHub  *Hub
+	hubRunning  atomic.Bool // 防止 Run() 被递归启动
+)
 
 func init() {
 	DefaultHub = NewHub(100)
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				// Hub 主循环 panic 时记录并重启
-				go DefaultHub.Run()
-			}
+	startHub()
+}
+
+// startHub 启动 Hub 主循环，确保最多一个 goroutine 在运行
+func startHub() {
+	if hubRunning.CompareAndSwap(false, true) {
+		go func() {
+			defer hubRunning.Store(false)
+			defer func() {
+				if r := recover(); r != nil {
+					// panic 后不再重启，避免无限递归 goroutine → OOM
+					fmt.Printf("WS Hub 主循环 panic: %v\n", r)
+				}
+			}()
+			DefaultHub.Run()
 		}()
-		DefaultHub.Run()
-	}()
+	}
 }
 
 // NewHub 创建 Hub
@@ -184,7 +197,8 @@ func (h *Hub) SendToUser(username string, msg []byte) int {
 	return count
 }
 
-// GetOnlineUsers 获取在线用户列表（按用户名去重合并）
+// GetOnlineUsers 获取在线用户列表
+// 普通用户按用户名去重合并；admin/super_admin 按用户名+IP 拆分为独立条目（区分不同机器/设备）
 func (h *Hub) GetOnlineUsers() []OnlineSession {
 	h.mu.RLock()
 	clients := make([]*ClientConn, 0, len(h.clients))
@@ -201,21 +215,31 @@ func (h *Hub) GetOnlineUsers() []OnlineSession {
 		ip := client.IP
 		client.mu.Unlock()
 
-		if entry, ok := userMap[username]; ok {
+		// admin/super_admin 用 "username|ip" 作为 key，每个设备独立显示
+		key := username
+		if role == "super_admin" {
+			key = username + "|" + ip
+		}
+
+		if entry, ok := userMap[key]; ok {
 			entry.DeviceCount++
-			if ip != "" {
+			if ip != "" && !contains(entry.IPs, ip) {
 				entry.IPs = append(entry.IPs, ip)
 			}
 		} else {
+			displayName := username
+			if role == "super_admin" && ip != "" {
+				displayName = username + "@" + ip
+			}
 			entry = &OnlineSession{
-				Username:    username,
+				Username:    displayName,
 				Role:        role,
 				DeviceCount: 1,
 			}
 			if ip != "" {
 				entry.IPs = []string{ip}
 			}
-			userMap[username] = entry
+			userMap[key] = entry
 		}
 	}
 	result := make([]OnlineSession, 0, len(userMap))
@@ -223,6 +247,16 @@ func (h *Hub) GetOnlineUsers() []OnlineSession {
 		result = append(result, *entry)
 	}
 	return result
+}
+
+// contains 辅助判断字符串是否在切片中
+func contains(slice []string, s string) bool {
+	for _, v := range slice {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }
 
 // GetChatHistory 获取聊天历史

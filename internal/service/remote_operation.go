@@ -60,8 +60,11 @@ func HandleRemoteByMovieEdit(c *gin.Context, edit model.FileEdit, action string)
 }
 
 // forwardRequest 转发 HTTP 请求到目标节点
+//
+// 使用 c.GetRawData() 替代 io.ReadAll(c.Request.Body)，Gin 内部会缓存 body，
+// 无论是否有其他中间件提前读取，都能获取完整 body 内容。
 func forwardRequest(targetURL string, c *gin.Context) (*http.Response, error) {
-	bodyBytes, err := io.ReadAll(c.Request.Body)
+	bodyBytes, err := c.GetRawData()
 	if err != nil {
 		return nil, err
 	}

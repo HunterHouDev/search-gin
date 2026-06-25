@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
-// 客户端超时阈值：超过该时间未成功发送事件则视为断连
+// clientTimeout 客户端超时阈值：超过该时间未成功发送事件则视为断连
 const clientTimeout = 5 * time.Minute
 
 type Event struct {
@@ -31,19 +32,30 @@ type Hub struct {
 	unregister chan *Client
 }
 
-var DefaultHub *Hub
+var (
+	DefaultHub  *Hub
+	hubRunning  atomic.Bool // 防止 Run() 被递归启动
+)
 
 func init() {
 	DefaultHub = NewHub()
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				// SSE Hub 主循环 panic 时重启
-				go DefaultHub.Run()
-			}
+	startHub()
+}
+
+// startHub 启动 Hub 主循环，确保最多一个 goroutine 在运行
+func startHub() {
+	if hubRunning.CompareAndSwap(false, true) {
+		go func() {
+			defer hubRunning.Store(false)
+			defer func() {
+				if r := recover(); r != nil {
+					// panic 后不再重启，避免无限递归 goroutine → OOM
+					fmt.Printf("SSE Hub 主循环 panic: %v\n", r)
+				}
+			}()
+			DefaultHub.Run()
 		}()
-		DefaultHub.Run()
-	}()
+	}
 }
 
 func NewHub() *Hub {

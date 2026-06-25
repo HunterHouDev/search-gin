@@ -39,6 +39,9 @@ type Setting struct {
 
 	DeepSeekApiKey string `json:"deepSeekApiKey"`
 
+	// AdminPassword 管理员密码，从 setting.json 读取；未设置时兜底用代码中的硬编码密码 qwer
+	AdminPassword string `json:"adminPassword"`
+
 	NodeName           string   `json:"nodeName"`
 	EnableLanDiscovery *bool    `json:"enableLanDiscovery"`
 	DiscoveryPeers     []string `json:"discoveryPeers"`

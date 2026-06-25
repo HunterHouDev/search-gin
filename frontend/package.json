@@ -1,5 +1,6 @@
 {
   "name": "quasarhome",
+  "//": "pinia-plugin-persist@^1.0.0 自 2022 年起停维，官方推荐替换为 pinia-plugin-persistedstate。当前功能正常，低优先级技术债务。",
   "version": "0.0.1",
   "description": "A Quasar Project",
   "productName": "文件搜索",

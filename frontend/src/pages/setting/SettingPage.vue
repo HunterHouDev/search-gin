@@ -290,6 +290,17 @@
                 <q-input v-model="view.settingInfo.Remark" type="textarea" autogrow :rows="3" dense outlined />
               </div>
             </div>
+
+            <div class="setting-item">
+              <div class="item-info">
+                <div class="item-label">管理员密码</div>
+                <div class="item-hint">设置后覆盖默认密码 qwer，留空则使用默认值</div>
+              </div>
+              <div class="item-control">
+                <q-input v-model="view.settingInfo.AdminPassword" type="password" dense outlined
+                  placeholder="留空则用默认密码 qwer" class="url-input" />
+              </div>
+            </div>
           </section>
         </template>
 

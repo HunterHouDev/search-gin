@@ -17,7 +17,7 @@ import (
 
 const (
 	AdminUsername = "admin"
-	AdminPassword = "qwer"
+	AdminPassword = "qwer" // 编译默认值；生产可通过 setting.json 的 adminPassword 字段覆盖
 	AdminRole     = "super_admin"
 )
 
@@ -63,6 +63,11 @@ var (
 	tokenStore = make(map[string]TokenInfo)
 	tokenMu    sync.RWMutex
 )
+
+// NOTE: CleanExpiredTokens() 已定义但未自动周期执行。仅在 ValidateTokenWithInfo 的
+//       验证路径上惰性删除过期 token。当前设计可接受——token 4h 有效期，
+//       前端 sessionStorage 关闭即丢，实际不会出现无限增长。
+//       若需额外保障可加 `go tokenCleanupLoop()` 每 5 分钟定期清理。
 
 // SetToken 设置 token
 func SetToken(token string, expireTime time.Time, username string, role string) {
@@ -148,11 +153,26 @@ type LoginResult struct {
 }
 
 // LoginUser 验证用户名密码并签发 token
+// 密码验证优先级：setting.json 的 AdminPassword > 编译常量的 qwer
+// 当 username 为空时，仅凭密码匹配 admin 登录
 func LoginUser(username, password string) LoginResult {
-	if username == AdminUsername && VerifyPassword(password, AdminPasswordHash()) {
-		return issueToken(username, AdminRole)
+	// 无用户名或用户名为 admin → 按 admin 密码匹配
+	if username == "" || username == AdminUsername {
+		settingPwd := GetOSSetting().AdminPassword
+		if settingPwd != "" {
+			// setting.json 有配置密码 → 优先使用
+			if VerifyPassword(password, HashPassword(settingPwd)) {
+				return issueToken(AdminUsername, AdminRole)
+			}
+		} else {
+			// 兜底用编译常量 qwer
+			if VerifyPassword(password, AdminPasswordHash()) {
+				return issueToken(AdminUsername, AdminRole)
+			}
+		}
 	}
 
+	// 有用户名时检查普通用户
 	for _, user := range GetOSSettingUsers() {
 		if user.Username == username && VerifyPassword(password, user.Password) {
 			if user.ExpireDate != "" {
@@ -275,13 +295,20 @@ func ReadDictionaryFromJson(path string) model.Setting {
 		utils.InfoFormat("解析配置文件失败: %v", err)
 		return model.Setting{}
 	}
-	// 迁移明文密码到 bcrypt hash（启动时自动执行）
+	return dict
+}
+
+// migratePasswordsIfNeeded 读取后迁移明文密码到 bcrypt hash（仅在启动时调用，避免与 PostSetting 并发写竞争）
+func migratePasswordsIfNeeded(path string, dict model.Setting) model.Setting {
 	dict = migratePlaintextPasswords(dict)
 	return dict
 }
 
 // migratePlaintextPasswords 将用户列表中的明文密码迁移为 bcrypt hash。
 // 检测方式：bcrypt hash 以 $2a$ 或 $2b$ 开头，非此前缀则视为明文。
+// NOTE: 此函数在 ReadDictionaryFromJson 内部调用 WriteDictionaryToJson，
+//       与 PostSetting handler 可能并发写同一文件，无文件锁。
+//       TODO: 写操作统一排队或加文件锁，参见 33.md P3-1
 func migratePlaintextPasswords(s model.Setting) model.Setting {
 	migrated := false
 	for i, u := range s.Users {

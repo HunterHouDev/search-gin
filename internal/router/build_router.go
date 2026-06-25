@@ -18,6 +18,10 @@ import (
 )
 
 // buildCORSConfig 构建 CORS 配置
+//
+// AllowCredentials 已注释（仅开发模式注释，生产模式未启用），因此不存在
+// AllowCredentials + AllowOrigins[*] 冲突。局域网场景 AllowOrigins[*] 合理。
+// 生产环境可通过 ALLOWED_ORIGINS 环境变量限制来源。
 func buildCORSConfig() cors.Config {
 	config := cors.DefaultConfig()
 	if env.IsProd {
@@ -128,13 +132,13 @@ func BuildAPIRouter(sigChan chan os.Signal) *gin.Engine {
 	router.GET("/api/tranferToMp4/:id/:xcode", handler.GetTransferToMp4)
 	router.POST("/api/mergeFiles", handler.PostMerge)
 	router.GET("/api/cutMovie/:id/:start/:end", handler.GetCutMovie)
-	router.GET("/api/setMovieType/:id/:movieType", handler.SetMovieType)
+	router.POST("/api/setMovieType/:id/:movieType", handler.SetMovieType)
 	router.GET("/api/info/:id", handler.GetInfo)
 	router.POST("/api/renameFile", handler.PostRename)
-	router.GET("/api/addFileTag/:id/:tag", handler.GetAddTag)
-	router.GET("/api/clearFileTag/:id/:tag", handler.GetClearTag)
+	router.POST("/api/addFileTag/:id/:tag", handler.GetAddTag)
+	router.POST("/api/clearFileTag/:id/:tag", handler.GetClearTag)
 	router.GET("/api/dir/:id/:sort", handler.GetDirInfo)
-	router.GET("/api/delete/:id", handler.GetDelete)
+	router.DELETE("/api/delete/:id", handler.GetDelete)
 
 	router.GET("/api/openFolder/:id", handler.GetOpenFolder)
 	router.POST("/api/OpenFolderByPath", handler.PostOpenFolderByPath)
@@ -187,7 +191,8 @@ func BuildAPIRouter(sigChan chan os.Signal) *gin.Engine {
 }
 
 // BuildFileRouter 构建文件/图片流路由（端口 10082）
-// 该端口只在内网监听，不额外要求签名验证（签名对多节点集群不可用）
+// 使用 StreamTokenAuth 校验 URL 中的 token 参数（复用 API 侧 ValidateTokenWithInfo）
+// NOTE: SignAuthMiddleware（HMAC 签名）对多节点集群不可用，故未注册
 func BuildFileRouter() *gin.Engine {
 	if env.IsProd {
 		gin.SetMode(gin.ReleaseMode)
@@ -197,6 +202,7 @@ func BuildFileRouter() *gin.Engine {
 
 	router := gin.New()
 	buildCommonMiddleware(router)
+	router.Use(middleware.StreamTokenAuth())
 	buildStreamMiddleware(router)
 
 	return router

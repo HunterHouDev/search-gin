@@ -225,10 +225,9 @@ func dedupKey(m model.FileItem) string {
 	return fmt.Sprintf("name:%s:%d", m.Name, m.Size)
 }
 
-const signedURLTTL = 4 * time.Hour
-
-// FillURLs 为搜索结果填充带签名的流媒体 URL
-// 本机文件使用请求进来的网卡 IP；远程文件指向源节点
+// FillURLs 为搜索结果填充流媒体 URL
+// 本机文件使用请求进来的网卡 IP；远程文件指向源节点。
+// 在 URL 中附加当前认证 token（而非 HMAC 签名），:10082 侧通过 StreamTokenAuth 校验。
 func FillURLs(c *gin.Context, movies []model.FileItem) {
 	clientIP := c.ClientIP()
 	if clientIP == "" {
@@ -239,18 +238,29 @@ func FillURLs(c *gin.Context, movies []model.FileItem) {
 	localNode := LocalNodeHost
 	filePort := strings.TrimPrefix(FilePortNo, ":")
 
+	// 从当前请求提取 token（优先 Authorization header，兜底 query）
+	token := ""
+	if auth := c.GetHeader("Authorization"); auth != "" && strings.HasPrefix(auth, "Bearer ") {
+		token = strings.TrimPrefix(auth, "Bearer ")
+	}
+	if token == "" {
+		token = c.Query("token")
+	}
+
 	// 预构建本机 base URL，避免每文件重复拼接
 	localBase := "http://" + localIP + ":" + filePort
 	streamPath := "/api/stream/GetFileByPathUseEncode/"
 	pngPath := "/api/stream/png/"
 	jpgPath := "/api/stream/jpg/"
 
+	tokenParam := "?token=" + url.QueryEscape(token)
+
 	for i := range movies {
 		m := &movies[i]
 		if m.NodeHost == localNode || m.NodeHost == "" {
-			m.StreamUrl = utils.SignURL(localBase, streamPath+url.QueryEscape(m.Path), signedURLTTL)
-			m.PngUrl = utils.SignURL(localBase, pngPath+m.Id, signedURLTTL)
-			m.JpgUrl = utils.SignURL(localBase, jpgPath+m.Id, signedURLTTL)
+			m.StreamUrl = localBase + streamPath + url.QueryEscape(m.Path) + tokenParam
+			m.PngUrl = localBase + pngPath + m.Id + tokenParam
+			m.JpgUrl = localBase + jpgPath + m.Id + tokenParam
 			m.NodeHost = localNode
 			m.NodeName = LocalNodeName
 		} else {
@@ -260,15 +270,20 @@ func FillURLs(c *gin.Context, movies []model.FileItem) {
 			}
 			if peerIP := ResolvePeerIP(m.NodeHost); peerIP != "" {
 				peerBase := "http://" + peerIP + ":" + peerFilePort
-				m.StreamUrl = utils.SignURL(peerBase, streamPath+url.QueryEscape(m.Path), signedURLTTL)
-				m.PngUrl = utils.SignURL(peerBase, pngPath+m.Id, signedURLTTL)
-				m.JpgUrl = utils.SignURL(peerBase, jpgPath+m.Id, signedURLTTL)
+				m.StreamUrl = peerBase + streamPath + url.QueryEscape(m.Path) + tokenParam
+				m.PngUrl = peerBase + pngPath + m.Id + tokenParam
+				m.JpgUrl = peerBase + jpgPath + m.Id + tokenParam
 			}
 		}
 	}
 }
 
 // pickLocalIP 从客户端 IP 找到本机同网段的出口 IP
+//
+// 设计说明：多网卡场景下，按请求方网段选择本机 IP（ipNet.Contains 匹配），
+// 保证返回的 IP 是客户端可达的。这是正确行为，不是 Bug ——
+// 例如 eth0(192.168.1.10) 的客户端拿到 192.168.1.x，eth1(10.0.0.10) 的客户端拿到 10.0.0.x。
+// LocalNodeHost 是逻辑标识符 "hostname:port"，不参与 URL 构造。
 func pickLocalIP(clientIP string) string {
 	parsedIP := net.ParseIP(clientIP)
 	if parsedIP == nil || parsedIP.IsLoopback() {

@@ -31,11 +31,9 @@
             <q-form @submit="login" class="q-gutter-md">
               <q-input
                 v-model="username"
-                label="用户名"
+                label="用户名（留空则用密码直接登录）"
                 outlined
-                required
                 :disable="loading"
-                :rules="[val => !!val || '用户名不能为空']"
                 class="login-input"
               >
                 <template v-slot:prepend>
@@ -117,8 +115,8 @@ onMounted(() => {
 });
 
 const login = async () => {
-  if (!username.value || !password.value) {
-    errorMsg.value = '请输入用户名和密码';
+  if (!password.value) {
+    errorMsg.value = '请输入密码';
     return;
   }
 
