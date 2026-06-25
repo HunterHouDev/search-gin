@@ -194,7 +194,7 @@ func TestIntegration_IncrementalUpdate(t *testing.T) {
 	assert.Equal(t, 1, result.TotalCnt)
 
 	// 修改文件（重命名）- 构造时设置 PathUpper 避免 searchBucket 匹配不到
-	engine.ReplaceFile(
+	engine.ReplaceFileOnIndex(
 		model.FileItem{Id: "1", Path: "/dir/original.mp4", BaseDir: "dir"},
 		model.FileItem{
 			Id:        "1",
@@ -217,7 +217,7 @@ func TestIntegration_IncrementalUpdate(t *testing.T) {
 	assert.Equal(t, 1, result.TotalCnt)
 
 	// 删除文件
-	engine.DeleteFile(model.FileItem{Id: "1", Path: "/dir/renamed.mp4", BaseDir: "dir"})
+	engine.DeleteOnIndex(model.FileItem{Id: "1", Path: "/dir/renamed.mp4", BaseDir: "dir"})
 
 	// 验证已删除的文件不再返回
 	param = model.SearchParam{Page: 1, PageSize: 10, Keyword: "renamed"}

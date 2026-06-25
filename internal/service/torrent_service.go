@@ -272,7 +272,10 @@ func (ts *TorrentService) StreamVideo(infoHash string, w http.ResponseWriter, r 
 	}
 
 	var start, end int64
-	fmt.Sscanf(rangeHeader, "bytes=%d-%d", &start, &end)
+	if _, err := fmt.Sscanf(rangeHeader, "bytes=%d-%d", &start, &end); err != nil {
+		start = 0
+		end = fileSize - 1
+	}
 	if end == 0 || end >= fileSize {
 		end = fileSize - 1
 	}

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <!-- 背景圆角方块 -->
+  <rect x="4" y="4" width="112" height="112" rx="24" fill="var(--logo-bg, #0b69e5)"/>
+  <!-- 放大镜圆形 — "搜索"隐喻 -->
+  <circle cx="54" cy="54" r="26" stroke="var(--logo-fg, #fff)" stroke-width="5" fill="none"/>
+  <!-- 放大镜手柄 — 同时也是 "S" 的抽象 -->
+  <path d="M73 73 L92 92" stroke="var(--logo-fg, #fff)" stroke-width="5" stroke-linecap="round"/>
+  <!-- 内圆 — 镜头高光 -->
+  <circle cx="54" cy="54" r="10" fill="var(--logo-fg, #fff)" opacity="0.2"/>
+</svg>

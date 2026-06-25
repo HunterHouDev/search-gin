@@ -44,6 +44,14 @@ func InitSetting() {
 	}
 
 	SetOSSetting(dict)
+
+	// 预缓存管理员密码的 bcrypt 哈希，避免每次登录时重复计算
+	CacheAdminPasswordHash()
+
+	// 如果 setting.json 配置了 streamSecret（hex 格式 64 字符），初始化流加密密钥
+	if dict.StreamSecret != "" {
+		utils.SetStreamSecret(dict.StreamSecret)
+	}
 }
 
 // InitSearchPool 初始化 goroutine 池，根据配置的目录数量动态调整
@@ -57,6 +65,7 @@ func InitSearchPool() {
 	if poolSize > 50 {
 		poolSize = 50
 	}
+	// （当前仅 main.go 调用一次，无活跃泄漏）
 	GetEngine().searchPool = utils.NewGoroutinePool(poolSize)
 	GetEngine().KeywordHistoryCache = utils.NewLRUCache(500)
 }
@@ -93,6 +102,9 @@ func StartPprof() {
 func StartBackgroundTasks() {
 	utils.InfoFormat("StartBackgroundTasks: 正在启动后台任务...")
 
+	setting := GetOSSetting()
+	InitTaskSlots(setting.TaskMaxConcurrent)
+
 	search := GetSearch()
 	if search == nil {
 		utils.ErrorFormat("StartBackgroundTasks: GetSearch() 返回 nil，后台任务无法启动")
@@ -107,6 +119,8 @@ func StartBackgroundTasks() {
 		defer utils.RecoverPanic()
 		search.TaskScheduler()
 	}()
+	// 每天凌晨 3:00 清理过期 token
+	StartTokenCleanupLoop()
 }
 
 // StartTorrentCleanup 启动 Torrent 清理协程，返回关闭函数

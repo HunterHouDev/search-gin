@@ -1,5 +1,6 @@
 import { boot } from 'quasar/wrappers';
 import axios, { AxiosInstance } from 'axios';
+import { useQuasar } from 'quasar';
 import { isElectron } from './platform';
 
 declare module '@vue/runtime-core' {
@@ -15,7 +16,7 @@ const api = axios.create({
   timeout: 30000,
 });
 
-// 请求拦截器：自动添加token
+// 请求拦截器：自动添加 token
 api.interceptors.request.use(
   (config) => {
     const token = sessionStorage.getItem('authToken');
@@ -29,14 +30,22 @@ api.interceptors.request.use(
   }
 );
 
+// 导出 $q 供 response 拦截器使用（需在 boot 函数内注入）
+let $q: ReturnType<typeof useQuasar>;
+
 export default boot(({ app, router }) => {
-  // 响应拦截器：处理token过期 - 放在boot函数内，以便使用router实例
+  $q = useQuasar();
+
+  // 响应拦截器：统一错误处理 + Token 过期跳转
   api.interceptors.response.use(
-    (response) => {
-      return response;
-    },
+    (response) => response,
     (error) => {
-      if (error.response && error.response.status === 401) {
+      const status = error?.response?.status;
+      const data = error?.response?.data;
+      const msg = data?.Message || data?.message || data?.msg || '';
+
+      if (status === 401) {
+        // Token 过期 → 静默清理并跳转登录
         sessionStorage.removeItem('authToken');
         sessionStorage.removeItem('isAuthenticated');
         sessionStorage.removeItem('userRole');
@@ -44,24 +53,68 @@ export default boot(({ app, router }) => {
         if (router) {
           router.push('/login');
         }
+        return Promise.reject(error);
       }
+
+      if (status === 403) {
+        $q.notify({
+          type: 'warning',
+          message: msg || '无权限执行此操作',
+          position: 'top',
+          timeout: 3000,
+        });
+        return Promise.reject(error);
+      }
+
+      if (status && status >= 400 && status < 500) {
+        // 4xx 客户端错误 — 显示后端返回的消息
+        $q.notify({
+          type: 'negative',
+          message: msg || `请求错误 (${status})`,
+          position: 'top',
+          timeout: 3000,
+        });
+        return Promise.reject(error);
+      }
+
+      if (status && status >= 500) {
+        // 5xx 服务端错误
+        $q.notify({
+          type: 'negative',
+          message: msg || `服务器错误 (${status})，请稍后重试`,
+          position: 'top',
+          timeout: 4000,
+        });
+        return Promise.reject(error);
+      }
+
+      // 网络断开 / 超时
+      if (error.code === 'ECONNABORTED') {
+        $q.notify({
+          type: 'warning',
+          message: '请求超时，请检查网络连接',
+          position: 'top',
+          timeout: 3000,
+        });
+      } else if (!status) {
+        $q.notify({
+          type: 'negative',
+          message: '网络连接失败，请检查服务器状态',
+          position: 'top',
+          timeout: 4000,
+        });
+      }
+
       return Promise.reject(error);
     }
   );
 
-  // for use inside Vue files (Options API) through this.$axios and this.$api
-
+  // Vue Options API 全局注入
   app.config.globalProperties.$axios = axios;
-  // ^ ^ ^ this will allow you to use this.$axios (for Vue Options API form)
-  //       so you won't necessarily have to import axios in each vue file
-
   app.config.globalProperties.$api = api;
-  // ^ ^ ^ this will allow you to use this.$api (for Vue Options API form)
-  //       so you can easily perform requests against your app's API
 });
 
-const commonAxios = () => {
-  return api;
-};
+/** 获取通用 axios 实例 */
+const commonAxios = () => api;
 
 export { api, axios, commonAxios };

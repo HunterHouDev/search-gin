@@ -8,7 +8,7 @@ import (
 
 // ── 辅助：构建指定数量的测试数据 ──
 
-func buildBenchData(b *testing.B, bucketCount, filesPerBucket int) *searchEngineCore {
+func buildBenchData(_ *testing.B, bucketCount, filesPerBucket int) *searchEngineCore {
 	engine := newTestEngine()
 
 	buckets := make(map[string]*bucketFile)

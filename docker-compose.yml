@@ -1,0 +1,35 @@
+# =============================================================================
+# search-gin docker-compose.yml
+# =============================================================================
+# 使用方式：
+#   docker compose up -d          # 启动生产服务
+#   docker compose -f docker-compose.dev.yml up  # 开发模式
+# =============================================================================
+
+services:
+  search-gin:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: search-gin
+    ports:
+      - "10081:10081"   # API + 前端
+      - "10082:10082"   # 文件流
+    volumes:
+      # 挂载媒体目录（替换为你的实际路径）
+      - /path/to/media:/media:ro
+      # 持久化数据（setting.json、缓存等）
+      - search-gin-data:/app/data
+    environment:
+      - TZ=Asia/Shanghai
+    restart: unless-stopped
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+
+volumes:
+  search-gin-data:

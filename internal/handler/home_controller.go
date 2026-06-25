@@ -8,6 +8,7 @@ import (
 	"search-gin/internal/service"
 	"search-gin/pkg/utils"
 	"sort"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -61,6 +62,17 @@ func GetLocalLog(c *gin.Context) {
 		return
 	}
 	lines := splitLines(string(content))
+	// 过滤包含 token/Authorization 的敏感行
+	filtered := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if strings.Contains(line, "token=") ||
+			strings.Contains(line, "Authorization") ||
+			strings.Contains(line, "Bearer ") {
+			continue
+		}
+		filtered = append(filtered, line)
+	}
+	lines = filtered
 	for i, j := 0, len(lines)-1; i < j; i, j = i+1, j-1 {
 		lines[i], lines[j] = lines[j], lines[i]
 	}

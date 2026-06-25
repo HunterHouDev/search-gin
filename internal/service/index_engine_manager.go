@@ -33,9 +33,22 @@ type searchIndex struct {
 	seriesCount map[string]model.FileInfo
 }
 
+// FindById 在快照中查找文件，优先 idIndex，未命中时遍历 bucket 兜底
+func (s *searchIndex) FindById(id string) model.FileItem {
+	if f, ok := s.idIndex[id]; ok {
+		return *f
+	}
+	for _, bucket := range s.buckets {
+		if f := bucket.get(id); f != nil {
+			return *f
+		}
+	}
+	return model.FileItem{}
+}
+
 // searchEngineCore 搜索引擎：只保留快照指针 + 不变的辅助字段
 type searchEngineCore struct {
-	index               atomic.Value    // *searchIndex
+	indexDB             atomic.Value    // *searchIndex
 	KeywordHistoryCache *utils.LRUCache // 搜索结果缓存
 	searchPool          *utils.GoroutinePool
 	rebuildMu           sync.Mutex     // 防止并发 rebuildWithBucket
@@ -55,7 +68,7 @@ type fileOp struct {
 
 // loadIndex 线程安全地获取当前快照
 func (se *searchEngineCore) loadIndex() *searchIndex {
-	s := se.index.Load()
+	s := se.indexDB.Load()
 	if s == nil {
 		return &searchIndex{
 			buckets:     make(map[string]*bucketFile),
@@ -89,7 +102,7 @@ func (se *searchEngineCore) installIndex(index *searchIndex) {
 // installIndexSkipDisk 原子替换索引 + 递增 epoch（跳过磁盘持久化，单文件操作用）
 // 不清空 LRU 缓存：单文件操作只影响少量数据，其余缓存仍然有效
 func (se *searchEngineCore) installIndexSkipDisk(index *searchIndex) {
-	se.index.Store(index)
+	se.indexDB.Store(index)
 	se.cacheEpoch.Add(1)
 	se.authorCacheMu.Lock()
 	se.authorSizeCache = nil
@@ -100,7 +113,7 @@ func (se *searchEngineCore) installIndexSkipDisk(index *searchIndex) {
 
 // syncIndex 原子替换索引 + 清 LRU 缓存 + 递增 epoch
 func (se *searchEngineCore) syncIndex(index *searchIndex) {
-	se.index.Store(index)
+	se.indexDB.Store(index)
 	se.KeywordHistoryCache.Clear()
 	se.cacheEpoch.Add(1)
 	se.authorCacheMu.Lock()

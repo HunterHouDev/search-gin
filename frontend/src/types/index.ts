@@ -60,6 +60,7 @@ export interface PageResult<T = unknown> {
 // ── 设置 ──────────────────────────────────────────────────────────
 
 export interface SettingInfo {
+  AdminPassword?: string
   Dirs: string[]
   Tags: string[]
   TagsLib: string[]

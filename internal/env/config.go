@@ -1,3 +1,3 @@
 package env
 
-var IsProd bool = false
+var IsProd = false

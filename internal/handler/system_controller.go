@@ -17,6 +17,7 @@ func GetSettingInfo(c *gin.Context) {
 	safeSetting := setting
 	safeSetting.Users = nil
 	safeSetting.DeepSeekApiKey = "" // 密钥不返回前端
+	safeSetting.AdminPassword = ""  // 密码不返回前端
 	if safeSetting.HardwareAcceleration && safeSetting.HardwareAccelMode == "" {
 		safeSetting.HardwareAccelMode = service.GetHwAccelModeName()
 	}
@@ -46,6 +47,26 @@ func PostSetting(c *gin.Context) {
 		if arr, ok2 := types.([]any); ok2 && len(arr) == 0 {
 			c.JSON(http.StatusBadRequest, utils.NewFailByMsg("文件类型不能为空"))
 			return
+		}
+	}
+
+	// 白名单过滤：只允许修改可安全暴露的字段，禁止通过 API 修改密钥/密码/用户列表
+	// 敏感字段（DeepSeekApiKey, AdminPassword, Users 等）只能通过 setting.json 直接修改
+	allowedFields := map[string]bool{
+		"Dirs": true, "Types": true, "VideoTypes": true, "ImageTypes": true,
+		"DocsTypes": true, "MovieTypes": true, "Tags": true, "Pages": true,
+		"ControllerHost": true, "FileHost": true,
+		"NodeName": true, "enableLanDiscovery": true, "discoveryPeers": true,
+		"SystemPlayerVolumn": true, "SystemPlayerWidth": true, "SystemPlayer": true,
+		"HardwareAcceleration": true, "HardwareAccelMode": true,
+		"taskMaxConcurrent": true,
+		"TagsLib": true, "DirsLib": true,
+		"EnableTimeScan": true, "CutThenDelete": true,
+		"BaseUrl": true, "ImageUrl": true, "Remark": true,
+	}
+	for key := range body {
+		if !allowedFields[key] {
+			delete(body, key)
 		}
 	}
 

@@ -1,8 +1,8 @@
 package utils
 
 type MessageCode struct {
-	Code    int
-	Message string
+	Code    int    `json:"Code"`
+	Message string `json:"Message"`
 }
 
 func Success() MessageCode {

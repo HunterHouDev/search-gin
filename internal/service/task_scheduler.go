@@ -9,12 +9,61 @@ import (
 	"time"
 )
 
+// 任务并发控制
+var (
+	taskSlots      chan struct{} // 总并发槽位信号量
+	transcodeCount atomic.Int32  // 转码（h264/h265）执行数，共用 1 个槽
+	taskSlotsOnce  sync.Once
+)
+
 var PendingTaskCount atomic.Int32
 
 var FullScanInProgress atomic.Bool
 
 // taskSignal 任务调度信号：有新任务创建或任务完成时唤醒调度器
 var taskSignal = make(chan struct{}, 1)
+
+// InitTaskSlots 初始化任务并发槽位（由 StartBackgroundTasks 调用）
+func InitTaskSlots(maxConcurrent int) {
+	taskSlotsOnce.Do(func() {
+		if maxConcurrent <= 0 {
+			maxConcurrent = 4
+		}
+		taskSlots = make(chan struct{}, maxConcurrent)
+	})
+}
+
+// acquireTaskSlot 占用一个并发槽位，无可用槽位时阻塞
+func acquireTaskSlot(max int) bool {
+	if max <= 0 {
+		return true // 不限制
+	}
+	select {
+	case taskSlots <- struct{}{}:
+		return true
+	default:
+		return false // 槽位满
+	}
+}
+
+// releaseTaskSlot 释放一个并发槽位
+func releaseTaskSlot() {
+	if taskSlots == nil {
+		return
+	}
+	select {
+	case <-taskSlots:
+	default:
+	}
+}
+
+// taskVCode 从任务中提取编码器类型
+func taskVCode(task model.TransferTaskModel) string {
+	if strings.EqualFold(task.Type, model.TaskTypeTrans) {
+		return task.VCode
+	}
+	return ""
+}
 
 // wakeTaskScheduler 非阻塞通知调度器检查任务
 func wakeTaskScheduler() {
@@ -56,85 +105,71 @@ func (s *searchService) TaskScheduler() {
 	}
 }
 
-// pollTasks 轮询并执行待处理任务
+// pollTasks 轮询并执行待处理任务（槽位调度）
 func (s *searchService) pollTasks() {
-	// 快速路径：没有待处理任务则直接返回
 	if PendingTaskCount.Load() == 0 {
 		return
 	}
-
-	// 只需要每个类别的第一个 pending 任务 + 检查是否有 executing 防止重复启动
-	var pendingTrans, pendingCut, pendingMerge *model.TransferTaskModel
-	var hasExecTrans, hasExecCut, hasExecMerge bool
+	maxSlot := s.settings.Get().TaskMaxConcurrent
+	if maxSlot <= 0 {
+		maxSlot = 4
+	}
+	if taskSlots == nil {
+		InitTaskSlots(maxSlot)
+	}
 
 	TransferTaskMutex.RLock()
 	for _, t := range TransferTask {
-		hasAllPending := false
-		hasAllExec := false
+		if !strings.EqualFold(t.Status, model.StatusPending) {
+			continue
+		}
+
+		task := t
+		canStart := false
 
 		switch {
-		case strings.EqualFold(t.Status, model.StatusPending):
-			switch {
-			case strings.EqualFold(t.Type, model.TaskTypeCut):
-				if pendingCut == nil {
-					task := t
-					pendingCut = &task
-				}
-			case strings.EqualFold(t.Type, model.TaskTypeMerge):
-				if pendingMerge == nil {
-					task := t
-					pendingMerge = &task
-				}
-			case strings.EqualFold(t.Type, model.TaskTypeTrans):
-				if pendingTrans == nil {
-					task := t
-					pendingTrans = &task
-				}
-			}
-			hasAllPending = pendingTrans != nil && pendingCut != nil && pendingMerge != nil
+		case strings.EqualFold(task.Type, model.TaskTypeCut):
+			canStart = acquireTaskSlot(maxSlot)
 
-		case strings.EqualFold(t.Status, model.StatusExecuting):
-			switch {
-			case strings.EqualFold(t.Type, model.TaskTypeCut):
-				hasExecCut = true
-			case strings.EqualFold(t.Type, model.TaskTypeMerge):
-				hasExecMerge = true
-			case strings.EqualFold(t.Type, model.TaskTypeTrans):
-				hasExecTrans = true
-			}
-			hasAllExec = hasExecTrans && hasExecCut && hasExecMerge
+		case strings.EqualFold(task.Type, model.TaskTypeMerge):
+			canStart = acquireTaskSlot(maxSlot)
+
+		case strings.EqualFold(task.Type, model.TaskTypeTrans):
+			canStart = transcodeCount.Load() == 0 && acquireTaskSlot(maxSlot)
 		}
 
-		if hasAllPending && hasAllExec {
-			break
+		if !canStart {
+			continue
 		}
+
+		markTaskExecuting(task.CreateTime)
+		LogMem.Add("pollTasks: 启动任务 CreateTime=%v, type=%s, path=%s", task.CreateTime, task.Type, task.Path)
+
+		go func() {
+			defer utils.RecoverPanic()
+			defer wakeTaskScheduler()
+
+			isTranscode := strings.EqualFold(task.Type, model.TaskTypeTrans)
+			if isTranscode {
+				transcodeCount.Add(1)
+			}
+
+			switch {
+			case strings.EqualFold(task.Type, model.TaskTypeTrans):
+				TransferFormatter(task)
+			case strings.EqualFold(task.Type, model.TaskTypeCut):
+				CutFormatter(task)
+			case strings.EqualFold(task.Type, model.TaskTypeMerge):
+				MergeFiles(task)
+			}
+
+			if isTranscode {
+				transcodeCount.Add(-1)
+			}
+			releaseTaskSlot()
+		}()
 	}
 	TransferTaskMutex.RUnlock()
-
-	if pendingTrans != nil && !hasExecTrans {
-		LogMem.Add("pollTasks: 启动转码任务 CreateTime=%v, path=%s", pendingTrans.CreateTime, pendingTrans.Path)
-		markTaskExecuting(pendingTrans.CreateTime)
-		go func() {
-			defer utils.RecoverPanic()
-			TransferFormatter(*pendingTrans)
-		}()
-	}
-	if pendingCut != nil && !hasExecCut {
-		LogMem.Add("pollTasks: 启动分切任务 CreateTime=%v, path=%s", pendingCut.CreateTime, pendingCut.Path)
-		markTaskExecuting(pendingCut.CreateTime)
-		go func() {
-			defer utils.RecoverPanic()
-			CutFormatter(*pendingCut)
-		}()
-	}
-	if pendingMerge != nil && !hasExecMerge {
-		LogMem.Add("pollTasks: 启动合并任务 CreateTime=%v, path=%s", pendingMerge.CreateTime, pendingMerge.Path)
-		markTaskExecuting(pendingMerge.CreateTime)
-		go func() {
-			defer utils.RecoverPanic()
-			MergeFiles(*pendingMerge)
-		}()
-	}
 }
 
 // markTaskExecuting 在 TransferTask map 中原子地将任务标记为执行中
@@ -163,7 +198,7 @@ type taskQueue struct {
 	taskChan  chan *scanTask
 	engine    *searchEngineCore
 	settings  Settings
-	walkInner func(string, []string, bool, string) ([]model.FileItem, int64)
+	walkInner func(string, []string, bool) ([]model.FileItem, int64)
 }
 
 var scanQueue *taskQueue
@@ -179,7 +214,7 @@ func NewScanQueue(engine *searchEngineCore, settings Settings) *taskQueue {
 	return q
 }
 
-func SetScanWalkInner(walkInner func(string, []string, bool, string) ([]model.FileItem, int64)) {
+func SetScanWalkInner(walkInner func(string, []string, bool) ([]model.FileItem, int64)) {
 	if scanQueue != nil {
 		scanQueue.walkInner = walkInner
 	}

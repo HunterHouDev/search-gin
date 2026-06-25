@@ -3,6 +3,7 @@
   "compilerOptions": {
     "baseUrl": ".",
     "useDefineForClassFields": true,
+    "ignoreDeprecations": "6.0",
     // 根据项目运行环境和构建工具调整模块配置
     "module": "ES2020",
     // 确保与 target 配置保持一致

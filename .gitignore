@@ -1,29 +1,41 @@
-/.idea/
-.vscode/settings.json
-node_modules/
-**/node_modules/
-**/dist/
-**/.DS_Store
-**/.quasar/
+# ============== IDE / Editor ==============
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ============== AI Assistant artifacts ==============
 .claude/
 .atomcode/
 .codebuddy/
 .lingma/
 .trae/
-.vscode/
+.workbuddy/
+.codeartsdoer/
 
-# 编译产物 & 二进制（运行必需的 ffmpeg/ffplay/ffprobe 除外）
+# ============== Build outputs ==============
+**/dist/
 __debug_bin.exe
 search-gin.exe
+qapp/appQuaser.exe
+
+# Keep ffmpeg/ffplay (committed for embed)
 *.exe
 !ffmpeg.exe
 !ffplay.exe
 
-# 配置
+# ============== Dependencies ==============
+**/node_modules/
+vendor/
+
+# ============== Runtime (generated, may contain secrets) ==============
 setting.json
 **/gin.log
+search_cache.gob
+*.gob
 
-# 旧项目目录（已从历史清除）
+# ============== Legacy / migrated ==============
 electron_quasar/
 qapp/
 election/
@@ -32,10 +44,7 @@ gosrc-journal/
 searchapp/unpackage/
 frontend/src-electron/icons/qapp/
 
-# 工具目录
-.workbuddy/
+# ============== Temp / debug ==============
 debugTest/
 drop/
 data/
-
-.gob

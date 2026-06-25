@@ -16,6 +16,8 @@ import (
 // 不要在热路径上每次创建新 *http.Client，连接复用可显著降低延迟
 
 // 远程搜索/操作用客户端
+// NOTE: 两个客户端均有显式超时（peerClient 5s, remoteClient 2s），不存在"无超时永久阻塞"问题。
+//       peerClient 超时已足够快：远程节点 5s 无响应即断开，避免 hang 死。
 var (
 	remoteClient = &http.Client{Timeout: remoteSearchTimeout}
 	peerClient   = &http.Client{Timeout: 5 * time.Second}

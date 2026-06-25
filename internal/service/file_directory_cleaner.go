@@ -14,7 +14,7 @@ type WalkOptions struct {
 	// 是否递归子目录
 	Recursive bool
 	// 文件类型白名单
-	Types    []string
+	Types []string
 	// 根扫描目录列表（小目录检测 / 空目录清理时跳过这些目录自身）
 	RootDirs []string
 	// 是否清理空目录
@@ -63,7 +63,7 @@ func WalkInner(baseDir string, opts WalkOptions) (allFiles []model.FileItem, dir
 					if utils.HasItemSet(typeSet, suffix) {
 						movie := model.EasyFile(cur.path, p, name, suffix,
 							info.Size(), info.ModTime(), baseDir)
-						SetMovieNode(&movie)
+						movie.SetNodeInfo(LocalNodeHost, LocalNodeName)
 						allFiles = append(allFiles, movie)
 					}
 					sizeMap[cur.path] += info.Size()
@@ -104,8 +104,8 @@ type stackItem struct {
 	visited    bool
 }
 
-// DeleteOne 删除指定文件夹下的指定文件名的文件
-func (s *searchService) DeleteOne(dirName string, fileName string) {
+// DeleteFilesOnDisk 删除指定文件夹下的指定文件名的文件
+func (s *searchService) DeleteFilesOnDisk(dirName string, fileName string) {
 	if len(fileName) == 0 {
 		return
 	}
@@ -118,7 +118,7 @@ func (s *searchService) DeleteOne(dirName string, fileName string) {
 
 	deleted := false
 	for _, f := range files {
-		if strings.HasPrefix(f.Name(), fileName) {
+		if strings.EqualFold(f.Name(), fileName+filepath.Ext(f.Name())) {
 			path := filepath.Join(dirName, f.Name())
 			if err := os.Remove(path); err != nil {
 				utils.InfoFormat("删除文件失败: %s, 错误: %v", path, err)

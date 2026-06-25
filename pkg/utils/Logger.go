@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"runtime/debug"
+	"sync"
 
 	"github.com/sirupsen/logrus"
 )
@@ -32,9 +33,12 @@ const logFileKeepSize = 3 * 1024 * 1024
 type rotateWriter struct {
 	file *os.File
 	path string
+	mu   sync.Mutex // 保护裁剪操作（Close→Rename→OpenFile 原子化）
 }
 
 func (w *rotateWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	// 写入前检查文件大小，超限则保留尾部 keepSize 字节
 	if fi, err := w.file.Stat(); err == nil && fi.Size() > logFileMaxSize {
 		w.truncateTail()
@@ -74,7 +78,7 @@ func (w *rotateWriter) truncateTail() {
 
 	// 原子替换：写临时文件 → 重命名
 	tmpPath := w.path + ".tmp"
-	if err := os.WriteFile(tmpPath, buf, 0644); err != nil {
+	if err := os.WriteFile(tmpPath, buf, 0600); err != nil {
 		return
 	}
 

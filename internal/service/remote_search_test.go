@@ -18,7 +18,7 @@ func TestSetMovieNode_AssignsHostAndName(t *testing.T) {
 	LocalNodeName = "书房电脑"
 
 	m := &model.FileItem{Id: "abc123"}
-	SetMovieNode(m)
+	m.SetNodeInfo(LocalNodeHost, LocalNodeName)
 
 	assert.Equal(t, "mypc:10081", m.NodeHost)
 	assert.Equal(t, "书房电脑", m.NodeName)

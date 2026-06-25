@@ -4,14 +4,14 @@
     <title><%= productName %></title>
 
     <meta charset="utf-8" />
-    <meta name="description" content="<%= productDescription %>" />
+    <meta name="description" content="本地文件搜索、管理与媒体播放系统" />
     <meta name="format-detection" content="telephone=no" />
     <meta name="msapplication-tap-highlight" content="no" />
-    <meta
-      name="viewport"
-      content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width<% if (ctx.mode.cordova || ctx.mode.capacitor) { %>, viewport-fit=cover<% } %>"
-    />
+    <meta name="application-name" content="搜索系统" />
 
+    <!-- SVG favicon — 主方案，完美缩放 -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <!-- 降级方案：PNG 尺寸簇 -->
     <link
       rel="icon"
       type="image/png"
@@ -37,6 +37,10 @@
       href="icons/favicon-16x16.png"
     />
     <link rel="icon" type="image/ico" href="favicon.ico" />
+    <meta
+      name="viewport"
+      content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width<% if (ctx.mode.cordova || ctx.mode.capacitor) { %>, viewport-fit=cover<% } %>"
+    />
     <style>
       body {
         margin: 0;
@@ -54,6 +58,20 @@
         background: #0F1117;
         z-index: 9999;
       }
+      body:not(.theme-natural) #q-app:empty::after {
+        content: '';
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        width: 32px;
+        height: 32px;
+        margin: -16px 0 0 -16px;
+        border: 3px solid rgba(11, 105, 229, 0.15);
+        border-top-color: #0b69e5;
+        border-radius: 50%;
+        animation: splash-spin 0.8s linear infinite;
+        z-index: 99999;
+      }
       /* 加载中遮罩 - 自然主题 */
       body.theme-natural #q-app:empty::before {
         content: '';
@@ -61,6 +79,23 @@
         inset: 0;
         background: #FFFFFF;
         z-index: 9999;
+      }
+      body.theme-natural #q-app:empty::after {
+        content: '';
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        width: 32px;
+        height: 32px;
+        margin: -16px 0 0 -16px;
+        border: 3px solid rgba(30, 58, 95, 0.12);
+        border-top-color: #1E3A5F;
+        border-radius: 50%;
+        animation: splash-spin 0.8s linear infinite;
+        z-index: 99999;
+      }
+      @keyframes splash-spin {
+        to { transform: rotate(360deg); }
       }
     </style>
   </head>

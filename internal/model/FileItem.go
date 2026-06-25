@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"search-gin/pkg/utils"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -64,6 +65,7 @@ func EasyFile(dir string, path string, name string, fileType string, size int64,
 		Title:     utils.GetTitle(name),
 		Name:      name,
 		Path:      path,
+		PathUpper: strings.ToUpper(path),
 		Png:       utils.ConcatSuffix(path, "png"),
 		Jpg:       utils.ConcatSuffix(path, "jpg"),
 		Srt:       utils.ConcatSuffix(path, "srt"),
@@ -95,6 +97,7 @@ func NewFile(dir string, path string, name string, fileType string, size int64, 
 		Title:     utils.GetTitle(name),
 		Name:      name,
 		Path:      path,
+		PathUpper: strings.ToUpper(path),
 		Png:       utils.ConcatSuffix(path, "png"),
 		Jpg:       utils.ConcatSuffix(path, "jpg"),
 		Srt:       utils.ConcatSuffix(path, "srt"),
@@ -234,4 +237,10 @@ func (f FileItem) RenameAll(newMainPath, newBaseName string) (FileItem, error) {
 		info.Size(), info.ModTime(), f.BaseDir)
 	newFile.Id = f.Id
 	return newFile, nil
+}
+
+// SetNodeInfo 设置文件所属节点信息
+func (f *FileItem) SetNodeInfo(nodeHost, nodeName string) {
+	f.NodeHost = nodeHost
+	f.NodeName = nodeName
 }

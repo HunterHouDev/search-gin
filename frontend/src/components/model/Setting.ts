@@ -1,4 +1,5 @@
 export class SettingInfo {
+  AdminPassword = '';
   Tags: string[] = [];
   ImageTypes: string[] = [];
   DocsTypes: string[] = [];

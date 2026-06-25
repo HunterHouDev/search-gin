@@ -124,16 +124,13 @@ func GetDirInfo(c *gin.Context) {
 func GetDelete(c *gin.Context) {
 	id := c.Param("id")
 
-	file := UseApp().search.FindById(id)
-	if file.IsNull() {
-		if service.HandleRemote(c, file, "delete") {
+	result := UseApp().files.Delete(id)
+	if !result.IsSuccess() {
+		if service.HandleRemote(c, model.FileItem{}, "delete") {
 			return
 		}
-		c.JSON(http.StatusNotFound, utils.NewFailByMsg("文件不存在"))
+		c.JSON(http.StatusNotFound, result)
 		return
 	}
-
-	UseApp().search.DeleteFile(file)
-	UseApp().files.DeleteOne(file.DirPath, file.Title)
-	c.JSON(http.StatusOK, utils.NewSuccessByMsg("删除成功"))
+	c.JSON(http.StatusOK, result)
 }

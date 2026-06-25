@@ -44,10 +44,17 @@ func requireAdmin(c *gin.Context) bool {
 	u, _ := usernameVal.(string)
 	utils.InfoFormat("requireAdmin 检查: role=%q(username=%q), RequireAdminWithName=%v", r, u, service.RequireAdminWithName(r, u))
 
-	// 兼容旧 token：中间件未设 role/username 时放行（已通过认证即合法）
-	if r == "" && u == "" {
-		utils.InfoFormat("requireAdmin: 旧 token 兼容放行")
+	// 兼容旧 token：仅 admin 用户在中间件未设 role 时放行
+	// （ValidateTokenWithInfo 会自动补全 admin 用户的 role，旧 token 首次校验后即不再进入此分支）
+	if r == "" && u == service.AdminUsername {
+		utils.InfoFormat("requireAdmin: 旧 token 兼容放行(admin)")
 		return true
+	}
+	// role 和 username 均为空 → 拒绝（非 admin 用户必须带完整 token 信息）
+	if r == "" && u == "" {
+		utils.InfoFormat("requireAdmin: 拒绝无 role/username 的旧 token")
+		c.JSON(http.StatusForbidden, utils.NewFailByMsg("无权限执行此操作"))
+		return false
 	}
 
 	if !service.RequireAdminWithName(r, u) {

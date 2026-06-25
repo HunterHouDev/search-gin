@@ -12,8 +12,8 @@ clean_dirs() {
     rm -rf dist
     mkdir -p dist
 
-    log "INFO" "清理 qapp/dist 和 qapp/log..."
-    rm -rf qapp/dist qapp/log
+    log "INFO" "清理 dist 和 log..."
+    rm -rf dist log
 	cd .. || { log "ERROR" "无法返回上级目录"; exit 1; }
 }
 

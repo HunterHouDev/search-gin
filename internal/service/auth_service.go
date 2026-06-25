@@ -17,11 +17,15 @@ import (
 
 const (
 	AdminUsername = "admin"
-	AdminPassword = "qwer"
+	AdminPassword = "qwer" // 编译默认值；生产可通过 setting.json 的 adminPassword 字段覆盖
 	AdminRole     = "super_admin"
 )
 
 var adminPasswordHash string
+
+// adminPasswordHashFromSetting 缓存 setting.json 中 AdminPassword 的 bcrypt 哈希，
+// 在 InitSetting 中预计算，避免每次登录都重复 bcrypt (~100ms)
+var adminPasswordHashFromSetting string
 
 func init() {
 	hash, err := bcrypt.GenerateFromPassword([]byte(AdminPassword), bcrypt.DefaultCost)
@@ -29,6 +33,21 @@ func init() {
 		panic("生成管理员密码哈希失败: " + err.Error())
 	}
 	adminPasswordHash = string(hash)
+}
+
+// CacheAdminPasswordHash 预计算 setting.json 中 AdminPassword 的 bcrypt 哈希并缓存，
+// 由 InitSetting 在启动时调用
+func CacheAdminPasswordHash() {
+	pwd := GetOSSetting().AdminPassword
+	if pwd != "" {
+		hash, err := bcrypt.GenerateFromPassword([]byte(pwd), bcrypt.DefaultCost)
+		if err != nil {
+			utils.ErrorFormat("缓存管理员密码哈希失败: %v", err)
+			return
+		}
+		adminPasswordHashFromSetting = string(hash)
+		utils.InfoFormat("管理员密码哈希已缓存")
+	}
 }
 
 // AdminPasswordHash 返回超管密码的 bcrypt 哈希
@@ -63,6 +82,33 @@ var (
 	tokenStore = make(map[string]TokenInfo)
 	tokenMu    sync.RWMutex
 )
+
+// NOTE: CleanExpiredTokens() 已定义但未自动周期执行。仅在 ValidateTokenWithInfo 的
+//       验证路径上惰性删除过期 token。当前设计可接受——token 4h 有效期，
+//       前端 sessionStorage 关闭即丢，实际不会出现无限增长。
+//       若需额外保障可加 `go tokenCleanupLoop()` 每 5 分钟定期清理。
+
+// StartTokenCleanupLoop 每天固定时间（凌晨 3:00）清理过期 token，周期性执行
+func StartTokenCleanupLoop() {
+	go func() {
+		defer utils.RecoverPanic()
+		now := time.Now()
+		// 计算下次 03:00（凌晨 3 点）
+		next := time.Date(now.Year(), now.Month(), now.Day(), 3, 0, 0, 0, now.Location())
+		if !now.Before(next) {
+			next = next.Add(24 * time.Hour)
+		}
+		time.Sleep(next.Sub(now))
+		utils.InfoFormat("Token 定期清理已启动，下次执行时间: %s", next.Format("2006-01-02 15:04:05"))
+
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			CleanExpiredTokens()
+			utils.InfoFormat("Token 定期清理完成，当前 token 数量: %d", len(tokenStore))
+		}
+	}()
+}
 
 // SetToken 设置 token
 func SetToken(token string, expireTime time.Time, username string, role string) {
@@ -148,11 +194,26 @@ type LoginResult struct {
 }
 
 // LoginUser 验证用户名密码并签发 token
+// 密码验证优先级：setting.json 的 AdminPassword > 编译常量的 qwer
+// 当 username 为空时，仅凭密码匹配 admin 登录
 func LoginUser(username, password string) LoginResult {
-	if username == AdminUsername && VerifyPassword(password, AdminPasswordHash()) {
-		return issueToken(username, AdminRole)
+	// 无用户名或用户名为 admin → 按 admin 密码匹配
+	if username == "" || username == AdminUsername {
+		settingPwd := GetOSSetting().AdminPassword
+		if settingPwd != "" {
+		  // setting.json 有配置密码 → 优先使用
+		  if VerifyPassword(password, adminPasswordHashFromSetting) {
+				return issueToken(AdminUsername, AdminRole)
+			}
+		} else {
+			// 兜底用编译常量 qwer
+			if VerifyPassword(password, AdminPasswordHash()) {
+				return issueToken(AdminUsername, AdminRole)
+			}
+		}
 	}
 
+	// 有用户名时检查普通用户
 	for _, user := range GetOSSettingUsers() {
 		if user.Username == username && VerifyPassword(password, user.Password) {
 			if user.ExpireDate != "" {
@@ -224,6 +285,7 @@ func defaultSetting() model.Setting {
 		Types:      []string{"avi", "mkv", "wmv", "mp4", "gif", "png", "jpg", "txt", "xlsx"},
 		MovieTypes: []string{"骑兵", "步兵", "国产", "漫动"},
 		Pages:      []string{"10", "12", "15", "27", "50", "100"},
+		TaskMaxConcurrent: 4,
 	}
 }
 
@@ -283,7 +345,7 @@ func WriteDictionaryToJson(path string, dict model.Setting) {
 		utils.InfoFormat("序列化配置文件失败: %v", err)
 		return
 	}
-	err = os.WriteFile(path, data, os.ModePerm)
+	err = os.WriteFile(path, data, 0600)
 	if err != nil {
 		utils.InfoFormat("写入配置文件失败: %v", err)
 		return

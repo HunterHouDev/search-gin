@@ -100,7 +100,6 @@ func (se *searchEngineCore) rebuildWithBucketIncremental(baseDir string, newBuck
 	for _, d := range dirs {
 		dirSet[d] = struct{}{}
 	}
-
 	newBuckets := make(map[string]*bucketFile, len(old.buckets)+1)
 	for k, v := range old.buckets {
 		if k == baseDir {
@@ -124,6 +123,12 @@ func (se *searchEngineCore) rebuildWithBucketIncremental(baseDir string, newBuck
 		typeMenu:    cloneMenuMap(old.typeMenu),
 		tagMenu:     cloneMenuMap(old.tagMenu),
 		seriesCount: cloneMenuMap(old.seriesCount),
+	}
+
+	// 克隆旧 idIndex，后续 subtract/add 只修正当前 bucket 的条目，其他 bucket 的条目保持不变
+	index.idIndex = make(map[string]*model.FileItem, len(old.idIndex))
+	for k, v := range old.idIndex {
+		index.idIndex[k] = v
 	}
 
 	oldBucket := old.buckets[baseDir]
@@ -385,7 +390,10 @@ func addFileToIndex(index *searchIndex, movie *model.FileItem) {
 	index.totalCount++
 	index.totalSize += movie.Size
 
-	// 维护全局 ID 索引
+	// 维护全局 ID 索引（懒初始化，允许调用方未预先创建 map）
+	if index.idIndex == nil {
+		index.idIndex = make(map[string]*model.FileItem, 16)
+	}
 	if movie.Id != "" {
 		index.idIndex[movie.Id] = movie
 	}
@@ -433,131 +441,91 @@ func addFileToIndex(index *searchIndex, movie *model.FileItem) {
 	}
 }
 
-// ReplaceFile 同步替换索引中的单文件记录
-func (se *searchEngineCore) ReplaceFile(oldFile, newFile model.FileItem) {
-	op := fileOp{opType: "replace", oldFile: oldFile, newFile: newFile}
-	se.flushPendingOp(op)
+// ReplaceFileOnIndex 同步替换索引中的单文件记录
+func (se *searchEngineCore) ReplaceFileOnIndex(oldFile, newFile model.FileItem) {
+	se.flushPendingToIndex(fileOp{opType: "replace", oldFile: oldFile, newFile: newFile})
 }
 
-// DeleteFile 同步从索引中删除文件记录
-func (se *searchEngineCore) DeleteFile(file model.FileItem) {
-	op := fileOp{opType: "delete", oldFile: file}
-	se.flushPendingOp(op)
-}
-func (se *searchEngineCore) flushPendingOp(ops fileOp) {
-	se.flushPendingOps([]fileOp{ops})
+// DeleteOnIndex 同步从索引中删除文件记录
+func (se *searchEngineCore) DeleteOnIndex(file model.FileItem) {
+	se.flushPendingToIndex(fileOp{opType: "delete", oldFile: file})
 }
 
-// flushPendingOps 将一组文件操作同步应用到索引
-// 合并为一次索引安装 + 一次缓存清除
-func (se *searchEngineCore) flushPendingOps(ops []fileOp) {
+// flushPendingToIndex 将文件操作同步应用到索引
+func (se *searchEngineCore) flushPendingToIndex(op fileOp) {
 	se.rebuildMu.Lock()
 	defer se.rebuildMu.Unlock()
 
 	start := time.Now()
 
-	// 加载当前索引快照（持 rebuildMu，不会被并发重建覆盖）
 	index := se.loadIndex()
-
-	// ── 按 baseDir 分组收集操作，保证同 bucket 多操作顺序应用 ──
-	type dirOps struct {
-		baseDir string
-		ops     []fileOp
-	}
-	ordered := make([]dirOps, 0)
-	dirMap := make(map[string]int, len(ops)) // baseDir → ordered 下标
-
-	for _, op := range ops {
-		baseDir := op.oldFile.BaseDir
-		if idx, ok := dirMap[baseDir]; ok {
-			ordered[idx].ops = append(ordered[idx].ops, op)
-		} else {
-			dirMap[baseDir] = len(ordered)
-			ordered = append(ordered, dirOps{baseDir: baseDir, ops: []fileOp{op}})
-		}
-	}
-
-	// ── 构造新索引 ──
 	newIndex := shallowCopyIndex(index)
 
-	for _, dg := range ordered {
-		bucket := index.buckets[dg.baseDir]
-		if bucket == nil {
-			continue
-		}
-
-		// 克隆 bucket，按顺序应用所有操作
-		newBucket := bucket.clone()
-		applied := false
-
-		for _, op := range dg.ops {
-			switch op.opType {
-			case "replace":
-				if _, exists := newBucket.FileLib[op.oldFile.Id]; !exists {
-					continue
-				}
-				// 更新 bucket 数据
-				f := op.newFile
-				newBucket.FileLib[op.oldFile.Id] = &f
-				sizeDiff := op.newFile.Size - op.oldFile.Size
-				newBucket.TotalSize += sizeDiff
-				// 更新 TypeIndex
-				if op.oldFile.MovieType != op.newFile.MovieType {
-					if op.oldFile.MovieType != "" {
-						if ids, ok := newBucket.TypeIndex[op.oldFile.MovieType]; ok {
-							delete(ids, op.oldFile.Id)
-							if len(ids) == 0 {
-								delete(newBucket.TypeIndex, op.oldFile.MovieType)
-							}
-						}
-					}
-					if op.newFile.MovieType != "" {
-						if newBucket.TypeIndex[op.newFile.MovieType] == nil {
-							newBucket.TypeIndex[op.newFile.MovieType] = map[string]struct{}{}
-						}
-						newBucket.TypeIndex[op.newFile.MovieType][op.newFile.Id] = struct{}{}
-					}
-				}
-				// 更新 index 级聚合
-				subtractFileFromIndex(newIndex, &op.oldFile)
-				addFileToIndex(newIndex, &op.newFile)
-				applied = true
-
-			case "delete":
-				entry, exists := newBucket.FileLib[op.oldFile.Id]
-				if !exists {
-					continue
-				}
-				// 更新 bucket 数据
-				delete(newBucket.FileLib, op.oldFile.Id)
-				newBucket.TotalCount--
-				newBucket.TotalSize -= entry.Size
-				if entry.MovieType != "" {
-					if ids, ok := newBucket.TypeIndex[entry.MovieType]; ok {
-						delete(ids, entry.Id)
-						if len(ids) == 0 {
-							delete(newBucket.TypeIndex, entry.MovieType)
-						}
-					}
-				}
-				// 更新 index 级聚合
-				subtractFileFromIndex(newIndex, entry)
-				applied = true
-			}
-		}
-
-		if applied {
-			newIndex.buckets[dg.baseDir] = newBucket
-		}
+	bucket := index.buckets[op.oldFile.BaseDir]
+	if bucket == nil {
+		return
 	}
 
-	// 单次安装 + 单次缓存清除（对比逐操作安装，大幅降低开销）
+	newBucket := bucket.clone()
+	applied := false
+
+	switch op.opType {
+	case "replace":
+		if _, exists := newBucket.FileLib[op.oldFile.Id]; !exists {
+			return
+		}
+		f := op.newFile
+		newBucket.FileLib[op.oldFile.Id] = &f
+		sizeDiff := op.newFile.Size - op.oldFile.Size
+		newBucket.TotalSize += sizeDiff
+		if op.oldFile.MovieType != op.newFile.MovieType {
+			if op.oldFile.MovieType != "" {
+				if ids, ok := newBucket.TypeIndex[op.oldFile.MovieType]; ok {
+					delete(ids, op.oldFile.Id)
+					if len(ids) == 0 {
+						delete(newBucket.TypeIndex, op.oldFile.MovieType)
+					}
+				}
+			}
+			if op.newFile.MovieType != "" {
+				if newBucket.TypeIndex[op.newFile.MovieType] == nil {
+					newBucket.TypeIndex[op.newFile.MovieType] = map[string]struct{}{}
+				}
+				newBucket.TypeIndex[op.newFile.MovieType][op.newFile.Id] = struct{}{}
+			}
+		}
+		subtractFileFromIndex(newIndex, &op.oldFile)
+		addFileToIndex(newIndex, &op.newFile)
+		applied = true
+
+	case "delete":
+		entry, exists := newBucket.FileLib[op.oldFile.Id]
+		if !exists {
+			return
+		}
+		delete(newBucket.FileLib, op.oldFile.Id)
+		newBucket.TotalCount--
+		newBucket.TotalSize -= entry.Size
+		if entry.MovieType != "" {
+			if ids, ok := newBucket.TypeIndex[entry.MovieType]; ok {
+				delete(ids, entry.Id)
+				if len(ids) == 0 {
+					delete(newBucket.TypeIndex, entry.MovieType)
+				}
+			}
+		}
+		subtractFileFromIndex(newIndex, entry)
+		applied = true
+	}
+
+	if applied {
+		newIndex.buckets[op.oldFile.BaseDir] = newBucket
+	}
+
 	se.installIndexSkipDisk(newIndex)
-	// 重复文件列表延迟到下次 returnRepeatSearch 时惰性重算
 	se.repeatsDirty.Store(true)
 
-	ti := time.Since(start)
-	LogMem.Add("flushPendingOps: 完成, 耗时 %dms, 操作数 %d", ti.Milliseconds(), len(ops))
+	LogMem.Add("flushPendingToIndex: 完成, 耗时 %dms, 操作: %s", time.Since(start).Milliseconds(), op.opType)
 }
 
 // shallowCopyIndex 浅拷贝 searchIndex，共享未修改的 bucket 指针
@@ -593,12 +561,16 @@ func shallowCopyIndex(index *searchIndex) *searchIndex {
 		newIdIndex[k] = v
 	}
 
+	// 深拷贝 repeatFiles（避免与旧索引共享底层数组）
+	newRepeatFiles := make([]model.FileItem, len(index.repeatFiles))
+	copy(newRepeatFiles, index.repeatFiles)
+
 	return &searchIndex{
 		buckets:     newBuckets,
 		bucketCount: index.bucketCount,
 		totalSize:   index.totalSize,
 		totalCount:  index.totalCount,
-		repeatFiles: index.repeatFiles,
+		repeatFiles: newRepeatFiles,
 		authorMap:   newAuthorMap,
 		idIndex:     newIdIndex,
 		typeMenu:    newTypeMenu,

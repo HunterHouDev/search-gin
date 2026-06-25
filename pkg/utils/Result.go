@@ -2,8 +2,8 @@ package utils
 
 type Result struct {
 	MessageCode
-	Data       interface{}
-	EffectRows int64
+	Data       interface{} `json:"Data"`
+	EffectRows int64       `json:"EffectRows"`
 }
 
 func (res *Result) Success() {

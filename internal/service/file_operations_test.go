@@ -11,6 +11,12 @@ import (
 
 // ── cleanPath 测试 ──
 
+func TestCleanPath_fileext(t *testing.T) {
+	origPath := "video.mp4"
+	ext := filepath.Ext(origPath)
+	assert.Equal(t, ".mp4", ext)
+}
+
 func TestCleanPath_RemovesMarkers(t *testing.T) {
 	tests := []struct {
 		input    string
@@ -92,17 +98,17 @@ func TestSetMovieType_AddTypeToNewFile(t *testing.T) {
 		tmpDir: makeBucket(tmpDir, movie),
 	}))
 
-	res := app.SetMovieType(movie, "骑兵")
+	res := app.SetMovieType(movie, "动漫")
 	assert.True(t, res.IsSuccess())
 
-	newPath := filepath.Join(tmpDir, "video{{骑兵}}.mp4")
+	newPath := filepath.Join(tmpDir, "video{{动漫}}.mp4")
 	_, err := os.Stat(newPath)
 	assert.NoError(t, err, "新文件应存在: %s", newPath)
 }
 
 func TestSetMovieType_ChangeExistingType(t *testing.T) {
 	tmpDir := t.TempDir()
-	origPath := filepath.Join(tmpDir, "video{{骑兵}}.mp4")
+	origPath := filepath.Join(tmpDir, "video{{动漫}}.mp4")
 	os.WriteFile(origPath, []byte("test"), 0644)
 
 	engine := NewSearchEngine()
@@ -113,29 +119,29 @@ func TestSetMovieType_ChangeExistingType(t *testing.T) {
 
 	movie := model.FileItem{
 		Id:        "test-2",
-		Name:      "video{{骑兵}}.mp4",
+		Name:      "video{{动漫}}.mp4",
 		Path:      origPath,
 		DirPath:   tmpDir,
 		FileType:  "mp4",
 		Size:      100,
 		BaseDir:   tmpDir,
-		MovieType: "骑兵",
+		MovieType: "动漫",
 	}
 	engine.installIndex(buildIndexFromBuckets(map[string]*bucketFile{
 		tmpDir: makeBucket(tmpDir, movie),
 	}))
 
-	res := app.SetMovieType(movie, "步兵")
+	res := app.SetMovieType(movie, "国剧")
 	assert.True(t, res.IsSuccess())
 
-	newPath := filepath.Join(tmpDir, "video{{步兵}}.mp4")
+	newPath := filepath.Join(tmpDir, "video{{国剧}}.mp4")
 	_, err := os.Stat(newPath)
 	assert.NoError(t, err)
 }
 
 func TestSetMovieType_SameTypeNoop(t *testing.T) {
 	tmpDir := t.TempDir()
-	origPath := filepath.Join(tmpDir, "video{{骑兵}}.mp4")
+	origPath := filepath.Join(tmpDir, "video{{动漫}}.mp4")
 	os.WriteFile(origPath, []byte("test"), 0644)
 
 	engine := NewSearchEngine()
@@ -146,19 +152,19 @@ func TestSetMovieType_SameTypeNoop(t *testing.T) {
 
 	movie := model.FileItem{
 		Id:        "test-3",
-		Name:      "video{{骑兵}}.mp4",
+		Name:      "video{{动漫}}.mp4",
 		Path:      origPath,
 		DirPath:   tmpDir,
 		FileType:  "mp4",
 		Size:      100,
 		BaseDir:   tmpDir,
-		MovieType: "骑兵",
+		MovieType: "动漫",
 	}
 	engine.installIndex(buildIndexFromBuckets(map[string]*bucketFile{
 		tmpDir: makeBucket(tmpDir, movie),
 	}))
 
-	res := app.SetMovieType(movie, "骑兵")
+	res := app.SetMovieType(movie, "动漫")
 	assert.True(t, res.IsSuccess())
 	// 文件不应被修改
 	_, err := os.Stat(origPath)
@@ -760,10 +766,10 @@ func TestSetMovieType_TypeIsWu(t *testing.T) {
 		tmpDir: makeBucket(tmpDir, movie),
 	}))
 
-	res := app.SetMovieType(movie, "骑兵")
+	res := app.SetMovieType(movie, "动漫")
 	assert.True(t, res.IsSuccess())
 
-	newPath := filepath.Join(tmpDir, "video{{骑兵}}.mp4")
+	newPath := filepath.Join(tmpDir, "video{{动漫}}.mp4")
 	_, err := os.Stat(newPath)
 	assert.NoError(t, err)
 }

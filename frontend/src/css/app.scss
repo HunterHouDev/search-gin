@@ -64,6 +64,11 @@
   --q-hover-bg: rgba(34, 197, 94, 0.1);
   --q-active-bg: rgba(34, 197, 94, 0.2);
   --q-focus-ring: rgba(34, 197, 94, 0.5);
+
+  // ── Brand assets ──
+  --brand-logo: url('~assets/brand-logo.svg');
+  --brand-logo-width: 120px;
+  --brand-logo-height: 120px;
 }
 
 // ============== Design System — Light Mode 自然 ==============
@@ -112,6 +117,11 @@
   --q-hover-bg: rgba(34, 197, 94, 0.08);
   --q-active-bg: rgba(34, 197, 94, 0.16);
   --q-focus-ring: rgba(34, 197, 94, 0.5);
+
+  // ── Brand assets (natural theme preserves logo ref) ──
+  --brand-logo: url('~assets/brand-logo.svg');
+  --brand-logo-width: 120px;
+  --brand-logo-height: 120px;
 }
 
 // ============== 全局样式 ==============
@@ -443,4 +453,100 @@ body:not(.theme-natural) .q-field .q-field__input {
 .q-tab-panels {
   background: var(--q-bg-card) !important;
   color: var(--q-text-primary) !important;
+}
+
+// ============== 交互增强 ==============
+
+// 卡片悬停微动效 — 搜索结果、文件卡片等
+.card-hover {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              background 0.3s ease !important;
+  cursor: pointer;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    background: var(--q-bg-hover) !important;
+  }
+
+  &:active {
+    transform: translateY(0px) scale(0.98);
+  }
+}
+
+// 列表项出入动画 — 搜索列表、文件列表等
+.list-enter-active,
+.list-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.list-enter-from {
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+.list-leave-to {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+.list-move {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+// 展开/折叠动画
+.expand-enter-active,
+.expand-leave-active {
+  transition: all 0.25s ease;
+  overflow: hidden;
+}
+
+.expand-enter-from,
+.expand-leave-to {
+  max-height: 0;
+  opacity: 0;
+}
+
+// 脉冲进度指示 — 用于后台扫描等长时间操作
+@keyframes pulse-progress {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.pulse-animation {
+  animation: pulse-progress 2s ease-in-out infinite;
+}
+
+// 按钮空状态微动效 — 无结果的空按钮闪烁提示
+@keyframes gentle-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.gentle-bounce {
+  animation: gentle-bounce 2s ease-in-out infinite;
+}
+
+// ============== 响应式工具类 ==============
+
+// 移动端隐藏/显示
+.mobile-only {
+  @media (min-width: 768px) {
+    display: none !important;
+  }
+}
+
+.desktop-only {
+  @media (max-width: 767px) {
+    display: none !important;
+  }
+}
+
+// 触摸设备优化
+@media (hover: none) and (pointer: coarse) {
+  .card-hover:hover {
+    transform: none !important;
+    box-shadow: none !important;
+  }
 }

@@ -260,13 +260,9 @@ func buildAuthorResult(authors []model.Author, param model.SearchParam) model.Pa
 
 // ── 查询方法 ──────────────────────────────────────────────────────
 
-// FindById O(1) 查找文件，使用 idIndex 全局索引替代全桶线性扫描
+// FindById O(1) 查找文件，优先使用 idIndex；未命中时遍历所有 bucket 兜底
 func (se *searchEngineCore) FindById(id string) model.FileItem {
-	index := se.loadIndex()
-	if f, ok := index.idIndex[id]; ok {
-		return *f
-	}
-	return model.FileItem{}
+	return se.loadIndex().FindById(id)
 }
 
 // FindAuthorByName 按名称查找作者

@@ -235,7 +235,9 @@ func (s *searchService) Move(id string, newDir string, title string) utils.Resul
 		return res
 	}
 	if !utils.ExistsFiles(newDir) {
-		os.MkdirAll(newDir, 0755)
+		if err := os.MkdirAll(newDir, 0755); err != nil {
+			utils.ErrorFormat("创建目录失败 %s: %v", newDir, err)
+		}
 	}
 	newPath := newDir + utils.PathSeparator + title + "." + movieLib.FileType
 	newBaseName := newDir + utils.PathSeparator + title
@@ -249,18 +251,19 @@ func (s *searchService) Move(id string, newDir string, title string) utils.Resul
 }
 
 // Delete 删除文件（索引移除 + 物理删除 + SSE 通知）
-func (s *searchService) Delete(id string) {
+func (s *searchService) Delete(id string) utils.Result {
 	file := s.engine.FindById(id)
 	if file.IsNull() {
-		return
+		return utils.NewFailByMsg("文件不存在")
 	}
-	s.engine.DeleteFile(file) // 入队索引删除，由 flushLoop 批量应用
-	s.DeleteOne(file.DirPath, file.Title)
+	s.engine.DeleteOnIndex(file) // 入队索引删除，由 flushLoop 批量应用
+	s.DeleteFilesOnDisk(file.DirPath, file.Title)
 	s.events.Broadcast("file_changed", map[string]interface{}{
 		"action": "delete",
 		"id":     id,
 		"path":   file.Path,
 	})
+	return utils.NewSuccessByMsg("删除成功")
 }
 
 // ── 私有辅助函数 ──────────────────────────────────────────────────
@@ -285,7 +288,7 @@ func choose2To1(cond bool, a, b string) string {
 
 // notifyFileChanged 更新索引 + SSE 通知前端，返回 Result
 func (s *searchService) notifyFileChanged(oldFile, updated model.FileItem, action string) utils.Result {
-	s.engine.ReplaceFile(oldFile, updated)
+	s.engine.ReplaceFileOnIndex(oldFile, updated)
 	res := utils.NewSuccessByMsg("执行成功")
 	res.Data = updated
 	s.events.Broadcast("file_changed", map[string]interface{}{

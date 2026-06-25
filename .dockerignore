@@ -1,0 +1,33 @@
+# =============================================================================
+# .dockerignore — 减少 Docker build context 体积
+# =============================================================================
+.git/
+.gitignore
+.gitattributes
+*.md
+.vscode/
+.idea/
+.cache/
+
+# Go
+vendor/
+
+# Frontend
+frontend/node_modules/
+frontend/.quasar/
+frontend/src/
+
+# Build artifacts
+qapp/
+debugTest/
+drop/
+data/
+__debug_bin.exe
+*.exe
+gin.log
+search_cache.gob
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml

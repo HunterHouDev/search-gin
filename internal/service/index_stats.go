@@ -3,7 +3,6 @@ package service
 import (
 	"fmt"
 	"search-gin/internal/model"
-	"search-gin/pkg/utils"
 	"sync"
 	"time"
 )
@@ -35,7 +34,8 @@ type LogEntry struct {
 
 var LogMem = MemoryLog{mu: &sync.Mutex{}}
 
-// Add 写入一条日志
+// Add 写入一条内存日志（仅写内存，不重复写磁盘）
+// 磁盘日志由调用方自行使用 utils.InfoFormat 写入，避免双倍 I/O
 func (ml *MemoryLog) Add(format string, v ...any) {
 	msg := fmt.Sprintf(format, v...)
 	entry := LogEntry{Time: time.Now().Local().String(), Msg: msg}
@@ -45,7 +45,6 @@ func (ml *MemoryLog) Add(format string, v ...any) {
 		ml.logs = ml.logs[n-logMemoryTrimLines:]
 	}
 	ml.mu.Unlock()
-	utils.InfoFormat(format, v...)
 }
 
 // GetAll 返回全部日志
