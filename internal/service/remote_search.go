@@ -249,10 +249,13 @@ func FillURLs(c *gin.Context, movies []model.FileItem) {
 	imgExpire := time.Now().Add(5 * time.Minute).Unix()
 	streamExpire := time.Now().Add(4 * time.Hour).Unix()
 	imgToken, err := utils.EncryptStreamToken(imgExpire)
-	streamToken, err2 := utils.EncryptStreamToken(streamExpire)
-	if err != nil || err2 != nil {
-		utils.ErrorFormat("生成 streamToken 失败: %v | %v", err, err2)
+	if err != nil {
+		utils.ErrorFormat("生成图片 streamToken 失败: %v", err)
 		imgToken = ""
+	}
+	streamToken, err := utils.EncryptStreamToken(streamExpire)
+	if err != nil {
+		utils.ErrorFormat("生成视频 streamToken 失败: %v", err)
 		streamToken = ""
 	}
 	imgTokenParam := "?streamToken=" + url.QueryEscape(imgToken)

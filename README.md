@@ -15,10 +15,10 @@
 - **视频剪辑**：通过 FFmpeg 按时间范围剪切、截图、转码
 - **图片浏览**：缩略图网格、在线预览
 - **文件管理**：重命名、移动、删除、标签管理
-- **用户系统**：登录认证、多用户管理（管理员 + 普通用户）、运行时可配置
+- **用户系统**：登录认证、多用户管理（管理员 + 普通用户）、运行时可配置、管理员密码支持 `setting.json` 覆盖
 - **多节点集群**：HTTP 信令节点发现、跨节点搜索、跨节点文件操作（删除/重命名/转码等）、文件流直连 `:10082`
 - **视频会议**：WebRTC 点对点视频通话
-- **聊天系统**：WebSocket 实时聊天 + AI 集成
+- **聊天系统**：WebSocket 实时聊天 + AI（DeepSeek）集成
 
 ## 技术栈
 
@@ -63,7 +63,33 @@ bash bpc_build.sh
 ```bash
 ./qapp/appQuaser.exe
 # 访问 http://localhost:10081
+# 默认登录：用户名留空 或 admin / 密码默认为 qwer
 ```
+
+## 文件流安全（:10082 端口）
+
+从 `bb7a53a` 版本开始，文件流端口（10082）启用 **streamToken** 认证机制：
+
+- `FillURLs()` 为每个文件生成 AES-256-GCM 加密的 streamToken（内含过期时间戳）
+- 图片预览 token：**5 分钟**有效期
+- 视频流 token：**4 小时**有效期
+- `:10082` 侧 `StreamTokenAuth` 中间件解密验证 token，不依赖内存 session map
+- 所有节点共享同一固定密钥，跨节点可互相验证
+- 旧版 HMAC 签名（`SignAuthMiddleware`）保留但不注册
+
+## 管理密码
+
+从 `bb7a53a` 版本开始，支持通过 `setting.json` 配置管理员密码覆盖默认值：
+
+```json
+{
+  "adminPassword": "your-new-password"
+}
+```
+
+- 未配置时使用编译常量 `admin`/`qwer`
+- `GetSettingInfo` API 不返回密码字段
+- 登录时支持用户名留空（仅凭密码匹配管理员）
 
 ## 项目结构
 
@@ -96,21 +122,22 @@ search-gin/
 │   │   ├── hw_accel.go             # 硬件加速检测 / 编码器选择
 │   │   ├── task_scheduler.go       # TaskExecuting / HeartBeat + 扫描任务队列
 │   │   ├── background_launch.go    # InitSetting / StartScanQueue / StartBackgroundTasks
-│   │   ├── auth_service.go         # 认证（硬编码 admin/qwer）
+│   │   ├── auth_service.go         # 认证（setting.json adminPassword 覆盖 + 编译常量兜底）
 │   │   ├── node_discovery.go       # 集群节点管理（HTTP 信令 + 反向心跳）
-│   │   ├── remote_search.go        # 跨节点搜索 + 合并去重
-│   │   ├── remote_operation.go     # 跨节点文件操作转发
+│   │   ├── remote_search.go        # 跨节点搜索 + 合并去重 + streamToken URL 生成
+│   │   ├── remote_operation.go     # 跨节点文件操作转发（c.GetRawData() 读取 body）
 │   │   └── torrent_service.go      # 磁力链/BT 下载管理
-│   ├── sse/             # Server-Sent Events 广播
-│   ├── ws/              # WebSocket Hub（聊天/视频会议信令）
+│   ├── sse/             # Server-Sent Events 广播（atomic.Bool 防递归启动）
+│   ├── ws/              # WebSocket Hub（聊天/视频会议信令，atomic.Bool 防递归启动）
 │   └── env/             # 环境配置（prod/dev build tag）
 ├── pkg/
 │   ├── consts/          # 基础常量（端口等，逐步迁移至 internal）
-│   └── utils/           # 日志、LRU 缓存、FNV 哈希、文件工具、协程池
-├── middleware/           # Gin 中间件（认证、recovery）
+│   ├── types/           # 类型定义（Setting, User, TransferTaskModel）
+│   └── utils/           # 日志、LRU 缓存、FNV 哈希、文件工具、协程池、stream_crypto
+├── middleware/           # Gin 中间件（认证、recovery、streamToken 校验）
 ├── frontend/            # Vue 3 + Quasar 前端源码
 ├── dist/                # 前端构建产物（被 embed 嵌入）
-├── setting.json         # 运行时配置（扫描目录、文件类型、多节点配置等）
+├── setting.json         # 运行时配置（扫描目录、文件类型、adminPassword、多节点配置等）
 └── ffmpeg.exe ffplay.exe  # 媒体处理工具
 ```
 
@@ -215,11 +242,11 @@ func DirpathForId(path string) string {
 - **Windows 平台**：主要目标平台，使用 `ffmpeg.exe`、`-H=windowsgui` 等 Windows 特性
 - **embed 机制**：`-tags=prod` 将 `dist/`、`ffmpeg.exe`、`ffplay.exe`、`setting.json` 嵌入二进制，启动时自动解压到工作目录
 - **端口分配**：
-  - `:10081` — API + 前端（需认证）
-  - `:10082` — 文件/图片/视频流（无需认证，跨节点直连使用）
-- **认证**：默认管理员 `admin` / `qwer`，Token 存储在内存中
+  - `:10081` — API + 前端（Token 认证）
+  - `:10082` — 文件/图片/视频流（streamToken 认证：AES-256-GCM）
+- **认证**：默认管理员 `admin` / `qwer`（可通过 `setting.json` 的 `adminPassword` 覆盖），Token 存储在内存中
 - **无数据库**：所有数据为内存存储，通过文件系统扫描填充。索引快照自动持久化到 `search_cache.gob`（gob 序列化），重启后优先加载缓存，用户无空白等待期；后台继续扫描以同步最新文件变更
-- **多节点**：`setting.json` 中配置 `enableLanDiscovery: true` 并在 `discoveryPeers` 中添加对端地址，节点间通过 HTTP 信令 + 反向心跳自动发现，文件流通过 `:10082` 直连传输
+- **多节点**：`setting.json` 中配置 `enableLanDiscovery: true` 并在 `discoveryPeers` 中添加对端地址，节点间通过 HTTP 信令 + 反向心跳自动发现，文件流通过 `:10082` 直连传输（streamToken 认证）
 - **集群安全认证**：跨节点 API 请求携带 `X-Search-Gin-Remote: true` header 绕过 Token 认证，但来源 IP 必须为集群内已知 peer。首次遇到未知 IP 时自动反向心跳验证（GET 该 IP 的 `/api/heartBeat`），通过后自动加入集群并持久化到 `setting.json`，后续请求直达免验证
 
 ## 主要依赖

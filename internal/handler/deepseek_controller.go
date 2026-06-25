@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"search-gin/internal/service"
 	"search-gin/pkg/utils"
@@ -53,7 +54,8 @@ func PostChatDeepSeek(c *gin.Context) {
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
 
-	resp, err := http.DefaultClient.Do(httpReq)
+	deepSeekClient := &http.Client{Timeout: 30 * time.Second}
+	resp, err := deepSeekClient.Do(httpReq)
 	if err != nil {
 		utils.ErrorFormat("DeepSeek API 调用失败: %v", err)
 		c.JSON(http.StatusBadGateway, utils.NewFailByMsg("调用 DeepSeek API 失败"))

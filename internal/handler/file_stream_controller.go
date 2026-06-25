@@ -26,7 +26,8 @@ func GetRefreshTargetIndex(c *gin.Context) {
 }
 
 func GetRefreshIndex(c *gin.Context) {
-	cnt := UseApp().files.ScanAll()
+	cnt := len(UseApp().config.Get().Dirs)
+	go UseApp().files.ScanAll()
 	c.JSON(http.StatusOK, utils.NewSuccessByMsg("计划扫描："+fmt.Sprint(cnt)))
 }
 
