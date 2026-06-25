@@ -57,10 +57,12 @@ func PostSetting(c *gin.Context) {
 		"DocsTypes": true, "MovieTypes": true, "Tags": true, "Pages": true,
 		"ControllerHost": true, "FileHost": true,
 		"NodeName": true, "enableLanDiscovery": true, "discoveryPeers": true,
-		"SystemPlayerVolumn": true, "SystemPlayerWidth": true,
+		"SystemPlayerVolumn": true, "SystemPlayerWidth": true, "SystemPlayer": true,
 		"HardwareAcceleration": true, "HardwareAccelMode": true,
 		"taskMaxConcurrent": true,
 		"TagsLib": true, "DirsLib": true,
+		"EnableTimeScan": true, "CutThenDelete": true,
+		"BaseUrl": true, "ImageUrl": true, "Remark": true,
 	}
 	for key := range body {
 		if !allowedFields[key] {
