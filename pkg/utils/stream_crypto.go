@@ -20,6 +20,20 @@ var streamSecret = []byte{
 	0xdd, 0x22, 0xaa, 0x3b, 0x5f, 0x10, 0xcd, 0x77,
 }
 
+// SetStreamSecret 从外部设置 AES-256-GCM 密钥（hex 格式，64 十六进制字符）
+// 未调用时使用代码内建固定密钥。应于启动初始化时调用。
+// hexKey 为 64 字符 hex 串（对应 32 字节），长度不匹配时静默忽略。
+func SetStreamSecret(hexKey string) {
+	if len(hexKey) != 64 {
+		return
+	}
+	key, err := hex.DecodeString(hexKey)
+	if err != nil || len(key) != 32 {
+		return
+	}
+	streamSecret = key
+}
+
 // EncryptStreamToken 将过期时间加密为 streamToken
 // 格式：hex(nonce + ciphertext)，AES-256-GCM
 func EncryptStreamToken(expireUnix int64) (string, error) {

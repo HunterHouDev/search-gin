@@ -44,6 +44,11 @@ func InitSetting() {
 	}
 
 	SetOSSetting(dict)
+
+	// 如果 setting.json 配置了 streamSecret（hex 格式 64 字符），初始化流加密密钥
+	if dict.StreamSecret != "" {
+		utils.SetStreamSecret(dict.StreamSecret)
+	}
 }
 
 // InitSearchPool 初始化 goroutine 池，根据配置的目录数量动态调整

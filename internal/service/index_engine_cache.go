@@ -38,7 +38,7 @@ const cacheFileName = "search_cache.gob"
 // ── 去抖写入 ──────────────────────────────────────────────────────
 
 // 多次 rebuild 在 cacheDebounceInterval 内合并为一次磁盘写入
-const cacheDebounceInterval = 30 * time.Second
+const cacheDebounceInterval = 5 * time.Second
 
 var (
 	cacheDebounceMu    sync.Mutex

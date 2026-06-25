@@ -561,12 +561,16 @@ func shallowCopyIndex(index *searchIndex) *searchIndex {
 		newIdIndex[k] = v
 	}
 
+	// 深拷贝 repeatFiles（避免与旧索引共享底层数组）
+	newRepeatFiles := make([]model.FileItem, len(index.repeatFiles))
+	copy(newRepeatFiles, index.repeatFiles)
+
 	return &searchIndex{
 		buckets:     newBuckets,
 		bucketCount: index.bucketCount,
 		totalSize:   index.totalSize,
 		totalCount:  index.totalCount,
-		repeatFiles: index.repeatFiles,
+		repeatFiles: newRepeatFiles,
 		authorMap:   newAuthorMap,
 		idIndex:     newIdIndex,
 		typeMenu:    newTypeMenu,

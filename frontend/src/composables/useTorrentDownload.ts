@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import axios from 'axios'
+import { api } from 'src/boot/axios'
 import type { QVueGlobals } from 'quasar'
 
 // 磁力链 / BT 下载逻辑
@@ -53,7 +53,7 @@ export function useTorrentDownload(
     torrentState.value = '正在解析磁力链...'
     torrentName.value = '获取种子信息中...'
     try {
-      const res = await axios.post('/api/torrent/add', { magnetURI: uri })
+      const res = await api.post('/api/torrent/add', { magnetURI: uri })
       const code = res.data?.code ?? res.data?.Code
       const data = res.data?.data ?? res.data?.Data
       if (code === 200 && data) {
@@ -98,7 +98,7 @@ export function useTorrentDownload(
     torrentProgress.value = 0
     const fileName = torrentFiles.value.find((f) => f.path === selectedTorrentFile.value)?.name || '未知文件'
     try {
-      const response = await axios.post('/api/torrent/startDownload', {
+      const response = await api.post('/api/torrent/startDownload', {
         infoHash: currentInfoHash.value,
         filePath: selectedTorrentFile.value,
       })
@@ -141,7 +141,7 @@ export function useTorrentDownload(
         return
       }
       try {
-        const res = await axios.get(`/api/torrent/status/${infoHash}`)
+        const res = await api.get(`/api/torrent/status/${infoHash}`)
         const d = res.data?.data ?? res.data?.Data
         if (res.data?.code === 200 && d) {
           torrentName.value = d.name
@@ -167,7 +167,7 @@ export function useTorrentDownload(
   async function cancelTorrent() {
     stopPolling()
     if (currentInfoHash.value) {
-      try { await axios.delete(`/api/torrent/${currentInfoHash.value}`) } catch { /* ignore */ }
+      try { await api.delete(`/api/torrent/${currentInfoHash.value}`) } catch { /* ignore */ }
       activeDownloads.value = activeDownloads.value.filter((t) => t.infoHash !== currentInfoHash.value)
     }
     torrentLoading.value = false
@@ -191,7 +191,7 @@ export function useTorrentDownload(
   }
 
   function removeDownloadTask(task: DownloadTask) {
-    axios.delete(`/api/torrent/${task.infoHash}`).catch(() => { /* ignore */ })
+    api.delete(`/api/torrent/${task.infoHash}`).catch(() => { /* ignore */ })
     activeDownloads.value = activeDownloads.value.filter((t) => t.infoHash !== task.infoHash)
     if (currentInfoHash.value === task.infoHash) {
       currentInfoHash.value = ''
@@ -202,7 +202,7 @@ export function useTorrentDownload(
   function cleanup() {
     stopPolling()
     if (currentInfoHash.value) {
-      axios.delete(`/api/torrent/${currentInfoHash.value}`).catch(() => { /* ignore */ })
+      api.delete(`/api/torrent/${currentInfoHash.value}`).catch(() => { /* ignore */ })
     }
   }
 
