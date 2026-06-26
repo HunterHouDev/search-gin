@@ -237,14 +237,20 @@ func FillURLs(c *gin.Context, movies []model.FileItem) {
 	localIP := pickLocalIP(clientIP)
 	localNode := LocalNodeHost
 	filePort := strings.TrimPrefix(FilePortNo, ":")
+	apiPort := strings.TrimPrefix(PortNo, ":")
 
-	// 预构建本机 base URL，避免每文件重复拼接
-	localBase := "http://" + localIP + ":" + filePort
+	// 预构建本机两个端口的 base URL
+	// 对搜索结果交替使用 API 端口（:10081）和文件流端口（:10082），
+	// 突破浏览器 HTTP/1.1 每域名 6 连接限制，提升缩略图并行加载性能。
+	localBases := [2]string{
+		"http://" + localIP + ":" + filePort,
+		"http://" + localIP + ":" + apiPort,
+	}
 	streamPath := "/api/stream/GetFileByPathUseEncode/"
 	pngPath := "/api/stream/png/"
 	jpgPath := "/api/stream/jpg/"
 
-	// 生成加密的 streamToken（内含过期时间），:10082 解密后只校验有效期
+	// 生成加密的 streamToken（内含过期时间），:10081/:10082 解密后只校验有效期
 	// 图片预览 5分钟（防懒加载裂图），视频流 4小时
 	imgExpire := time.Now().Add(5 * time.Minute).Unix()
 	streamExpire := time.Now().Add(4 * time.Hour).Unix()
@@ -264,6 +270,7 @@ func FillURLs(c *gin.Context, movies []model.FileItem) {
 	for i := range movies {
 		m := &movies[i]
 		if m.NodeHost == localNode || m.NodeHost == "" {
+			localBase := localBases[i%2] // 交替使用两个端口，突破浏览器 HTTP/1.1 每域名 6 连接限制
 			m.StreamUrl = localBase + streamPath + url.QueryEscape(m.Path) + streamTokenParam
 			m.PngUrl = localBase + pngPath + m.Id + imgTokenParam
 			m.JpgUrl = localBase + jpgPath + m.Id + imgTokenParam
@@ -276,6 +283,12 @@ func FillURLs(c *gin.Context, movies []model.FileItem) {
 			}
 			if peerIP := ResolvePeerIP(m.NodeHost); peerIP != "" {
 				peerBase := "http://" + peerIP + ":" + peerFilePort
+				if i%2 == 0 {
+					// 从 NodeHost "hostname:port" 中提取远程节点的 API 端口
+					if _, apiPortStr, err := net.SplitHostPort(m.NodeHost); err == nil {
+						peerBase = "http://" + peerIP + ":" + apiPortStr
+					}
+				}
 				m.StreamUrl = peerBase + streamPath + url.QueryEscape(m.Path) + streamTokenParam
 				m.PngUrl = peerBase + pngPath + m.Id + imgTokenParam
 				m.JpgUrl = peerBase + jpgPath + m.Id + imgTokenParam

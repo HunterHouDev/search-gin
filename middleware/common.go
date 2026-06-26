@@ -42,6 +42,9 @@ func AuthMiddleware() gin.HandlerFunc {
 			"/assets/",
 			"/icons/",
 			"/favicon.ico",
+			// 文件流 token 路径在 :10081 上也需要通过 streamToken 而非 Bearer Token 访问，
+			// 此处跳过 AuthMiddleware，由随后注册的 StreamTokenAuth 中间件校验。
+			"/api/stream/",
 		}
 
 		// 单独处理根路径（不能用前缀匹配，否则所有 /api/* 都会被跳过）

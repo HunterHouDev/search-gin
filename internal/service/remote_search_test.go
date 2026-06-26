@@ -224,16 +224,20 @@ func TestFillURLs_EmptyList_NoPanic(t *testing.T) {
 	assert.NotPanics(t, func() { FillURLs(c, []model.FileItem{}) })
 }
 
-func TestFillURLs_UsesFilePort(t *testing.T) {
+func TestFillURLs_AlternatesPorts(t *testing.T) {
 	setupFillURLsTest()
 	c := newTestContext("192.168.1.100:12345")
 
-	movies := []model.FileItem{{Id: "pt", NodeHost: "mypc:10081"}}
+	movies := []model.FileItem{
+		{Id: "even", NodeHost: "mypc:10081"}, // i%2==0 → API 端口
+		{Id: "odd", NodeHost: "mypc:10081"},  // i%2==1 → 文件流端口
+	}
 	FillURLs(c, movies)
 
-	m := movies[0]
+	apiPort := strings.TrimPrefix(PortNo, ":")
 	filePort := strings.TrimPrefix(FilePortNo, ":")
-	assert.Contains(t, m.StreamUrl, filePort, "StreamUrl 应使用文件流端口 10082")
+	assert.Contains(t, movies[0].StreamUrl, ":"+apiPort+"/", "偶数项应使用 API 端口 10081")
+	assert.Contains(t, movies[1].StreamUrl, ":"+filePort+"/", "奇数项应使用文件流端口 10082")
 }
 
 // ── pickLocalIP / fallbackLocalIP 测试 ──
