@@ -36,17 +36,14 @@
           <div class="text-caption text-grey q-mb-xs">在线用户</div>
           <div class="online-list">
             <q-chip
-              v-for="user in onlineUsers"
-              :key="user.username"
+              v-for="(user, idx) in onlineUsers"
+              :key="idx"
               size="sm"
-              :color="user.role === 'super_admin' ? 'orange' : 'primary'"
+              :color="user.Role === 'super_admin' ? 'orange' : 'primary'"
               text-color="white"
             >
               <q-avatar icon="person" size="xs" />
-              {{ user.username }}
-              <q-badge v-if="user.deviceCount > 1" floating color="white" text-color="primary" class="device-badge">
-                {{ user.deviceCount }}
-              </q-badge>
+              {{ user.Username }}
             </q-chip>
           </div>
         </q-card-section>
@@ -59,7 +56,7 @@
             <div
               v-for="(msg, idx) in messages"
               :key="idx"
-              :class="['message-item', msg.username === currentUser ? 'message-self' : '']"
+              :class="['message-item', msg.username === currentUser && msg.ip === currentIP ? 'message-self' : '']"
             >
               <div class="message-meta">
                 <span class="message-user" :class="{ 'text-orange': msg.role === 'super_admin' }">
@@ -200,12 +197,21 @@ const visible = ref(false);
 const inputText = ref('');
 const messageContainer = ref<HTMLElement | null>(null);
 const currentUser = sessionStorage.getItem('username') || '';
+const currentIP = ref('');
 const activeTab = ref('chat');
 
 const {
   connected, connectionFailed, onlineUsers, messages,
   connect, sendChat, retryConnect,
 } = useChatWs();
+
+// 从在线用户列表中找到自己的 IP
+watch(onlineUsers, (users) => {
+  const self = users.find(u => u.Username === currentUser);
+  if (self && self.IP) {
+    currentIP.value = self.IP;
+  }
+}, { immediate: true });
 
 // ── 视频会议 ──
 const {

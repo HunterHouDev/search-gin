@@ -101,19 +101,14 @@ func TestHub_Register_GetOnlineUsers(t *testing.T) {
 		t.Errorf("GetOnlineUsers 返回 %d 个用户, want 2", len(users))
 	}
 
-	// 验证用户合并：同一用户多设备
+	// 验证用户列表（无聚合，直接数目）
 	_, _, close3 := testWsClient(t, hub, "user1", "admin", "192.168.1.3")
 	defer close3()
 	time.Sleep(100 * time.Millisecond)
 
 	users = hub.GetOnlineUsers()
-	if len(users) != 2 {
-		t.Errorf("同一用户多设备应合并: 期望 2 个不同用户, 得到 %d", len(users))
-	}
-	for _, u := range users {
-		if u.Username == "user1" && u.DeviceCount != 2 {
-			t.Errorf("user1 应有 2 个设备, 得到 %d", u.DeviceCount)
-		}
+	if len(users) != 3 {
+		t.Errorf("连接数应为 3, 得到 %d", len(users))
 	}
 }
 

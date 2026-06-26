@@ -1,13 +1,6 @@
 import { ref } from 'vue';
 import { commonAxios, api } from 'src/boot/axios';
 
-export interface OnlineUser {
-  username: string;
-  role: string;
-  deviceCount: number;
-  ips?: string[];
-}
-
 export interface ChatMessage {
   type: 'online' | 'chat' | 'system' | 'signal';
   username?: string;
@@ -17,7 +10,8 @@ export interface ChatMessage {
   action?: string;
   data?: unknown;
   time: string;
-  onlineUsers?: OnlineUser[];
+  ip?: string;
+  onlineUsers?: { Username: string; Role: string; IP: string }[];
 }
 
 const WS_RECONNECT_BASE = 2000;
@@ -29,7 +23,7 @@ const WS_MAX_RETRY = 5;
 const ws = ref<WebSocket | null>(null);
 const connected = ref(false);
 const connectionFailed = ref(false);
-const onlineUsers = ref<OnlineUser[]>([]);
+const onlineUsers = ref<{ Username: string; Role: string; IP: string }[]>([]);
 const messages = ref<ChatMessage[]>([]);
 
 // 信令回调

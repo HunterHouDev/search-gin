@@ -3,6 +3,7 @@ package ws
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -10,22 +11,15 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// OnlineSession 在线会话
-type OnlineSession struct {
-	Username    string   `json:"username"`
-	Role        string   `json:"role"`
-	DeviceCount int      `json:"deviceCount"`   // 同账号设备数
-	IPs         []string `json:"ips,omitempty"` // 各设备 IP
-}
-
 // ChatMessage 聊天消息
 type ChatMessage struct {
-	Type        string          `json:"type"` // "online" | "chat" | "system"
-	Username    string          `json:"username,omitempty"`
-	Role        string          `json:"role,omitempty"`
-	Content     string          `json:"content,omitempty"`
-	Time        time.Time       `json:"time"`
-	OnlineUsers []OnlineSession `json:"onlineUsers,omitempty"`
+	Type     string       `json:"type"` // "online" | "chat" | "system"
+	Username string       `json:"username,omitempty"`
+	Role     string       `json:"role,omitempty"`
+	Content  string       `json:"content,omitempty"`
+	Time     time.Time    `json:"time"`
+	IP       string       `json:"ip,omitempty"`
+	Client   []ClientConn `json:"onlineUsers,omitempty"`
 }
 
 // ClientConn 客户端连接
@@ -71,8 +65,8 @@ type Hub struct {
 }
 
 var (
-	DefaultHub  *Hub
-	hubRunning  atomic.Bool // 防止 Run() 被递归启动
+	DefaultHub *Hub
+	hubRunning atomic.Bool // 防止 Run() 被递归启动
 )
 
 func init() {
@@ -141,7 +135,6 @@ func (h *Hub) Run() {
 			h.mu.RLock()
 			failedClients := make([]*ClientConn, 0)
 			for client := range h.clients {
-				client := client
 				client.mu.Lock()
 				err := client.Conn.WriteMessage(websocket.TextMessage, message)
 				client.mu.Unlock()
@@ -198,65 +191,19 @@ func (h *Hub) SendToUser(username string, msg []byte) int {
 }
 
 // GetOnlineUsers 获取在线用户列表
-// 普通用户按用户名去重合并；admin/super_admin 按用户名+IP 拆分为独立条目（区分不同机器/设备）
-func (h *Hub) GetOnlineUsers() []OnlineSession {
+func (h *Hub) GetOnlineUsers() []*ClientConn {
 	h.mu.RLock()
 	clients := make([]*ClientConn, 0, len(h.clients))
 	for client := range h.clients {
 		clients = append(clients, client)
 	}
 	h.mu.RUnlock()
-
-	userMap := make(map[string]*OnlineSession)
-	for _, client := range clients {
-		client.mu.Lock()
-		username := client.Username
-		role := client.Role
-		ip := client.IP
-		client.mu.Unlock()
-
-		// admin/super_admin 用 "username|ip" 作为 key，每个设备独立显示
-		key := username
-		if role == "super_admin" {
-			key = username + "|" + ip
-		}
-
-		if entry, ok := userMap[key]; ok {
-			entry.DeviceCount++
-			if ip != "" && !contains(entry.IPs, ip) {
-				entry.IPs = append(entry.IPs, ip)
-			}
-		} else {
-			displayName := username
-			if role == "super_admin" && ip != "" {
-				displayName = username + "@" + ip
-			}
-			entry = &OnlineSession{
-				Username:    displayName,
-				Role:        role,
-				DeviceCount: 1,
-			}
-			if ip != "" {
-				entry.IPs = []string{ip}
-			}
-			userMap[key] = entry
-		}
-	}
-	result := make([]OnlineSession, 0, len(userMap))
-	for _, entry := range userMap {
-		result = append(result, *entry)
-	}
-	return result
+	return clients
 }
 
 // contains 辅助判断字符串是否在切片中
 func contains(slice []string, s string) bool {
-	for _, v := range slice {
-		if v == s {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(slice, s)
 }
 
 // GetChatHistory 获取聊天历史
@@ -271,11 +218,22 @@ func (h *Hub) GetChatHistory() []ChatMessage {
 
 // broadcastOnlineUsers 广播在线用户列表
 func (h *Hub) broadcastOnlineUsers() {
-	onlineUsers := h.GetOnlineUsers()
+	h.mu.RLock()
+	clientList := make([]ClientConn, 0, len(h.clients))
+	for client := range h.clients {
+		clientList = append(clientList, ClientConn{
+			Username: client.Username,
+			Role:     client.Role,
+			IP:       client.IP,
+			LoginAt:  client.LoginAt,
+		})
+	}
+	h.mu.RUnlock()
+
 	msg := ChatMessage{
-		Type:        "online",
-		Time:        time.Now(),
-		OnlineUsers: onlineUsers,
+		Type:   "online",
+		Time:   time.Now(),
+		Client: clientList,
 	}
 	data, _ := json.Marshal(msg)
 	h.Broadcast(data)

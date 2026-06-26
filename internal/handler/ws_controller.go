@@ -116,6 +116,7 @@ func HandleWebSocket(c *gin.Context) {
 				Role:     role,
 				Content:  msg.Content,
 				Time:     time.Now(),
+				IP:       clientIP,
 			}
 			data, _ := json.Marshal(chatMsg)
 			ws.DefaultHub.Broadcast(data)
