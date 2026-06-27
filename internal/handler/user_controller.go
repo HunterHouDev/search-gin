@@ -16,17 +16,19 @@ func GetUsers(c *gin.Context) {
 		return
 	}
 	type UserInfo struct {
-		Username   string `json:"username"`
-		Role       string `json:"role"`
-		ExpireDate string `json:"expireDate"`
+		Username    string   `json:"username"`
+		Role        string   `json:"role"`
+		ExpireDate  string   `json:"expireDate"`
+		Permissions []string `json:"permissions"`
 	}
 
 	var users []UserInfo
 	for _, u := range service.GetOSSettingUsers() {
 		users = append(users, UserInfo{
-			Username:   u.Username,
-			Role:       u.Role,
-			ExpireDate: u.ExpireDate,
+			Username:    u.Username,
+			Role:        u.Role,
+			ExpireDate:  u.ExpireDate,
+			Permissions: u.Permissions,
 		})
 	}
 	res := utils.NewSuccess()
@@ -41,6 +43,7 @@ func AddUser(c *gin.Context) {
 	type AddUserRequest struct {
 		Username   string `json:"username"`
 		Password   string `json:"password"`
+		Role       string `json:"role"`
 		ExpireDate string `json:"expireDate"`
 	}
 
@@ -71,10 +74,22 @@ func AddUser(c *gin.Context) {
 		}
 	}
 
+	// 指定的角色必须存在
+	if req.Role != "" && req.Role != "user" {
+		if _, ok := service.GetRole(req.Role); !ok {
+			c.JSON(http.StatusBadRequest, utils.NewFailByMsg("角色不存在: "+req.Role))
+			return
+		}
+	}
+	roleName := req.Role
+	if roleName == "" {
+		roleName = "user"
+	}
+
 	newUser := model.User{
 		Username:   req.Username,
 		Password:   service.HashPassword(req.Password),
-		Role:       "user",
+		Role:       roleName,
 		ExpireDate: req.ExpireDate,
 	}
 	added := false

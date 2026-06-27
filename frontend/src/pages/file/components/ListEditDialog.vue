@@ -64,7 +64,7 @@
                 </q-item>
               </q-list>
             </q-btn-dropdown>
-            <q-btn-dropdown label="标签" dense glossy color="primary">
+            <q-btn-dropdown v-permission="'op:tag'" label="标签" dense glossy color="primary">
               <div class="col">
                 <q-btn flat dense> 种草来源 </q-btn>
                 <q-radio
@@ -141,6 +141,7 @@
               </div>
             </q-btn-dropdown>
             <q-btn
+              v-permission="'op:edit'"
               glossy
               color="teal"
               :disable="selectedCount === 0 || isBatchProcessing"
@@ -148,6 +149,7 @@
               >改名
             </q-btn>
             <q-btn
+              v-permission="'op:edit'"
               glossy
               color="red"
               :disable="selectedCount === 0 || isBatchProcessing"
@@ -155,6 +157,7 @@
               :loading="isBatchProcessing"
             >删除 </q-btn>
             <q-btn
+              v-permission="'op:merge'"
               glossy
               color="red"
               :disable="selectedCount === 0 || isBatchProcessing"
@@ -326,6 +329,7 @@
                           >剪切中：：</span
                         >
                         <q-btn-dropdown
+                          v-permission="'op:movie:type'"
                           dense
                           glossy
                           :label="item.MovieType"
@@ -366,6 +370,7 @@
                         />
 
                         <q-btn-dropdown
+                          v-permission="'op:transcode'"
                           label="转码"
                           outline
                           dense

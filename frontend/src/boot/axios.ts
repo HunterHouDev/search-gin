@@ -50,6 +50,7 @@ export default boot(({ app, router }) => {
         sessionStorage.removeItem('isAuthenticated');
         sessionStorage.removeItem('userRole');
         sessionStorage.removeItem('username');
+        sessionStorage.removeItem('userPermissions');
         if (router) {
           router.push('/login');
         }

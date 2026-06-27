@@ -12,7 +12,7 @@ import (
 )
 
 func SetMovieType(c *gin.Context) {
-	if !requireAdmin(c) {
+	if !requirePermission(c, "op:movie:type") {
 		return
 	}
 	id := c.Param("id")
@@ -27,7 +27,7 @@ func SetMovieType(c *gin.Context) {
 }
 
 func PostRename(c *gin.Context) {
-	if !requireAdmin(c) {
+	if !requirePermission(c, "op:edit") {
 		return
 	}
 	bodyBytes, err := io.ReadAll(io.LimitReader(c.Request.Body, 10<<20)) // 10MB 上限
@@ -56,7 +56,7 @@ func PostRename(c *gin.Context) {
 }
 
 func PostMove(c *gin.Context) {
-	if !requireAdmin(c) {
+	if !requirePermission(c, "op:edit") {
 		return
 	}
 	bodyBytes, err := io.ReadAll(io.LimitReader(c.Request.Body, 10<<20)) // 10MB 上限
@@ -85,7 +85,7 @@ func PostMove(c *gin.Context) {
 }
 
 func GetAddTag(c *gin.Context) {
-	if !requireAdmin(c) {
+	if !requirePermission(c, "op:tag") {
 		return
 	}
 	id := c.Param("id")
@@ -106,7 +106,7 @@ func GetAddTag(c *gin.Context) {
 }
 
 func GetClearTag(c *gin.Context) {
-	if !requireAdmin(c) {
+	if !requirePermission(c, "op:tag") {
 		return
 	}
 	id := c.Param("id")
@@ -137,6 +137,9 @@ func GetDirInfo(c *gin.Context) {
 }
 
 func GetDelete(c *gin.Context) {
+	if !requirePermission(c, "op:edit") {
+		return
+	}
 	id := c.Param("id")
 
 	if service.HandleRemoteByID(c, id, "delete") {

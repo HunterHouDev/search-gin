@@ -7,6 +7,8 @@
       <q-tab name="search" label="搜索设置" />
       <q-tab name="network" label="网络配置" />
       <q-tab name="dict" label="数据管理" />
+      <q-tab name="permission" label="用户权限" />
+      <q-tab name="roles" label="角色管理" />
     </q-tabs>
 
     <div class="setting-layout">
@@ -304,6 +306,180 @@
           </section>
         </template>
 
+        <!-- ========== 权限管理 ========== -->
+        <template v-if="mainTab === 'permission'">
+          <section id="section-permission" class="setting-section">
+            <h3 class="section-title">用户权限管理</h3>
+
+            <div class="setting-item">
+              <div class="item-info">
+                <div class="item-label">选择用户</div>
+                <div class="item-hint">为用户分配角色或自定义权限</div>
+              </div>
+              <div class="item-control">
+                <q-select
+                  v-model="permView.selectedUser"
+                  :options="permView.users"
+                  option-value="username"
+                  option-label="username"
+                  emit-value
+                  map-options
+                  dense
+                  outlined
+                  clearable
+                  placeholder="选择用户"
+                  style="min-width: 200px"
+                  @update:model-value="onUserSelect"
+                />
+              </div>
+            </div>
+
+            <template v-if="permView.selectedUser">
+              <div class="setting-item">
+                <div class="item-info">
+                  <div class="item-label">分配角色</div>
+                  <div class="item-hint">选择预设角色，用户将继承角色的所有权限</div>
+                </div>
+                <div class="item-control">
+                  <q-select
+                    v-model="permView.userRole"
+                    :options="permView.roleOptions"
+                    option-value="name"
+                    option-label="label"
+                    emit-value
+                    map-options
+                    dense
+                    outlined
+                    clearable
+                    placeholder="选择角色（可选）"
+                    style="min-width: 200px"
+                    @update:model-value="onUserRoleChange"
+                  />
+                </div>
+              </div>
+
+              <div class="perm-section">
+                <h4 class="perm-group-title">菜单权限</h4>
+                <div class="perm-grid">
+                  <div v-for="perm in permView.menuPerms" :key="perm.key" class="perm-item">
+                    <q-checkbox
+                      v-model="permView.userPermsSet"
+                      :val="perm.key"
+                      :label="perm.name"
+                      dense
+                    />
+                    <div class="perm-desc">{{ perm.description }}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="perm-section">
+                <h4 class="perm-group-title">操作权限</h4>
+                <div class="perm-grid">
+                  <div v-for="perm in permView.opPerms" :key="perm.key" class="perm-item">
+                    <q-checkbox
+                      v-model="permView.userPermsSet"
+                      :val="perm.key"
+                      :label="perm.name"
+                      dense
+                    />
+                    <div class="perm-desc">{{ perm.description }}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="perm-actions">
+                <q-btn color="primary" glossy :loading="permView.saving" @click="saveUserPerms">
+                  <q-icon name="save" class="q-mr-sm" />
+                  保存权限
+                </q-btn>
+                <q-btn flat color="negative" @click="resetUserPerms" class="q-ml-sm">
+                  重置
+                </q-btn>
+              </div>
+            </template>
+
+            <template v-else>
+              <div class="text-grey-6 q-pa-md text-center">请先选择一个用户进行权限配置</div>
+            </template>
+          </section>
+        </template>
+
+        <!-- ========== 角色管理 ========== -->
+        <template v-if="mainTab === 'roles'">
+          <section id="section-roles" class="setting-section">
+            <h3 class="section-title">自定义角色</h3>
+            <div class="text-caption text-grey-6 q-mb-md">创建角色模板，在用户权限页为普通用户分配角色。每个角色可自由组合菜单和操作权限。</div>
+
+            <div class="role-list">
+              <div v-for="(role, idx) in rolesView.list" :key="role.name" class="role-card">
+                <div class="role-header">
+                  <div class="role-name">
+                    <q-icon name="badge" class="q-mr-sm" />
+                    <strong>{{ role.label || role.name }}</strong>
+                    <code class="q-ml-sm text-grey-6">{{ role.name }}</code>
+                  </div>
+                  <div class="role-actions">
+                    <q-btn dense flat icon="edit" color="primary" @click="editRole(role, idx)" />
+                    <q-btn dense flat icon="delete" color="negative" @click="confirmDeleteRole(role, idx)" />
+                  </div>
+                </div>
+                <div class="role-perms">
+                  <q-chip v-for="p in rolePermLabels(role.permissions)" :key="p" dense size="sm" color="primary" text-color="white">
+                    {{ p }}
+                  </q-chip>
+                  <span v-if="!role.permissions.length" class="text-grey-5 text-caption">未配置权限</span>
+                </div>
+              </div>
+            </div>
+
+            <q-btn color="primary" glossy icon="add" class="q-mt-md" @click="openNewRoleDialog">
+              新建角色
+            </q-btn>
+          </section>
+        </template>
+
+        <!-- 角色编辑对话框 -->
+        <q-dialog v-model="rolesView.dialog.show" persistent>
+          <q-card style="min-width: 500px; max-width: 600px">
+            <q-card-section>
+              <div class="text-h6">{{ rolesView.dialog.isNew ? '新建角色' : '编辑角色' }}</div>
+            </q-card-section>
+            <q-card-section class="q-pt-none">
+              <q-input v-model="rolesView.dialog.name" label="角色标识 (name)" dense outlined
+                :disable="!rolesView.dialog.isNew" placeholder="如：editor、viewer"
+                class="q-mb-md" />
+              <q-input v-model="rolesView.dialog.label" label="角色名称 (label)" dense outlined
+                placeholder="如：编辑员、浏览者" class="q-mb-md" />
+              <div class="text-caption text-grey-7 q-mb-sm">权限配置</div>
+              <div class="perm-section">
+                <h4 class="perm-group-title">菜单权限</h4>
+                <div class="perm-grid">
+                  <div v-for="perm in permView.menuPerms" :key="perm.key" class="perm-item">
+                    <q-checkbox v-model="rolesView.dialog.permissions" :val="perm.key" :label="perm.name" dense />
+                    <div class="perm-desc">{{ perm.description }}</div>
+                  </div>
+                </div>
+              </div>
+              <div class="perm-section">
+                <h4 class="perm-group-title">操作权限</h4>
+                <div class="perm-grid">
+                  <div v-for="perm in permView.opPerms" :key="perm.key" class="perm-item">
+                    <q-checkbox v-model="rolesView.dialog.permissions" :val="perm.key" :label="perm.name" dense />
+                    <div class="perm-desc">{{ perm.description }}</div>
+                  </div>
+                </div>
+              </div>
+            </q-card-section>
+            <q-card-actions align="right">
+              <q-btn flat label="取消" v-close-popup />
+              <q-btn color="primary" glossy :loading="rolesView.dialog.saving" @click="saveRoleDialog">
+                {{ rolesView.dialog.isNew ? '创建' : '保存' }}
+              </q-btn>
+            </q-card-actions>
+          </q-card>
+        </q-dialog>
+
         <!-- 底部提交按钮 -->
         <div class="submit-bar">
           <q-btn :color="systemProperty.theme === 'star' ? 'black' : 'primary'" glossy rounded align="evenly"
@@ -325,7 +501,11 @@ import {
   PostSettingInfo,
   GetIpAddr,
   AppRestart,
+  GetUsers,
+  GetAllPermissions,
+  UpdateUserPermissions,
 } from '../../components/api/settingAPI';
+import { commonAxios } from '../../boot/axios';
 import MutiSelector from '../../components/MutiSelector.vue';
 import MutiInput from '../../components/MutiInput.vue';
 import { useSystemProperty } from '../../stores/System';
@@ -380,11 +560,31 @@ const networkNavGroups = [
   },
 ];
 
+// 权限管理的导航
+const permissionNavGroups = [
+  {
+    name: 'permission',
+    label: '权限管理',
+    items: [{ id: 'section-permission', label: '用户权限' }],
+  },
+];
+
+// 角色管理的导航
+const rolesNavGroups = [
+  {
+    name: 'roles',
+    label: '角色管理',
+    items: [{ id: 'section-roles', label: '自定义角色' }],
+  },
+];
+
 const currentNavGroups = computed(() => {
   switch (mainTab.value) {
     case 'search': return searchNavGroups;
     case 'dict': return dictNavGroups;
     case 'network': return networkNavGroups;
+    case 'permission': return permissionNavGroups;
+    case 'roles': return rolesNavGroups;
     default: return searchNavGroups;
   }
 });
@@ -439,6 +639,206 @@ watch(mainTab, () => {
     contentRef.value.scrollTop = 0;
   }
 });
+
+// ── 权限状态 ──────────────────────────────────────────────────────
+const permView = reactive({
+  users: [] as { username: string; role: string; permissions: string[] }[],
+  allPerms: [] as { key: string; name: string; group: string; description: string }[],
+  selectedUser: '',
+  userRole: '',
+  userPermsSet: [] as string[],
+  saving: false,
+  originalPerms: [] as string[],
+  roleOptions: [] as { name: string; label: string }[],
+});
+
+const permMenuPerms = computed(() =>
+  permView.allPerms.filter(p => p.group === '菜单')
+);
+
+const permOpPerms = computed(() =>
+  permView.allPerms.filter(p => p.group === '操作')
+);
+
+const onUserSelect = async (username: string) => {
+  if (!username) return
+  try {
+    // 获取用户信息（角色 + 自定义权限）
+    const user = permView.users.find(u => u.username === username)
+    permView.userRole = user?.role || ''
+    const res = await commonAxios().get(`/api/user/${username}/permissions`)
+    const data = res.data
+    permView.userPermsSet = data?.Data || data || []
+    permView.originalPerms = [...permView.userPermsSet]
+  } catch {
+    permView.userPermsSet = []
+    permView.originalPerms = []
+  }
+}
+
+const saveUserPerms = async () => {
+  if (!permView.selectedUser) return
+  permView.saving = true
+  try {
+    const res = await UpdateUserPermissions(permView.selectedUser, permView.userPermsSet)
+    if (res?.Code === 200) {
+      $q.notify({ type: 'positive', message: '权限保存成功', position: 'top' })
+      permView.originalPerms = [...permView.userPermsSet]
+    } else {
+      $q.notify({ type: 'negative', message: res?.Message || '保存失败', position: 'top' })
+    }
+  } catch (e: any) {
+    $q.notify({ type: 'negative', message: e?.response?.data?.message || '保存失败', position: 'top' })
+  } finally {
+    permView.saving = false
+  }
+}
+
+const resetUserPerms = () => {
+  permView.userPermsSet = [...permView.originalPerms]
+}
+
+const onUserRoleChange = async (roleName: string) => {
+  if (!permView.selectedUser) return
+  try {
+    const res = await UpdateUserRole(permView.selectedUser, roleName || '')
+    if (res?.Code === 200) {
+      $q.notify({ type: 'positive', message: '角色已更新', position: 'top' })
+      // 重新加载用户权限
+      await onUserSelect(permView.selectedUser)
+    } else {
+      $q.notify({ type: 'negative', message: res?.Message || '设置角色失败', position: 'top' })
+    }
+  } catch (e: any) {
+    $q.notify({ type: 'negative', message: e?.response?.data?.message || '设置角色失败', position: 'top' })
+  }
+}
+
+// ── 角色管理 ──────────────────────────────────────────────────────
+const rolesView = reactive({
+  list: [] as { name: string; label: string; permissions: string[] }[],
+  dialog: {
+    show: false,
+    isNew: true,
+    editIdx: -1,
+    name: '',
+    label: '',
+    permissions: [] as string[],
+    saving: false,
+  },
+})
+
+const rolePermLabels = (perms: string[]) => {
+  const allPerms = permView.allPerms
+  return perms.map(p => {
+    const found = allPerms.find(d => d.key === p)
+    return found ? found.name : p
+  })
+}
+
+const openNewRoleDialog = () => {
+  rolesView.dialog.isNew = true
+  rolesView.dialog.editIdx = -1
+  rolesView.dialog.name = ''
+  rolesView.dialog.label = ''
+  rolesView.dialog.permissions = []
+  rolesView.dialog.show = true
+}
+
+const editRole = (role: { name: string; label: string; permissions: string[] }, idx: number) => {
+  rolesView.dialog.isNew = false
+  rolesView.dialog.editIdx = idx
+  rolesView.dialog.name = role.name
+  rolesView.dialog.label = role.label
+  rolesView.dialog.permissions = [...role.permissions]
+  rolesView.dialog.show = true
+}
+
+const saveRoleDialog = async () => {
+  const d = rolesView.dialog
+  if (!d.name.trim()) {
+    $q.notify({ type: 'warning', message: '角色标识不能为空', position: 'top' })
+    return
+  }
+  if (!d.label.trim()) {
+    $q.notify({ type: 'warning', message: '角色名称不能为空', position: 'top' })
+    return
+  }
+  d.saving = true
+  try {
+    let res
+    if (d.isNew) {
+      res = await CreateRole(d.name, d.label, d.permissions)
+    } else {
+      res = await UpdateRole(d.name, d.label, d.permissions)
+    }
+    if (res?.Code === 200) {
+      $q.notify({ type: 'positive', message: d.isNew ? '角色创建成功' : '角色更新成功', position: 'top' })
+      d.show = false
+      await fetchRoles()
+      await fetchUsers()
+    } else {
+      $q.notify({ type: 'negative', message: res?.Message || '操作失败', position: 'top' })
+    }
+  } catch (e: any) {
+    $q.notify({ type: 'negative', message: e?.response?.data?.message || '操作失败', position: 'top' })
+  } finally {
+    d.saving = false
+  }
+}
+
+const confirmDeleteRole = (role: { name: string; label: string }, idx: number) => {
+  $q.dialog({
+    title: '确认删除',
+    message: `确定删除角色 "${role.label || role.name}" 吗？该角色下的用户将恢复为默认角色。`,
+    cancel: true,
+    persistent: true,
+  }).onOk(async () => {
+    try {
+      const res = await DeleteRole(role.name)
+      if (res?.Code === 200) {
+        $q.notify({ type: 'positive', message: '角色已删除', position: 'top' })
+        await fetchRoles()
+        await fetchUsers()
+      } else {
+        $q.notify({ type: 'negative', message: res?.Message || '删除失败', position: 'top' })
+      }
+    } catch (e: any) {
+      $q.notify({ type: 'negative', message: e?.response?.data?.message || '删除失败', position: 'top' })
+    }
+  })
+}
+
+const fetchRoles = async () => {
+  try {
+    const res = await GetRoles()
+    const data = res?.Data || res?.data
+    if (Array.isArray(data)) {
+      rolesView.list = data
+      permView.roleOptions = data.map((r: any) => ({ name: r.name, label: r.label || r.name }))
+    }
+  } catch { /* ignore */ }
+}
+
+const fetchUsers = async () => {
+  try {
+    const res = await GetUsers()
+    const data = res?.Data || res?.data
+    if (Array.isArray(data)) {
+      permView.users = data.filter((u: any) => u.username !== 'admin')
+    }
+  } catch { /* ignore */ }
+}
+
+const fetchAllPerms = async () => {
+  try {
+    const res = await GetAllPermissions()
+    const data = res?.Data || res?.data
+    if (Array.isArray(data)) {
+      permView.allPerms = data
+    }
+  } catch { /* ignore */ }
+}
 
 const view = reactive({
   settingInfo: {
@@ -543,6 +943,9 @@ onMounted(() => {
   document.title = '设置';
   fetchSearch();
   queryIpAddr();
+  fetchUsers();
+  fetchAllPerms();
+  fetchRoles();
 });
 </script>
 
@@ -755,5 +1158,47 @@ onMounted(() => {
 
 .submit-btn {
   width: 100%;
+}
+
+// ── 权限管理 ──────────────────────────────────────────────────────
+.perm-section {
+  margin-top: 24px;
+  padding: 16px;
+  background: var(--q-bg-lighter, rgba(255,255,255,0.03));
+  border-radius: 8px;
+  border: 1px solid var(--q-border, rgba(139,143,168,0.15));
+}
+
+.perm-group-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 12px 0;
+  color: var(--q-text-primary);
+}
+
+.perm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.perm-item {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--q-border, rgba(139,143,168,0.1));
+  background: var(--q-bg-card);
+}
+
+.perm-desc {
+  font-size: 12px;
+  color: var(--q-text-secondary, rgba(139,143,168,0.7));
+  margin-top: 2px;
+  margin-left: 28px;
+}
+
+.perm-actions {
+  margin-top: 20px;
+  display: flex;
+  align-items: center;
 }
 </style>

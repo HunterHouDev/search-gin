@@ -24,6 +24,9 @@ var deepSeekClient = &http.Client{Timeout: 30 * time.Second}
 
 // PostChatDeepSeek 代理 DeepSeek Chat API，密钥仅存后端
 func PostChatDeepSeek(c *gin.Context) {
+	if !requirePermission(c, "op:chat") {
+		return
+	}
 	setting := service.GetOSSetting()
 	apiKey := setting.DeepSeekApiKey
 	if apiKey == "" {

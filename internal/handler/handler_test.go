@@ -81,6 +81,12 @@ func setupHandlerTest(t *testing.T, eng service.IndexEngine, fs service.FileServ
 	InitApp(eng, fs, s)
 }
 
+func setTestAuth(c *gin.Context) {
+	c.Set("role", "super_admin")
+	c.Set("username", "admin")
+	c.Set("permissions", service.AllPermissionKeys())
+}
+
 func performGet(t *testing.T, handler gin.HandlerFunc) *httptest.ResponseRecorder {
 	t.Helper()
 	w := httptest.NewRecorder()
@@ -96,6 +102,27 @@ func performPost(t *testing.T, handler gin.HandlerFunc, body string) *httptest.R
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
+	handler(c)
+	return w
+}
+
+func performGetWithAuth(t *testing.T, handler gin.HandlerFunc) *httptest.ResponseRecorder {
+	t.Helper()
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	setTestAuth(c)
+	handler(c)
+	return w
+}
+
+func performPostWithAuth(t *testing.T, handler gin.HandlerFunc, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	setTestAuth(c)
 	handler(c)
 	return w
 }
@@ -557,14 +584,14 @@ func TestPingHost_InvalidIP(t *testing.T) {
 func TestPostAddMagnet_NoBody(t *testing.T) {
 	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
 
-	w := performPost(t, PostAddMagnet, `{}`)
+	w := performPostWithAuth(t, PostAddMagnet, `{}`)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestPostAddMagnet_TorrentAppNil(t *testing.T) {
 	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
 
-	w := performPost(t, PostAddMagnet, `{"magnetURI":"magnet:?xt=urn:btih:xxx"}`)
+	w := performPostWithAuth(t, PostAddMagnet, `{"magnetURI":"magnet:?xt=urn:btih:xxx"}`)
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 	assert.Contains(t, w.Body.String(), "未启动")
 }
@@ -572,14 +599,14 @@ func TestPostAddMagnet_TorrentAppNil(t *testing.T) {
 func TestPostStartDownload_NoBody(t *testing.T) {
 	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
 
-	w := performPost(t, PostStartDownload, `{}`)
+	w := performPostWithAuth(t, PostStartDownload, `{}`)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestPostStartDownload_TorrentAppNil(t *testing.T) {
 	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
 
-	w := performPost(t, PostStartDownload, `{"infoHash":"xxx"}`)
+	w := performPostWithAuth(t, PostStartDownload, `{"infoHash":"xxx"}`)
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 }
 
@@ -636,6 +663,7 @@ func TestDeleteTorrent_MissingHash(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodDelete, "/", nil)
+	setTestAuth(c)
 	DeleteTorrent(c)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -648,6 +676,7 @@ func TestDeleteTorrent_TorrentAppNil(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodDelete, "/", nil)
 	c.Params = []gin.Param{{Key: "infoHash", Value: "xxx"}}
+	setTestAuth(c)
 	DeleteTorrent(c)
 
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
@@ -768,7 +797,7 @@ func TestPostChatDeepSeek_NoAPIKey(t *testing.T) {
 	service.SetOSSetting(model.Setting{DeepSeekApiKey: ""})
 	defer service.SetOSSetting(old)
 
-	w := performPost(t, PostChatDeepSeek, `{"messages":[{"role":"user","content":"hello"}]}`)
+	w := performPostWithAuth(t, PostChatDeepSeek, `{"messages":[{"role":"user","content":"hello"}]}`)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), "未配置")
 }
@@ -779,7 +808,7 @@ func TestPostChatDeepSeek_InvalidBody(t *testing.T) {
 	service.SetOSSetting(model.Setting{DeepSeekApiKey: "sk-test"})
 	defer service.SetOSSetting(old)
 
-	w := performPost(t, PostChatDeepSeek, `{invalid`)
+	w := performPostWithAuth(t, PostChatDeepSeek, `{invalid`)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
@@ -825,7 +854,7 @@ func TestGetRefreshTargetIndex_ForbiddenPath(t *testing.T) {
 func TestGetRefreshIndex_ReturnsOK(t *testing.T) {
 	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{dirs: []string{"D:/media", "E:/media"}})
 
-	w := performGet(t, GetRefreshIndex)
+	w := performGetWithAuth(t, GetRefreshIndex)
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "2")
 }
@@ -875,7 +904,7 @@ func TestGetDelTransferTask_NotFound(t *testing.T) {
 func TestPostMerge_InvalidBody(t *testing.T) {
 	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
 
-	w := performPost(t, PostMerge, `{invalid`)
+	w := performPostWithAuth(t, PostMerge, `{invalid`)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 

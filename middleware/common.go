@@ -116,6 +116,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		}
 		c.Set("username", tokenInfo.Username)
 		c.Set("role", tokenInfo.Role)
+		c.Set("permissions", tokenInfo.Permissions)
 		c.Next()
 	}
 }

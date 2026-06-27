@@ -32,7 +32,7 @@ func TestSetAndValidateToken(t *testing.T) {
 	now := time.Now()
 	expire := now.Add(1 * time.Hour)
 
-	SetToken("tok_abc", expire, "testuser", "admin")
+	SetToken("tok_abc", expire, "testuser", "admin", nil)
 	info, ok := ValidateTokenWithInfo("tok_abc")
 	if !ok {
 		t.Fatal("ValidateTokenWithInfo should return true for valid token")
@@ -47,7 +47,7 @@ func TestSetAndValidateToken(t *testing.T) {
 
 func TestValidateToken_Expired(t *testing.T) {
 	expired := time.Now().Add(-1 * time.Hour)
-	SetToken("tok_expired", expired, "user", "role")
+	SetToken("tok_expired", expired, "user", "role", nil)
 
 	_, ok := ValidateTokenWithInfo("tok_expired")
 	if ok {

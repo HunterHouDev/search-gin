@@ -9,7 +9,7 @@
         border-bottom: 1px solid var(--q-border);
       ">
         <!-- 索引按钮 -->
-        <IndexButton ref="indexButton" @refresh-done="onIndexRefresh" glossy dense :size="btnSize('head')" />
+        <IndexButton v-permission="'op:scan'" ref="indexButton" @refresh-done="onIndexRefresh" glossy dense :size="btnSize('head')" />
         <!-- 主题选择器 -->
         <q-btn-dropdown no-caps flat glossy dense>
           <template v-slot:label>
@@ -238,7 +238,7 @@
             :style="fabStyle" @touchstart="onFabTouchStart" @touchmove="onFabTouchMove" @touchend="onFabTouchEnd"
             @mousedown.prevent="onFabDragStart" @mousemove="onFabDragMove" @mouseup="onFabDragEnd"
             @mouseleave="onFabDragEnd">
-            <q-fab-action @click="openListEditRef('filelist')" color="primary" label="编辑" />
+            <q-fab-action v-permission="['op:edit','op:tag','op:transcode','op:merge','op:cut','op:movie:type']" @click="openListEditRef('filelist')" color="primary" label="编辑" />
             <q-fab-action @click="openListEditRef('tasking')" color="primary" label="任务" />
             <q-fab-action @click="openListEditRef('setting')" color="primary" label="主题" />
             <q-fab-action @click="openListEditRef('history')" color="primary" label="历史" />

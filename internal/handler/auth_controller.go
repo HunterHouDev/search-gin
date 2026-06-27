@@ -61,10 +61,11 @@ func Login(c *gin.Context) {
 
 	res := utils.NewSuccess()
 	res.Data = gin.H{
-		"token":    result.Token,
-		"expireIn": result.ExpireIn,
-		"role":     result.Role,
-		"username": result.Username,
+		"token":       result.Token,
+		"expireIn":    result.ExpireIn,
+		"role":        result.Role,
+		"username":    result.Username,
+		"permissions": result.Permissions,
 	}
 	c.JSON(http.StatusOK, res)
 }
@@ -91,6 +92,28 @@ func requireAdmin(c *gin.Context) bool {
 
 	if !service.RequireAdminWithName(r, u) {
 		utils.InfoFormat("requireAdmin 拒绝: 中间件设置的 role=%v, username=%v", r, u)
+		c.JSON(http.StatusForbidden, utils.NewFailByMsg("无权限执行此操作"))
+		return false
+	}
+	return true
+}
+
+// requirePermission 检查当前用户是否拥有指定权限
+// super_admin 拥有所有权限，无需逐项检查
+func requirePermission(c *gin.Context, perm string) bool {
+	roleVal, _ := c.Get("role")
+	usernameVal, _ := c.Get("username")
+	permsVal, _ := c.Get("permissions")
+	r, _ := roleVal.(string)
+	u, _ := usernameVal.(string)
+	perms, _ := permsVal.([]string)
+
+	// super_admin 放行所有权限
+	if service.RequireAdminWithName(r, u) {
+		return true
+	}
+
+	if !service.HasPermission(perms, perm) {
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("无权限执行此操作"))
 		return false
 	}

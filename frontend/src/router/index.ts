@@ -6,6 +6,8 @@ import {
   createWebHistory,
 } from 'vue-router';
 import { commonAxios } from 'src/boot/axios';
+import { usePermissionStore } from 'src/stores/permission';
+import { SUPER_ADMIN_ROLE } from 'src/types/permission';
 
 import routes from './routes';
 
@@ -66,9 +68,24 @@ export default route(function (/* { store, ssrContext } */) {
 
     if (!isAuthenticated || !token) {
       next('/login');
-    } else {
-      next();
+      return;
     }
+
+    const permRoutes: Record<string, string> = {
+      '/setting': 'menu:setting',
+      '/system': 'menu:system',
+    };
+    const requiredPerm = permRoutes[to.path];
+    if (requiredPerm) {
+      const permStore = usePermissionStore()
+      permStore.loadFromSession()
+      if (!permStore.hasPermission(requiredPerm)) {
+        next('/');
+        return;
+      }
+    }
+
+    next();
   });
 
   return Router;

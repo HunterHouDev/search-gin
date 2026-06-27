@@ -11,6 +11,9 @@ import (
 )
 
 func PostMerge(c *gin.Context) {
+	if !requirePermission(c, "op:merge") {
+		return
+	}
 	searchParam := model.MergeParam{}
 	if err := c.Bind(&searchParam); err != nil {
 		utils.InfoFormat("PostMerge 参数绑定失败: %v", err)
@@ -77,6 +80,9 @@ func GetDelTransferTask(c *gin.Context) {
 }
 
 func GetTransferToMp4(c *gin.Context) {
+	if !requirePermission(c, "op:transcode") {
+		return
+	}
 	id := c.Param("id")
 	if service.HandleRemoteByID(c, id, "transferToMp4") {
 		return
@@ -107,6 +113,9 @@ func GetCutImage(c *gin.Context) {
 }
 
 func GetCutMovie(c *gin.Context) {
+	if !requirePermission(c, "op:cut") {
+		return
+	}
 	id := c.Param("id")
 	if service.HandleRemoteByID(c, id, "cutMovie") {
 		return

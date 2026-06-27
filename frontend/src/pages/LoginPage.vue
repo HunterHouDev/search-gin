@@ -96,6 +96,7 @@
 
 <script setup lang="ts">
 import { useSystemProperty } from 'src/stores/System';
+import { usePermissionStore } from 'src/stores/permission';
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
@@ -141,6 +142,9 @@ const login = async () => {
       sessionStorage.setItem('authToken', result.Data.token);
       sessionStorage.setItem('userRole', result.Data.role);
       sessionStorage.setItem('username', result.Data.username);
+
+      const permStore = usePermissionStore();
+      permStore.setFromLogin(result.Data.role, result.Data.username, result.Data.permissions || []);
 
       $q.notify({
         type: 'positive',

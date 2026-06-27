@@ -12,6 +12,9 @@ import (
 )
 
 func GetRefreshTargetIndex(c *gin.Context) {
+	if !requirePermission(c, "op:scan") {
+		return
+	}
 	dir := c.Param("dir")
 	baseDir, _ := url.QueryUnescape(dir)
 
@@ -26,6 +29,9 @@ func GetRefreshTargetIndex(c *gin.Context) {
 }
 
 func GetRefreshIndex(c *gin.Context) {
+	if !requirePermission(c, "op:scan") {
+		return
+	}
 	cnt := len(UseApp().config.Get().Dirs)
 	go UseApp().files.ScanAll()
 	c.JSON(http.StatusOK, utils.NewSuccessByMsg("计划扫描："+fmt.Sprint(cnt)))
@@ -53,7 +59,7 @@ func GetFileByPathUseEncode(c *gin.Context) {
 }
 
 func GetDeleteFileByPathUseEncode(c *gin.Context) {
-	if !requireAdmin(c) {
+	if !requirePermission(c, "op:edit") {
 		return
 	}
 

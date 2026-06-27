@@ -59,9 +59,10 @@ func VerifyPassword(plainPassword, hashedPassword string) bool {
 // ─── Token 存储 ─────────────────────────────────────────────────
 
 type TokenInfo struct {
-	ExpireTime time.Time
-	Username   string
-	Role       string
+	ExpireTime  time.Time
+	Username    string
+	Role        string
+	Permissions []string
 }
 
 var (
@@ -71,12 +72,13 @@ var (
 
 
 // SetToken 设置 token，到期后自动清理
-func SetToken(token string, expireTime time.Time, username string, role string) {
+func SetToken(token string, expireTime time.Time, username string, role string, permissions []string) {
 	tokenMu.Lock()
 	tokenStore[token] = TokenInfo{
-		ExpireTime: expireTime,
-		Username:   username,
-		Role:       role,
+		ExpireTime:  expireTime,
+		Username:    username,
+		Role:        role,
+		Permissions: permissions,
 	}
 	tokenMu.Unlock()
 
@@ -114,6 +116,15 @@ func ValidateTokenWithInfo(token string) (TokenInfo, bool) {
 		tokenInfo.Role = AdminRole
 	}
 
+	// 兼容旧 token：Permissions 为空时自动填充
+	if len(tokenInfo.Permissions) == 0 {
+		info := tokenStore[token]
+		perms := GetUserPermissions(tokenInfo.Username, tokenInfo.Role)
+		info.Permissions = perms
+		tokenStore[token] = info
+		tokenInfo.Permissions = perms
+	}
+
 	// 普通用户检查有效期
 	if tokenInfo.Username != AdminUsername && tokenInfo.Username != "" {
 		tokenMu.Unlock()
@@ -127,6 +138,14 @@ func ValidateTokenWithInfo(token string) (TokenInfo, bool) {
 						tokenMu.Unlock()
 						return TokenInfo{}, false
 					}
+				}
+				// 权限变更同步：每次验证时从 setting 同步最新权限
+				if !stringSliceEqual(tokenInfo.Permissions, user.Permissions) && user.Permissions != nil {
+					info := tokenStore[token]
+					perms := GetUserPermissions(tokenInfo.Username, tokenInfo.Role)
+					info.Permissions = perms
+					tokenStore[token] = info
+					tokenInfo.Permissions = perms
 				}
 				break
 			}
@@ -142,12 +161,13 @@ func ValidateTokenWithInfo(token string) (TokenInfo, bool) {
 
 // LoginResult 登录结果
 type LoginResult struct {
-	Success  bool
-	Message  string
-	Token    string
-	ExpireIn int
-	Role     string
-	Username string
+	Success     bool
+	Message     string
+	Token       string
+	ExpireIn    int
+	Role        string
+	Username    string
+	Permissions []string
 }
 
 // LoginUser 验证用户名密码并签发 token
@@ -187,13 +207,15 @@ func issueToken(username, role string) LoginResult {
 	}
 	token := hex.EncodeToString(tokenBytes)
 	expireIn := 4 * 3600 // 4小时，与服务端 SetToken 的有效期保持一致
-	SetToken(token, time.Now().Add(time.Duration(expireIn)*time.Second), username, role)
+	permissions := GetUserPermissions(username, role)
+	SetToken(token, time.Now().Add(time.Duration(expireIn)*time.Second), username, role, permissions)
 	return LoginResult{
-		Success:  true,
-		Token:    token,
-		ExpireIn: expireIn,
-		Role:     role,
-		Username: username,
+		Success:     true,
+		Token:       token,
+		ExpireIn:    expireIn,
+		Role:        role,
+		Username:    username,
+		Permissions: permissions,
 	}
 }
 
@@ -301,6 +323,24 @@ func WriteDictionaryToJson(path string, dict model.Setting) {
 		utils.InfoFormat("写入配置文件失败: %v", err)
 		return
 	}
+}
+
+// stringSliceEqual 比较两个字符串切片是否相等（忽略顺序）
+func stringSliceEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	m := make(map[string]int, len(a))
+	for _, v := range a {
+		m[v]++
+	}
+	for _, v := range b {
+		m[v]--
+		if m[v] < 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // newBool 返回指向给定 bool 值的指针

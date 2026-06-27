@@ -167,6 +167,17 @@ func BuildAPIRouter(sigChan chan os.Signal) *gin.Engine {
 	router.POST("/api/user/add", handler.AddUser)
 	router.POST("/api/user/delete", handler.DeleteUser)
 
+	// 权限管理
+	router.GET("/api/permissions", handler.GetAllPermissions)
+	router.GET("/api/user/:username/permissions", handler.GetUserPermissions)
+	router.POST("/api/user/permissions", handler.UpdateUserPermissions)
+	// 角色管理
+	router.GET("/api/roles", handler.GetRoles)
+	router.POST("/api/roles", handler.CreateRole)
+	router.POST("/api/roles/:name", handler.UpdateRole)
+	router.DELETE("/api/roles/:name", handler.DeleteRole)
+	router.POST("/api/user/role", handler.UpdateUserRole)
+
 	router.GET("/api/typeSizeMap", handler.GetTypeSize)
 	router.GET("/api/tagSizeMap", handler.GetTagSize)
 	router.GET("/api/seriesCount", handler.GetSeriesSize)

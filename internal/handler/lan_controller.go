@@ -24,7 +24,7 @@ func GetLanPeers(c *gin.Context) {
 
 // AddLanPeer 手动添加节点
 func AddLanPeer(c *gin.Context) {
-	if !requireAdmin(c) {
+	if !requirePermission(c, "op:network") {
 		return
 	}
 	var req struct {
@@ -66,7 +66,7 @@ func AddLanPeer(c *gin.Context) {
 
 // RemoveLanPeer 删除手动添加的节点
 func RemoveLanPeer(c *gin.Context) {
-	if !requireAdmin(c) {
+	if !requirePermission(c, "op:network") {
 		return
 	}
 	var req struct {
@@ -85,7 +85,7 @@ func RemoveLanPeer(c *gin.Context) {
 
 // TogglePeer 启用/禁用节点
 func TogglePeer(c *gin.Context) {
-	if !requireAdmin(c) {
+	if !requirePermission(c, "op:network") {
 		return
 	}
 	var req struct {
@@ -109,7 +109,7 @@ func TogglePeer(c *gin.Context) {
 
 // CleanLanPeers 手动清理超时节点
 func CleanLanPeers(c *gin.Context) {
-	if !requireAdmin(c) {
+	if !requirePermission(c, "op:network") {
 		return
 	}
 	count := service.CleanExpiredPeers()
@@ -123,7 +123,7 @@ func CleanLanPeers(c *gin.Context) {
 // DiscoverLanPeers 扫描局域网发现候选节点
 // 可指定 subnet 参数（如 "192.168.1"），为空时自动检测本机子网
 func DiscoverLanPeers(c *gin.Context) {
-	if !requireAdmin(c) {
+	if !requirePermission(c, "op:network") {
 		return
 	}
 	var req struct {

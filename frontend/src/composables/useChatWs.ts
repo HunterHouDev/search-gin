@@ -39,6 +39,7 @@ function redirectToLogin() {
   sessionStorage.removeItem('isAuthenticated');
   sessionStorage.removeItem('userRole');
   sessionStorage.removeItem('username');
+  sessionStorage.removeItem('userPermissions');
   window.location.href = '/#/login';
 }
 

@@ -14,6 +14,9 @@ type MagnetRequest struct {
 }
 
 func PostAddMagnet(c *gin.Context) {
+	if !requirePermission(c, "op:torrent") {
+		return
+	}
 	var req MagnetRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("请提供有效的磁力链"))
@@ -42,6 +45,9 @@ type StartDownloadRequest struct {
 }
 
 func PostStartDownload(c *gin.Context) {
+	if !requirePermission(c, "op:torrent") {
+		return
+	}
 	var req StartDownloadRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("请提供有效的参数"))
@@ -108,6 +114,9 @@ func GetTorrentStatus(c *gin.Context) {
 }
 
 func DeleteTorrent(c *gin.Context) {
+	if !requirePermission(c, "op:torrent") {
+		return
+	}
 	infoHash := c.Param("infoHash")
 	if infoHash == "" {
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("缺少 infoHash"))

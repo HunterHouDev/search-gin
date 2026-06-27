@@ -1,10 +1,18 @@
 package types
 
+// Role 自定义角色定义
+type Role struct {
+	Name        string   `json:"name"`
+	Label       string   `json:"label"`
+	Permissions []string `json:"permissions"`
+}
+
 type User struct {
-	Username   string `json:"username"`
-	Password   string `json:"password"`
-	Role       string `json:"role"`
-	ExpireDate string `json:"expireDate"`
+	Username    string   `json:"username"`
+	Password    string   `json:"password"`
+	Role        string   `json:"role"`        // 角色名（引用 roles 中的 name，或 "user"/"super_admin"）
+	ExpireDate  string   `json:"expireDate"`
+	Permissions []string `json:"permissions"` // 用户级额外权限（叠加在角色之上）
 }
 
 type Setting struct {
@@ -46,7 +54,9 @@ type Setting struct {
 	EnableLanDiscovery *bool    `json:"enableLanDiscovery"`
 	DiscoveryPeers     []string `json:"discoveryPeers"`
 
-	Users []User `json:"users"`
+	Roles              []Role  `json:"roles"`
+	Users              []User  `json:"users"`
+	DefaultPermissions []string `json:"defaultPermissions"`
 
 	// TaskMaxConcurrent 任务调度最大并发数（转码+剪辑+合并），默认 4，≤0 时不限制
 	TaskMaxConcurrent int `json:"taskMaxConcurrent"`

@@ -107,3 +107,50 @@ export const DeleteUser = async (username: string) => {
   });
   return res && res.data;
 };
+
+// ── 权限管理 ──────────────────────────────────────────────────────
+
+export const GetAllPermissions = async () => {
+  const res = await commonAxios().get('/api/permissions');
+  return res && res.data;
+};
+
+export const GetUserPermissions = async (username: string) => {
+  const res = await commonAxios().get(`/api/user/${username}/permissions`);
+  return res && res.data;
+};
+
+export const UpdateUserPermissions = async (username: string, permissions: string[]) => {
+  const res = await commonAxios().post('/api/user/permissions', {
+    username,
+    permissions
+  });
+  return res && res.data;
+};
+
+// ── 角色管理 ──────────────────────────────────────────────────────
+
+export const GetRoles = async () => {
+  const res = await commonAxios().get('/api/roles');
+  return res && res.data;
+};
+
+export const CreateRole = async (name: string, label: string, permissions: string[]) => {
+  const res = await commonAxios().post('/api/roles', { name, label, permissions });
+  return res && res.data;
+};
+
+export const UpdateRole = async (name: string, label: string, permissions: string[]) => {
+  const res = await commonAxios().post(`/api/roles/${name}`, { name, label, permissions });
+  return res && res.data;
+};
+
+export const DeleteRole = async (name: string) => {
+  const res = await commonAxios().delete(`/api/roles/${name}`);
+  return res && res.data;
+};
+
+export const UpdateUserRole = async (username: string, role: string) => {
+  const res = await commonAxios().post('/api/user/role', { username, role });
+  return res && res.data;
+};

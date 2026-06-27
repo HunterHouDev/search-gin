@@ -25,7 +25,7 @@
           v-show="isWideScreen"
         />
         <q-space v-if="isWideScreen" />
-        <q-btn dense flat size="lg" icon="refresh" @click="refreshThis"></q-btn>
+        <q-btn v-permission="'op:scan'" dense flat size="lg" icon="refresh" @click="refreshThis"></q-btn>
         <q-btn
           flat
           dense
@@ -106,9 +106,10 @@
 </template>
 
 <script setup>
-import { computed, onUnmounted, reactive, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useSystemProperty } from 'stores/System';
+import { usePermissionStore } from 'src/stores/permission';
 import { useQuasar } from 'quasar';
 import { useBreakpoint } from 'src/composables/useBreakpoint';
 import EssentialLink from 'components/EssentialLink.vue';
@@ -123,9 +124,14 @@ const chatRef = ref(null);
 const chatRoomRef = ref(null);
 
 const systemProperty = useSystemProperty();
+const permStore = usePermissionStore();
 const $q = useQuasar();
 const router = useRouter();
 const bp = useBreakpoint();
+
+onMounted(() => {
+  permStore.loadFromSession();
+});
 
 // 同步主题到 body，确保弹窗/对话框等 body 级组件也能继承自然模式样式
 watch(() => systemProperty.theme, (theme) => {
@@ -269,7 +275,22 @@ const confirmShutDown = () => {
   shutdown.value.open();
 };
 
-const essentialLinks = [
+const adminLinks = [
+  {
+    title: '配置',
+    caption: '系统参数设置',
+    icon: 'settings',
+    link: '/setting',
+  },
+  {
+    title: '系统',
+    caption: '系统信息与状态',
+    icon: 'info',
+    link: '/system',
+  },
+];
+
+const userLinks = [
   {
     title: '首页',
     caption: '数据统计与概览',
@@ -289,24 +310,18 @@ const essentialLinks = [
     link: '/picture',
   },
   {
-    title: '配置',
-    caption: '系统参数设置',
-    icon: 'settings',
-    link: '/setting',
-  },
-  {
-    title: '系统',
-    caption: '系统信息与状态',
-    icon: 'info',
-    link: '/system',
-  },
-  {
     title: '沉浸',
     caption: '沉浸式播放体验',
     icon: 'movie',
     link: '/immersive',
   },
 ];
+
+const essentialLinks = computed(() => {
+  return permStore.hasPermission('menu:setting')
+    ? [...userLinks, ...adminLinks]
+    : userLinks;
+});
 </script>
 
 <style lang="scss" scoped>

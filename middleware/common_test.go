@@ -107,12 +107,12 @@ func TestAuthMiddleware_NoToken_Returns401(t *testing.T) {
 }
 
 func TestAuthMiddleware_ValidBearerToken_Returns200(t *testing.T) {
-	service.SetToken("test-valid-token", time.Now().Add(1*time.Hour), "testuser", "admin")
+	service.SetToken("test-valid-token", time.Now().Add(1*time.Hour), "testuser", "admin", nil)
 	assertPassesAuthWithHeader(t, setupTestEngine(), "GET", "/api/movieList", "Bearer test-valid-token")
 }
 
 func TestAuthMiddleware_QueryToken_Returns200(t *testing.T) {
-	service.SetToken("test-query-token", time.Now().Add(1*time.Hour), "queryuser", "user")
+	service.SetToken("test-query-token", time.Now().Add(1*time.Hour), "queryuser", "user", nil)
 	assertPassesAuth(t, setupTestEngine(), "GET", "/api/movieList?token=test-query-token")
 }
 
@@ -121,6 +121,6 @@ func TestAuthMiddleware_InvalidToken_Returns401(t *testing.T) {
 }
 
 func TestAuthMiddleware_ExpiredToken_Returns401(t *testing.T) {
-	service.SetToken("test-expired-token", time.Now().Add(-1*time.Hour), "expireduser", "user")
+	service.SetToken("test-expired-token", time.Now().Add(-1*time.Hour), "expireduser", "user", nil)
 	assertBlockedByAuthWithHeader(t, setupTestEngine(), "GET", "/api/movieList", "Bearer test-expired-token")
 }
