@@ -44,13 +44,12 @@ go build -tags=prod          # embed dist/、ffmpeg.exe、ffplay.exe、setting.j
 
 ## 认证
 
-- 管理员硬编码 `admin`/`qwer`（`internal/service/auth_service.go`），可通过 `setting.json` 的 `adminPassword` 字段覆盖
-- Token 存内存 map `tokenStore map[string]TokenInfo` 受 `sync.RWMutex` 保护（`auth_service.go`），无周期性清理（仅惰性删除过期 token）
+- 管理员用户 `admin`，密码必须配 `setting.json` 的 `adminPassword`（无编译回退）
+- Token 存内存 map `tokenStore map[string]TokenInfo` 受 `sync.RWMutex` 保护（`auth_service.go`），周期性清理每 1h 执行一次（启动即执行首次）
 - `Authorization: Bearer <token>` 或 WebSocket `?token=`
-- 集群节点间用 `X-Search-Gin-Remote: true` header 跳过 Token 认证，来源 IP 必须在 peers 列表中或通过反向心跳自动加入（`middleware/common.go` + `node_discovery.go`）
+- 集群节点间用 `X-Search-Gin-Remote: true` header 跳过 Token 认证，来源 IP 必须在 peers 列表中（`middleware/common.go` + `node_discovery.go`）——**反向心跳不再自动提权**，仅出站/手动发现
 - `requireAdmin()` 检查 role 是否为 `AdminRole`，兼容旧 token（role 为空时放行）
 - **注意事项**：
-  - Token 无 periodic cleanup，仅惰性删除过期 token（`ValidateTokenWithInfo` 中）
   - WebSocket 连接使用 query token（`/api/ws?token=xxx`），skip path 已跳过 AuthMiddleware 故需手动调用 `ValidateTokenWithInfo`
   - `:10082` 文件流端口使用 `StreamTokenAuth` 中间件（AES-256-GCM 加密 streamToken），不依赖 session map，跨节点共享同一固定密钥
 
@@ -67,7 +66,11 @@ go build -tags=prod          # embed dist/、ffmpeg.exe、ffplay.exe、setting.j
 ## 多节点集群
 
 - 节点管理：`background_launch.go:InitPeerManager()` 加载 `discoveryPeers`（节点发现逻辑在 `node_discovery.go`），支持运行时增删
-- 反向心跳自动发现：首次收到未知 IP 的集群请求时，反向 GET `/api/heartBeat` 验证，通过则自动加入并持久化到 `setting.json` → `node_discovery.go:TryVerifyAndAddPeer()`
+- 发现方式：
+  - **子网扫描**：前端输入三段 IP 前缀（如 `192.168.1`）扫 /24，后端 `DiscoverLanPeers` 用共享 HTTP client + 20 并发扫描
+  - **单机检测**：输入完整 IP（如 `192.168.1.50`）直接心跳验证
+  - **手动添加**：发现面板中候选节点一键添加，自动持久化到 `setting.json`
+  - **反向心跳自动发现已移除**（安全原因），仅出站/手动发现
 - 跨节点搜索：`remote_search.go` 并发请求所有在线节点（最多 5 并发），去重策略 `Code+Size` 优先，`Name+Size` 兜底
 - 文件流端口统一走 `:10082`
 - 配置：`{"enableLanDiscovery": true, "discoveryPeers": ["192.168.1.102:10081"]}`
@@ -115,7 +118,8 @@ go build -tags=prod          # embed dist/、ffmpeg.exe、ffplay.exe、setting.j
 | `NodeName`/`EnableLanDiscovery`/`DiscoveryPeers` | `string`/`*bool`/`[]string` | 集群配置 |
 | `Users` | `[]User` | 多用户 |
 | `DeepSeekApiKey` | `string` | AI API key |
-| `AdminPassword` | `string` | 管理员密码覆盖（空时用编译常亮 `qwer`） |
+| `AdminPassword | `string` | 管理员密码（无编译回退，必须配置） |
+| `StreamSecret` | `string` | AES 流密钥（首次启动随机生成，自动持久化） |
 
 ## 开发命令
 
@@ -217,13 +221,13 @@ UseApp().search.Page(param)
 - `file_scanner.go` — ScanAll / Walk
 - `file_video_processor.go` — 转码/截图/合并（包级函数）
 - `file_directory_cleaner.go` — 目录清理
-- `node_discovery.go` — 集群节点管理 + 反向心跳
+- `node_discovery.go` — 集群节点管理 + LAN 发现（子网扫描/单机检测）
 - `remote_search.go` — 跨节点搜索 + URL 填充（streamToken 方式）
 - `remote_operation.go` — 跨节点文件操作转发（`c.GetRawData()` 读取 body）
 - `task_scheduler.go` — 扫描任务队列 + 转码/剪辑/合并任务调度
 - `task_service.go` — 转码/剪辑/合并任务创建
 - `background_launch.go` — `InitSetting`/`StartBackgroundTasks`/`InitPeerManager`/`StartPprof`（main.go 调用的启动入口）
-- `auth_service.go` — 认证（`admin`/`qwer` + `setting.json` `adminPassword`）+ `GetOSSetting()` 配置读取
+- `auth_service.go` — 认证（`admin` + `setting.json` `adminPassword`）+ `GetOSSetting()` 配置读取
 
 `internal/handler/` — 17 个 controller + `handler.go`（注入入口，`InitApp`/`UseApp`）
 

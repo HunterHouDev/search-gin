@@ -142,10 +142,10 @@
               <div class="text-caption">
                 <div v-if="!cluster.clusterEnabled" class="text-warning">⚠ 集群模式已关闭，请在「本机信息」中开启</div>
                 <div v-else class="text-info">
-                    集群已启用，通过反向心跳自动发现节点<br>
+                    集群已启用，可通过子网扫描发现节点<br>
                     • 确保其他节点也已启用集群<br>
                     • 所有节点需在同一网络可达<br>
-                    • 可手动「添加」节点
+                    • 在输入框中输入子网前缀（如 192.168.1）点击「发现」
                   </div>
               </div>
             </div>
@@ -616,7 +616,7 @@ const discoverPeers = async () => {
 const addDiscoveredPeer = async (d: any) => {
   d._adding = true;
   try {
-    const res = await AddLanPeer(d.ip, d.port, d.filePort || d.port);
+    const res = await AddLanPeer(d.ip, d.port, d.filePort || '10082');
     if (res.success) {
       $q.notify({ message: `已添加 ${d.ip}`, color: 'positive', position: 'top', timeout: 2000 });
       d._existing = true;

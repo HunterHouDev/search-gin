@@ -70,7 +70,7 @@ func main() {
 	service.InitSearchPool()
 	service.StartScanQueue()
 
-	// ── 10. 初始化节点管理器（手动添加 + 反向心跳自动发现） ──
+	// ── 10. 初始化节点管理器（加载静态 peers + 出站发现） ──
 	service.InitPeerManager()
 
 	// ── 11. 创建 Handler（注入依赖） ──
