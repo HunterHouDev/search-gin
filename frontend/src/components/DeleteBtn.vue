@@ -63,7 +63,7 @@
   </q-btn>
 </template>
 <script setup>
-import { inject, reactive } from 'vue';
+import { inject, onUnmounted, reactive } from 'vue';
 import { useQuasar } from 'quasar';
 import { DeleteFile } from 'components/api/searchAPI';
 const $q = useQuasar();
@@ -116,4 +116,8 @@ const picDelete = async (n) => {
     fetchToUpdateList(props.currentData);
   }, 3000);
 };
+
+onUnmounted(() => {
+  clearTimeout(deleteTimeout);
+});
 </script>

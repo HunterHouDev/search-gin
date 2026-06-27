@@ -45,7 +45,11 @@ func PostChatDeepSeek(c *gin.Context) {
 		"messages": req.Messages,
 		"model":    req.Model,
 	}
-	bodyBytes, _ := json.Marshal(body)
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, utils.NewFailByMsg("序列化请求失败"))
+		return
+	}
 
 	httpReq, err := http.NewRequest("POST", "https://api.deepseek.com/chat/completions",
 		strings.NewReader(string(bodyBytes)))

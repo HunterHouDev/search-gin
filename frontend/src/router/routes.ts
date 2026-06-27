@@ -34,19 +34,19 @@ const routes: RouteRecordRaw[] = [
     path: '/playing/:id',
     component: () => import('src/pages/playing/PlayingPage.vue'),
   },
+  {
+    path: '/login',
+    component: () => import('pages/LoginPage.vue'),
+  },
+  {
+    path: '/init',
+    component: () => import('pages/InitPage.vue'),
+  },
   // Always leave this as last one,
   // but you can also remove it
   {
     path: '/:catchAll(.*)*',
     component: () => import('pages/ErrorNotFound.vue'),
-  },
-  {
-    path: '/login',
-    component: () import('pages/LoginPage.vue'),
-  },
-  {
-    path: '/init',
-    component: () => import('pages/InitPage.vue'),
   }
 ];
 

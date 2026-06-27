@@ -112,6 +112,9 @@ function connectSingleton() {
         signalHandlers.forEach(fn => fn(msg));
       } else {
         messages.value.push(msg);
+        if (messages.value.length > 200) {
+          messages.value.splice(0, messages.value.length - 200);
+        }
       }
     } catch (e) {
       console.error('WS 消息解析失败:', e);

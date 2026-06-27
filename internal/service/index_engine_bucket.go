@@ -182,6 +182,7 @@ func (fs *bucketFile) searchBucket(searchParam model.SearchParam) model.PageResu
 		for _, file := range snapshot {
 			if filter(file) {
 				resultWrapper.FileList = append(resultWrapper.FileList, *file)
+				resultWrapper.Size += file.Size
 			}
 		}
 	} else {

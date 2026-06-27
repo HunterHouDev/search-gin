@@ -381,10 +381,7 @@ const { copy } = useClipboard({ source });
 
 const $q = useQuasar();
 
-const hoverPlayer = computed(() => {
-  const hoverPlayer = new VideoClass('hoverVideoID');
-  return hoverPlayer;
-});
+const hoverPlayer = ref(null);
 
 let animationFrame = null;
 let loadedmetadataHandler = null;
@@ -713,6 +710,7 @@ const onWheel = (e) => {
 
 onMounted(() => {
   systemProperty.PlayingMovie = {};
+  hoverPlayer.value = new VideoClass('hoverVideoID');
   // PiP 事件监听必须在 DOM 就绪后注册
   const pipHandler = () => {
     isPip.value = false;

@@ -133,8 +133,14 @@ func (h *Hub) Run() {
 			}
 
 			h.mu.RLock()
-			failedClients := make([]*ClientConn, 0)
+			clients := make([]*ClientConn, 0, len(h.clients))
 			for client := range h.clients {
+				clients = append(clients, client)
+			}
+			h.mu.RUnlock()
+
+			failedClients := make([]*ClientConn, 0)
+			for _, client := range clients {
 				client.mu.Lock()
 				err := client.Conn.WriteMessage(websocket.TextMessage, message)
 				client.mu.Unlock()
@@ -142,7 +148,6 @@ func (h *Hub) Run() {
 					failedClients = append(failedClients, client)
 				}
 			}
-			h.mu.RUnlock()
 
 			for _, client := range failedClients {
 				h.unregister <- client

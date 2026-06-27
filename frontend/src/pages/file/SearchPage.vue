@@ -1856,6 +1856,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  clearTimeout(sseDebounceTimer);
   if (taskInterval) {
     clearInterval(taskInterval);
     taskInterval = null;
@@ -1898,7 +1899,8 @@ onUnmounted(() => {
 
 .card-top-tag {
   position: absolute;
-  display: flex-start;
+  display: flex;
+  align-items: flex-start;
   flex-wrap: wrap;
   flex-direction: column;
   align-items: baseline;

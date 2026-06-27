@@ -111,9 +111,12 @@ func PostAuthor(c *gin.Context) {
 		return
 	}
 
-	// 检查搜索引擎索引是否为空，如果为空则执行扫描
+	// 检查搜索引擎索引是否为空，如果为空则异步执行扫描
 	if UseApp().search.IsEmpty() {
-		UseApp().files.ScanAll()
+		go func() {
+			defer utils.RecoverPanic()
+			UseApp().files.ScanAll()
+		}()
 	}
 
 	// 调用搜索引擎获取作者分页搜索结果

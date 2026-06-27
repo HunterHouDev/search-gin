@@ -56,11 +56,19 @@ func (p *GoroutinePool) Submit(job func()) {
 		wrapped()
 		return
 	}
-	select {
-	case p.jobs <- wrapped:
-	default:
-		wrapped()
-	}
+	// 捕获向已关闭 channel 发送的 panic，降级为内联执行
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				wrapped()
+			}
+		}()
+		select {
+		case p.jobs <- wrapped:
+		default:
+			wrapped()
+		}
+	}()
 }
 
 // Wait 等待所有已提交的任务完成
