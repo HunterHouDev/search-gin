@@ -134,6 +134,10 @@ func doFlushCache(idx *searchIndex) {
 	go func() {
 		defer utils.RecoverPanic()
 		defer close(done)
+		// 检查 context 是否已超时，避免超时后继续写盘
+		if ctx.Err() != nil {
+			return
+		}
 		tmpPath := cachePath + ".tmp"
 		f, err := os.Create(tmpPath)
 		if err != nil {

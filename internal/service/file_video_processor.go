@@ -190,10 +190,14 @@ func CutImage(path string, typeImage string, start string) utils.Result {
 
 // ffmpegBinPath 获取 ffmpeg 二进制路径
 func ffmpegBinPath() string {
-	if GetWorkDir() != "" {
-		return filepath.Join(GetWorkDir(), "ffmpeg.exe")
+	name := "ffmpeg"
+	if runtime.GOOS == "windows" {
+		name = "ffmpeg.exe"
 	}
-	return "ffmpeg.exe"
+	if GetWorkDir() != "" {
+		return filepath.Join(GetWorkDir(), name)
+	}
+	return name
 }
 
 // updateTaskStatus 集中管理任务状态变更

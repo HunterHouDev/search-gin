@@ -148,7 +148,7 @@ func (m *peerManager) upsertPeer(p *Peer) {
 	m.peers[p.ID] = p
 }
 
-// GetOnlinePeers 获取在线节点列表
+// GetOnlinePeers 获取在线节点列表（深拷贝）
 func GetOnlinePeers() []*Peer {
 	if defaultManager == nil {
 		return nil
@@ -157,7 +157,8 @@ func GetOnlinePeers() []*Peer {
 	defer defaultManager.mu.RUnlock()
 	result := make([]*Peer, 0, len(defaultManager.peers))
 	for _, p := range defaultManager.peers {
-		result = append(result, p)
+		cp := *p
+		result = append(result, &cp)
 	}
 	return result
 }
@@ -348,7 +349,8 @@ func GetLocalSubnet() string {
 			if ip4 == nil {
 				continue
 			}
-			if ip4[0] == 172 || ip4[0] == 10 || ip4[0] == 100 {
+			// 跳过私有地址段：10.0.0.0/8, 100.64.0.0/10, 172.16.0.0/12
+			if ip4[0] == 10 || ip4[0] == 100 || (ip4[0] == 172 && ip4[1] >= 16 && ip4[1] <= 31) {
 				continue
 			}
 			base := ipnet.IP.String()

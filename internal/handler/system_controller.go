@@ -72,7 +72,11 @@ func PostSetting(c *gin.Context) {
 
 	// 将 body map 序列化后反序列化到现有 struct 上
 	// 不在 body 中的字段保持不变（Go json.Unmarshal 特性）
-	bodyJSON, _ := json.Marshal(body)
+	bodyJSON, err := json.Marshal(body)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("序列化配置失败"))
+		return
+	}
 	var updated = UseApp().config.Get()
 	if err := json.Unmarshal(bodyJSON, &updated); err != nil {
 		c.JSON(http.StatusInternalServerError, utils.NewFailByMsg("反序列化配置失败"))

@@ -47,6 +47,15 @@ func AddUser(c *gin.Context) {
 		return
 	}
 
+	if req.Username == "" {
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("用户名不能为空"))
+		return
+	}
+	if req.Password == "" {
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("密码不能为空"))
+		return
+	}
+
 	if req.Username == service.AdminUsername {
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("用户名已存在"))
 		return

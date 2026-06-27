@@ -185,6 +185,12 @@ func (h *Hub) SendToUser(username string, msg []byte) int {
 		client.mu.Unlock()
 		if err == nil {
 			count++
+		} else {
+			// 写入失败，发送到 unregister 清理
+			select {
+			case h.unregister <- client:
+			default:
+			}
 		}
 	}
 	return count

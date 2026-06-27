@@ -65,7 +65,7 @@ func PostChatDeepSeek(c *gin.Context) {
 	}
 	defer resp.Body.Close()
 
-	respBytes, err := io.ReadAll(resp.Body)
+	respBytes, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
 	if err != nil {
 		utils.ErrorFormat("读取 DeepSeek 响应失败: %v", err)
 		c.JSON(http.StatusInternalServerError, utils.NewFailByMsg("读取响应失败"))
