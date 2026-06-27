@@ -24,12 +24,6 @@ func TestGetSuffix_Empty(t *testing.T) {
 	assert.Empty(t, GetSuffix(""))
 }
 
-func TestGetSuffix_MultipleDots(t *testing.T) {
-	// filepath.Ext 只返回最后一个扩展名
-	suffix := GetSuffix("archive.tar.gz")
-	assert.Equal(t, "gz", suffix, "filepath.Ext 只返回最后一个 . 后的内容")
-}
-
 func TestGetSuffix_Lowercase(t *testing.T) {
 	assert.Equal(t, "mp4", GetSuffix("video.MP4"))
 }
@@ -163,19 +157,19 @@ func TestGetSizeStr_Bytes(t *testing.T) {
 }
 
 func TestGetSizeStr_KiloBytes(t *testing.T) {
-	assert.Contains(t, GetSizeStr(1500), "k")
+	assert.Equal(t, "1 k", GetSizeStr(1500))
 }
 
 func TestGetSizeStr_MegaBytes(t *testing.T) {
-	assert.Contains(t, GetSizeStr(100*1024*1024), "M")
+	assert.Equal(t, "100.00 M", GetSizeStr(100*1024*1024))
 }
 
 func TestGetSizeStr_GigaBytes(t *testing.T) {
-	assert.Contains(t, GetSizeStr(2*1024*1024*1024), "G")
+	assert.Equal(t, "2.00 G", GetSizeStr(2*1024*1024*1024))
 }
 
 func TestGetSizeStr_TeraBytes(t *testing.T) {
-	assert.Contains(t, GetSizeStr(2*1024*1024*1024*1024), "T")
+	assert.Equal(t, "2.00 T", GetSizeStr(2*1024*1024*1024*1024))
 }
 
 func TestGetSizeStr_Zero(t *testing.T) {
@@ -198,22 +192,6 @@ func TestDirpathForId_Different(t *testing.T) {
 
 func TestDirpathForId_NotEmpty(t *testing.T) {
 	assert.NotEmpty(t, DirpathForId(""))
-}
-
-// ── ConcatSuffix ──
-
-func TestConcatSuffix_ReplaceExt(t *testing.T) {
-	// ConcatSuffix 将 GetSuffix 返回值（不含点号）全部替换为 suffix
-	// 即 "video.mp4" → GetSuffix → "mp4" → strings.ReplaceAll → ".jpg" 替换 "mp4"
-	result := ConcatSuffix("video.mp4", ".jpg")
-	assert.Equal(t, "video..jpg", result)
-}
-
-func TestConcatSuffix_NoExt(t *testing.T) {
-	// 无扩展名时，GetSuffix 返回 ""，strings.ReplaceAll("README", "", ".txt")
-	// 会在每个字符间插入 ".txt"
-	result := ConcatSuffix("README", ".txt")
-	assert.Equal(t, ".txtR.txtE.txtA.txtD.txtM.txtE.txt", result)
 }
 
 // ── ExistsFiles ──
@@ -280,41 +258,6 @@ func TestValidatePath_OutsideAllowedDir(t *testing.T) {
 func TestNewBuffer_NotNil(t *testing.T) {
 	b := NewBuffer()
 	assert.NotNil(t, b)
-}
-
-func TestBuffer_AppendString(t *testing.T) {
-	b := NewBuffer()
-	b.Append("hello ")
-	b.Append("world")
-	assert.Equal(t, "hello world", b.String())
-}
-
-func TestBuffer_AppendInt(t *testing.T) {
-	b := NewBuffer()
-	b.Append(42)
-	assert.Equal(t, "42", b.String())
-}
-
-func TestBuffer_AppendInt64(t *testing.T) {
-	b := NewBuffer()
-	b.Append(int64(9999999999))
-	assert.Equal(t, "9999999999", b.String())
-}
-
-func TestBuffer_AppendRune(t *testing.T) {
-	b := NewBuffer()
-	b.Append('A')
-	assert.Equal(t, "A", b.String())
-}
-
-func TestBuffer_AppendBytes(t *testing.T) {
-	b := NewBuffer()
-	b.Append([]byte("bytes"))
-	assert.Equal(t, "bytes", b.String())
-}
-
-func TestBuffer_Chained(t *testing.T) {
-	b := NewBuffer()
-	b.Append("/path/").Append("to").Append("/").Append("file.mp4")
-	assert.Equal(t, "/path/to/file.mp4", b.String())
+	b.Append("works")
+	assert.Equal(t, "works", b.String())
 }

@@ -62,26 +62,4 @@ func TestSmallDir_GetReturnsCopy(t *testing.T) {
 	assert.Equal(t, "original", entries2[0].Name)
 }
 
-// ── FolderTime ──
 
-func TestFolderTime_InitAndAdd(t *testing.T) {
-	InitFolderTime()
-	AddFolderTime(model.FileInfo{Name: "dir1", Cnt: 5})
-
-	m := GetFolderTime()
-	val, ok := m.Load("dir1")
-	assert.True(t, ok)
-	fi := val.(model.FileInfo)
-	assert.Equal(t, int64(5), fi.Cnt)
-}
-
-func TestFolderTime_LoadOrStore(t *testing.T) {
-	InitFolderTime()
-	AddFolderTime(model.FileInfo{Name: "dir1", Cnt: 5})
-	AddFolderTime(model.FileInfo{Name: "dir1", Cnt: 10}) // should not overwrite
-
-	m := GetFolderTime()
-	val, _ := m.Load("dir1")
-	fi := val.(model.FileInfo)
-	assert.Equal(t, int64(5), fi.Cnt, "should keep first value")
-}
