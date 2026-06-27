@@ -1424,6 +1424,7 @@ const open = (data) => {
 };
 
 const dialogHide = async () => {
+  clearInterval(timeFunc);
   clearTimeout(debounceTimer);
   if (view.callback) {
     view.callback({ settingInfo: view.settingInfo });

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div>
     <q-layout view="lHh lpr lFf" container style="height: 93vh" class="shadow-2 rounded-borders"
       :class="{ 'theme-natural': systemProperty.theme === 'natural' }" :style="themeStyle">
@@ -826,9 +826,14 @@ import { useBreakpoint } from 'src/composables/useBreakpoint';
 import { useSSE } from 'src/composables/useSSE';
 
 // SSE 实时更新
+let sseDebounceTimer = null
+const debouncedFetchSearch = () => {
+  clearTimeout(sseDebounceTimer)
+  sseDebounceTimer = setTimeout(() => fetchSearch(), 2000)
+}
 const handleSSEEvent = (event) => {
   if (event.Type === 'file_changed') {
-    fetchSearch();
+    debouncedFetchSearch()
     const action = event.Data?.action;
     const path = event.Data?.path || event.Data?.new || '';
     if (action === 'delete') {
@@ -847,7 +852,7 @@ const handleSSEEvent = (event) => {
   }
   if (event.Type === 'scan_complete') {
     indexButton.value?.queryHealth();
-    fetchSearch();
+    debouncedFetchSearch();
     const cnt = event.Data?.fileCount || '';
     $q.notify({ type: 'positive', message: `扫描完成，共 ${cnt} 个文件`, position: 'bottom-left', timeout: 3000 });
   }

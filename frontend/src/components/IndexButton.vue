@@ -207,7 +207,7 @@ const refreshProgress = () => {
 const refreshIndex = async (item) => {
   view.loading = true;
   refreshProgress();
-  const { Code, Message } = await RefreshAPI(item.BaseDir);
+  const { Code, Message } = await RefreshAPI(item?.BaseDir);
   if (Code === 200) {
     $q.notify({
       type: 'positive',

@@ -53,6 +53,10 @@ func GetFileByPathUseEncode(c *gin.Context) {
 }
 
 func GetDeleteFileByPathUseEncode(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+
 	decodedPath, err := url.QueryUnescape(c.Param("path"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("无效的文件路径"))

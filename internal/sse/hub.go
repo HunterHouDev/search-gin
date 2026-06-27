@@ -82,8 +82,8 @@ func (h *Hub) Run() {
 		case client := <-h.unregister:
 			h.mu.Lock()
 			if _, ok := h.clients[client.ID]; ok {
-				close(client.Events)
 				delete(h.clients, client.ID)
+				close(client.Events)
 			}
 			h.mu.Unlock()
 
@@ -112,16 +112,21 @@ func (h *Hub) Run() {
 }
 
 // cleanupStaleClients 移除超过 clientTimeout 未成功发送事件的客户端
-// 不 close client.Events——close 由 unregister 路径负责，避免竞态 double close
+// 关闭 channel 通知 HandleSSE 退出，避免 goroutine 泄漏
 func (h *Hub) cleanupStaleClients() {
 	now := time.Now()
 	h.mu.Lock()
+	var stale []*Client
 	for id, client := range h.clients {
 		if now.Sub(client.lastActive) > clientTimeout {
+			stale = append(stale, client)
 			delete(h.clients, id)
 		}
 	}
 	h.mu.Unlock()
+	for _, client := range stale {
+		close(client.Events)
+	}
 }
 
 func (h *Hub) Broadcast(event Event) {

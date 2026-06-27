@@ -509,7 +509,7 @@ const fetchSearch = async () => {
   const { data } = await GetSettingInfo();
   view.settingInfo = data;
   // nil/未配置 → 默认 true
-  cluster.clusterEnabled = data.enableLanDiscovery !== false;
+  cluster.clusterEnabled = data.EnableLanDiscovery !== false;
 };
 
 const userAgent = computed(() => {
@@ -633,7 +633,7 @@ const addDiscoveredPeer = async (d: any) => {
 
 const toggleCluster = async (val: boolean) => {
   try {
-    view.settingInfo.enableLanDiscovery = val;
+    view.settingInfo.EnableLanDiscovery = val;
     await PostSettingInfo(view.settingInfo);
     cluster.clusterEnabled = val;
     $q.notify({
