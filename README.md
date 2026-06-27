@@ -63,7 +63,7 @@ bash bpc_build.sh
 ```bash
 ./qapp/appQuaser.exe
 # 访问 http://localhost:10081
-# 默认登录：用户名留空 或 admin / 密码默认为 qwer
+# 默认登录：用户名留空 或 admin / 密码需在 setting.json 配置 adminPassword
 ```
 
 ## 文件流安全（:10082 端口）
@@ -74,20 +74,20 @@ bash bpc_build.sh
 - 图片预览 token：**5 分钟**有效期
 - 视频流 token：**4 小时**有效期
 - `:10082` 侧 `StreamTokenAuth` 中间件解密验证 token，不依赖内存 session map
-- 所有节点共享同一固定密钥，跨节点可互相验证
+- 每个节点启动时随机生成独立 AES-256-GCM 密钥，不持久化
 - 旧版 HMAC 签名（`SignAuthMiddleware`）保留但不注册
 
 ## 管理密码
 
-从 `bb7a53a` 版本开始，支持通过 `setting.json` 配置管理员密码覆盖默认值：
+管理员密码必须通过 `setting.json` 配置，无编译回退：
 
 ```json
 {
-  "adminPassword": "your-new-password"
+  "adminPassword": "your-password"
 }
 ```
 
-- 未配置时使用编译常量 `admin`/`qwer`
+- 未配置时登录将提示"未配置管理员密码"
 - `GetSettingInfo` API 不返回密码字段
 - 登录时支持用户名留空（仅凭密码匹配管理员）
 
@@ -122,7 +122,7 @@ search-gin/
 │   │   ├── hw_accel.go             # 硬件加速检测 / 编码器选择
 │   │   ├── task_scheduler.go       # TaskExecuting / HeartBeat + 扫描任务队列
 │   │   ├── background_launch.go    # InitSetting / StartScanQueue / StartBackgroundTasks
-│   │   ├── auth_service.go         # 认证（setting.json adminPassword 覆盖 + 编译常量兜底）
+│   │   ├── auth_service.go         # 认证（setting.json adminPassword 必须配置，无编译回退）
 │   │   ├── node_discovery.go       # 集群节点管理（HTTP 信令 + 反向心跳）
 │   │   ├── remote_search.go        # 跨节点搜索 + 合并去重 + streamToken URL 生成
 │   │   ├── remote_operation.go     # 跨节点文件操作转发（c.GetRawData() 读取 body）
@@ -244,7 +244,7 @@ func DirpathForId(path string) string {
 - **端口分配**：
   - `:10081` — API + 前端（Token 认证）
   - `:10082` — 文件/图片/视频流（streamToken 认证：AES-256-GCM）
-- **认证**：默认管理员 `admin` / `qwer`（可通过 `setting.json` 的 `adminPassword` 覆盖），Token 存储在内存中
+- **认证**：管理员 `admin`，密码必须配 `setting.json` 的 `adminPassword`（无编译回退），Token 存储在内存中，每个 token 到期自动删除
 - **无数据库**：所有数据为内存存储，通过文件系统扫描填充。索引快照自动持久化到 `search_cache.gob`（gob 序列化），重启后优先加载缓存，用户无空白等待期；后台继续扫描以同步最新文件变更
 - **多节点**：`setting.json` 中配置 `enableLanDiscovery: true` 并在 `discoveryPeers` 中添加对端地址，节点间通过 HTTP 信令 + 反向心跳自动发现，文件流通过 `:10082` 直连传输（streamToken 认证）
 - **集群安全认证**：跨节点 API 请求携带 `X-Search-Gin-Remote: true` header 绕过 Token 认证，但来源 IP 必须为集群内已知 peer。首次遇到未知 IP 时自动反向心跳验证（GET 该 IP 的 `/api/heartBeat`），通过后自动加入集群并持久化到 `setting.json`，后续请求直达免验证

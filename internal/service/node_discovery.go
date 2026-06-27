@@ -189,6 +189,17 @@ func IsKnownPeerIP(ip string) bool {
 	return false
 }
 
+// TryVerifyAndAddPeer 向指定 IP 发起反向心跳验证，通过则自动加入集群
+// 用于 AuthMiddleware 首次遇到未知 IP 时自动发现
+func TryVerifyAndAddPeer(ip string) bool {
+	if defaultManager == nil {
+		return false
+	}
+	port := strings.TrimPrefix(PortNo, ":")
+	filePort := strings.TrimPrefix(FilePortNo, ":")
+	return AddPeer(ip, port, filePort)
+}
+
 // GetPeerStats 获取指定节点的文件总数和总大小
 func GetPeerStats(nodeID string) (totalCnt int, totalSize string, nodeName string) {
 	if defaultManager == nil {

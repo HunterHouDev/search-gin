@@ -84,7 +84,12 @@ func AuthMiddleware() gin.HandlerFunc {
 				return
 			}
 
-			// 未知 IP → 拒绝访问；节点发现仅通过出站心跳或手动添加，不接受入站自动提权
+			// 未知 IP → 尝试反向心跳验证，通过则自动加入集群
+			if service.TryVerifyAndAddPeer(host) {
+				c.Next()
+				return
+			}
+
 			utils.InfoFormat("拒绝来自非集群节点的 X-Search-Gin-Remote 请求: %s", c.Request.RemoteAddr)
 			c.JSON(http.StatusForbidden, utils.NewFailByMsg("禁止访问"))
 			c.Abort()

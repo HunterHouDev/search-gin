@@ -3,10 +3,8 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 	"time"
 
-	"search-gin/internal/env"
 	"search-gin/internal/service"
 	"search-gin/internal/ws"
 	"search-gin/pkg/utils"
@@ -19,10 +17,6 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		if env.IsProd {
-			origin := r.Header.Get("Origin")
-			return origin == "" || strings.HasPrefix(origin, "http://localhost") || strings.HasPrefix(origin, "http://127.0.0.1")
-		}
 		return true
 	},
 }
