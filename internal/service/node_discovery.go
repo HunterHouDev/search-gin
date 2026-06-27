@@ -190,7 +190,6 @@ func IsKnownPeerIP(ip string) bool {
 }
 
 // TryVerifyAndAddPeer 向指定 IP 发起反向心跳验证，通过则自动加入集群
-// 用于 AuthMiddleware 首次遇到未知 IP 时自动发现
 func TryVerifyAndAddPeer(ip string) bool {
 	if defaultManager == nil {
 		return false
