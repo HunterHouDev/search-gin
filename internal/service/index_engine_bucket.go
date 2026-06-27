@@ -168,16 +168,22 @@ func (fs *bucketFile) searchBucket(searchParam model.SearchParam) model.PageResu
 	// 避免搜索持读锁时间过长阻塞文件操作（clone 需写锁）
 	if movieType != "" && movieType != model.UndefinedStr {
 		fs.mu.RLock()
+		var snapshot []*model.FileItem
 		if fileIds, ok := fs.TypeIndex[movieType]; ok {
+			snapshot = make([]*model.FileItem, 0, len(fileIds))
 			for id := range fileIds {
 				if file, ok := fs.FileLib[id]; ok {
-					if filter(file) {
-						resultWrapper.AddWrapperItem(file)
-					}
+					snapshot = append(snapshot, file)
 				}
 			}
 		}
 		fs.mu.RUnlock()
+		resultWrapper.FileList = make([]model.FileItem, 0, len(snapshot))
+		for _, file := range snapshot {
+			if filter(file) {
+				resultWrapper.FileList = append(resultWrapper.FileList, *file)
+			}
+		}
 	} else {
 		// 无类型过滤时，拷贝指针列表到本地快照
 		fs.mu.RLock()

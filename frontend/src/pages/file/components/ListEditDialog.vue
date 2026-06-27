@@ -906,7 +906,7 @@
                     style="height: 66vh; overflow: auto"
                   >
                     <div
-                      v-for="(his, idx) in systemProperty.SearchRecords.sort(
+                      v-for="(his, idx) in [...systemProperty.SearchRecords].sort(
                         (a, b) => {
                           return b.createdAt - a.createdAt;
                         }
@@ -1050,6 +1050,7 @@ const playNewWindow = (item) => {
 }
 
 let timeFunc;
+let sortableInstance = null;
 watch(
   () => tab.value,
   (v) => {
@@ -1407,7 +1408,10 @@ const open = (data) => {
       console.warn('listRef element not found, skipping Sortable init');
       return;
     }
-    new Sortable(listEl, {
+    if (sortableInstance) {
+      sortableInstance.destroy();
+    }
+    sortableInstance = new Sortable(listEl, {
       animation: 150,
       onEnd: function (evt) {
         // 数组根据移动的位置进行重新排序
@@ -1426,6 +1430,10 @@ const open = (data) => {
 const dialogHide = async () => {
   clearInterval(timeFunc);
   clearTimeout(debounceTimer);
+  if (sortableInstance) {
+    sortableInstance.destroy();
+    sortableInstance = null;
+  }
   if (view.callback) {
     view.callback({ settingInfo: view.settingInfo });
   }

@@ -353,7 +353,7 @@
 
 <script setup>
 import { useQuasar } from 'quasar';
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useSystemProperty } from 'stores/System';
 import { isMobile } from 'src/boot/platform';
 
@@ -387,6 +387,7 @@ const hoverPlayer = computed(() => {
 });
 
 let animationFrame = null;
+let loadedmetadataHandler = null;
 const systemProperty = useSystemProperty();
 let showProgress = null;
 const searchPanelRef = ref(null);
@@ -604,7 +605,10 @@ const openVideo = async (params) => {
     videoElement.loop = systemProperty.videoOptions?.loop;
 
     // 监听 loadedmetadata，确保视频元数据加载完成后再设置 currentTime
-    videoElement.addEventListener('loadedmetadata', () => {
+    if (loadedmetadataHandler) {
+      videoElement.removeEventListener('loadedmetadata', loadedmetadataHandler);
+    }
+    loadedmetadataHandler = () => {
       if (
         videoLocation &&
         systemProperty.playerReLocation &&
@@ -613,7 +617,8 @@ const openVideo = async (params) => {
         videoElement.currentTime = videoLocation;
       }
       videoElement.focus();
-    });
+    };
+    videoElement.addEventListener('loadedmetadata', loadedmetadataHandler);
 
     // 取消旧的 RAF 循环，防止重复调用 openVideo 导致的 RAF 泄漏
     cancelAnimationFrame(animationFrame);
@@ -709,12 +714,18 @@ const onWheel = (e) => {
 onMounted(() => {
   systemProperty.PlayingMovie = {};
   // PiP 事件监听必须在 DOM 就绪后注册
+  const pipHandler = () => {
+    isPip.value = false;
+    hoverPlayer.value.play();
+  };
   document
     .getElementById('hoverVideoID')
-    ?.addEventListener('leavepictureinpicture', () => {
-      isPip.value = false;
-      hoverPlayer.value.play();
-    });
+    ?.addEventListener('leavepictureinpicture', pipHandler);
+  onUnmounted(() => {
+    document
+      .getElementById('hoverVideoID')
+      ?.removeEventListener('leavepictureinpicture', pipHandler);
+  });
 });
 
 defineExpose({

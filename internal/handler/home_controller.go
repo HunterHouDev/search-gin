@@ -19,7 +19,10 @@ func Index(c *gin.Context) {
 
 func GetTypeSize(c *gin.Context) {
 	if UseApp().search.IsEmpty() {
-		UseApp().files.ScanAll()
+		go func() {
+			defer utils.RecoverPanic()
+			UseApp().files.ScanAll()
+		}()
 	}
 	res := mapToSlice(UseApp().search.GetTypeMenu())
 	smallDirs := service.GetSmallDir()

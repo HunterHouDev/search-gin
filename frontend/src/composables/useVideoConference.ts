@@ -41,6 +41,9 @@ export function useVideoConference() {
 
   // 创建一个到对方的 PeerConnection
   function createPeerConnection(remoteUsername: string): RTCPeerConnection {
+    if (peers[remoteUsername]) {
+      peers[remoteUsername].close();
+    }
     const pc = new RTCPeerConnection(ICE_SERVERS);
 
     // 添加本地流

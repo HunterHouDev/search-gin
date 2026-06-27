@@ -763,11 +763,16 @@ async function setMovieType(item, Type) {
 }
 
 // ── 搜索 ──────────────────────────────────────────────────────────────────────
+let searchAbortController = null;
 async function fetchSearch() {
   if (searchLoading.value) return;
+  if (searchAbortController) {
+    searchAbortController.abort();
+  }
+  searchAbortController = new AbortController();
   searchLoading.value = true;
   try {
-    const data = await SearchAPI(searchParams);
+    const data = await SearchAPI(searchParams, { signal: searchAbortController.signal });
     if (data) {
       playlist.value = [...(data.Data || [])];
       searchResults.Data = data.Data || [];

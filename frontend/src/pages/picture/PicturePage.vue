@@ -101,7 +101,7 @@
             @update:model-value="currentPageChange"
             color="purple"
             :ellipses="false"
-            :max="view.resultData.TotalCnt / view.queryParam.PageSize + 1 || 0"
+            :max="Math.ceil(view.resultData.TotalCnt / view.queryParam.PageSize) || 1"
             :max-pages="6"
             boundary-numbers
           />

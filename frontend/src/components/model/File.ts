@@ -1,6 +1,6 @@
 class FileModel {
   Id = '';
-  Tags: [] = [];
+  Tags: string[] = [];
   MovieType = '';
   FileType = '';
   Jpg = '';
@@ -8,7 +8,7 @@ class FileModel {
   Author = '';
   Code = '';
   MTime: Date | undefined;
-  SizeStr: Date | undefined;
+  SizeStr = '';
   Name = '';
   Title = '';
   Path = '';

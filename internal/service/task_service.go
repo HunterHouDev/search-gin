@@ -177,22 +177,20 @@ func CreateTransferTask(id string, xcode string) utils.Result {
 	from := utils.GetSuffix(movieFile.Path)
 	to := "mp4"
 
-	TransferTaskMutex.RLock()
+	TransferTaskMutex.Lock()
 	for _, taskModel := range TransferTask {
 		if taskModel.Path == movieFile.Path &&
 			(taskModel.Status == model.StatusPending || taskModel.Status == model.StatusExecuting) {
-			TransferTaskMutex.RUnlock()
+			TransferTaskMutex.Unlock()
 			return utils.NewFailByMsg("该文件已有转码任务在执行，请等待完成")
 		}
 	}
-	TransferTaskMutex.RUnlock()
 
 	task := model.NewTask(movieFile.Path, movieFile.Name, from, to)
 	task.SetStatus(model.StatusPending)
 	if xcode != "" {
 		task.VCode = xcode
 	}
-	TransferTaskMutex.Lock()
 	if len(TransferTask) >= MaxTransferTaskCount {
 		TransferTaskMutex.Unlock()
 		return utils.NewFailByMsg("任务队列已满（最多1000个），请清理已完成任务后再试")

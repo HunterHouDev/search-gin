@@ -980,6 +980,7 @@ const view = reactive({
   allPageNo: 0,
   resultShow: '',
   showAdvancedFilter: false,
+  playBy: '',
   queryParam: {
     Keyword: '',
     MovieType: '',
