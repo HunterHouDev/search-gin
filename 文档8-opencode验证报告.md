@@ -130,9 +130,9 @@ func AddTag(c *gin.Context) {
 |---|------|------|---------|
 | 6 | LAN 管理 API 缺 admin 检查 | `lan_controller.go:25,64,80,100` | 4 个 handler 加 `requireAdmin(c)` |
 | 7 | CutImage 无 timeout | `file_video_processor.go:174` | 改 `exec.CommandContext` + 30s 超时 |
-| 8 | 反向心跳认证绕过 | `middleware/common.go` + `node_discovery.go` | 加 PSK 挑战或仅出站连接 |
+| 8 | 反向心跳认证绕过 | `middleware/common.go` + `node_discovery.go` | ✅ 已拒绝未知 IP，清理死代码 TryVerifyAndAddPeer |
 | 9 | 硬编码密码 `qwer` | `auth_service.go:20` | 首次启动强制配置，删除编译回退 |
-| 10 | 硬编码 AES 密钥 | `stream_crypto.go:16-21` | 首次启动随机生成写入 setting.json |
+| 10 | 硬编码 AES 密钥 | `stream_crypto.go:16-21` | ✅ 已删除硬编码，启动时自动生成 |
 | 11 | SSE `cleanupStaleClients` 竞态 | `sse/hub.go:119-122` | 仅 map delete，不 close channel |
 | 12 | goroutine 缺 `defer RecoverPanic` | `search_controller.go:27` | 包装 `go func() { defer utils.RecoverPanic(); ... }()` |
 | 13 | DeepSeek `http.Client` 连接池泄漏 | `deepseek_controller.go:57` | 提升为包级单例 |
@@ -154,9 +154,9 @@ func AddTag(c *gin.Context) {
 | # | 问题 | 位置 |
 |---|------|------|
 | 21 | Token 清理首次启动等 24h | `auth_service.go:97-101` |
-| 22 | 搜索结果无虚拟滚动 | `frontend/src/pages/file/SearchPage.vue` |
-| 23 | 56 处 `console.log` | 前端全仓库 |
-| 24 | `TokenCleanupLoop` 24h 周期 | `auth_service.go:92-111` |
+| ~~22~~ | ~~搜索结果无虚拟滚动~~ | ~~`frontend/src/pages/file/SearchPage.vue`~~ **不需要，不再提示** |
+| ~~23~~ | ~~56 处 `console.log`~~ | ~~前端全仓库~~ **仅剩 4 处已注释，无活跃 console.log** |
+| 24 | `TokenCleanupLoop` 24h 周期 | `auth_service.go:92-111` ✅ 已改为 time.AfterFunc 到期自毁 |
 
 ---
 
