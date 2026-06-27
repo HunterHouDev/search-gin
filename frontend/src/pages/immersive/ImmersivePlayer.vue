@@ -796,10 +796,9 @@ async function fetchSearch() {
 }
 
 // ── 时间格式化 ────────────────────────────────────────────────────────────────
-const today = new Date();
 function getTimeAgo(MTime) {
   if (!MTime) return '';
-  const days = Math.floor((today - new Date(MTime)) / 86400000);
+  const days = Math.floor((Date.now() - new Date(MTime).getTime()) / 86400000);
   if (days > 365) return `${Math.floor(days / 365)}年前`;
   if (days > 30) return `${Math.floor(days / 30)}个月前`;
   if (days > 0) return `${days}天前`;

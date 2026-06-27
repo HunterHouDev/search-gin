@@ -73,7 +73,10 @@ function initParticles() {
 }
 
 function animate() {
-  if (!canvasRef.value) return;
+  if (!canvasRef.value || document.hidden) {
+    animationId = requestAnimationFrame(animate);
+    return;
+  }
   const canvas = canvasRef.value;
   const ctx = canvas.getContext('2d');
   // 清空画布并绘制深色背景，解决透明叠加导致的闪屏问题

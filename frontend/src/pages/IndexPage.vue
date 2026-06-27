@@ -369,8 +369,7 @@ const loadDiskUsage = async () => {
 };
 
 const loadScanTime = async () => {
-  scanTime.value = (await ScanTime()) || [];
-  scanTime.value = scanTime.value.sort((a, b) => {
+  scanTime.value = [...(await ScanTime() || [])].sort((a, b) => {
     return b.Cnt - a.Cnt;
   });
   systemProperty.SettingInfo.Dirs.forEach((item) => {

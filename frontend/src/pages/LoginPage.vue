@@ -115,6 +115,10 @@ onMounted(() => {
 });
 
 const login = async () => {
+  if (!username.value) {
+    errorMsg.value = '请输入用户名';
+    return;
+  }
   if (!password.value) {
     errorMsg.value = '请输入密码';
     return;

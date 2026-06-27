@@ -880,7 +880,7 @@ const indexButton = ref(null);
 const fileCutImageRef = ref(null);
 const isMoreLoading = ref(false);
 const isFetching = ref(false);
-const pageOptions = ref([10, 12, 20, 30, 50, 200]);
+const pageOptions = ref([10, 12, 14, 20, 30, 50, 200]);
 // AbortController 用于取消前一个搜索请求
 const searchAbortController = ref(null);
 
@@ -1445,6 +1445,7 @@ const getNextFile = async (item) => {
     await gotoPageNo(view.queryParam.Page + 1);
     return view.resultData.Data[0];
   }
+  return null;
 };
 
 const viewNextOne = async (type) => {
@@ -1715,6 +1716,7 @@ const setMovieType = async (Id, Type) => {
 
 const fetchTasking = async () => {
   const res = await TransferTasksInfo();
+  if (!res?.Data) return;
   let runningTaskCount = 0
   Object.keys(res.Data).forEach((key) => {
     const v = res.Data[key];
