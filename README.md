@@ -249,6 +249,21 @@ func DirpathForId(path string) string {
 - **多节点**：`setting.json` 中配置 `enableLanDiscovery: true` 并在 `discoveryPeers` 中添加对端地址，节点间通过 HTTP 信令 + 反向心跳自动发现，文件流通过 `:10082` 直连传输（streamToken 认证）
 - **集群安全认证**：跨节点 API 请求携带 `X-Search-Gin-Remote: true` header 绕过 Token 认证，但来源 IP 必须为集群内已知 peer。首次遇到未知 IP 时自动反向心跳验证（GET 该 IP 的 `/api/heartBeat`），通过后自动加入集群并持久化到 `setting.json`，后续请求直达免验证
 
+## 设计决策
+
+本项目是 **LAN 应用**，安全标准与公有云不同。以下均为有意设计：
+
+| 决策 | 原因 |
+|------|------|
+| 反向心跳自动发现 | 未知 IP 自动验证并加入集群，与 Redis Gossip 协议同理 |
+| `/api/lanPeers` 无认证 | 节点发现需要无认证访问，扫描方此时不知道目标节点 |
+| `/api/heartBeat` 无认证 | LAN 扫描探测存活用，返回的只是文件数量 |
+| WebSocket `CheckOrigin` 返回 true | 局域网场景，安全靠 token 不靠 origin |
+| SSE `/api/events` 无认证 | SSE 是只读推送，安全靠前端 token 校验 |
+| LRU Cache Get 不移到头部 | 读并发性能优于标准 LRU 实现 |
+| 无数据库 | 所有数据存内存，索引快照用 gob 持久化，简化设计 |
+| 每节点独立 AES 密钥 | 每次启动随机生成，不持久化，token 短过期，无需跨节点共享 |
+
 ## 主要依赖
 
 | 依赖                         | 用途            |
