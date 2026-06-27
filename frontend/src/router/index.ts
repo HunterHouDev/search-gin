@@ -5,6 +5,7 @@ import {
   createWebHashHistory,
   createWebHistory,
 } from 'vue-router';
+import { commonAxios } from 'src/boot/axios';
 
 import routes from './routes';
 
@@ -33,7 +34,24 @@ export default route(function (/* { store, ssrContext } */) {
     history: createHistory(process.env.VUE_ROUTER_BASE),
   });
 
-  Router.beforeEach((to, from, next) => {
+  Router.beforeEach(async (to, from, next) => {
+    // 初始化页面不检查
+    if (to.path === '/init') {
+      next();
+      return;
+    }
+
+    // 检查是否已完成初始化
+    try {
+      const res = await commonAxios().get('/api/init');
+      if (!res.data.configured) {
+        next('/init');
+        return;
+      }
+    } catch {
+      // 网络错误时放行（可能后端未启动）
+    }
+
     if (to.path === '/login') {
       sessionStorage.removeItem('authToken');
       sessionStorage.removeItem('isAuthenticated');

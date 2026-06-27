@@ -264,3 +264,49 @@ func TestPickLocalIP_WithRealClientIP(t *testing.T) {
 	assert.NotEmpty(t, ip)
 	assert.NotNil(t, net.ParseIP(ip))
 }
+
+// ── ParseTotalSize 测试 ──
+
+func TestParseTotalSize_Empty(t *testing.T) {
+	assert.Equal(t, int64(0), ParseTotalSize(""))
+	assert.Equal(t, int64(0), ParseTotalSize("  "))
+}
+
+func TestParseTotalSize_Bytes(t *testing.T) {
+	assert.Equal(t, int64(100), ParseTotalSize("100 B"))
+}
+
+func TestParseTotalSize_KiloBytes(t *testing.T) {
+	assert.Equal(t, int64(1*1024), ParseTotalSize("1 K"))
+	assert.Equal(t, int64(500*1024), ParseTotalSize("500 K"))
+}
+
+func TestParseTotalSize_MegaBytes(t *testing.T) {
+	assert.Equal(t, int64(100*1024*1024), ParseTotalSize("100 M"))
+}
+
+func TestParseTotalSize_GigaBytes(t *testing.T) {
+	assert.Equal(t, int64(2*1024*1024*1024), ParseTotalSize("2 G"))
+	// 23.53 * 1073741824 ≈ 25265145118.72 → float 精度 → 25265145118
+	assert.Equal(t, int64(25265145118), ParseTotalSize("23.53 G"))
+}
+
+func TestParseTotalSize_TeraBytes(t *testing.T) {
+	assert.Equal(t, int64(1*1024*1024*1024*1024), ParseTotalSize("1 T"))
+}
+
+func TestParseTotalSize_InvalidFormat(t *testing.T) {
+	assert.Equal(t, int64(0), ParseTotalSize("abc"))
+	assert.Equal(t, int64(0), ParseTotalSize("100"))
+	assert.Equal(t, int64(0), ParseTotalSize("100 X")) // unknown unit
+}
+
+func TestParseTotalSize_TrimsSpaces(t *testing.T) {
+	assert.Equal(t, int64(100), ParseTotalSize("  100 B  "))
+}
+
+func TestParseTotalSize_CaseInsensitiveUnit(t *testing.T) {
+	assert.Equal(t, int64(1024), ParseTotalSize("1 k"))
+	assert.Equal(t, int64(1024*1024), ParseTotalSize("1 m"))
+	assert.Equal(t, int64(1024*1024*1024), ParseTotalSize("1 g"))
+}

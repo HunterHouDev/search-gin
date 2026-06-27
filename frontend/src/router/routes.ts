@@ -42,7 +42,11 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/login',
-    component: () => import('pages/LoginPage.vue'),
+    component: () import('pages/LoginPage.vue'),
+  },
+  {
+    path: '/init',
+    component: () => import('pages/InitPage.vue'),
   }
 ];
 

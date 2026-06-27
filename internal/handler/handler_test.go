@@ -63,12 +63,15 @@ func (m *mockFileService) DeleteFilesOnDisk(dirName string, fileName string)    
 func (m *mockFileService) DownDeleteDir(dirname string)                                      {}
 
 type mockSettings struct {
-	dirs []string
+	dirs           []string
+	controllerHost string
 }
 
-func (m *mockSettings) Get() model.Setting           { return model.Setting{Dirs: m.dirs} }
-func (m *mockSettings) Set(s model.Setting)           {}
-func (m *mockSettings) Flush(path string)             {}
+func (m *mockSettings) Get() model.Setting {
+	return model.Setting{Dirs: m.dirs, ControllerHost: m.controllerHost}
+}
+func (m *mockSettings) Set(s model.Setting) {}
+func (m *mockSettings) Flush(path string)   {}
 
 // ============== Test Helpers ==============
 
@@ -283,4 +286,242 @@ func TestPostMovies_InvalidBody(t *testing.T) {
 	w := performPost(t, PostMovies, `{invalid json`)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// ============== Home Controller Tests ==============
+
+func TestGetHeartBeat(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+	service.IndexNumber.Store(3)
+
+	w := performGet(t, GetHeartBeat)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "3")
+}
+
+func TestGetLogMemory_ReturnsJSON(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+	service.LogMem.Add("test log entry")
+
+	w := performGet(t, GetLogMemory)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "test log entry")
+}
+
+func TestGetTypeSize_EmptyIndex(t *testing.T) {
+	eng := &mockIndexEngine{
+		typeMenu: map[string]model.FileInfo{},
+		empty:    true,
+	}
+	setupHandlerTest(t, eng, &mockFileService{}, &mockSettings{dirs: nil})
+
+	service.SmallDir = nil
+
+	w := performGet(t, GetTypeSize)
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestGetTypeSize_WithTypes(t *testing.T) {
+	eng := &mockIndexEngine{
+		typeMenu: map[string]model.FileInfo{
+			"电影": {Name: "电影", Size: 100},
+			"动画": {Name: "动画", Size: 200},
+		},
+	}
+	setupHandlerTest(t, eng, &mockFileService{}, &mockSettings{dirs: nil})
+
+	w := performGet(t, GetTypeSize)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp []model.FileInfo
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.True(t, len(resp) >= 2)
+}
+
+func TestGetTagSize(t *testing.T) {
+	eng := &mockIndexEngine{
+		tagMenu: map[string]model.FileInfo{
+			"action": {Name: "action", Size: 50},
+		},
+	}
+	setupHandlerTest(t, eng, &mockFileService{}, &mockSettings{})
+
+	w := performGet(t, GetTagSize)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp []model.FileInfo
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.Equal(t, "action", resp[0].Name)
+}
+
+func TestGetSeriesSize(t *testing.T) {
+	eng := &mockIndexEngine{
+		seriesCnt: map[string]model.FileInfo{
+			"系列A": {Name: "系列A", Cnt: 5},
+		},
+	}
+	setupHandlerTest(t, eng, &mockFileService{}, &mockSettings{})
+
+	w := performGet(t, GetSeriesSize)
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestGetScanTime_Empty(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+	service.InitFolderTime()
+
+	w := performGet(t, GetScanTime)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "[]", w.Body.String())
+}
+
+func TestGetDiskUsage_EmptyDirs(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{dirs: nil})
+
+	w := performGet(t, GetDiskUsage)
+	assert.Equal(t, http.StatusOK, w.Code)
+	// nil dirs → range over nil → nil slice → JSON "null"
+	assert.Equal(t, "null", w.Body.String())
+}
+
+// ============== System Controller Tests ==============
+
+func TestGetSettingInfo_RedactsSensitive(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{dirs: []string{"D:/media"}})
+
+	old := service.GetOSSetting()
+	service.SetOSSetting(model.Setting{
+		Dirs:          []string{"D:/media"},
+		AdminPassword: "secret",
+		DeepSeekApiKey: "sk-xxx",
+		Users:         []model.User{{Username: "admin"}},
+	})
+	defer service.SetOSSetting(old)
+
+	w := performGet(t, GetSettingInfo)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]any
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.Empty(t, resp["AdminPassword"])
+	assert.Empty(t, resp["DeepSeekApiKey"])
+	assert.Nil(t, resp["Users"])
+	assert.NotEmpty(t, resp["Dirs"])
+}
+
+func TestGetServerPort_Default(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := performGet(t, GetServerPort)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]any
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.Equal(t, ":10081", resp["runningPort"])
+}
+
+func TestGetServerPort_ConfiguredDifferent(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{controllerHost: "0.0.0.0:20081"})
+
+	w := performGet(t, GetServerPort)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]any
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.Equal(t, ":20081", resp["configuredPort"])
+	assert.Equal(t, true, resp["changed"])
+}
+
+// ============== Lan Controller Tests ==============
+
+func TestGetLanPeers_Empty(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+	service.LocalNodeHost = "test-pc:10081"
+	service.LocalNodeName = "测试机"
+	t.Cleanup(func() {
+		service.LocalNodeHost = ""
+		service.LocalNodeName = ""
+	})
+
+	w := performGet(t, GetLanPeers)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]any
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.Equal(t, "test-pc:10081", resp["localNodeHost"])
+	assert.Equal(t, "测试机", resp["localNodeName"])
+	// defaultManager 为 nil 时 peers 为 null，unmarshal 后为 nil
+}
+
+func TestGetPeerStats_MissingNode(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/peerStats?node=", nil)
+	GetPeerStats(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestGetLanPeersWithStats_Empty(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := performGet(t, GetLanPeersWithStats)
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestAddLanPeer_NoAdminReturns403(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := performPost(t, AddLanPeer, `{"addr":"10.0.0.1:10081"}`)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestRemoveLanPeer_NoAdminReturns403(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := performPost(t, RemoveLanPeer, `{"id":"10.0.0.1:10081"}`)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestTogglePeer_NoAdminReturns403(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := performPost(t, TogglePeer, `{"id":"10.0.0.1:10081","disabled":true}`)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestCleanLanPeers_NoAdminReturns403(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := performGet(t, CleanLanPeers)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestDiscoverLanPeers_NoAdminReturns403(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := performPost(t, DiscoverLanPeers, `{"subnet":"192.168.1"}`)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+// ============== splitLines 测试 ==============
+
+func TestSplitLines_Empty(t *testing.T) {
+	assert.Empty(t, splitLines(""))
+}
+
+func TestSplitLines_SingleLine(t *testing.T) {
+	assert.Equal(t, []string{"hello"}, splitLines("hello"))
+}
+
+func TestSplitLines_MultipleLines(t *testing.T) {
+	result := splitLines("line1\nline2\nline3")
+	assert.Equal(t, []string{"line1", "line2", "line3"}, result)
+}
+
+func TestSplitLines_TrailingNewline(t *testing.T) {
+	result := splitLines("a\nb\n")
+	assert.Equal(t, []string{"a", "b"}, result)
 }

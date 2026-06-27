@@ -108,6 +108,11 @@ func BuildAPIRouter(sigChan chan os.Signal) *gin.Engine {
 
 	router.NoRoute(handler.Index)
 	router.GET("/", handler.Index)
+
+	// 初始化接口（无需认证，首次部署时使用）
+	router.GET("/api/init", handler.GetInitStatus)
+	router.POST("/api/init/setup", handler.PostInitSetup)
+
 	router.POST("/api/login", handler.Login)
 	router.POST("/api/movieList", handler.PostMovies)
 

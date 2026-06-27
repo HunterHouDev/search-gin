@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 
+	"search-gin/internal/model"
 	"search-gin/internal/service"
 	"search-gin/pkg/utils"
 
@@ -12,6 +13,37 @@ import (
 type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+}
+
+// GetInitStatus 检查是否已完成初始化（adminPassword 是否已配置）
+func GetInitStatus(c *gin.Context) {
+	configured := service.GetOSSetting().AdminPassword != ""
+	c.JSON(http.StatusOK, gin.H{"configured": configured})
+}
+
+// PostInitSetup 初始化设置管理员密码（仅首次可调用）
+func PostInitSetup(c *gin.Context) {
+	if service.GetOSSetting().AdminPassword != "" {
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("管理员密码已配置，无法重复初始化"))
+		return
+	}
+
+	var req struct {
+		Password string `json:"password"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.Password == "" {
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("密码不能为空"))
+		return
+	}
+
+	service.UpdateOSSetting(func(s model.Setting) model.Setting {
+		s.AdminPassword = req.Password
+		return s
+	})
+	service.CacheAdminPasswordHash()
+	service.FlushDictionary(service.GetOSSetting().SelfPath)
+
+	c.JSON(http.StatusOK, utils.NewSuccessByMsg("管理员密码设置成功，请登录"))
 }
 
 func Login(c *gin.Context) {
