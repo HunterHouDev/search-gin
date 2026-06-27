@@ -376,10 +376,20 @@ func DiscoverLanPeers(subnet string) ([]DiscoveredPeer, string) {
 		return nil, ""
 	}
 
-	// 校验格式：必须为三段 IP 前缀如 "192.168.1"
+	// 校验格式：三段 IP 前缀如 "192.168.1" 扫 /24，四段完整 IP 单机检测
 	parts := strings.Split(subnet, ".")
+	if len(parts) == 4 {
+		// 单 IP 检测
+		for _, p := range parts {
+			if n, err := strconv.Atoi(p); err != nil || n < 0 || n > 255 {
+				utils.InfoFormat("LAN 发现：IP 格式错误 %q", subnet)
+				return nil, localPrefix
+			}
+		}
+		return checkSingleHost(subnet), localPrefix
+	}
 	if len(parts) != 3 {
-		utils.InfoFormat("LAN 发现：子网格式错误 %q，需要三段 IP 前缀如 192.168.1", subnet)
+		utils.InfoFormat("LAN 发现：子网格式错误 %q，需要三段 IP 前缀如 192.168.1 或完整 IP", subnet)
 		return nil, localPrefix
 	}
 	for _, p := range parts {
@@ -399,6 +409,16 @@ func DiscoverLanPeers(subnet string) ([]DiscoveredPeer, string) {
 		ok       bool
 	}
 
+	// 共享 transport 复用连接
+	sharedTransport := &http.Transport{
+		MaxIdleConnsPerHost: 100,
+	}
+	sharedClient := &http.Client{
+		Timeout:   discoverTimeout,
+		Transport: sharedTransport,
+	}
+	defer sharedClient.CloseIdleConnections()
+
 	results := make(chan result, 256)
 	sem := make(chan struct{}, 20)
 	var wg sync.WaitGroup
@@ -413,13 +433,11 @@ func DiscoverLanPeers(subnet string) ([]DiscoveredPeer, string) {
 			defer func() { <-sem }()
 
 			url := fmt.Sprintf("http://%s:%s/api/heartBeat", ip, defaultPort)
-			client := &http.Client{Timeout: discoverTimeout}
-			resp, err := client.Get(url)
+			resp, err := sharedClient.Get(url)
 			if err != nil {
 				return
 			}
-			defer resp.Body.Close()
-			io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
 
 			if resp.StatusCode == http.StatusOK {
 				results <- result{ip: ip, ok: true}
@@ -437,8 +455,7 @@ func DiscoverLanPeers(subnet string) ([]DiscoveredPeer, string) {
 		if r.ok {
 			nodeName := r.ip
 			infoURL := fmt.Sprintf("http://%s:%s/api/lanPeers", r.ip, defaultPort)
-			client := &http.Client{Timeout: discoverTimeout}
-			if resp, err := client.Get(infoURL); err == nil {
+			if resp, err := sharedClient.Get(infoURL); err == nil {
 				var info struct {
 					LocalNodeHost string `json:"localNodeHost"`
 					LocalNodeName string `json:"localNodeName"`
@@ -459,6 +476,47 @@ func DiscoverLanPeers(subnet string) ([]DiscoveredPeer, string) {
 	}
 
 	return discovered, localPrefix
+}
+
+// checkSingleHost 检测单个 IP 是否为 search-gin 节点
+func checkSingleHost(ip string) []DiscoveredPeer {
+	parts := strings.Split(ip, ".")
+	if len(parts) != 4 {
+		return nil
+	}
+	defaultPort := strings.TrimPrefix(PortNo, ":")
+	filePort := strings.TrimPrefix(FilePortNo, ":")
+	client := &http.Client{Timeout: 3 * time.Second}
+
+	url := fmt.Sprintf("http://%s:%s/api/heartBeat", ip, defaultPort)
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	}
+
+	// 获取节点别名
+	nodeName := ip
+	infoURL := fmt.Sprintf("http://%s:%s/api/lanPeers", ip, defaultPort)
+	if r, err := client.Get(infoURL); err == nil {
+		var info struct {
+			LocalNodeName string `json:"localNodeName"`
+		}
+		if json.NewDecoder(r.Body).Decode(&info) == nil && info.LocalNodeName != "" {
+			nodeName = info.LocalNodeName
+		}
+		r.Body.Close()
+	}
+
+	return []DiscoveredPeer{{
+		IP:       ip,
+		Port:     defaultPort,
+		FilePort: filePort,
+		NodeName: nodeName,
+	}}
 }
 
 // GetPeer 从 NodeHost 获取完整 Peer 信息

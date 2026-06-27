@@ -597,10 +597,10 @@ const discoverPeers = async () => {
   cluster.discovered = [];
   try {
     const res = await DiscoverLanPeers(input);
-    if (res.success && Array.isArray(res.data)) {
-      // 标注入围节点中哪些已在在线列表
-      const existingIds = new Set(cluster.peers.map((p: any) => p.ID));
-      cluster.discovered = res.data.map((d: any) => ({
+    const peersList = res.peers || [];
+    if (res.success && Array.isArray(peersList)) {
+      const existingIds = new Set(cluster.peers.map((p: any) => p.id));
+      cluster.discovered = peersList.map((d: any) => ({
         ...d,
         _adding: false,
         _existing: existingIds.has(`${d.ip}:${d.port}`),
