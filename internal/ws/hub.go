@@ -95,7 +95,7 @@ func NewHub(maxHistory int) *Hub {
 	return &Hub{
 		clients:     make(map[*ClientConn]bool),
 		register:    make(chan *ClientConn),
-		unregister:  make(chan *ClientConn),
+		unregister:  make(chan *ClientConn, 256),
 		broadcast:   make(chan []byte, 256),
 		chatHistory: make([]ChatMessage, 0, maxHistory),
 		maxHistory:  maxHistory,

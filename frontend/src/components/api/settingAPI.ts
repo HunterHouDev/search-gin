@@ -56,6 +56,11 @@ export const TogglePeer = async (id: string, disabled: boolean) => {
   return res && res.data;
 };
 
+export const DiscoverLanPeers = async (subnet: string) => {
+  const res = await commonAxios().post('/api/discoverPeers', { subnet });
+  return res && res.data;
+};
+
 export const CleanLanPeers = async () => {
   const res = await commonAxios().post('/api/cleanLanPeers');
   return res && res.data;

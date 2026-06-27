@@ -175,7 +175,7 @@ if (sessionStorage.getItem('isAuthenticated')) {
       timeLogoutShow.value = `${time}秒`;
     }
     if (time < 60) {
-      console.log('即将退出', timeLogoutShow.value);
+
     }
     if (!systemProperty.expireTime || time < 0) {
       sessionStorage.removeItem('isAuthenticated');

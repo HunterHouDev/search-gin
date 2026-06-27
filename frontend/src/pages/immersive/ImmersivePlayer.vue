@@ -565,7 +565,6 @@ const pageOptions = ref([10, 20, 40, 60]);
 const gotoPage = ref(1);
 
 const pageNoGoto = (e) => {
-  console.log('pageNoGoto', e);
   const page = Number(gotoPage.value);
   if (page && page >= 1 && page <= searchResults.TotalPage) {
     searchParams.Page = page;

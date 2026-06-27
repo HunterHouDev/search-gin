@@ -1256,7 +1256,6 @@ const playByPage = (item) => {
   if ($q.platform.is.electron) {
     window.electron.createWindow({ router: url });
   } else {
-    console.log('singleWindow', simgleWindow.value);
     const options = `width=${simgleWindow.value.width},height=${simgleWindow.value.height},titleBarStyle=`;
     window.open(url, 'player', options);
   }
@@ -1525,7 +1524,6 @@ const openFileInfoRef = (item, playing) => {
 };
 
 const pictureRightClick = async (item, e) => {
-  console.log('pictureRightClick', view.playBy);
   if (item.MovieType === '无' || !item.MovieType) {
     view.currentDataInEditor = item;
     fileEditRef.value.open(item);
@@ -1582,7 +1580,6 @@ const fetchNodeList = async () => {
 };
 
 const gotoPageNo = async (no) => {
-  console.log('gotoPageNo', no);
   if (no && no > 0) {
     view.queryParam.Page = Number(no);
   } else {
@@ -1594,7 +1591,6 @@ const gotoPageNo = async (no) => {
 
 const gotoPage = ref(1);
 const pageNoGoto = (no) => {
-  console.log('pageNoGoto', no);
   gotoPageNo(Number(no));
 };
 
@@ -1675,7 +1671,6 @@ const fetchSearch = async (replace = false) => {
     const data = await SearchAPI(view.queryParam, currentController.signal);
     // 如果已被取消（新的请求已发出），丢弃旧结果
     if (currentController.signal.aborted) return;
-    console.log('搜索结果:', data);
     view.resultData = { ...data };
     const { ResultSize, ResultCnt } = data;
     document.title = `${Keyword || ''}  ${ResultSize} {${ResultCnt}}`;
@@ -1690,7 +1685,6 @@ const fetchSearch = async (replace = false) => {
 };
 
 const moveThis = async () => {
-  console.log('moveThis', moveView);
   moveView.targetPathDialog = false;
   const updated = await commonExec(() =>
     MoveFile({
@@ -1835,13 +1829,11 @@ onMounted(async () => {
     if (from === 'index') {
       const piniaParam = systemProperty.FileSearchParam;
       if (piniaParam) {
-        console.log('piniaParam', piniaParam);
         view.queryParam = piniaParam;
       }
     } else {
       const storage = JSON.parse(localStorage.getItem('queryParam'));
       if (storage) {
-        console.log('storage', storage);
         view.queryParam = storage;
       }
     }

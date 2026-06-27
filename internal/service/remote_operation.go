@@ -37,7 +37,7 @@ func HandleRemote(c *gin.Context, movie model.FileItem, action string) bool {
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 100<<20)) // 100MB 上限
 	if err != nil {
 		utils.ErrorFormat("读取远程响应失败 [%s]: %v", action, err)
 		c.JSON(http.StatusBadGateway, utils.NewFailByMsg("读取远程响应失败"))

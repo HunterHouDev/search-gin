@@ -70,7 +70,6 @@ const closePage = () => {
 const closeApp = async () => {
 
   const res = await AppShutDown();
-  console.log(res);
   $q.notify({ message: `${res}`, position: 'center' });
   setTimeout(() => {
     window.location.href = 'about:blank'; window.close();
@@ -80,7 +79,6 @@ const closeApp = async () => {
 const submitBtn = () => {
   clearTimeout(systemProperty.shutdownTimer);
   if (view.shutdownType === 'now') {
-    console.log('GetShutDown now');
     GetShutDown();
   } else if (view.shutdownType === 'target') {
     systemProperty.shutdownLeftSecond =
@@ -88,12 +86,10 @@ const submitBtn = () => {
       (view.shutdownMM || 0) * 60 +
       (view.shutdownSS || 0);
     systemProperty.shutdownTimer = setInterval(() => {
-      console.log(systemProperty.shutdownLeftSecond);
       systemProperty.shutdownLeftSecond = systemProperty.shutdownLeftSecond - 1;
       if (systemProperty.shutdownLeftSecond < 0) {
         clearTimeout(systemProperty.shutdownTimer);
         GetShutDown();
-        console.log('GetShutDown timeout');
       }
     }, 1000);
   }

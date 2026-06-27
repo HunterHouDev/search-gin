@@ -53,13 +53,49 @@
 
         <q-card class="q-pa-xs">
           <q-card-section class="q-pa-sm">
-            <div class="row items-center justify-between q-mb-xs">
-              <div class="text-subtitle2">在线节点 ({{ cluster.peers.length }})</div>
-              <div class="row q-gutter-xs">
-                <q-btn flat  icon="add"  color="positive" @click="showAddPeerDialog = true">添加</q-btn>
-                <q-btn flat  icon="refresh"  color="primary" @click="fetchPeers" :loading="cluster.loading">刷新</q-btn>
+              <div class="row items-center justify-between q-mb-xs">
+                <div class="text-subtitle2">在线节点 ({{ cluster.peers.length }})</div>
+                <div class="row q-gutter-xs">
+                  <q-btn flat  icon="refresh"  color="primary" @click="fetchPeers" :loading="cluster.loading">刷新</q-btn>
+                </div>
               </div>
-            </div>
+
+              <!-- 发现/添加节点：输入子网前缀扫描 /24，或输入完整 IP 单机检测 -->
+              <div class="row items-center q-gutter-xs q-mb-sm">
+                <q-input dense outlined v-model="cluster.discoverInput" label="IP / 子网前缀"
+                  placeholder="如 192.168.1 或 192.168.1.50" style="max-width: 220px"
+                  :disable="cluster.discovering" @keyup.enter="discoverPeers" />
+                <q-btn flat icon="wifi_find" color="info" @click="discoverPeers"
+                  :loading="cluster.discovering" :disable="!cluster.discoverInput">发现</q-btn>
+              </div>
+
+              <!-- 发现节点列表 -->
+              <q-slide-transition>
+                <div v-if="cluster.discovered.length > 0" class="q-mb-sm">
+                  <q-card flat bordered class="bg-blue-1">
+                    <q-card-section class="q-pa-sm">
+                      <div class="row items-center q-mb-xs">
+                        <div class="text-caption text-weight-bold text-primary">已发现 {{ cluster.discovered.length }} 个节点</div>
+                        <q-space />
+                        <q-btn flat dense icon="close" size="sm" @click="cluster.discovered = []" />
+                      </div>
+                      <div v-for="d in cluster.discovered" :key="d.ip" class="row items-center q-gutter-xs q-mb-xs">
+                        <q-chip outline color="primary" size="sm" icon="computer">
+                          {{ d.nodeName || d.ip }}
+                        </q-chip>
+                        <span class="text-caption text-grey">{{ d.ip }}:{{ d.port }}</span>
+                        <q-space />
+                        <q-btn v-if="!d._existing" dense flat size="sm" color="positive" icon="add" @click="addDiscoveredPeer(d)"
+                          :disable="d._adding" :loading="d._adding">添加</q-btn>
+                        <q-chip v-else dense outline color="grey" size="sm" icon="check">已存在</q-chip>
+                      </div>
+                      <div v-if="cluster.discovered.length === 0" class="text-caption text-grey q-py-xs text-center">
+                        未发现节点
+                      </div>
+                    </q-card-section>
+                  </q-card>
+                </div>
+              </q-slide-transition>
 
             <q-table
               :rows="cluster.peers"
@@ -254,41 +290,6 @@
       </q-tab-panel>
     </q-tab-panels>
 
-    <!-- 添加节点弹窗 -->
-    <q-dialog v-model="showAddPeerDialog" persistent @before-show="resetPeerTest">
-      <q-card style="min-width: 420px" class="q-pa-xs">
-        <q-card-section class="q-pa-sm">
-          <div class="text-subtitle2 q-mb-sm">手动添加在线节点</div>
-          <q-input v-model="newPeer.ip" label="IP 地址" placeholder="例如: 192.168.1.102"  outlined autofocus class="q-mb-xs" />
-          <div class="row q-gutter-xs q-mb-xs">
-            <q-input v-model="newPeer.port" label="API 端口" placeholder="10081"  outlined style="max-width: 130px" />
-            <q-input v-model="newPeer.filePort" label="文件端口" placeholder="10082"  outlined style="max-width: 130px" />
-          </div>
-          <div class="row items-center q-gutter-xs">
-            <q-btn  outline
-              :color="ipTestResult === true ? 'positive' : (ipTestResult === false ? 'negative' : 'grey')"
-              :icon="peerTestStatus === 'testing' ? 'sync' : (ipTestResult === true ? 'check_circle' : (ipTestResult === false ? 'cancel' : 'computer'))"
-              :loading="peerTestStatus === 'testing' && !portTestDone"
-              :disable="!newPeer.ip.trim() || peerTestStatus === 'testing'"
-              @click="testIPConnection">
-              {{ peerTestStatus === 'testing' && !portTestDone ? 'IP检测中...' : (ipTestResult === true ? 'IP可达' : (ipTestResult === false ? 'IP不可达' : '检测IP')) }}
-            </q-btn>
-            <q-btn  outline
-              :color="portTestResult === true ? 'positive' : (portTestResult === false ? 'negative' : 'grey')"
-              :icon="peerTestStatus === 'testing' && portTestDone ? 'sync' : (portTestResult === true ? 'check_circle' : (portTestResult === false ? 'cancel' : 'router'))"
-              :loading="peerTestStatus === 'testing' && portTestDone"
-              :disable="!newPeer.ip.trim() || !newPeer.port.trim() || peerTestStatus === 'testing'"
-              @click="testPortConnection">
-              {{ peerTestStatus === 'testing' && portTestDone ? '端口检测中...' : (portTestResult === true ? '端口开放' : (portTestResult === false ? '端口不通' : '检测端口')) }}
-            </q-btn>
-          </div>
-        </q-card-section>
-        <q-card-actions align="right" class="q-pa-sm q-pt-none">
-          <q-btn flat  label="取消" color="grey" v-close-popup @click="resetPeerTest" />
-          <q-btn flat  label="添加" color="primary" :disable="!newPeer.ip.trim()" @click="addManualPeer" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
   </div>
 </template>
 
@@ -296,7 +297,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRoute, useRouter } from 'vue-router';
-import { GetSettingInfo, GetIpAddr, GeMemeryLog, GetLocalLog, GetLanPeers, PostSettingInfo, AddLanPeer, RemoveLanPeer, TogglePeer, GetUsers, AddUser, DeleteUser, PingHost } from '../../components/api/settingAPI';
+import { GetSettingInfo, GetIpAddr, GeMemeryLog, GetLocalLog, GetLanPeers, PostSettingInfo, AddLanPeer, RemoveLanPeer, TogglePeer, GetUsers, AddUser, DeleteUser, DiscoverLanPeers } from '../../components/api/settingAPI';
 import { useSystemProperty } from '../../stores/System';
 
 const systemProperty = useSystemProperty();
@@ -309,16 +310,6 @@ const themeStyle = computed(() => ({
 const route = useRoute();
 const router = useRouter();
 const tab = ref((route.query.tab as string) || 'info');
-const newPeer = reactive({
-  ip: '',
-  port: '10081',
-  filePort: '10082',
-});
-const showAddPeerDialog = ref(false);
-const peerTestStatus = ref<'idle' | 'testing' | 'done'>('idle');
-const ipTestResult = ref<boolean | null>(null);
-const portTestResult = ref<boolean | null>(null);
-const portTestDone = ref(false);
 
 // 用户管理
 const showAddUserDialog = ref(false);
@@ -545,6 +536,9 @@ const cluster = reactive({
   localNodeName: '',
   peers: [],
   loading: false,
+  discovering: false,
+  discovered: [] as { ip: string; port: string; filePort?: string; nodeName?: string; _adding?: boolean; _existing?: boolean }[],
+  discoverInput: '',
   clusterEnabled: true,
 });
 
@@ -569,6 +563,9 @@ const fetchPeers = async () => {
       cluster.localNodeHost = res.localNodeHost || '';
       cluster.localNodeName = res.localNodeName || '';
       cluster.peers = (res.peers || []).map((p: any) => ({ ...p, _alive: null, _checking: false }));
+      if (res.localSubnet && !cluster.discoverInput) {
+        cluster.discoverInput = res.localSubnet;
+      }
     }
   } catch (e) {
     console.error('获取集群信息失败', e);
@@ -591,75 +588,46 @@ const checkPeer = async (peer: any) => {
   }
 };
 
-const testIPConnection = async () => {
-  const ip = newPeer.ip.trim();
-  if (!ip) return;
-  peerTestStatus.value = 'testing';
-  portTestDone.value = false;
-  ipTestResult.value = null;
+// 发现节点：输入子网前缀扫 /24，或完整 IP 单机检测
+const discoverPeers = async () => {
+  const input = cluster.discoverInput.trim();
+  if (!input) return;
+
+  cluster.discovering = true;
+  cluster.discovered = [];
   try {
-    const res = await PingHost(ip);
-    ipTestResult.value = res?.alive === true;
-  } catch {
-    ipTestResult.value = false;
+    const res = await DiscoverLanPeers(input);
+    if (res.success && Array.isArray(res.data)) {
+      // 标注入围节点中哪些已在在线列表
+      const existingIds = new Set(cluster.peers.map((p: any) => p.ID));
+      cluster.discovered = res.data.map((d: any) => ({
+        ...d,
+        _adding: false,
+        _existing: existingIds.has(`${d.ip}:${d.port}`),
+      }));
+    }
+  } catch (e) {
+    $q.notify({ message: '发现节点失败', color: 'negative', position: 'top', timeout: 2000 });
   } finally {
-    peerTestStatus.value = 'done';
+    cluster.discovering = false;
   }
 };
 
-const testPortConnection = async () => {
-  const ip = newPeer.ip.trim();
-  const port = newPeer.port.trim() || '10081';
-  if (!ip || !port) return;
-  peerTestStatus.value = 'testing';
-  portTestDone.value = true;
-  portTestResult.value = null;
+const addDiscoveredPeer = async (d: any) => {
+  d._adding = true;
   try {
-    const url = `http://${ip}:${port}/api/heartBeat`;
-    const resp = await fetch(url, { method: 'GET', signal: AbortSignal.timeout(5000) });
-    portTestResult.value = resp.ok;
-  } catch {
-    portTestResult.value = false;
-  } finally {
-    peerTestStatus.value = 'done';
-  }
-};
-
-const resetPeerTest = () => {
-  peerTestStatus.value = 'idle';
-  ipTestResult.value = null;
-  portTestResult.value = null;
-  portTestDone.value = false;
-};
-
-const addManualPeer = async () => {
-  const ip = newPeer.ip.trim();
-  const port = newPeer.port.trim() || '10081';
-  const filePort = newPeer.filePort.trim() || '10082';
-  if (!ip) return;
-
-  // 检查是否已在在线列表中
-  const exists = cluster.peers.some((p: any) => p.ID === `${ip}:${port}`);
-  if (exists) {
-    $q.notify({ message: '节点已在线', color: 'warning', position: 'top', timeout: 2000 });
-    return;
-  }
-
-  try {
-    const res = await AddLanPeer(ip, port, filePort);
+    const res = await AddLanPeer(d.ip, d.port, d.filePort || d.port);
     if (res.success) {
-      $q.notify({ message: '添加成功', color: 'positive', position: 'top', timeout: 2000 });
-      newPeer.ip = '';
-      newPeer.port = '10081';
-      newPeer.filePort = '10082';
-      showAddPeerDialog.value = false;
+      $q.notify({ message: `已添加 ${d.ip}`, color: 'positive', position: 'top', timeout: 2000 });
+      d._existing = true;
       await fetchPeers();
     } else {
       $q.notify({ message: res.msg || '添加失败', color: 'negative', position: 'top', timeout: 2000 });
     }
-  } catch (e) {
-    console.error('添加节点失败', e);
+  } catch {
     $q.notify({ message: '添加失败', color: 'negative', position: 'top', timeout: 2000 });
+  } finally {
+    d._adding = false;
   }
 };
 

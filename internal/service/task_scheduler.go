@@ -118,6 +118,8 @@ func (s *searchService) pollTasks() {
 		InitTaskSlots(maxSlot)
 	}
 
+	var toStart []model.TransferTaskModel
+
 	TransferTaskMutex.RLock()
 	for _, t := range TransferTask {
 		if !strings.EqualFold(t.Status, model.StatusPending) {
@@ -142,25 +144,31 @@ func (s *searchService) pollTasks() {
 			continue
 		}
 
+		toStart = append(toStart, task)
+	}
+	TransferTaskMutex.RUnlock()
+
+	for _, task := range toStart {
 		markTaskExecuting(task.CreateTime)
 		LogMem.Add("pollTasks: 启动任务 CreateTime=%v, type=%s, path=%s", task.CreateTime, task.Type, task.Path)
 
+		t := task
 		go func() {
 			defer utils.RecoverPanic()
 			defer wakeTaskScheduler()
 
-			isTranscode := strings.EqualFold(task.Type, model.TaskTypeTrans)
+			isTranscode := strings.EqualFold(t.Type, model.TaskTypeTrans)
 			if isTranscode {
 				transcodeCount.Add(1)
 			}
 
 			switch {
-			case strings.EqualFold(task.Type, model.TaskTypeTrans):
-				TransferFormatter(task)
-			case strings.EqualFold(task.Type, model.TaskTypeCut):
-				CutFormatter(task)
-			case strings.EqualFold(task.Type, model.TaskTypeMerge):
-				MergeFiles(task)
+			case strings.EqualFold(t.Type, model.TaskTypeTrans):
+				TransferFormatter(t)
+			case strings.EqualFold(t.Type, model.TaskTypeCut):
+				CutFormatter(t)
+			case strings.EqualFold(t.Type, model.TaskTypeMerge):
+				MergeFiles(t)
 			}
 
 			if isTranscode {
@@ -169,7 +177,6 @@ func (s *searchService) pollTasks() {
 			releaseTaskSlot()
 		}()
 	}
-	TransferTaskMutex.RUnlock()
 }
 
 // markTaskExecuting 在 TransferTask map 中原子地将任务标记为执行中

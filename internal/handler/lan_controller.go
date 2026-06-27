@@ -17,12 +17,16 @@ func GetLanPeers(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"localNodeHost": service.LocalNodeHost,
 		"localNodeName": service.LocalNodeName,
+		"localSubnet":   service.GetLocalSubnet(),
 		"peers":         peers,
 	})
 }
 
 // AddLanPeer 手动添加节点
 func AddLanPeer(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
 	var req struct {
 		Addr     string `json:"addr"`     // "ip:port"（兼容旧格式）
 		IP       string `json:"ip"`       // IP 地址
@@ -62,6 +66,9 @@ func AddLanPeer(c *gin.Context) {
 
 // RemoveLanPeer 删除手动添加的节点
 func RemoveLanPeer(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
 	var req struct {
 		ID string `json:"id"` // "ip:port"
 	}
@@ -78,6 +85,9 @@ func RemoveLanPeer(c *gin.Context) {
 
 // TogglePeer 启用/禁用节点
 func TogglePeer(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
 	var req struct {
 		ID       string `json:"id"`
 		Disabled bool   `json:"disabled"`
@@ -99,11 +109,33 @@ func TogglePeer(c *gin.Context) {
 
 // CleanLanPeers 手动清理超时节点
 func CleanLanPeers(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
 	count := service.CleanExpiredPeers()
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"count":   count,
 		"msg":     "已清理 " + strconv.Itoa(count) + " 个超时节点",
+	})
+}
+
+// DiscoverLanPeers 扫描局域网发现候选节点
+// 可指定 subnet 参数（如 "192.168.1"），为空时自动检测本机子网
+func DiscoverLanPeers(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+	var req struct {
+		Subnet string `json:"subnet"`
+	}
+	c.ShouldBindJSON(&req)
+
+	peers, localPrefix := service.DiscoverLanPeers(req.Subnet)
+	c.JSON(http.StatusOK, gin.H{
+		"success":     true,
+		"peers":       peers,
+		"localPrefix": localPrefix,
 	})
 }
 

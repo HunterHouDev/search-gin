@@ -129,7 +129,6 @@ const addValue = () => {
 };
 
 const moveRight = (str, step) => {
-  console.log(str, step);
   if (!value.value) {
     value.value = [];
   }
@@ -153,7 +152,6 @@ const removeThis = (str) => {
   if (!value.value) {
     value.value = [];
   }
-  console.log(str);
   if (value.value.indexOf(str) < 0) {
     return;
   }

@@ -39,16 +39,12 @@ type Setting struct {
 
 	DeepSeekApiKey string `json:"deepSeekApiKey"`
 
-	// AdminPassword 管理员密码，从 setting.json 读取；未设置时兜底用代码中的硬编码密码 qwer
+	// AdminPassword 管理员密码，从 setting.json 读取；未设置时登录将提示配置
 	AdminPassword string `json:"adminPassword"`
 
 	NodeName           string   `json:"nodeName"`
 	EnableLanDiscovery *bool    `json:"enableLanDiscovery"`
 	DiscoveryPeers     []string `json:"discoveryPeers"`
-
-	// StreamSecret AES-256-GCM 流加密密钥（hex 编码，32 字节 → 64 hex 字符）
-	// 未设置时使用代码内建固定密钥。多节点共享同一密钥方可跨节点解密 streamToken。
-	StreamSecret string `json:"streamSecret"`
 
 	Users []User `json:"users"`
 

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -8,6 +9,7 @@ import (
 	"os"
 	"search-gin/internal/model"
 	"search-gin/pkg/utils"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -186,17 +188,6 @@ func IsKnownPeerIP(ip string) bool {
 	return false
 }
 
-// TryVerifyAndAddPeer 向指定 IP 发起反向心跳验证，通过则自动加入集群
-// 用于 AuthMiddleware 首次遇到未知 IP 时自动发现
-func TryVerifyAndAddPeer(ip string) bool {
-	if defaultManager == nil {
-		return false
-	}
-	port := strings.TrimPrefix(PortNo, ":")
-	filePort := strings.TrimPrefix(FilePortNo, ":")
-	return AddPeer(ip, port, filePort)
-}
-
 // GetPeerStats 获取指定节点的文件总数和总大小
 func GetPeerStats(nodeID string) (totalCnt int, totalSize string, nodeName string) {
 	if defaultManager == nil {
@@ -320,6 +311,154 @@ func ResolvePeerIP(nodeHost string) string {
 		return p.IP
 	}
 	return ""
+}
+
+// DiscoveredPeer 发现到的候选节点
+type DiscoveredPeer struct {
+	IP       string `json:"ip"`
+	Port     string `json:"port"`
+	FilePort string `json:"filePort"`
+	NodeName string `json:"nodeName"`
+}
+
+// GetLocalSubnet 探测本机第一个合适的 /24 子网前缀，返回如 "192.168.1"
+func GetLocalSubnet() string {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return ""
+	}
+	for _, iface := range interfaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			ipnet, ok := addr.(*net.IPNet)
+			if !ok || ipnet.IP.To4() == nil {
+				continue
+			}
+			mask := ipnet.Mask
+			if ones, bits := mask.Size(); ones != 24 || bits != 32 {
+				continue
+			}
+			ip4 := ipnet.IP.To4()
+			if ip4 == nil {
+				continue
+			}
+			if ip4[0] == 172 || ip4[0] == 10 || ip4[0] == 100 {
+				continue
+			}
+			base := ipnet.IP.String()
+			idx := strings.LastIndex(base, ".")
+			if idx < 0 {
+				continue
+			}
+			return base[:idx]
+		}
+	}
+	return ""
+}
+
+// DiscoverLanPeers 扫描局域网发现 search-gin 节点
+// subnet: 指定子网前缀如 "192.168.1"，为空时自动探测本机子网
+// 返回发现列表和本机子网前缀
+func DiscoverLanPeers(subnet string) ([]DiscoveredPeer, string) {
+	localPrefix := GetLocalSubnet()
+	if subnet == "" {
+		subnet = localPrefix
+	}
+
+	if subnet == "" {
+		utils.InfoFormat("LAN 发现：未指定子网且未找到合适的本地子网")
+		return nil, ""
+	}
+
+	// 校验格式：必须为三段 IP 前缀如 "192.168.1"
+	parts := strings.Split(subnet, ".")
+	if len(parts) != 3 {
+		utils.InfoFormat("LAN 发现：子网格式错误 %q，需要三段 IP 前缀如 192.168.1", subnet)
+		return nil, localPrefix
+	}
+	for _, p := range parts {
+		if n, err := strconv.Atoi(p); err != nil || n < 0 || n > 255 {
+			utils.InfoFormat("LAN 发现：子网格式错误 %q，包含非法数字", subnet)
+			return nil, localPrefix
+		}
+	}
+
+	base := subnet + "."
+	defaultPort := strings.TrimPrefix(PortNo, ":")
+	filePort := strings.TrimPrefix(FilePortNo, ":")
+	discoverTimeout := 2 * time.Second
+
+	type result struct {
+		ip       string
+		ok       bool
+	}
+
+	results := make(chan result, 256)
+	sem := make(chan struct{}, 20)
+	var wg sync.WaitGroup
+
+	for i := 1; i <= 254; i++ {
+		targetIP := fmt.Sprintf("%s%d", base, i)
+
+		sem <- struct{}{}
+		wg.Add(1)
+		go func(ip string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			url := fmt.Sprintf("http://%s:%s/api/heartBeat", ip, defaultPort)
+			client := &http.Client{Timeout: discoverTimeout}
+			resp, err := client.Get(url)
+			if err != nil {
+				return
+			}
+			defer resp.Body.Close()
+			io.Copy(io.Discard, resp.Body)
+
+			if resp.StatusCode == http.StatusOK {
+				results <- result{ip: ip, ok: true}
+			}
+		}(targetIP)
+	}
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	var discovered []DiscoveredPeer
+	for r := range results {
+		if r.ok {
+			nodeName := r.ip
+			infoURL := fmt.Sprintf("http://%s:%s/api/lanPeers", r.ip, defaultPort)
+			client := &http.Client{Timeout: discoverTimeout}
+			if resp, err := client.Get(infoURL); err == nil {
+				var info struct {
+					LocalNodeHost string `json:"localNodeHost"`
+					LocalNodeName string `json:"localNodeName"`
+				}
+				if json.NewDecoder(resp.Body).Decode(&info) == nil && info.LocalNodeName != "" {
+					nodeName = info.LocalNodeName
+				}
+				resp.Body.Close()
+			}
+
+			discovered = append(discovered, DiscoveredPeer{
+				IP:       r.ip,
+				Port:     defaultPort,
+				FilePort: filePort,
+				NodeName: nodeName,
+			})
+		}
+	}
+
+	return discovered, localPrefix
 }
 
 // GetPeer 从 NodeHost 获取完整 Peer 信息

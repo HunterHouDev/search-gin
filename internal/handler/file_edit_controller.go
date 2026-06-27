@@ -24,7 +24,7 @@ func SetMovieType(c *gin.Context) {
 }
 
 func PostRename(c *gin.Context) {
-	bodyBytes, err := io.ReadAll(c.Request.Body)
+	bodyBytes, err := io.ReadAll(io.LimitReader(c.Request.Body, 10<<20)) // 10MB 上限
 	if err != nil {
 		utils.InfoNormal(err)
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("读取请求体失败"))
@@ -50,7 +50,7 @@ func PostRename(c *gin.Context) {
 }
 
 func PostMove(c *gin.Context) {
-	bodyBytes, err := io.ReadAll(c.Request.Body)
+	bodyBytes, err := io.ReadAll(io.LimitReader(c.Request.Body, 10<<20)) // 10MB 上限
 	if err != nil {
 		utils.InfoNormal(err)
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("读取请求体失败"))
@@ -124,11 +124,12 @@ func GetDirInfo(c *gin.Context) {
 func GetDelete(c *gin.Context) {
 	id := c.Param("id")
 
+	if service.HandleRemoteByID(c, id, "delete") {
+		return
+	}
+
 	result := UseApp().files.Delete(id)
 	if !result.IsSuccess() {
-		if service.HandleRemote(c, model.FileItem{}, "delete") {
-			return
-		}
 		c.JSON(http.StatusNotFound, result)
 		return
 	}

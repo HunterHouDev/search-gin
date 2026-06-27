@@ -129,25 +129,16 @@ onKeyStroke(['ArrowLeft'], (e) => {
   }
 });
 
-const nextPage = inject('gotoNextPage', () => {
-  console.log('gotoNextPage not found');
-});
+const nextPage = inject('gotoNextPage', () => {});
 
-const prevPage = inject('gotoPrevPage', () => {
-  console.log('gotoPrevPage not found');
-});
+const prevPage = inject('gotoPrevPage', () => {});
 onKeyStroke(true, (e) => {
-  console.log('onKeyStroke', e.code);
   if (!isNaN(e.key) && systemProperty.PlayingMovie.Id) {
     const r = e.key / 10;
     emmits('timeRate', r);
   } else if (e.code === 'NumpadSubtract') {
-    console.log('prevPage', prevPage);
-
     emmits('prevOne');
   } else if (e.code === 'NumpadAdd') {
-    console.log('nextPage', nextPage);
-
     emmits('nextOne');
   }
 });

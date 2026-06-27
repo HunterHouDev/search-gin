@@ -64,7 +64,9 @@
 </template>
 <script setup>
 import { inject, reactive } from 'vue';
+import { useQuasar } from 'quasar';
 import { DeleteFile } from 'components/api/searchAPI';
+const $q = useQuasar();
 const props = defineProps({
   currentData: {
     type: Object,
@@ -97,9 +99,7 @@ const deleteMouseOut = () => {
   }, 3000);
 };
 
-const fetchToUpdateList = inject('fetchToUpdateList', () => {
-  console.log('fetchToUpdateList not found');
-});
+const fetchToUpdateList = inject('fetchToUpdateList', () => {});
 
 const picDelete = async (n) => {
   const { Id } = props.currentData;

@@ -13,46 +13,32 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// ─── 管理员账号（纯常量） ──────────────────────────────────────────
+// ─── 管理员账号 ──────────────────────────────────────────────────
 
 const (
 	AdminUsername = "admin"
-	AdminPassword = "qwer" // 编译默认值；生产可通过 setting.json 的 adminPassword 字段覆盖
 	AdminRole     = "super_admin"
 )
 
-var adminPasswordHash string
-
-// adminPasswordHashFromSetting 缓存 setting.json 中 AdminPassword 的 bcrypt 哈希，
+// adminPasswordHash 缓存 setting.json 中 AdminPassword 的 bcrypt 哈希，
 // 在 InitSetting 中预计算，避免每次登录都重复 bcrypt (~100ms)
-var adminPasswordHashFromSetting string
-
-func init() {
-	hash, err := bcrypt.GenerateFromPassword([]byte(AdminPassword), bcrypt.DefaultCost)
-	if err != nil {
-		panic("生成管理员密码哈希失败: " + err.Error())
-	}
-	adminPasswordHash = string(hash)
-}
+var adminPasswordHash string
 
 // CacheAdminPasswordHash 预计算 setting.json 中 AdminPassword 的 bcrypt 哈希并缓存，
 // 由 InitSetting 在启动时调用
 func CacheAdminPasswordHash() {
 	pwd := GetOSSetting().AdminPassword
-	if pwd != "" {
-		hash, err := bcrypt.GenerateFromPassword([]byte(pwd), bcrypt.DefaultCost)
-		if err != nil {
-			utils.ErrorFormat("缓存管理员密码哈希失败: %v", err)
-			return
-		}
-		adminPasswordHashFromSetting = string(hash)
-		utils.InfoFormat("管理员密码哈希已缓存")
+	if pwd == "" {
+		utils.InfoFormat("未配置管理员密码，请在 setting.json 中设置 adminPassword")
+		return
 	}
-}
-
-// AdminPasswordHash 返回超管密码的 bcrypt 哈希
-func AdminPasswordHash() string {
-	return adminPasswordHash
+	hash, err := bcrypt.GenerateFromPassword([]byte(pwd), bcrypt.DefaultCost)
+	if err != nil {
+		utils.ErrorFormat("缓存管理员密码哈希失败: %v", err)
+		return
+	}
+	adminPasswordHash = string(hash)
+	utils.InfoFormat("管理员密码哈希已缓存")
 }
 
 // HashPassword 使用 bcrypt 对密码进行哈希
@@ -83,55 +69,38 @@ var (
 	tokenMu    sync.RWMutex
 )
 
-// NOTE: CleanExpiredTokens() 已定义但未自动周期执行。仅在 ValidateTokenWithInfo 的
-//       验证路径上惰性删除过期 token。当前设计可接受——token 4h 有效期，
-//       前端 sessionStorage 关闭即丢，实际不会出现无限增长。
-//       若需额外保障可加 `go tokenCleanupLoop()` 每 5 分钟定期清理。
 
-// StartTokenCleanupLoop 每天固定时间（凌晨 3:00）清理过期 token，周期性执行
-func StartTokenCleanupLoop() {
-	go func() {
-		defer utils.RecoverPanic()
-		now := time.Now()
-		// 计算下次 03:00（凌晨 3 点）
-		next := time.Date(now.Year(), now.Month(), now.Day(), 3, 0, 0, 0, now.Location())
-		if !now.Before(next) {
-			next = next.Add(24 * time.Hour)
-		}
-		time.Sleep(next.Sub(now))
-		utils.InfoFormat("Token 定期清理已启动，下次执行时间: %s", next.Format("2006-01-02 15:04:05"))
-
-		ticker := time.NewTicker(24 * time.Hour)
-		defer ticker.Stop()
-		for range ticker.C {
-			CleanExpiredTokens()
-			utils.InfoFormat("Token 定期清理完成，当前 token 数量: %d", len(tokenStore))
-		}
-	}()
-}
-
-// SetToken 设置 token
+// SetToken 设置 token，到期后自动清理
 func SetToken(token string, expireTime time.Time, username string, role string) {
 	tokenMu.Lock()
-	defer tokenMu.Unlock()
 	tokenStore[token] = TokenInfo{
 		ExpireTime: expireTime,
 		Username:   username,
 		Role:       role,
 	}
+	tokenMu.Unlock()
+
+	// 到期后自动删除，无需定时轮询
+	delay := time.Until(expireTime)
+	if delay > 0 {
+		time.AfterFunc(delay, func() {
+			tokenMu.Lock()
+			delete(tokenStore, token)
+			tokenMu.Unlock()
+		})
+	}
 }
 
 // ValidateTokenWithInfo 验证 token 并返回 TokenInfo
 func ValidateTokenWithInfo(token string) (TokenInfo, bool) {
-	tokenMu.RLock()
+	tokenMu.Lock()
 	tokenInfo, exists := tokenStore[token]
-	tokenMu.RUnlock()
 	if !exists {
+		tokenMu.Unlock()
 		return TokenInfo{}, false
 	}
 
 	if time.Now().After(tokenInfo.ExpireTime) {
-		tokenMu.Lock()
 		delete(tokenStore, token)
 		tokenMu.Unlock()
 		return TokenInfo{}, false
@@ -139,16 +108,15 @@ func ValidateTokenWithInfo(token string) (TokenInfo, bool) {
 
 	// 兼容旧 token：admin 用户 role 为空时自动补全并持久化
 	if tokenInfo.Role == "" && tokenInfo.Username == AdminUsername {
-		tokenMu.Lock()
 		info := tokenStore[token]
 		info.Role = AdminRole
 		tokenStore[token] = info
-		tokenMu.Unlock()
 		tokenInfo.Role = AdminRole
 	}
 
 	// 普通用户检查有效期
 	if tokenInfo.Username != AdminUsername && tokenInfo.Username != "" {
+		tokenMu.Unlock()
 		for _, user := range GetOSSettingUsers() {
 			if user.Username == tokenInfo.Username {
 				if user.ExpireDate != "" {
@@ -163,22 +131,11 @@ func ValidateTokenWithInfo(token string) (TokenInfo, bool) {
 				break
 			}
 		}
+		return tokenInfo, true
 	}
 
+	tokenMu.Unlock()
 	return tokenInfo, true
-}
-
-// CleanExpiredTokens 清理过期 token
-func CleanExpiredTokens() {
-	tokenMu.Lock()
-	defer tokenMu.Unlock()
-
-	now := time.Now()
-	for token, tokenInfo := range tokenStore {
-		if now.After(tokenInfo.ExpireTime) {
-			delete(tokenStore, token)
-		}
-	}
 }
 
 // ─── 登录服务 ───────────────────────────────────────────────────
@@ -194,22 +151,16 @@ type LoginResult struct {
 }
 
 // LoginUser 验证用户名密码并签发 token
-// 密码验证优先级：setting.json 的 AdminPassword > 编译常量的 qwer
+// 密码来源：仅 setting.json 的 adminPassword 字段，无编译回退
 // 当 username 为空时，仅凭密码匹配 admin 登录
 func LoginUser(username, password string) LoginResult {
 	// 无用户名或用户名为 admin → 按 admin 密码匹配
 	if username == "" || username == AdminUsername {
-		settingPwd := GetOSSetting().AdminPassword
-		if settingPwd != "" {
-		  // setting.json 有配置密码 → 优先使用
-		  if VerifyPassword(password, adminPasswordHashFromSetting) {
-				return issueToken(AdminUsername, AdminRole)
-			}
-		} else {
-			// 兜底用编译常量 qwer
-			if VerifyPassword(password, AdminPasswordHash()) {
-				return issueToken(AdminUsername, AdminRole)
-			}
+		if GetOSSetting().AdminPassword == "" {
+			return LoginResult{Success: false, Message: "未配置管理员密码，请在 setting.json 中设置 adminPassword"}
+		}
+		if VerifyPassword(password, adminPasswordHash) {
+			return issueToken(AdminUsername, AdminRole)
 		}
 	}
 

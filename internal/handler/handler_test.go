@@ -222,6 +222,11 @@ func TestGetIndexHealthCheck_AllTypes(t *testing.T) {
 
 func TestLogin_Success(t *testing.T) {
 	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+	service.SetOSSetting(service.GetOSSetting())
+	old := service.GetOSSetting()
+	old.AdminPassword = "qwer"
+	service.SetOSSetting(old)
+	service.CacheAdminPasswordHash()
 
 	w := performPost(t, Login, `{"username":"admin","password":"qwer"}`)
 

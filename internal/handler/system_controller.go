@@ -16,8 +16,8 @@ func GetSettingInfo(c *gin.Context) {
 	setting := UseApp().config.Get()
 	safeSetting := setting
 	safeSetting.Users = nil
-	safeSetting.DeepSeekApiKey = "" // 密钥不返回前端
-	safeSetting.AdminPassword = ""  // 密码不返回前端
+	safeSetting.DeepSeekApiKey = ""    // 密钥不返回前端
+	safeSetting.AdminPassword = ""     // 密码不返回前端
 	if safeSetting.HardwareAcceleration && safeSetting.HardwareAccelMode == "" {
 		safeSetting.HardwareAccelMode = service.GetHwAccelModeName()
 	}

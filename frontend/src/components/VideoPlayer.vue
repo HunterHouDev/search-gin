@@ -271,9 +271,11 @@ const changeVideoScreen = () => {
 };
 
 const closeDrawer = () => {
-  console.log('closeDrawer');
+
   view.showDrawer = false;
 };
+
+let loadedMetadataHandler = null;
 
 const openVideo = async (item) => {
   currentItemId = item.Id;
@@ -283,8 +285,13 @@ const openVideo = async (item) => {
   view.videoPoster = item.JpgUrl;
   view.videoSubtitles = getVideoSrt(item.Srt);
 
+  // 移除旧监听器，防止重复
+  if (loadedMetadataHandler) {
+    vue3VideoPlayRef.value?.removeEventListener('loadedmetadata', loadedMetadataHandler);
+  }
+
   // 监听 loadedmetadata 事件，src 加载完成后才操作 DOM
-  const handleLoaded = () => {
+  loadedMetadataHandler = () => {
     const videoLocation = systemProperty.getPlayerLocation(item.Id);
     videoClass.play();
     view.showVolumnBtn = true;
@@ -297,9 +304,10 @@ const openVideo = async (item) => {
       videoClass.timeUpdate(videoLocation);
     }
     setVideoWidth();
-    vue3VideoPlayRef.value?.removeEventListener('loadedmetadata', handleLoaded);
+    vue3VideoPlayRef.value?.removeEventListener('loadedmetadata', loadedMetadataHandler);
+    loadedMetadataHandler = null;
   };
-  vue3VideoPlayRef.value?.addEventListener('loadedmetadata', handleLoaded);
+  vue3VideoPlayRef.value?.addEventListener('loadedmetadata', loadedMetadataHandler);
 
   showProgress();
   setVideoWidth();
@@ -318,7 +326,7 @@ const onSearchPanelPlay = (item) => {
 
 const onSearchPanelKeyword = (keyword) => {
   // 可在搜索面板内按关键词继续搜索，这里暂时关闭面板
-  console.log('onSearchPanelKeyword', keyword);
+
 };
 
 const onSearchPanelEdit = (item) => {
@@ -344,7 +352,7 @@ const timeRate = (time) => {
 
 const volumeUp = (val) => {
   if (view.currentData && view.videoUrl) {
-    console.log('volumeUp', val);
+
     videoClass.volumeUp(val);
   }
 };
@@ -379,7 +387,7 @@ const close = () => {
 const nextOne = (step) => {
   view.videoUrl = '';
   view.videoPoster = '';
-  console.log('nextOne', step);
+
   emmits('nextOne', step);
 };
 
@@ -431,7 +439,7 @@ const checkSubtitles = () => {
   const track = video.textTracks[0];
   if(track) {
     track.mode = 'showing';
-    console.log('字幕轨道已加载');
+
   } else {
     console.warn('未检测到字幕轨道');
   }
@@ -455,6 +463,10 @@ watch(() => systemProperty.playerRunning, (isRunning) => {
 onUnmounted(() => {
   stopProgress();
   if (wheelTimer) { clearTimeout(wheelTimer); wheelTimer = null; }
+  if (loadedMetadataHandler) {
+    vue3VideoPlayRef.value?.removeEventListener('loadedmetadata', loadedMetadataHandler);
+    loadedMetadataHandler = null;
+  }
 });
 
 onMounted(() => {

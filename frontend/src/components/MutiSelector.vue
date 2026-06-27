@@ -123,7 +123,6 @@ onMounted(() => {
 });
 
 const moveRight = (str, step) => {
-  console.log(str, step);
   if (!value.value) {
     value.value = [];
   }

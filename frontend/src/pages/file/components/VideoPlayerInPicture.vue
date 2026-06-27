@@ -418,7 +418,6 @@ const copyText = async (str) => {
   if (str && str.startsWith('-')) {
     str = str.substring(1);
   }
-  console.log(str);
   await copy(str);
   $q.notify({ message: `${str}`, position: 'bottom-left' });
 };
@@ -488,7 +487,6 @@ const onSearchPanelPlay = (item) => {
 
 const onSearchPanelKeyword = (_keyword) => {
   // 暂时关闭面板
-  console.log('onSearchPanelKeyword', _keyword);
 };
 
 const onSearchPanelEdit = (item) => {

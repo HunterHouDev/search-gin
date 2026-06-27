@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"search-gin/internal/model"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -61,13 +62,17 @@ func TestValidateToken_NotFound(t *testing.T) {
 	}
 }
 
-func TestAdminPasswordHash(t *testing.T) {
-	hash := AdminPasswordHash()
-	if hash == "" {
-		t.Fatal("AdminPasswordHash returned empty")
-	}
-	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(AdminPassword)); err != nil {
-		t.Error("Admin password hash does not match AdminPassword constant")
+func TestCacheAdminPasswordHash(t *testing.T) {
+	// 保存旧设置，测试后恢复
+	old := GetOSSetting()
+	defer SetOSSetting(old)
+
+	SetOSSetting(model.Setting{AdminPassword: "testpass"})
+	CacheAdminPasswordHash()
+	// 验证缓存生效：登录应成功
+	result := LoginUser("admin", "testpass")
+	if !result.Success {
+		t.Error("Login should succeed with correct password after CacheAdminPasswordHash")
 	}
 }
 

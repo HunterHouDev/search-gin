@@ -1410,7 +1410,6 @@ const open = (data) => {
     new Sortable(listEl, {
       animation: 150,
       onEnd: function (evt) {
-        console.log(evt.oldIndex, evt.newIndex);
         // 数组根据移动的位置进行重新排序
         if (evt.oldIndex != evt.newIndex) {
           view.resultData.Data.splice(
@@ -1419,7 +1418,6 @@ const open = (data) => {
             view.resultData.Data.splice(evt.oldIndex, 1)[0]
           );
         }
-        console.log(view.resultData.Data);
       },
     });
   }, 1000);
@@ -1433,15 +1431,12 @@ const dialogHide = async () => {
   onDialogCancel();
   onDialogOK();
   onDialogHide();
-  console.log('dialogHide');
 };
 
 const { dialogRef, onDialogHide, onDialogOK, onDialogCancel } =
   useDialogPluginComponent();
 
-const beforeShow = () => {
-  console.log('beforeShow');
-};
+const beforeShow = () => {};
 
 defineExpose({
   open,

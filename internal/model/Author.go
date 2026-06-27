@@ -15,6 +15,23 @@ type Author struct {
 	Images  []string
 }
 
+// Clone 深拷贝 Author
+func (a *Author) Clone() *Author {
+	if a == nil {
+		return nil
+	}
+	images := make([]string, len(a.Images))
+	copy(images, a.Images)
+	return &Author{
+		Name:    a.Name,
+		Url:     a.Url,
+		Cnt:     a.Cnt,
+		Size:    a.Size,
+		SizeStr: a.SizeStr,
+		Images:  images,
+	}
+}
+
 // NewAuthor 创建作者聚合对象
 func NewAuthor(name string, url string, size int64) *Author {
 	return &Author{

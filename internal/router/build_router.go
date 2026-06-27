@@ -115,6 +115,7 @@ func BuildAPIRouter(sigChan chan os.Signal) *gin.Engine {
 	router.GET("/api/lanPeers", handler.GetLanPeers)
 	router.GET("/api/lanPeersWithStats", handler.GetLanPeersWithStats)
 	router.GET("/api/peerStats", handler.GetPeerStats)
+	router.POST("/api/discoverPeers", handler.DiscoverLanPeers)
 	router.POST("/api/addPeer", handler.AddLanPeer)
 	router.POST("/api/removePeer", handler.RemoveLanPeer)
 	router.POST("/api/togglePeer", handler.TogglePeer)

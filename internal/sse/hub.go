@@ -112,12 +112,12 @@ func (h *Hub) Run() {
 }
 
 // cleanupStaleClients 移除超过 clientTimeout 未成功发送事件的客户端
+// 不 close client.Events——close 由 unregister 路径负责，避免竞态 double close
 func (h *Hub) cleanupStaleClients() {
 	now := time.Now()
 	h.mu.Lock()
 	for id, client := range h.clients {
 		if now.Sub(client.lastActive) > clientTimeout {
-			close(client.Events)
 			delete(h.clients, id)
 		}
 	}

@@ -61,7 +61,6 @@ const videoSideOpen = (params) => {
 };
 
 const beforeUnloadHandler = () => {
-  console.log('beforeunload');
   closeThis();
 };
 

@@ -12,17 +12,20 @@ import (
 	"time"
 )
 
-// 固定密钥，所有节点共用，streamToken 可跨节点解密
-var streamSecret = []byte{
-	0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6,
-	0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c,
-	0x1a, 0xb3, 0x7c, 0x8d, 0x2e, 0xf4, 0x61, 0x99,
-	0xdd, 0x22, 0xaa, 0x3b, 0x5f, 0x10, 0xcd, 0x77,
+// streamSecret 由 SetStreamSecret 在启动时设置，二进制中不含密钥
+var streamSecret []byte
+
+// GenerateStreamSecret 生成 32 字节随机密钥并返回 hex 编码（64 字符）
+func GenerateStreamSecret() string {
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		panic("生成 StreamSecret 失败: " + err.Error())
+	}
+	return hex.EncodeToString(key)
 }
 
 // SetStreamSecret 从外部设置 AES-256-GCM 密钥（hex 格式，64 十六进制字符）
-// 未调用时使用代码内建固定密钥。应于启动初始化时调用。
-// hexKey 为 64 字符 hex 串（对应 32 字节），长度不匹配时静默忽略。
+// 应于启动初始化时调用。hexKey 为 64 字符 hex 串（对应 32 字节），长度不匹配时静默忽略。
 func SetStreamSecret(hexKey string) {
 	if len(hexKey) != 64 {
 		return

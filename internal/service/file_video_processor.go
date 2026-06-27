@@ -171,7 +171,9 @@ func CutImage(path string, typeImage string, start string) utils.Result {
 	)
 
 	ffmpegPath := ffmpegBinPath()
-	cmd := exec.Command(ffmpegPath, args...)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, ffmpegPath, args...)
 	if runtime.GOOS == "windows" {
 		utils.FixOnWin(cmd)
 	}

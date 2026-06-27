@@ -172,7 +172,6 @@ const scheduleNextHeartBeat = () => {
     try {
       const res = await HeartBeatQuery();
       view.indexNumber = res;
-      console.log('res', res);
 
       if (res <= 0) {
         emit('refreshDone');
@@ -185,13 +184,11 @@ const scheduleNextHeartBeat = () => {
       if (view.heartBeatRetryCount > 0) {
         view.heartBeatRetryCount = 0;
         view.currentHeartBeatInterval = BASE_INTERVAL;
-        console.log('HeartBeat recovered, interval reset to', BASE_INTERVAL + 'ms');
       }
     } catch (error) {
       console.error('HeartBeatQuery error:', error);
       view.heartBeatRetryCount++;
       view.currentHeartBeatInterval = Math.min(BASE_INTERVAL * Math.pow(2, view.heartBeatRetryCount), MAX_INTERVAL);
-      console.log(`HeartBeat retry ${view.heartBeatRetryCount}, next interval: ${view.currentHeartBeatInterval}ms`);
     }
 
     scheduleNextHeartBeat();

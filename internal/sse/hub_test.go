@@ -144,16 +144,7 @@ func TestHub_CleanupStaleClients(t *testing.T) {
 		t.Errorf("expected 1 client after cleanup, got %d", h.ClientCount())
 	}
 
-	// stale client's channel should be closed
-	select {
-	case _, ok := <-staleClient.Events:
-		if ok {
-			t.Error("expected stale client Events channel to be closed")
-		}
-	default:
-		t.Error("expected stale client Events channel to be closed (blocking)")
-	}
-
+	// stale client should be removed from map, channel is not closed (close only in unregister)
 	// active client should still be open
 	select {
 	case _, ok := <-activeClient.Events:

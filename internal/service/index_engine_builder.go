@@ -537,7 +537,7 @@ func shallowCopyIndex(index *searchIndex) *searchIndex {
 
 	newAuthorMap := make(map[string]*model.Author, len(index.authorMap))
 	for k, v := range index.authorMap {
-		newAuthorMap[k] = v
+		newAuthorMap[k] = v.Clone()
 	}
 
 	newTypeMenu := make(map[string]model.FileInfo, len(index.typeMenu))

@@ -286,12 +286,10 @@ const focusEvent = (e) => {
 
 const searchFiles = (name) => {
   systemProperty.FileSearchParam.Keyword = name;
-  console.log(name);
   push({ path: '/search', query: { Keyword: name, from: 'index' } });
 };
 
 const currentPageChange = (e) => {
-  console.log(e);
   fetchSearch();
 };
 

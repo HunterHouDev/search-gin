@@ -15,10 +15,23 @@ export const useSystemProperty = defineStore({
         key: 'systemProperty',
         // 自定义存储方式，默认sessionStorage
         storage: localStorage,
-        // 指定要持久化的数据，默认所有 state 都会进行缓存，可以通过 paths 指定要持久化的字段，其他的则不会进行持久化。
-        // paths: [
-        //   'SearchSuggestions',
-        // ],
+        // 显式 paths 排除 shutdownTimer（JS Timer 引用不可序列化）
+        paths: [
+          'singleWindow', 'showStyle', 'showImage', 'theme',
+          'expireTime', 'lastAuthor', 'lastAuthores',
+          'searchPageAutoPullData',
+          'pictureInPictureVideoOffset', 'pictureInPictureVideoOffsetFullBefore',
+          'pictureInPictureVideoWidth', 'pictureInPictureVideoWidthFullBefore',
+          'isFullscreen', 'isElectron',
+          'addPlayingTagGoNext', 'goAuthorNewWidow', 'goSearchNewWidow',
+          'submitTagFromData', 'submitMutiTag',
+          'fileEditAutoCode', 'fileEditAutoJpg', 'fileEditAutoNext', 'fileEditAutoRefresh',
+          'tagSizeMap', 'shutdownLeftSecond',
+          'videoOptions', 'SearchWords', 'SearchRecords',
+          'playerMemory', 'playerRunning', 'playerReLocation',
+          'PlayingMovie', 'FileSearchParam', 'SettingInfo',
+          'SearchSuggestions', 'videoPlayTimes',
+        ],
       },
     ],
   },

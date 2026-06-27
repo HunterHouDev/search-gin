@@ -229,15 +229,15 @@ func TestFillURLs_AlternatesPorts(t *testing.T) {
 	c := newTestContext("192.168.1.100:12345")
 
 	movies := []model.FileItem{
-		{Id: "even", NodeHost: "mypc:10081"}, // i%2==0 → API 端口
-		{Id: "odd", NodeHost: "mypc:10081"},  // i%2==1 → 文件流端口
+		{Id: "even", NodeHost: "mypc:10081"}, // i%2==0 → localBases[0] = filePort
+		{Id: "odd", NodeHost: "mypc:10081"},  // i%2==1 → localBases[1] = apiPort
 	}
 	FillURLs(c, movies)
 
 	apiPort := strings.TrimPrefix(PortNo, ":")
 	filePort := strings.TrimPrefix(FilePortNo, ":")
-	assert.Contains(t, movies[0].StreamUrl, ":"+apiPort+"/", "偶数项应使用 API 端口 10081")
-	assert.Contains(t, movies[1].StreamUrl, ":"+filePort+"/", "奇数项应使用文件流端口 10082")
+	assert.Contains(t, movies[0].StreamUrl, ":"+filePort+"/", "偶数项应使用文件流端口 10082")
+	assert.Contains(t, movies[1].StreamUrl, ":"+apiPort+"/", "奇数项应使用 API 端口 10081")
 }
 
 // ── pickLocalIP / fallbackLocalIP 测试 ──

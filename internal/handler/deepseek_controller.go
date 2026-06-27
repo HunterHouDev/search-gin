@@ -19,6 +19,9 @@ type ChatRequest struct {
 	Model    string              `json:"model"`
 }
 
+// deepSeekClient 包级单例，复用连接池防止 fd 泄漏
+var deepSeekClient = &http.Client{Timeout: 30 * time.Second}
+
 // PostChatDeepSeek 代理 DeepSeek Chat API，密钥仅存后端
 func PostChatDeepSeek(c *gin.Context) {
 	setting := service.GetOSSetting()
@@ -54,7 +57,6 @@ func PostChatDeepSeek(c *gin.Context) {
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
 
-	deepSeekClient := &http.Client{Timeout: 30 * time.Second}
 	resp, err := deepSeekClient.Do(httpReq)
 	if err != nil {
 		utils.ErrorFormat("DeepSeek API 调用失败: %v", err)

@@ -33,7 +33,11 @@ func (s *searchService) SetMovieType(movie model.FileItem, movieType string) uti
 
 	suffix := "." + utils.GetSuffix(movie.Path)
 	newSuffix := newMovieType + suffix
-	newFilePath := strings.Replace(movie.Path, suffix, newSuffix, 1)
+	extIdx := strings.LastIndex(movie.Path, suffix)
+	if extIdx < 0 {
+		extIdx = len(movie.Path)
+	}
+	newFilePath := movie.Path[:extIdx] + newSuffix
 	newName := strings.TrimSuffix(newFilePath, suffix)
 
 	updated, err := movie.RenameAll(newFilePath, newName)
@@ -90,8 +94,12 @@ func (s *searchService) AddTag(id string, tag string) utils.Result {
 	}
 
 	suffix := "." + utils.GetSuffix(movie.Path)
-	newFilePath := strings.ReplaceAll(movie.Path, suffix, "《"+tag+"》"+suffix)
-	newFilePath = strings.ReplaceAll(newFilePath, "《》", "")
+	extIdx := strings.LastIndex(movie.Path, suffix)
+	if extIdx < 0 {
+		extIdx = len(movie.Path)
+	}
+	newFilePath := movie.Path[:extIdx] + "《" + tag + "》" + suffix
+	newFilePath = strings.Replace(newFilePath, "《》", "", 1)
 	newName := strings.TrimSuffix(newFilePath, suffix)
 
 	updated, err := movie.RenameAll(newFilePath, newName)
@@ -250,14 +258,15 @@ func (s *searchService) Move(id string, newDir string, title string) utils.Resul
 	return s.notifyFileChanged(movieLib, updated, "move")
 }
 
-// Delete 删除文件（索引移除 + 物理删除 + SSE 通知）
+// Delete 删除文件（物理删除 + 索引移除 + SSE 通知）
+// 先删磁盘再删索引，避免磁盘删除失败后索引已丢失导致状态不一致
 func (s *searchService) Delete(id string) utils.Result {
 	file := s.engine.FindById(id)
 	if file.IsNull() {
 		return utils.NewFailByMsg("文件不存在")
 	}
-	s.engine.DeleteOnIndex(file) // 入队索引删除，由 flushLoop 批量应用
 	s.DeleteFilesOnDisk(file.DirPath, file.Title)
+	s.engine.DeleteOnIndex(file) // 入队索引删除，由 flushLoop 批量应用
 	s.events.Broadcast("file_changed", map[string]interface{}{
 		"action": "delete",
 		"id":     id,

@@ -26,7 +26,7 @@ export function useSSE(onEvent: (event: SSEEvent) => void) {
       isConnected.value = true;
       reconnecting = false;
       backoffMs = 3_000; // 重连成功，重置退避
-      console.log('SSE connected');
+
     };
 
     eventSource.value.onmessage = (e) => {
@@ -53,7 +53,7 @@ export function useSSE(onEvent: (event: SSEEvent) => void) {
         clearTimeout(reconnectTimer.value);
       }
 
-      console.log(`SSE disconnected, reconnecting in ${backoffMs}ms...`);
+
       reconnectTimer.value = window.setTimeout(() => {
         connect();
         // 指数增长，上限 30s

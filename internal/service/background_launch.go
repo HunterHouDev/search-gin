@@ -48,10 +48,9 @@ func InitSetting() {
 	// 预缓存管理员密码的 bcrypt 哈希，避免每次登录时重复计算
 	CacheAdminPasswordHash()
 
-	// 如果 setting.json 配置了 streamSecret（hex 格式 64 字符），初始化流加密密钥
-	if dict.StreamSecret != "" {
-		utils.SetStreamSecret(dict.StreamSecret)
-	}
+	// StreamSecret：每次启动随机生成，不持久化
+	utils.SetStreamSecret(utils.GenerateStreamSecret())
+	utils.InfoFormat("已生成随机 StreamSecret")
 }
 
 // InitSearchPool 初始化 goroutine 池，根据配置的目录数量动态调整
@@ -119,8 +118,7 @@ func StartBackgroundTasks() {
 		defer utils.RecoverPanic()
 		search.TaskScheduler()
 	}()
-	// 每天凌晨 3:00 清理过期 token
-	StartTokenCleanupLoop()
+	// token 到期自毁由 SetToken 中的 time.AfterFunc 驱动，无需定时轮询
 }
 
 // StartTorrentCleanup 启动 Torrent 清理协程，返回关闭函数

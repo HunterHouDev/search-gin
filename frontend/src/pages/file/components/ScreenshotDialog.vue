@@ -265,7 +265,6 @@ function finishedPosition(e) {
   };
   drawRect(rect);
   canvasData.chooseAction = null;
-  console.log('绘制矩形End');
 }
 
 function startPosition(e) {
@@ -280,9 +279,7 @@ function startPosition(e) {
     layerY <= canvasData.chooseItem.startY + canvasData.chooseItem.height;
   if (isMove) {
     canvasData.chooseAction = 'move';
-    console.log('绘制矩形Move');
   } else {
-    console.log('绘制矩形Start');
   }
   canvasData.isDrawing = true;
 }

@@ -150,7 +150,6 @@ const toggleJavBus = () => {
     view.item.Code = vcode;
     if (vcode && settingInfo.value.BaseUrl) {
       busUrl.value = settingInfo.value.BaseUrl + vcode;
-      console.log(busUrl.value);
     }
     showBus.value = true;
   } else {
@@ -220,7 +219,6 @@ const titleChange = (v) => {
   v = v.replace(/&nbsp;/g, '');
   v = v.trimEnd();
   let originalCode = v.match(reg);
-  console.log('originalCode', originalCode);
   if (!originalCode) {
     originalCode = v.match(reg_1);
   }
@@ -230,7 +228,6 @@ const titleChange = (v) => {
       // 字母和数字之间插入 -
       ncode = ncode.replace(/([a-zA-Z])(\d)/g, '$1-$2');
     }
-    console.log('ncode', ncode);
     view.item.Code = ncode;
     if (view.item.MovieType === '骑兵' || view.item.MovieType === '无') {
       makePreview();

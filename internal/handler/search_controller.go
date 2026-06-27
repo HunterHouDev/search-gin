@@ -24,7 +24,10 @@ func PostMovies(c *gin.Context) {
 
 	if !isRemote && UseApp().search.IsEmpty() {
 		// 异步触发扫描，不阻塞当前请求——用户发起首搜时无需等待扫描完成
-		go UseApp().files.ScanAll()
+		go func() {
+			defer utils.RecoverPanic()
+			UseApp().files.ScanAll()
+		}()
 	}
 
 	searchParam := model.SearchParam{}

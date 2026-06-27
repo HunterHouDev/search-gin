@@ -241,7 +241,6 @@ const nextOnePlayer = (e) => {
 };
 
 const nextOne = () => {
-  console.log('fileinfodiaolg nextOne');
   emmits('nextOne');
 };
 const prevOne = () => {
@@ -288,7 +287,6 @@ const searchCode = (item) => {
     itemCode = itemCode.substring(1);
   }
   const url = `${view.settingInfo.BaseUrl}/${itemCode}`;
-  console.log(url);
   if ($q.platform.is.electron) {
     window.electron.createWindow({
       router: url,
