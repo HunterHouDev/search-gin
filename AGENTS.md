@@ -29,7 +29,7 @@
 /css/, /js/, /assets/, /icons/, /favicon.ico
 ```
 
-⚠️ skip path 检查必须在 `X-Search-Gin-Remote` 校验**之前**，否则 `verifyPeer` 反向心跳会形成递归死锁。
+⚠️ skip path 检查必须在 `X-Search-Gin-Remote` 校验**之前**，否则跨节点验证会形成递归死锁。
 
 ## 前端构建 / 嵌入
 
@@ -47,7 +47,7 @@ go build -tags=prod          # embed dist/、ffmpeg.exe、ffplay.exe、setting.j
 - 管理员用户 `admin`，密码必须配 `setting.json` 的 `adminPassword`（无编译回退）
 - Token 存内存 map `tokenStore map[string]TokenInfo` 受 `sync.RWMutex` 保护（`auth_service.go`），周期性清理每 1h 执行一次（启动即执行首次）
 - `Authorization: Bearer <token>` 或 WebSocket `?token=`
-- 集群节点间用 `X-Search-Gin-Remote: true` header 跳过 Token 认证，来源 IP 必须在 peers 列表中（`middleware/common.go` + `node_discovery.go`）——**反向心跳不再自动提权**，仅出站/手动发现
+- 集群节点间用 `X-Search-Gin-Remote: true` header 跳过 Token 认证，来源 IP 必须在 peers 列表中（`middleware/common.go` + `node_discovery.go`）
 - `requireAdmin()` 检查 role 是否为 `AdminRole`，兼容旧 token（role 为空时放行）
 - **注意事项**：
   - WebSocket 连接使用 query token（`/api/ws?token=xxx`），skip path 已跳过 AuthMiddleware 故需手动调用 `ValidateTokenWithInfo`

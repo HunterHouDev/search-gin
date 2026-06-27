@@ -8,8 +8,6 @@ import (
 	"os"
 )
 
-const MaxImageSize = 500 * 1024 // 500KB
-
 func ImageToString(path string) string {
 	if !ExistsFiles(path) {
 		return ""
@@ -98,36 +96,4 @@ func ImageToPng(src string) error {
 
 }
 
-// CompressPngIfNeed 如果PNG图片大于500KB则压缩
-// func CompressPngIfNeed(filePath string) ([]byte, error) {
-// 	fileInfo, err := os.Stat(filePath)
-// 	if err != nil {
-// 		return nil, err
-// 	}
 
-// 	fileData, err := os.ReadFile(filePath)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	if fileInfo.Size() <= MaxImageSize {
-// 		return fileData, nil
-// 	}
-
-// 	img, err := png.Decode(bytes.NewReader(fileData))
-// 	if err != nil {
-// 		return fileData, nil
-// 	}
-
-// 	var buf bytes.Buffer
-// 	encoder := png.Encoder{CompressionLevel: png.BestCompression}
-// 	if err := encoder.Encode(&buf, img); err != nil {
-// 		return fileData, nil
-// 	}
-
-// 	if buf.Len() < len(fileData) {
-// 		return buf.Bytes(), nil
-// 	}
-
-// 	return fileData, nil
-// }

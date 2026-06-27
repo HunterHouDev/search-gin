@@ -69,7 +69,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		}
 
 		// 集群节点间转发携带此头，校验来源 IP 为已知 peer 后跳过认证
-		// 注意：必须在 skip path 检查之后，避免 verifyPeer 反向心跳形成递归死锁
+		// 注意：必须在 skip path 检查之后，避免跨节点认证递归
 		if c.GetHeader("X-Search-Gin-Remote") == "true" {
 			host, _, err := net.SplitHostPort(c.Request.RemoteAddr)
 			if err != nil {
