@@ -134,10 +134,7 @@ func doFlushCache(idx *searchIndex) {
 	go func() {
 		defer utils.RecoverPanic()
 		defer close(done)
-		// 检查 context 是否已超时，避免超时后继续写盘
-		if ctx.Err() != nil {
-			return
-		}
+
 		tmpPath := cachePath + ".tmp"
 		f, err := os.Create(tmpPath)
 		if err != nil {
@@ -153,6 +150,11 @@ func doFlushCache(idx *searchIndex) {
 			return
 		}
 		f.Close()
+
+		if ctx.Err() != nil {
+			os.Remove(tmpPath)
+			return
+		}
 
 		if err := os.Rename(tmpPath, cachePath); err != nil {
 			utils.InfoFormat("保存索引缓存失败(重命名): %v", err)

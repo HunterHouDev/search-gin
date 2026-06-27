@@ -48,9 +48,19 @@ func InitSetting() {
 	// 预缓存管理员密码的 bcrypt 哈希，避免每次登录时重复计算
 	CacheAdminPasswordHash()
 
-	// StreamSecret：每次启动随机生成，不持久化
-	utils.SetStreamSecret(utils.GenerateStreamSecret())
-	utils.InfoFormat("已生成随机 StreamSecret")
+	// StreamSecret：优先使用 setting.json 中持久化的密钥，不存在时生成并保存
+	if dict.StreamSecret != "" {
+		utils.SetStreamSecret(dict.StreamSecret)
+		utils.InfoFormat("已加载持久化 StreamSecret")
+	} else {
+		secret := utils.GenerateStreamSecret()
+		utils.SetStreamSecret(secret)
+		dict.StreamSecret = secret
+		SetOSSetting(dict)
+		// 立即写入磁盘，确保密钥持久化
+		FlushDictionary(curDir + utils.PathSeparator + dict.SelfPath)
+		utils.InfoFormat("已生成并持久化 StreamSecret")
+	}
 }
 
 // InitSearchPool 初始化 goroutine 池，根据配置的目录数量动态调整

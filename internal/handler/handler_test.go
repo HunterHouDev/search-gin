@@ -525,3 +525,387 @@ func TestSplitLines_TrailingNewline(t *testing.T) {
 	result := splitLines("a\nb\n")
 	assert.Equal(t, []string{"a", "b"}, result)
 }
+
+// ============== Ping Controller Tests ==============
+
+func TestPingHost_MissingIP(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/ping", nil)
+	PingHost(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "缺少 ip")
+}
+
+func TestPingHost_InvalidIP(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/ping?ip=not-an-ip", nil)
+	PingHost(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "格式无效")
+}
+
+// ============== Torrent Controller Tests ==============
+
+func TestPostAddMagnet_NoBody(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := performPost(t, PostAddMagnet, `{}`)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestPostAddMagnet_TorrentAppNil(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := performPost(t, PostAddMagnet, `{"magnetURI":"magnet:?xt=urn:btih:xxx"}`)
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Contains(t, w.Body.String(), "未启动")
+}
+
+func TestPostStartDownload_NoBody(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := performPost(t, PostStartDownload, `{}`)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestPostStartDownload_TorrentAppNil(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := performPost(t, PostStartDownload, `{"infoHash":"xxx"}`)
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
+func TestGetTorrentStream_MissingHash(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	GetTorrentStream(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "缺少 infoHash")
+}
+
+func TestGetTorrentStream_TorrentAppNil(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	c.Params = []gin.Param{{Key: "infoHash", Value: "xxx"}}
+	GetTorrentStream(c)
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Contains(t, w.Body.String(), "未启动")
+}
+
+func TestGetTorrentStatus_MissingHash(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	GetTorrentStatus(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestGetTorrentFiles_MissingHash(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	GetTorrentFiles(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestDeleteTorrent_MissingHash(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodDelete, "/", nil)
+	DeleteTorrent(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestDeleteTorrent_TorrentAppNil(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodDelete, "/", nil)
+	c.Params = []gin.Param{{Key: "infoHash", Value: "xxx"}}
+	DeleteTorrent(c)
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
+// ============== User Controller Tests ==============
+
+func TestGetUsers_NoAdminReturns403(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := performGet(t, GetUsers)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestAddUser_NoAdminReturns403(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := performPost(t, AddUser, `{"username":"newuser","password":"pass"}`)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestDeleteUser_NoAdminReturns403(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := performPost(t, DeleteUser, `{"username":"someuser"}`)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestAddUser_EmptyUsername(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+	service.SetOSSetting(model.Setting{})
+	service.CacheAdminPasswordHash()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"username":"","password":"pass"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set("role", "super_admin")
+	AddUser(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestAddUser_EmptyPassword(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+	service.SetOSSetting(model.Setting{})
+	service.CacheAdminPasswordHash()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"username":"newuser","password":""}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set("role", "super_admin")
+	AddUser(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestAddUser_DuplicateAdminUsername(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+	old := service.GetOSSetting()
+	service.SetOSSetting(model.Setting{})
+	defer service.SetOSSetting(old)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"username":"admin","password":"pass"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set("role", "super_admin")
+	AddUser(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "已存在")
+}
+
+// ============== Dir Controller Tests ==============
+
+func TestGetOpenFolder_NotFound(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	c.Params = []gin.Param{{Key: "id", Value: "nonexistent"}}
+	GetOpenFolder(c)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Contains(t, w.Body.String(), "文件不存在")
+}
+
+func TestPostOpenFolderByPath_InvalidBody(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := performPost(t, PostOpenFolderByPath, `{invalid`)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestPostOpenFolderByPath_EmptyBody(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := performPost(t, PostOpenFolderByPath, `{}`)
+	// empty dirpath with no Dirs → ValidatePath rejects
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestPostDeleteFolderByPath_InvalidBody(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := performPost(t, PostDeleteFolderByPath, `{invalid`)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// ============== DeepSeek Controller Tests ==============
+
+func TestPostChatDeepSeek_NoAPIKey(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+	old := service.GetOSSetting()
+	service.SetOSSetting(model.Setting{DeepSeekApiKey: ""})
+	defer service.SetOSSetting(old)
+
+	w := performPost(t, PostChatDeepSeek, `{"messages":[{"role":"user","content":"hello"}]}`)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "未配置")
+}
+
+func TestPostChatDeepSeek_InvalidBody(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+	old := service.GetOSSetting()
+	service.SetOSSetting(model.Setting{DeepSeekApiKey: "sk-test"})
+	defer service.SetOSSetting(old)
+
+	w := performPost(t, PostChatDeepSeek, `{invalid`)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// ============== File Stream Controller Tests ==============
+
+func TestGetFileByPathUseEncode_InvalidPath(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	c.Params = []gin.Param{{Key: "path", Value: "%zz"}}
+	GetFileByPathUseEncode(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "无效的文件路径")
+}
+
+func TestGetDeleteFileByPathUseEncode_NoAdmin(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodDelete, "/", nil)
+	c.Params = []gin.Param{{Key: "path", Value: "test"}}
+	GetDeleteFileByPathUseEncode(c)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestGetRefreshTargetIndex_ForbiddenPath(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{dirs: []string{"D:/media"}})
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	c.Params = []gin.Param{{Key: "dir", Value: "C%3A%5Cwindows"}}
+	GetRefreshTargetIndex(c)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestGetRefreshIndex_ReturnsOK(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{dirs: []string{"D:/media", "E:/media"}})
+
+	w := performGet(t, GetRefreshIndex)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "2")
+}
+
+// ============== File Play Controller Tests ==============
+
+func TestGetAuthorImage_NotFound(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	c.Params = []gin.Param{{Key: "path", Value: "nonexistent"}}
+	GetAuthorImage(c)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+// ============== File Task Controller Tests ==============
+
+func TestGetDelTransferTask_InvalidTime(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	c.Params = []gin.Param{{Key: "create", Value: "not-a-time"}}
+	GetDelTransferTask(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "参数解析失败")
+}
+
+func TestGetDelTransferTask_NotFound(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	c.Params = []gin.Param{{Key: "create", Value: "2024-01-01T00:00:00Z"}}
+	GetDelTransferTask(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "任务不存在")
+}
+
+func TestPostMerge_InvalidBody(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := performPost(t, PostMerge, `{invalid`)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestPostClearCompletedTasks_ReturnsOK(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := performPost(t, PostClearCompletedTasks, ``)
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestPostClearFailedTasks_ReturnsOK(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := performPost(t, PostClearFailedTasks, ``)
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestPostClearAllTasks_ReturnsOK(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := performPost(t, PostClearAllTasks, ``)
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestGetTransferTask_ReturnsOK(t *testing.T) {
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
+
+	w := performGet(t, GetTransferTask)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "tasks")
+}
+
+

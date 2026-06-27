@@ -12,6 +12,9 @@ import (
 )
 
 func GetUsers(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
 	type UserInfo struct {
 		Username   string `json:"username"`
 		Role       string `json:"role"`

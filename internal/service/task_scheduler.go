@@ -156,10 +156,12 @@ func (s *searchService) pollTasks() {
 		go func() {
 			defer utils.RecoverPanic()
 			defer wakeTaskScheduler()
+			defer releaseTaskSlot()
 
 			isTranscode := strings.EqualFold(t.Type, model.TaskTypeTrans)
 			if isTranscode {
 				transcodeCount.Add(1)
+				defer transcodeCount.Add(-1)
 			}
 
 			switch {
@@ -170,11 +172,6 @@ func (s *searchService) pollTasks() {
 			case strings.EqualFold(t.Type, model.TaskTypeMerge):
 				MergeFiles(t)
 			}
-
-			if isTranscode {
-				transcodeCount.Add(-1)
-			}
-			releaseTaskSlot()
 		}()
 	}
 }

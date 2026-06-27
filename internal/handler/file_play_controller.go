@@ -94,5 +94,5 @@ func GetAuthorImage(c *gin.Context) {
 			}
 		}
 	}
-	c.Status(http.StatusNotFound)
+	c.JSON(http.StatusNotFound, utils.NewFailByMsg("未找到作者图片"))
 }

@@ -84,6 +84,7 @@ func (se *searchEngineCore) doSearch(index *searchIndex, p model.SearchParam) mo
 
 	// stopped 在 collectResults 返回后关闭，通知所有生产者停止发送结果
 	stopped := make(chan struct{})
+	defer close(stopped)
 	resultChan := make(chan model.PageResultWrapper, bucketCount*2)
 
 	// 分发搜索
@@ -122,7 +123,6 @@ func (se *searchEngineCore) doSearch(index *searchIndex, p model.SearchParam) mo
 
 	// 收集结果
 	se.collectResults(&wrapper, resultChan, ctx)
-	close(stopped) // 通知所有生产者停止发送
 
 	model.SortFileItems(wrapper.FileList, p.SortField, p.SortType)
 

@@ -76,15 +76,13 @@ func forwardRequest(targetURL string, c *gin.Context) (*http.Response, error) {
 	}
 
 	for k, v := range c.Request.Header {
-		if k != "Host" && k != "Content-Length" && k != "Transfer-Encoding" {
+		if k != "Host" && k != "Content-Length" && k != "Transfer-Encoding" && k != "Authorization" {
 			req.Header[k] = v
 		}
 	}
 
-	// 转发认证 token
-	if token := c.GetHeader("Authorization"); token != "" {
-		req.Header.Set("Authorization", token)
-	}
+	// 节点间认证使用 X-Search-Gin-Remote header，不转发用户的 Bearer token
+	req.Header.Set("X-Search-Gin-Remote", "true")
 
 	// 设置正确的 Content-Length
 	req.ContentLength = int64(len(bodyBytes))

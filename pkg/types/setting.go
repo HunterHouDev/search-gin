@@ -50,4 +50,9 @@ type Setting struct {
 
 	// TaskMaxConcurrent 任务调度最大并发数（转码+剪辑+合并），默认 4，≤0 时不限制
 	TaskMaxConcurrent int `json:"taskMaxConcurrent"`
+
+	// StreamSecret AES-256-GCM 密钥（hex，64字符），用于 streamToken 加解密
+	// 同一集群的所有节点应使用相同的密钥以实现跨节点流媒体互通
+	// 为空时由系统自动生成并持久化
+	StreamSecret string `json:"streamSecret"`
 }

@@ -12,6 +12,9 @@ import (
 )
 
 func SetMovieType(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
 	id := c.Param("id")
 	movieType := c.Param("movieType")
 	file := UseApp().search.FindById(id)
@@ -24,6 +27,9 @@ func SetMovieType(c *gin.Context) {
 }
 
 func PostRename(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
 	bodyBytes, err := io.ReadAll(io.LimitReader(c.Request.Body, 10<<20)) // 10MB 上限
 	if err != nil {
 		utils.InfoNormal(err)
@@ -50,6 +56,9 @@ func PostRename(c *gin.Context) {
 }
 
 func PostMove(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
 	bodyBytes, err := io.ReadAll(io.LimitReader(c.Request.Body, 10<<20)) // 10MB 上限
 	if err != nil {
 		utils.InfoNormal(err)
@@ -76,6 +85,9 @@ func PostMove(c *gin.Context) {
 }
 
 func GetAddTag(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
 	id := c.Param("id")
 	tag := c.Param("tag")
 
@@ -94,6 +106,9 @@ func GetAddTag(c *gin.Context) {
 }
 
 func GetClearTag(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
 	id := c.Param("id")
 	tag := c.Param("tag")
 
