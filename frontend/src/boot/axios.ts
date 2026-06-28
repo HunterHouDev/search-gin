@@ -57,8 +57,14 @@ export default boot(({ app, router }) => {
         return Promise.reject(error);
       }
 
+      const notify = (opts: { type: string; message: string; position: string; timeout: number }) => {
+        if ($q) {
+          $q.notify(opts);
+        }
+      };
+
       if (status === 403) {
-        $q.notify({
+        notify({
           type: 'warning',
           message: msg || '无权限执行此操作',
           position: 'top',
@@ -68,8 +74,7 @@ export default boot(({ app, router }) => {
       }
 
       if (status && status >= 400 && status < 500) {
-        // 4xx 客户端错误 — 显示后端返回的消息
-        $q.notify({
+        notify({
           type: 'negative',
           message: msg || `请求错误 (${status})`,
           position: 'top',
@@ -79,8 +84,7 @@ export default boot(({ app, router }) => {
       }
 
       if (status && status >= 500) {
-        // 5xx 服务端错误
-        $q.notify({
+        notify({
           type: 'negative',
           message: msg || `服务器错误 (${status})，请稍后重试`,
           position: 'top',
@@ -91,14 +95,14 @@ export default boot(({ app, router }) => {
 
       // 网络断开 / 超时
       if (error.code === 'ECONNABORTED') {
-        $q.notify({
+        notify({
           type: 'warning',
           message: '请求超时，请检查网络连接',
           position: 'top',
           timeout: 3000,
         });
       } else if (!status) {
-        $q.notify({
+        notify({
           type: 'negative',
           message: '网络连接失败，请检查服务器状态',
           position: 'top',

@@ -1301,7 +1301,7 @@ const batchRename = () => {
       if (!file) return { Code: -1 };
       const ext = file.FileType ? `.${file.FileType}` : '';
       const newTitle = ids.length === 1 ? baseName : `${baseName}_${String(i + 1).padStart(2, '0')}`;
-      return FileRename({ Id: id, Title: newTitle + ext });
+      return FileRename({ Id: id, Name: newTitle + ext });
     });
     $q.notify({
       type: ok === total ? 'positive' : 'warning',
