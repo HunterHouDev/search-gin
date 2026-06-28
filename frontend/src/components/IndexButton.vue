@@ -223,6 +223,19 @@ onMounted(() => {
   queryHealth();
 });
 
+const startHealthPolling = () => {
+  if (view.healthPollTimer) return;
+  queryHealth();
+  view.healthPollTimer = setInterval(queryHealth, 10000);
+};
+
+const stopHealthPolling = () => {
+  if (view.healthPollTimer) {
+    clearInterval(view.healthPollTimer);
+    view.healthPollTimer = null;
+  }
+};
+
 defineExpose({
   refreshIndex,
   refreshProgress,

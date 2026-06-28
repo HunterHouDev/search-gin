@@ -1,4 +1,4 @@
-import { type Directive } from 'vue'
+import { type Directive, watch } from 'vue'
 import { usePermissionStore } from 'src/stores/permission'
 
 // v-permission="'op:edit'" — 无权限时隐藏元素
@@ -6,12 +6,25 @@ import { usePermissionStore } from 'src/stores/permission'
 export const vPermission: Directive<HTMLElement, string | string[]> = {
   mounted(el, binding) {
     const store = usePermissionStore()
-    const perms = Array.isArray(binding.value) ? binding.value : [binding.value]
-    const has = store.hasAnyPermission(perms)
-    const modifierNot = binding.modifiers.not
-    if ((!modifierNot && !has) || (modifierNot && has)) {
-      el.style.display = 'none'
+    store.loadFromSession()
+
+    const update = () => {
+      const perms = Array.isArray(binding.value) ? binding.value : [binding.value]
+      const has = store.hasAnyPermission(perms)
+      const modifierNot = binding.modifiers.not
+      el.style.display = ((!modifierNot && !has) || (modifierNot && has)) ? 'none' : ''
     }
+
+    update()
+    const unwatch = watch(() => [store.role, store.permissions], update)
+    // 组件卸载时清理 watcher
+    const observer = new MutationObserver(() => {
+      if (!document.contains(el)) {
+        observer.disconnect()
+        unwatch()
+      }
+    })
+    observer.observe(document.body, { childList: true, subtree: true })
   },
 }
 
@@ -19,11 +32,28 @@ export const vPermission: Directive<HTMLElement, string | string[]> = {
 export const vPermissionBtn: Directive<HTMLElement, string | string[]> = {
   mounted(el, binding) {
     const store = usePermissionStore()
-    const perms = Array.isArray(binding.value) ? binding.value : [binding.value]
-    const has = store.hasAnyPermission(perms)
-    if (!has) {
-      el.setAttribute('disabled', 'disabled')
-      el.classList.add('disabled')
+    store.loadFromSession()
+
+    const update = () => {
+      const perms = Array.isArray(binding.value) ? binding.value : [binding.value]
+      const has = store.hasAnyPermission(perms)
+      if (!has) {
+        el.setAttribute('disabled', 'disabled')
+        el.classList.add('disabled')
+      } else {
+        el.removeAttribute('disabled')
+        el.classList.remove('disabled')
+      }
     }
+
+    update()
+    const unwatch = watch(() => [store.role, store.permissions], update)
+    const observer = new MutationObserver(() => {
+      if (!document.contains(el)) {
+        observer.disconnect()
+        unwatch()
+      }
+    })
+    observer.observe(document.body, { childList: true, subtree: true })
   },
 }

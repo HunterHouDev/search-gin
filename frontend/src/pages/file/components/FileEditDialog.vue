@@ -28,7 +28,7 @@
         </span>
         <q-space />
         <q-btn style="margin-right: 10px" color="orange" align="evenly" label="移动" glossy @click="editMoveout" />
-        <q-btn style="margin-right: 10px" color="orange" align="evenly" label="改名" glossy @click="editItemSubmit" />
+        <q-btn style="margin-right: 10px" color="orange" align="evenly" label="改名" glossy @click="editItemSubmit()" />
         <q-btn style="margin-right: 10px" icon="close" color="red" @click="onDialogCancel">
           <q-tooltip class="bg-white text-primary">关闭</q-tooltip>
         </q-btn>
