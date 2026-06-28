@@ -129,9 +129,9 @@ onKeyStroke(['ArrowLeft'], (e) => {
   }
 });
 
-const nextPage = inject('gotoNextPage', () => {});
+const nextPage = inject('gotoNextPage', () => undefined);
 
-const prevPage = inject('gotoPrevPage', () => {});
+const prevPage = inject('gotoPrevPage', () => undefined);
 onKeyStroke(true, (e) => {
   if (!isNaN(e.key) && systemProperty.PlayingMovie.Id) {
     const r = e.key / 10;

@@ -126,7 +126,7 @@ const view = reactive({
   submitMutiTag: [],
 });
 
-const fetchToUpdateList = inject('fetchToUpdateList', () => {});
+const fetchToUpdateList = inject('fetchToUpdateList', () => undefined);
 
 const emmits = defineEmits(['nextOne', 'prevOne']);
 

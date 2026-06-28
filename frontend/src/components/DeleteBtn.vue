@@ -99,7 +99,7 @@ const deleteMouseOut = () => {
   }, 3000);
 };
 
-const fetchToUpdateList = inject('fetchToUpdateList', () => {});
+const fetchToUpdateList = inject('fetchToUpdateList', () => undefined);
 
 const picDelete = async (n) => {
   const { Id } = props.currentData;

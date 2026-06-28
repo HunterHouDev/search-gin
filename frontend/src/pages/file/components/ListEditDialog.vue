@@ -1450,7 +1450,7 @@ const dialogHide = async () => {
 const { dialogRef, onDialogHide, onDialogOK, onDialogCancel } =
   useDialogPluginComponent();
 
-const beforeShow = () => {};
+const beforeShow = () => undefined;
 
 defineExpose({
   open,

@@ -200,7 +200,7 @@ const view = reactive({
   sortField: 'Cnt',
 });
 
-const searchKeyword = inject('searchKeyword', () => {});
+const searchKeyword = inject('searchKeyword', () => undefined);
 
 const refreshView = () => {
   loadScanTime();
