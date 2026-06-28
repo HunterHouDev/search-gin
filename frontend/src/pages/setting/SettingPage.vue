@@ -361,7 +361,7 @@
               <div class="perm-section">
                 <h4 class="perm-group-title">菜单权限</h4>
                 <div class="perm-grid">
-                  <div v-for="perm in permView.menuPerms" :key="perm.key" class="perm-item">
+                  <div v-for="perm in permMenuPerms" :key="perm.key" class="perm-item">
                     <q-checkbox
                       v-model="permView.userPermsSet"
                       :val="perm.key"
@@ -376,7 +376,7 @@
               <div class="perm-section">
                 <h4 class="perm-group-title">操作权限</h4>
                 <div class="perm-grid">
-                  <div v-for="perm in permView.opPerms" :key="perm.key" class="perm-item">
+                  <div v-for="perm in permOpPerms" :key="perm.key" class="perm-item">
                     <q-checkbox
                       v-model="permView.userPermsSet"
                       :val="perm.key"
@@ -455,7 +455,7 @@
               <div class="perm-section">
                 <h4 class="perm-group-title">菜单权限</h4>
                 <div class="perm-grid">
-                  <div v-for="perm in permView.menuPerms" :key="perm.key" class="perm-item">
+                  <div v-for="perm in permMenuPerms" :key="perm.key" class="perm-item">
                     <q-checkbox v-model="rolesView.dialog.permissions" :val="perm.key" :label="perm.name" dense />
                     <div class="perm-desc">{{ perm.description }}</div>
                   </div>
@@ -464,7 +464,7 @@
               <div class="perm-section">
                 <h4 class="perm-group-title">操作权限</h4>
                 <div class="perm-grid">
-                  <div v-for="perm in permView.opPerms" :key="perm.key" class="perm-item">
+                  <div v-for="perm in permOpPerms" :key="perm.key" class="perm-item">
                     <q-checkbox v-model="rolesView.dialog.permissions" :val="perm.key" :label="perm.name" dense />
                     <div class="perm-desc">{{ perm.description }}</div>
                   </div>
@@ -493,7 +493,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { useQuasar } from 'quasar';
 import { onMounted, reactive, ref, computed, watch } from 'vue';
 import {
@@ -504,6 +504,11 @@ import {
   GetUsers,
   GetAllPermissions,
   UpdateUserPermissions,
+  UpdateUserRole,
+  CreateRole,
+  UpdateRole,
+  DeleteRole,
+  GetRoles,
 } from '../../components/api/settingAPI';
 import { commonAxios } from '../../boot/axios';
 import MutiSelector from '../../components/MutiSelector.vue';
@@ -511,11 +516,11 @@ import MutiInput from '../../components/MutiInput.vue';
 import { useSystemProperty } from '../../stores/System';
 
 const $q = useQuasar();
-const contentRef = ref(null);
+const contentRef = ref<HTMLElement | null>(null);
 const mainTab = ref('search');
 const activeSection = ref('');
 
-const expandedGroups = reactive({
+const expandedGroups: Record<string, boolean> = reactive({
   search: true,
   player: true,
   enable: true,
@@ -594,11 +599,11 @@ const allSectionIds = computed(() => {
   return groups.flatMap(g => g.items.map(i => i.id));
 });
 
-const toggleGroup = (name) => {
+const toggleGroup = (name: string) => {
   expandedGroups[name] = !expandedGroups[name];
 };
 
-const scrollToSection = (id) => {
+const scrollToSection = (id: string) => {
   const el = document.getElementById(id);
   if (el && contentRef.value) {
     const container = contentRef.value;
@@ -787,7 +792,7 @@ const saveRoleDialog = async () => {
   }
 }
 
-const confirmDeleteRole = (role: { name: string; label: string }, idx: number) => {
+const confirmDeleteRole = (role: { name: string; label: string }, _idx: number) => {
   $q.dialog({
     title: '确认删除',
     message: `确定删除角色 "${role.label || role.name}" 吗？该角色下的用户将恢复为默认角色。`,
@@ -842,14 +847,16 @@ const fetchAllPerms = async () => {
 
 const view = reactive({
   settingInfo: {
-    Dirs: [],
-    DirsLib: [],
-    Types: [],
-    VideoTypes: [],
-    Tags: [],
-    TagsLib: [],
-    MovieTypes: [],
-    Pages: [],
+    Dirs: [] as string[],
+    DirsLib: [] as string[],
+    Types: [] as string[],
+    VideoTypes: [] as string[],
+    ImageTypes: [] as string[],
+    DocsTypes: [] as string[],
+    Tags: [] as string[],
+    TagsLib: [] as string[],
+    MovieTypes: [] as string[],
+    Pages: [] as string[],
     EnableTimeScan: true,
     CutThenDelete: false,
     SystemPlayer: 'ffplay',
@@ -857,7 +864,17 @@ const view = reactive({
     SystemPlayerWidth: '1280',
     HardwareAcceleration: false,
     HardwareAccelMode: '',
+    AdminPassword: '',
+    ControllerHost: '',
     FileHost: ':10081',
+    BaseUrl: '',
+    ImageUrl: '',
+    Remark: '',
+    IsDb: false,
+    IsJavBus: false,
+    EnableLanDiscovery: null,
+    NodeName: '',
+    DiscoveryPeers: [] as string[],
   },
   ipAddr: '',
 });
@@ -876,7 +893,7 @@ const submitForm = async () => {
   view.settingInfo.Tags = (view.settingInfo.Tags || []).filter((item) => {
     return tagsLib.includes(item);
   });
-  const sortedTags = [];
+  const sortedTags: string[] = [];
   tagsLib.forEach((item) => {
     if (view.settingInfo.Tags.includes(item)) {
       sortedTags.push(item);

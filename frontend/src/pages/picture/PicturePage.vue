@@ -145,7 +145,7 @@
                 "
               >
                 <div
-                  @click.stop="() => {}"
+                  @click.stop="() => undefined"
                   style="
                     display: flex;
                     flex-direction: column;
@@ -163,7 +163,7 @@
                   </q-chip>
                 </div>
                 <q-chip
-                  @click.stop="() => {}"
+                  @click.stop="() => undefined"
                   square
                   color="green"
                   text-color="white"
@@ -182,7 +182,7 @@
             <div
               class="absolute-bottom text-body1 text-center"
               style="padding: 4px; background-color: rgba(0, 0, 0, 0.5)"
-              @click.stop="() => {}"
+              @click.stop="() => undefined"
             >
               <q-btn
                 flat
