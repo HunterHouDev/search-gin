@@ -17,7 +17,8 @@ type Page struct {
 	TotalSize  string `json:"TotalSize"`
 	CurSize    string `json:"CurSize"`
 
-	IndexProgress int32 `json:"IndexProgress"`
+	IndexProgress int32       `json:"IndexProgress"`
+	Aggregates    interface{} `json:"Aggregates,omitempty"` // 搜索结果的聚合数据（作者/标签/系列统计）
 }
 
 func NewPage() Page {

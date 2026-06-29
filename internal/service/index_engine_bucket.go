@@ -158,6 +158,27 @@ func (fs *bucketFile) searchBucket(searchParam model.SearchParam) model.PageResu
 		if !matchAdvancedFiltersFast(file, searchParam.MinSize, searchParam.MaxSize, dateFrom, dateTo, extSet) {
 			return false
 		}
+		// 作者过滤
+		if searchParam.FilterAuthor != "" && !strings.EqualFold(file.Author, searchParam.FilterAuthor) {
+			return false
+		}
+		// 系列过滤
+		if searchParam.FilterSeries != "" && !strings.EqualFold(file.Studio, searchParam.FilterSeries) {
+			return false
+		}
+		// 标签过滤
+		if searchParam.FilterTag != "" {
+			found := false
+			for _, tag := range file.Tags {
+				if strings.EqualFold(tag, searchParam.FilterTag) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return false
+			}
+		}
 		if keywords == nil {
 			return true
 		}

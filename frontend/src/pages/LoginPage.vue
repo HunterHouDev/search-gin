@@ -35,6 +35,7 @@
                 outlined
                 :disable="loading"
                 class="login-input"
+                @update:model-value="onUsernameChange"
               >
                 <template v-slot:prepend>
                   <q-icon name="person" size="20px" class="input-icon" />
@@ -110,6 +111,11 @@ const loading = ref(false);
 const errorMsg = ref('');
 const $q = useQuasar();
 
+// 输入时自动过滤非英文字符（仅保留字母、数字、下划线、连字符）
+const onUsernameChange = (val: string) => {
+  username.value = val.replace(/[^a-zA-Z0-9_.-]/g, '');
+};
+
 // 同步主题到 body（登录页独立于 MainLayout）
 onMounted(() => {
   document.body.classList.toggle('theme-natural', systemProperty.theme === 'natural');
@@ -118,6 +124,14 @@ onMounted(() => {
 const login = async () => {
   if (!username.value) {
     errorMsg.value = '请输入用户名';
+    return;
+  }
+  if (!/^[a-zA-Z]/.test(username.value)) {
+    errorMsg.value = '用户名仅支持英文字母开头';
+    return;
+  }
+  if (!/^[a-zA-Z][a-zA-Z0-9_.-]*$/.test(username.value)) {
+    errorMsg.value = '用户名仅支持英文、数字、下划线和连字符';
     return;
   }
   if (!password.value) {

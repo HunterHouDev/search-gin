@@ -9,6 +9,12 @@ type FileInfo struct {
 	IsDir   bool
 }
 
+// AggItem 聚合条目（搜索结果中作者/标签/系列的简版统计，仅含数量+大小）
+type AggItem struct {
+	Cnt  int64
+	Size int64
+}
+
 func NewFileInfo(name string, size int64) FileInfo {
 	cnt := int64(0)
 	if size > 0 {

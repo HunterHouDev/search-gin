@@ -10,6 +10,22 @@ type PageResultWrapper struct {
 	SearchSize  int64
 	ResultSize  int64
 	ResultCount int
+
+	// 聚合数据：全量匹配结果中的作者/标签/系列统计（分页前计算）
+	AuthorAgg map[string]AggItem `json:"authorAgg,omitempty"`
+	TagAgg    map[string]AggItem `json:"tagAgg,omitempty"`
+	SeriesAgg map[string]AggItem `json:"seriesAgg,omitempty"`
+
+	// 文件大小范围（用于前端动态生成快捷选项）
+	ResultMinSize int64 `json:"resultMinSize,omitempty"`
+	ResultMaxSize int64 `json:"resultMaxSize,omitempty"`
+
+	// 文件日期范围（用于前端动态日期快捷）
+	ResultMinDate int64 `json:"resultMinDate,omitempty"`
+	ResultMaxDate int64 `json:"resultMaxDate,omitempty"`
+
+	// 文件扩展名聚合（用于前端动态扩展名快捷）
+	ExtAgg map[string]AggItem `json:"extAgg,omitempty"`
 }
 
 func NewPageWrapper() PageResultWrapper {

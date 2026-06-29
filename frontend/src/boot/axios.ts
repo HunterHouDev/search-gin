@@ -57,7 +57,7 @@ export default boot(({ app, router }) => {
         return Promise.reject(error);
       }
 
-      const notify = (opts: { type: string; message: string; position: string; timeout: number }) => {
+      const notify = (opts: Parameters<typeof $q.notify>[0]) => {
         if ($q) {
           $q.notify(opts);
         }

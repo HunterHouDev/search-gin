@@ -9,7 +9,8 @@
         border-bottom: 1px solid var(--q-border);
       ">
         <!-- 索引按钮 -->
-        <IndexButton v-permission="'op:scan'" ref="indexButton" @refresh-done="onIndexRefresh" glossy dense :size="btnSize('head')" />
+        <IndexButton v-permission="'op:scan'" ref="indexButton" @refresh-done="onIndexRefresh" glossy dense
+          :size="btnSize('head')" />
         <!-- 主题选择器 -->
         <q-btn-dropdown no-caps flat glossy dense>
           <template v-slot:label>
@@ -238,7 +239,8 @@
             :style="fabStyle" @touchstart="onFabTouchStart" @touchmove="onFabTouchMove" @touchend="onFabTouchEnd"
             @mousedown.prevent="onFabDragStart" @mousemove="onFabDragMove" @mouseup="onFabDragEnd"
             @mouseleave="onFabDragEnd">
-            <q-fab-action v-permission="['op:edit','op:tag','op:transcode','op:merge','op:cut','op:movie:type']" @click="openListEditRef('filelist')" color="primary" label="编辑" />
+            <q-fab-action v-permission="['op:edit', 'op:tag', 'op:transcode', 'op:merge', 'op:cut', 'op:movie:type']"
+              @click="openListEditRef('filelist')" color="primary" label="编辑" />
             <q-fab-action @click="openListEditRef('tasking')" color="primary" label="任务" />
             <q-fab-action @click="openListEditRef('setting')" color="primary" label="主题" />
             <q-fab-action @click="openListEditRef('history')" color="primary" label="历史" />
@@ -248,64 +250,96 @@
 
       <!-- 高级过滤面板 -->
       <q-slide-transition>
-        <div v-show="view.showAdvancedFilter" class="advanced-filter-panel" :style="themeStyle">
-          <div class="row q-gutter-sm q-pa-sm items-end">
-            <!-- 文件大小范围 -->
-            <div class="col-auto">
-              <div class="text-caption text-grey-7 q-mb-xs">文件大小</div>
-              <div class="row q-gutter-xs items-center">
-                <q-select dense outlined style="width: 100px" v-model="filterMinSizeUnit" :options="sizeUnitOptions"
-                  emit-value map-options @update:model-value="onMinSizeChange" />
-                <q-input dense outlined style="width: 90px" type="number" v-model.number="filterMinSizeValue"
-                  @update:model-value="onMinSizeChange" placeholder="最小" />
-                <span class="text-grey-5">~</span>
-                <q-input dense outlined style="width: 90px" type="number" v-model.number="filterMaxSizeValue"
-                  @update:model-value="onMaxSizeChange" placeholder="最大" />
-                <q-select dense outlined style="width: 100px" v-model="filterMaxSizeUnit" :options="sizeUnitOptions"
-                  emit-value map-options @update:model-value="onMaxSizeChange" />
-              </div>
-            </div>
+        <div v-show="view.showAdvancedFilter" class="advanced-filter-panel" :style="[themeStyle, { padding: '8px 12px' }]">
 
-            <!-- 修改日期范围 -->
-            <div class="col-auto">
-              <div class="text-caption text-grey-7 q-mb-xs">修改日期</div>
-              <div class="row q-gutter-xs items-center">
-                <q-input dense outlined style="width: 140px" v-model="view.queryParam.dateFrom" type="date"
-                  @update:model-value="onFilterChange" clearable />
-                <span class="text-grey-5">~</span>
-                <q-input dense outlined style="width: 140px" v-model="view.queryParam.dateTo" type="date"
-                  @update:model-value="onFilterChange" clearable />
-              </div>
+          <!-- 作者聚合（已选中的隐藏，移到最底部） -->
+          <div v-if="unselectedAuthors && unselectedAuthors.length > 0" class="row no-wrap q-mb-sm">
+            <div class="text-caption text-grey-7" style="width: 48px; line-height: 28px; flex-shrink: 0;">作者</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+              <q-chip v-for="item in (unselectedAuthors || [])" :key="item.name"
+                color="indigo-1" text-color="indigo-7" size="md" dense clickable
+                @click="toggleAggFilter('filterAuthor', item.name)">
+                {{ item.name }} ({{ item.cnt }})
+              </q-chip>
             </div>
+          </div>
 
-            <!-- 文件扩展名 -->
-            <div class="col-auto">
-              <div class="text-caption text-grey-7 q-mb-xs">文件扩展名</div>
-              <div class="row q-gutter-xs items-center">
-                <q-select dense outlined use-input use-chips multiple hide-dropdown-icon
-                  style="min-width: 220px" v-model="view.queryParam.fileExts"
-                  input-debounce="0" new-value-mode="add-unique"
-                  @update:model-value="onFilterChange"
-                  placeholder="输入扩展名后回车，如 mp4" />
-              </div>
+          <!-- 标签聚合（已选中的隐藏，移到最底部） -->
+          <div v-if="unselectedTags && unselectedTags.length > 0" class="row no-wrap q-mb-sm">
+            <div class="text-caption text-grey-7" style="width: 48px; line-height: 28px; flex-shrink: 0;">标签</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+              <q-chip v-for="item in (unselectedTags || [])" :key="item.name"
+                color="orange-1" text-color="orange-8" size="md" dense clickable
+                @click="toggleAggFilter('filterTag', item.name)">
+                {{ item.name }} ({{ item.cnt }})
+              </q-chip>
             </div>
+          </div>
 
-            <!-- 快捷预设 -->
-            <div class="col-auto">
-              <div class="text-caption text-grey-7 q-mb-xs">快捷</div>
-              <div class="row q-gutter-xs">
-                <q-btn dense flat size="sm" color="primary" label="视频" @click="applyExtPreset(['mp4','avi','mkv','mov','wmv','flv','ts'])" />
-                <q-btn dense flat size="sm" color="primary" label="图片" @click="applyExtPreset(['jpg','jpeg','png','gif','bmp','webp'])" />
-                <q-btn dense flat size="sm" color="primary" label="大于1GB" @click="applySizePreset(1073741824, 0)" />
-                <q-btn dense flat size="sm" color="primary" label="近一周" @click="applyDatePreset(7)" />
-                <q-btn dense flat size="sm" color="primary" label="近一月" @click="applyDatePreset(30)" />
-              </div>
+          <!-- 系列聚合（已选中的隐藏，移到最底部） -->
+          <div v-if="unselectedSeries && unselectedSeries.length > 0" class="row no-wrap q-mb-sm">
+            <div class="text-caption text-grey-7" style="width: 48px; line-height: 28px; flex-shrink: 0;">系列</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+              <q-chip v-for="item in (unselectedSeries || [])" :key="item.name"
+                color="green-1" text-color="green-7" size="md" dense clickable
+                @click="toggleAggFilter('filterSeries', item.name)">
+                {{ item.name }} ({{ item.cnt }})
+              </q-chip>
             </div>
+          </div>
 
-            <!-- 操作按钮 -->
-            <div class="col-auto self-end">
-              <q-btn dense flat size="sm" color="red" icon="ti-close" label="重置" @click="clearAdvancedFilters" />
+          <!-- 动态大小快捷（根据搜索结果 min/max 生成） -->
+          <div v-if="sizePresets && sizePresets.length > 0" class="row no-wrap q-mb-md" style="padding: 4px 0;">
+            <div class="text-caption text-grey-7" style="width: 48px; line-height: 28px; flex-shrink: 0;">大小</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+              <q-btn v-for="p in (sizePresets || [])" :key="p.label" dense flat size="md"
+                :color="p.label.startsWith('<') ? 'deep-orange-6' : 'indigo-6'"
+                :label="p.label"
+                @click="applySizePreset(p.min, p.max)" />
             </div>
+          </div>
+
+          <q-separator class="q-my-sm" />
+
+          <!-- 动态日期快捷 -->
+          <div v-if="datePresets && datePresets.length > 0" class="row no-wrap q-mb-sm">
+            <div class="text-caption text-grey-7" style="width: 48px; line-height: 28px; flex-shrink: 0;">日期</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+              <q-btn v-for="p in (datePresets || [])" :key="p.label" dense flat size="md" color="primary"
+                :label="p.label" :outline="!!p.outline" @click="applyDatePreset(p.days)" />
+            </div>
+          </div>
+
+          <!-- 动态扩展名快捷 -->
+          <div v-if="extPresets && extPresets.length > 0" class="row no-wrap q-mb-sm">
+            <div class="text-caption text-grey-7" style="width: 48px; line-height: 28px; flex-shrink: 0;">扩展名</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+              <q-chip v-for="e in (extPresets || [])" :key="e.ext"
+                :color="isExtSelected(e.ext) ? 'primary' : 'grey-3'"
+                :text-color="isExtSelected(e.ext) ? 'white' : 'grey-8'" size="md" dense clickable
+                @click="toggleExt(e.ext)" :removable="isExtSelected(e.ext)"
+                @remove="toggleExt(e.ext)">
+                {{ e.ext }} ({{ e.cnt }})
+              </q-chip>
+            </div>
+          </div>
+
+          <q-separator class="q-my-sm" />
+
+          <!-- 已选中的过滤条件 + 重置 -->
+          <div class="row justify-between items-center">
+            <div class="row q-gutter-xs items-center" v-if="selectedFilterChips.length > 0">
+              <span class="text-caption text-grey-7 q-mr-xs">已选</span>
+              <template v-for="chip in selectedFilterChips" :key="chip.key">
+                <q-chip v-if="chip.label" dense size="md"
+                  :color="chip.color" text-color="white"
+                  removable @remove="chip.onRemove()">
+                  {{ chip.label }}
+                </q-chip>
+              </template>
+            </div>
+            <div style="flex:1;"></div>
+            <q-btn dense flat size="md" color="red" icon="ti-close" label="重置" @click="clearAdvancedFilters" />
           </div>
         </div>
       </q-slide-transition>
@@ -995,6 +1029,9 @@ const view = reactive({
     dateFrom: '',
     dateTo: '',
     fileExts: [],
+    filterAuthor: '',
+    filterTag: '',
+    filterSeries: '',
   },
   resultData: {},
   searchNodeDisplay: '本机',
@@ -1012,6 +1049,9 @@ const sizeUnitOptions = [
   { label: 'MB', value: 1048576 },
   { label: 'GB', value: 1073741824 },
 ];
+
+// 搜索条件折叠状态（已废弃，保留兼容）
+// const showMoreConditions = ref(false);
 
 const filterMinSizeValue = ref(0);
 const filterMinSizeUnit = ref(1073741824); // 默认 GB
@@ -1065,7 +1105,10 @@ const hasAdvancedFilters = computed(() => {
     (view.queryParam.maxSize > 0) ||
     (view.queryParam.dateFrom !== '' && view.queryParam.dateFrom != null) ||
     (view.queryParam.dateTo !== '' && view.queryParam.dateTo != null) ||
-    (Array.isArray(view.queryParam.fileExts) && view.queryParam.fileExts.length > 0);
+    (Array.isArray(view.queryParam.fileExts) && view.queryParam.fileExts.length > 0) ||
+    (view.queryParam.filterAuthor !== '') ||
+    (view.queryParam.filterTag !== '') ||
+    (view.queryParam.filterSeries !== '');
 });
 
 const applyExtPreset = (exts) => {
@@ -1097,12 +1140,106 @@ const applyDatePreset = (daysAgo) => {
   onFilterChange();
 };
 
+// 根据搜索结果大小范围生成快捷按钮
+const sizePresets = computed(() => {
+  const agg = aggregates.value;
+  if (!agg || !agg.minSize || !agg.maxSize) return [];
+  const min = agg.minSize;
+  const max = agg.maxSize;
+  if (min >= max) return [];
+
+  const GB = 1073741824;
+  const MB = 1048576;
+  const presets = [];
+
+  const greaterLabels = ['>100MB', '>500MB', '>1GB', '>5GB', '>10GB', '>50GB', '>100GB'];
+  const greaterSizes = [MB * 100, MB * 500, GB, GB * 5, GB * 10, GB * 50, GB * 100];
+  let firstIdx = -1;
+  for (let i = 0; i < greaterSizes.length && presets.length < 5; i++) {
+    if (greaterSizes[i] > min && greaterSizes[i] < max) {
+      if (firstIdx === -1) firstIdx = i;
+      presets.push({ label: greaterLabels[i], min: greaterSizes[i], max: 0 });
+    }
+  }
+
+  // 添加 <min 按钮（小于最小区间阈值）
+  if (firstIdx >= 0) {
+    const lessLabel = greaterLabels[firstIdx].replace('>', '<');
+    presets.unshift({ label: lessLabel, min: 0, max: greaterSizes[firstIdx] });
+  }
+
+  return presets;
+});
+
+// 根据搜索结果日期范围生成日期快捷按钮
+const datePresets = computed(() => {
+  const agg = aggregates.value;
+  if (!agg || !agg.maxDate) return [];
+  const now = Date.now() / 1000;
+  const maxDate = agg.maxDate;
+  const range = now - maxDate; // 最老文件距今秒数
+  const presets = [];
+
+  const DAY = 86400;
+  const YEAR = 365 * DAY;
+
+  const items = [
+    { label: '近一周', days: 7 },
+    { label: '近一月', days: 30 },
+    { label: '近一年', days: 365 },
+    { label: '近五年', days: 1825 },
+    { label: '近十年', days: 3650 },
+  ];
+
+  for (const item of items) {
+    const secs = item.days * DAY;
+    presets.push({
+      label: item.label,
+      days: item.days,
+      outline: secs < range, // 若范围大于预设值，灰色描边
+    });
+  }
+
+  return presets;
+});
+
+// 从后台搜索结果提取扩展名聚合 + 按数量排序
+const extPresets = computed(() => {
+  const agg = aggregates.value;
+  if (!agg || !agg.exts) return [];
+  return Object.entries(agg.exts)
+    .map(([ext, info]) => ({ ext, cnt: info.Cnt || 0 }))
+    .sort((a, b) => b.cnt - a.cnt)
+    .slice(0, 10);
+});
+
+const isExtSelected = (ext) => {
+  return Array.isArray(view.queryParam.fileExts) && view.queryParam.fileExts.includes(ext);
+};
+
+const toggleExt = (ext) => {
+  if (!Array.isArray(view.queryParam.fileExts)) {
+    view.queryParam.fileExts = [];
+  }
+  const idx = view.queryParam.fileExts.indexOf(ext);
+  if (idx >= 0) {
+    view.queryParam.fileExts.splice(idx, 1);
+  } else {
+    view.queryParam.fileExts.push(ext);
+  }
+  view.queryParam.Page = 1;
+  fetchSearch();
+};
+
 const clearAdvancedFilters = () => {
   view.queryParam.minSize = 0;
   view.queryParam.maxSize = 0;
   view.queryParam.dateFrom = '';
   view.queryParam.dateTo = '';
   view.queryParam.fileExts = [];
+  view.queryParam.filterAuthor = '';
+  view.queryParam.filterTag = '';
+  view.queryParam.filterSeries = '';
   filterMinSizeValue.value = 0;
   filterMaxSizeValue.value = 0;
   filterMinSizeUnit.value = 1073741824;
@@ -1117,6 +1254,108 @@ const ensureFilterDefaults = () => {
   if (view.queryParam.dateFrom == null) view.queryParam.dateFrom = '';
   if (view.queryParam.dateTo == null) view.queryParam.dateTo = '';
   if (!Array.isArray(view.queryParam.fileExts)) view.queryParam.fileExts = [];
+  if (view.queryParam.filterAuthor == null) view.queryParam.filterAuthor = '';
+  if (view.queryParam.filterTag == null) view.queryParam.filterTag = '';
+  if (view.queryParam.filterSeries == null) view.queryParam.filterSeries = '';
+};
+
+// ========== 聚合数据（作者/标签/系列） ==========
+// 从搜索结果中提取聚合数据
+const aggregates = computed(() => {
+  return view.resultData?.Aggregates || null;
+});
+
+// 将聚合 map 转为排序后的数组
+const sortAggEntries = (mapData) => {
+  if (!mapData) return [];
+  return Object.entries(mapData)
+    .map(([name, info]) => ({ name, cnt: info.Cnt || 0 }))
+    .sort((a, b) => b.cnt - a.cnt)
+    .slice(0, 20); // 最多显示前 20 个
+};
+
+const aggregatesAuthors = computed(() => sortAggEntries(aggregates.value?.authors));
+const aggregatesTags = computed(() => sortAggEntries(aggregates.value?.tags));
+const aggregatesSeries = computed(() => sortAggEntries(aggregates.value?.series));
+
+// 未选中的（在聚合区域显示）
+const unselectedAuthors = computed(() => {
+  const list = aggregatesAuthors.value;
+  if (!Array.isArray(list)) return [];
+  return list.filter(i => view.queryParam.filterAuthor !== i.name);
+});
+const unselectedTags = computed(() => {
+  const list = aggregatesTags.value;
+  if (!Array.isArray(list)) return [];
+  return list.filter(i => view.queryParam.filterTag !== i.name);
+});
+const unselectedSeries = computed(() => {
+  const list = aggregatesSeries.value;
+  if (!Array.isArray(list)) return [];
+  return list.filter(i => view.queryParam.filterSeries !== i.name);
+});
+
+// 已选中的过滤条件（在重置行平铺显示）
+const selectedFilterChips = computed(() => {
+  const chips = [];
+  const MB = 1048576;
+  const GB = 1073741824;
+
+  // 聚合: 作者
+  if (view.queryParam.filterAuthor && Array.isArray(aggregatesAuthors.value)) {
+    const item = aggregatesAuthors.value.find(i => i.name === view.queryParam.filterAuthor);
+    if (item) chips.push({ key: 'author', label: `作者: ${item.name} (${item.cnt})`, color: 'indigo-5', onRemove: () => toggleAggFilter('filterAuthor', '') });
+  }
+  // 聚合: 标签
+  if (view.queryParam.filterTag && Array.isArray(aggregatesTags.value)) {
+    const item = aggregatesTags.value.find(i => i.name === view.queryParam.filterTag);
+    if (item) chips.push({ key: 'tag', label: `标签: ${item.name} (${item.cnt})`, color: 'orange-5', onRemove: () => toggleAggFilter('filterTag', '') });
+  }
+  // 聚合: 系列
+  if (view.queryParam.filterSeries && Array.isArray(aggregatesSeries.value)) {
+    const item = aggregatesSeries.value.find(i => i.name === view.queryParam.filterSeries);
+    if (item) chips.push({ key: 'series', label: `系列: ${item.name} (${item.cnt})`, color: 'green-5', onRemove: () => toggleAggFilter('filterSeries', '') });
+  }
+  // 大小
+  if (view.queryParam.minSize > 0 || view.queryParam.maxSize > 0) {
+    const minStr = view.queryParam.minSize > 0 ? formatFilterSize(view.queryParam.minSize) : '';
+    const maxStr = view.queryParam.maxSize > 0 ? formatFilterSize(view.queryParam.maxSize) : '';
+    let label = '';
+    if (minStr && maxStr) label = `${minStr}~${maxStr}`;
+    else if (minStr) label = `>${minStr}`;
+    else label = `<${maxStr}`;
+    chips.push({ key: 'size', label: `大小: ${label}`, color: 'blue-grey-5', onRemove: () => { view.queryParam.minSize = 0; view.queryParam.maxSize = 0; filterMinSizeValue.value = 0; filterMaxSizeValue.value = 0; onFilterChange(); } });
+  }
+  // 日期
+  if (view.queryParam.dateFrom || view.queryParam.dateTo) {
+    const from = view.queryParam.dateFrom || '...';
+    const to = view.queryParam.dateTo || '...';
+    chips.push({ key: 'date', label: `日期: ${from}~${to}`, color: 'blue-grey-5', onRemove: () => { view.queryParam.dateFrom = ''; view.queryParam.dateTo = ''; onFilterChange(); } });
+  }
+  // 扩展名
+  if (Array.isArray(view.queryParam.fileExts) && view.queryParam.fileExts.length > 0) {
+    const label = view.queryParam.fileExts.join(', ');
+    chips.push({ key: 'exts', label: `扩展名: ${label}`, color: 'blue-grey-5', onRemove: () => { view.queryParam.fileExts = []; onFilterChange(); } });
+  }
+  return chips;
+});
+
+const formatFilterSize = (bytes) => {
+  if (bytes >= GB) return (bytes / GB).toFixed(1) + 'GB';
+  if (bytes >= MB) return (bytes / MB).toFixed(0) + 'MB';
+  if (bytes >= 1024) return Math.round(bytes / 1024) + 'KB';
+  return bytes + 'B';
+};
+
+// 切换聚合过滤：点击选中/取消
+const toggleAggFilter = (field, value) => {
+  if (view.queryParam[field] === value) {
+    view.queryParam[field] = '';
+  } else {
+    view.queryParam[field] = value;
+  }
+  view.queryParam.Page = 1;
+  fetchSearch();
 };
 
 const currentSort = computed({
@@ -1637,8 +1876,8 @@ const pullNextPage = async (n) => {
       const data = await SearchAPI(view.queryParam, signal);
       if (signal?.aborted) return;
       view.resultData.Data.push(...(data?.Data || []));
-	} catch (e) {
-    if (e?.name === 'CanceledError' || e?.name === 'AbortError') return;
+    } catch (e) {
+      if (e?.name === 'CanceledError' || e?.name === 'AbortError') return;
       console.error('分页请求异常:', e);
     } finally {
       isMoreLoading.value = false;
@@ -1669,7 +1908,7 @@ const fetchSearch = async (replace = false) => {
   const currentController = new AbortController();
   searchAbortController.value = currentController;
 
- 	try {
+  try {
     saveParam(replace);
     const { Keyword } = view.queryParam;
     if (!Keyword || Keyword == '') {
@@ -2177,30 +2416,40 @@ onUnmounted(() => {
   border-radius: 12px !important;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.8);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-
-  &:hover {
-
-    transform: translateY(-8px);
-    box-shadow: 0 16px 32px rgba(0, 0, 0, 0.15);
-    border: orangered 2px solid;
-  }
 }
 
-// 高级过滤面板
+// 高级过滤面板 — 悬浮卡片样式
 .advanced-filter-panel {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--q-border, rgba(0, 0, 0, 0.12));
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  z-index: 10;
+  position: fixed;
+  top: 64px;
+  left: 6px;
+  right: 6px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 12px;
+  box-shadow:
+    0 12px 48px rgba(0, 0, 0, 0.15),
+    0 4px 12px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  z-index: 99;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 16px 56px rgba(0, 0, 0, 0.18),
+      0 6px 16px rgba(0, 0, 0, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  }
 
   .q-input,
   .q-select {
-    font-size: 0.85rem;
+    font-size: 0.9rem;
   }
 
   .text-caption {
-    font-size: 0.7rem;
+    font-size: 0.8rem;
     font-weight: 600;
     letter-spacing: 0.3px;
   }
@@ -2208,7 +2457,18 @@ onUnmounted(() => {
 
 // 暗黑模式过滤面板
 .body--dark .advanced-filter-panel {
-  background: rgba(30, 30, 30, 0.95);
-  border-bottom-color: rgba(255, 255, 255, 0.08);
+  background: rgba(30, 30, 30, 0.96);
+  border-color: rgba(255, 255, 255, 0.06);
+  box-shadow:
+    0 12px 48px rgba(0, 0, 0, 0.35),
+    0 4px 12px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+  &:hover {
+    box-shadow:
+      0 16px 56px rgba(0, 0, 0, 0.4),
+      0 6px 16px rgba(0, 0, 0, 0.25),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
 }
 </style>

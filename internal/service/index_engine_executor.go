@@ -35,6 +35,24 @@ func (se *searchEngineCore) Page(searchParam model.SearchParam) utils.Page {
 	}
 	result.Data = files
 	result.SetProgress(IndexNumber.Load())
+	// 传递聚合数据
+	agg := map[string]interface{}{
+		"authors": sr.AuthorAgg,
+		"tags":    sr.TagAgg,
+		"series":  sr.SeriesAgg,
+	}
+	if sr.ResultMinSize > 0 && sr.ResultMaxSize > 0 {
+		agg["minSize"] = sr.ResultMinSize
+		agg["maxSize"] = sr.ResultMaxSize
+	}
+	if sr.ResultMinDate > 0 {
+		agg["minDate"] = sr.ResultMinDate
+		agg["maxDate"] = sr.ResultMaxDate
+	}
+	if len(sr.ExtAgg) > 0 {
+		agg["exts"] = sr.ExtAgg
+	}
+	result.Aggregates = agg
 	return result
 }
 
@@ -125,6 +143,9 @@ func (se *searchEngineCore) doSearch(index *searchIndex, p model.SearchParam) mo
 	se.collectResults(&wrapper, resultChan, ctx)
 
 	model.SortFileItems(wrapper.FileList, p.SortField, p.SortType)
+
+	// 计算搜索结果中的聚合数据（基于全量匹配结果，分页前计算）
+	wrapper.AuthorAgg, wrapper.TagAgg, wrapper.SeriesAgg, wrapper.ExtAgg, wrapper.ResultMinSize, wrapper.ResultMaxSize, wrapper.ResultMinDate, wrapper.ResultMaxDate = computeAggregates(wrapper.FileList)
 
 	if p.Keyword != "" && wrapper.SearchCount <= 2000 {
 		se.KeywordHistoryCache.Set(p.UniWords(), cachedResult{epoch: se.cacheEpoch.Load(), data: wrapper})
@@ -257,6 +278,85 @@ func buildAuthorResult(authors []model.Author, param model.SearchParam) model.Pa
 	wrapper.Size = size
 	wrapper.ResultCount = len(list)
 	return wrapper
+}
+
+// computeAggregates 从搜索结果文件中统计聚合数据
+func computeAggregates(files []model.FileItem) (authorAgg, tagAgg, seriesAgg, extAgg map[string]model.AggItem, minSize, maxSize, minDate, maxDate int64) {
+	authorAgg = make(map[string]model.AggItem)
+	tagAgg = make(map[string]model.AggItem)
+	seriesAgg = make(map[string]model.AggItem)
+	extAgg = make(map[string]model.AggItem)
+
+	for _, f := range files {
+		// 大小范围
+		if f.Size > maxSize {
+			maxSize = f.Size
+		}
+		if minSize == 0 || f.Size < minSize {
+			minSize = f.Size
+		}
+
+		// 日期范围
+		if f.MTimeUnix > maxDate {
+			maxDate = f.MTimeUnix
+		}
+		if minDate == 0 || f.MTimeUnix < minDate {
+			minDate = f.MTimeUnix
+		}
+
+		// 按作者聚合
+		if f.Author != "" {
+			if entry, ok := authorAgg[f.Author]; ok {
+				entry.Cnt++
+				entry.Size += f.Size
+				authorAgg[f.Author] = entry
+			} else {
+				authorAgg[f.Author] = model.AggItem{
+					Cnt:  1,
+					Size: f.Size,
+				}
+			}
+		}
+
+		// 按标签聚合
+		for _, tag := range f.Tags {
+			if tag == "" {
+				continue
+			}
+			if entry, ok := tagAgg[tag]; ok {
+				entry.Cnt++
+				tagAgg[tag] = entry
+			} else {
+				tagAgg[tag] = model.AggItem{
+					Cnt: 1,
+				}
+			}
+		}
+
+		// 按系列（Studio）聚合
+		if f.Studio != "" {
+			if entry, ok := seriesAgg[f.Studio]; ok {
+				entry.Cnt++
+				seriesAgg[f.Studio] = entry
+			} else {
+				seriesAgg[f.Studio] = model.AggItem{
+					Cnt: 1,
+				}
+			}
+		}
+
+		// 按扩展名聚合
+		if ext := utils.GetSuffix(f.Name); ext != "" {
+			if entry, ok := extAgg[ext]; ok {
+				entry.Cnt++
+				extAgg[ext] = entry
+			} else {
+				extAgg[ext] = model.AggItem{Cnt: 1}
+			}
+		}
+	}
+
+	return
 }
 
 // ── 查询方法 ──────────────────────────────────────────────────────
