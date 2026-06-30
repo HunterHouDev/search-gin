@@ -288,7 +288,7 @@ var (
 	localNetsOnce  sync.Once
 	localIPv4Nets  []net.IPNet
 	localIPv6Nets  []net.IPNet
-	localFirstIPv4 string
+	localFirstIP   string
 )
 
 // pickLocalIPCache clientIP → 本机出口 IP，同网段客户端只算一次
@@ -319,26 +319,21 @@ func pickLocalIP(clientIP string) string {
 					continue
 				}
 				if ipNet.IP.To4() != nil {
-					ip := make(net.IP, len(ipNet.IP))
-					copy(ip, ipNet.IP)
-					mask := make(net.IPMask, len(ipNet.Mask))
-					copy(mask, ipNet.Mask)
-					localIPv4Nets = append(localIPv4Nets, net.IPNet{IP: ip, Mask: mask})
-					if localFirstIPv4 == "" && !ipNet.IP.IsLoopback() {
-						localFirstIPv4 = ip.String()
-					}
+					localIPv4Nets = append(localIPv4Nets, *ipNet)
 				} else {
-					ip := make(net.IP, len(ipNet.IP))
-					copy(ip, ipNet.IP)
-					mask := make(net.IPMask, len(ipNet.Mask))
-					copy(mask, ipNet.Mask)
-					localIPv6Nets = append(localIPv6Nets, net.IPNet{IP: ip, Mask: mask})
+					localIPv6Nets = append(localIPv6Nets, *ipNet)
 				}
+			}
+		}
+		for i := range localIPv4Nets {
+			if !localIPv4Nets[i].IP.IsLoopback() {
+				localFirstIP = localIPv4Nets[i].IP.String()
+				break
 			}
 		}
 	})
 
-	result := localFirstIPv4
+	result := localFirstIP
 	if parsedIP := net.ParseIP(clientIP); parsedIP != nil && !parsedIP.IsLoopback() {
 		for i := range localIPv4Nets {
 			if localIPv4Nets[i].Contains(parsedIP) {
@@ -346,7 +341,7 @@ func pickLocalIP(clientIP string) string {
 				break
 			}
 		}
-		if result == localFirstIPv4 {
+		if result == localFirstIP {
 			for i := range localIPv6Nets {
 				if localIPv6Nets[i].Contains(parsedIP) {
 					result = localIPv6Nets[i].IP.String()
