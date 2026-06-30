@@ -1,12 +1,14 @@
 package service
 
 import (
+	"bufio"
 	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"search-gin/internal/model"
+	"search-gin/internal/sse"
 	"search-gin/pkg/utils"
 	"strings"
 	"time"
@@ -227,6 +229,55 @@ func ffmpegRun(ctx context.Context, args []string) ([]byte, error) {
 	return cmd.CombinedOutput()
 }
 
+// ffmpegRunStream 流式执行 ffmpeg，通过 SSE 实时推送日志行，同时累积到 task.Log
+func ffmpegRunStream(ctx context.Context, args []string, taskKey time.Time) error {
+	ffmpegPath := ffmpegBinPath()
+	cmd := exec.CommandContext(ctx, ffmpegPath, args...)
+	if runtime.GOOS == "windows" {
+		utils.FixOnWin(cmd)
+	}
+
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return err
+	}
+
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
+	// 读 stderr 逐行推 SSE + 追加到 task.Log
+	scanner := bufio.NewScanner(stderr)
+	// ffmpeg progress 行可能很长，增大 buffer
+	scanner.Buffer(make([]byte, 64*1024), 256*1024)
+	for scanner.Scan() {
+		line := scanner.Text()
+		appendTaskLog(taskKey, line)
+		sse.BroadcastEvent("task_log", map[string]interface{}{
+			"taskKey": taskKey,
+			"line":    line,
+		})
+	}
+
+	// scanner 错误（非 EOF）记录但吞掉，Wait 会给出真正的错误
+	waitErr := cmd.Wait()
+	if waitErr != nil {
+		return waitErr
+	}
+	return nil
+}
+
+// appendTaskLog 向 task.Log 追加一行，线程安全
+func appendTaskLog(key time.Time, line string) {
+	TransferTaskMutex.Lock()
+	t, ok := TransferTask[key]
+	if ok {
+		t.Log += line + "\n"
+		TransferTask[key] = t
+	}
+	TransferTaskMutex.Unlock()
+}
+
 // ffmpegExec 编排层：管理任务生命周期 + 执行 ffmpeg + 回写结果
 func ffmpegExec(args []string, taskKey time.Time) utils.Result {
 	TransferTaskMutex.Lock()
@@ -237,17 +288,18 @@ func ffmpegExec(args []string, taskKey time.Time) utils.Result {
 	}
 	task.Status = model.StatusExecuting
 	task.Command = ffmpegBinPath() + " " + strings.Join(args, " ")
+	task.Log = "" // 清空旧日志，准备接收实时日志
 	TransferTask[taskKey] = task
 	TransferTaskMutex.Unlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
-	out, cmdErr := ffmpegRun(ctx, args)
+	cmdErr := ffmpegRunStream(ctx, args, taskKey)
 
 	if cmdErr != nil {
-		updateTaskStatus(taskKey, model.StatusFailed, string(out))
-		utils.InfoFormat("命令执行失败: %v, 错误: %v, 参数: %v", string(out), cmdErr, args)
+		updateTaskStatus(taskKey, model.StatusFailed, "")
+		utils.InfoFormat("命令执行失败: %v, 参数: %v", cmdErr, args)
 		return utils.NewFailByMsg("转换失败")
 	}
 

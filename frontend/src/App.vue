@@ -10,13 +10,15 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, watch, onErrorCaptured } from 'vue';
+import { onMounted, onUnmounted, watch, onErrorCaptured } from 'vue';
 import { useQuasar } from 'quasar';
 import ParticleBackground from 'components/ParticleBackground.vue';
 import { useSystemProperty } from './stores/System';
+import { useGlobalSSE } from './composables/useGlobalSSE';
 
 const systemProperty = useSystemProperty();
 const $q = useQuasar();
+const { connect: connectSSE, disconnect: disconnectSSE } = useGlobalSSE();
 
 // 设置主题类
 const applyTheme = (theme: string) => {
@@ -53,11 +55,16 @@ onErrorCaptured((err, instance, info) => {
 onMounted(() => {
   applyTheme(systemProperty.theme);
   document.body.classList.add('app-ready');
+  connectSSE(); // 全局 SSE 常驻，路由切换不断连
 
   window.addEventListener('unhandledrejection', (event) => {
     console.error('[Unhandled Promise]', event.reason);
     // 网络错误已在 axios 拦截器中处理，这里只打日志不做通知
   });
+});
+
+onUnmounted(() => {
+  disconnectSSE();
 });
 </script>
 

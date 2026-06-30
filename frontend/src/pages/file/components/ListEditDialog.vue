@@ -741,6 +741,18 @@
                         }}</span>
                       </q-item-label>
                     </q-item-section>
+                    <q-item-section side>
+                      <q-btn
+                        dense
+                        flat
+                        size="sm"
+                        icon="article"
+                        color="orange"
+                        @click="viewLogExecuting(v)"
+                      >
+                        <q-tooltip>实时日志</q-tooltip>
+                      </q-btn>
+                    </q-item-section>
                   </q-item>
                 </template>
               </q-list>
@@ -802,7 +814,7 @@
                           size="sm"
                           icon="article"
                           color="grey"
-                          @click="view.vLog = v.Log; tabTask = '日志'"
+                          @click="viewLogCompleted(v)"
                         />
                         <q-btn
                           dense
@@ -825,15 +837,24 @@
 
               <!-- 日志面板 -->
               <div v-if="tabTask === '日志'" class="q-pa-sm">
-                <q-btn
-                  flat
-                  dense
-                  icon="arrow_back"
-                  label="返回"
-                  size="sm"
-                  @click="tabTask = '全部'"
-                  class="q-mb-sm"
-                />
+                <div class="row items-center q-mb-sm q-gutter-sm">
+                  <q-btn
+                    flat
+                    dense
+                    icon="arrow_back"
+                    label="返回"
+                    size="sm"
+                    @click="tabTask = '全部'; view.sseTaskKey = ''"
+                  />
+                  <q-badge
+                    v-if="view.sseTaskKey"
+                    color="orange"
+                    align="middle"
+                  >
+                    <q-spinner size="14px" color="white" class="q-mr-xs" />
+                    实时
+                  </q-badge>
+                </div>
                 <pre
                   class="text-caption bg-grey-1 q-pa-sm rounded-borders"
                   style="
@@ -842,6 +863,7 @@
                     white-space: pre-wrap;
                     word-break: break-all;
                   "
+                  ref="logPreRef"
                 >{{ view.vLog || '暂无日志' }}</pre>
               </div>
             </q-tab-panel>
@@ -960,10 +982,11 @@
 <script setup>
 import { useQuasar, date } from 'quasar';
 import { useDialogPluginComponent } from 'quasar';
-import { reactive, ref, watch, computed } from 'vue';
+import { reactive, ref, watch, computed, nextTick } from 'vue';
 import { useSystemProperty } from 'stores/System';
 import { useCommonExec } from 'src/composables/useCommonExec';
 import { useBreakpoint } from 'src/composables/useBreakpoint';
+import { useTaskLogStore } from 'src/stores/taskLog';
 
 import {
   MovieTypeOptions,
@@ -1018,6 +1041,8 @@ const view = reactive({
   totalCount: [0, 0, 0, 0, 0],
   chooseInput: false,
   input: '',
+  sseTaskKey: '',     // 当前查看实时日志的任务 key
+  vLog: '',
 });
 
 const isBatchProcessing = ref(false);
@@ -1089,9 +1114,21 @@ watch(
   }
 );
 
+// SSE 实时日志：当 taskLogStore 有更新时同步到 vLog
+watch(
+  () => taskLogStore.logMap[view.sseTaskKey]?.length || 0,
+  () => {
+    if (view.sseTaskKey && tabTask.value === '日志') {
+      const lines = taskLogStore.getLogs(view.sseTaskKey);
+      view.vLog = lines.join('\n');
+    }
+  }
+);
+
 const systemProperty = useSystemProperty();
 const { isMobile } = useBreakpoint();
 const { exec: commonExec } = useCommonExec({ notifyOnSuccess: true });
+const taskLogStore = useTaskLogStore();
 
 const getColor = (status) => {
   return status == '完成'
@@ -1101,6 +1138,36 @@ const getColor = (status) => {
     : status == '执行中'
     ? 'orange'
     : 'black';
+};
+
+const logPreRef = ref(null);
+
+// 自动滚动到日志底部
+watch(
+  () => view.vLog,
+  () => {
+    nextTick(() => {
+      if (logPreRef.value) {
+        logPreRef.value.scrollTop = logPreRef.value.scrollHeight;
+      }
+    });
+  }
+);
+
+// 查看执行中任务的实时日志
+const viewLogExecuting = (v) => {
+  view.sseTaskKey = v.CreateTime;
+  // 先用 API 中已有的 Log 初始化，后续 SSE 实时追加
+  const sseLines = taskLogStore.getLogs(v.CreateTime);
+  view.vLog = sseLines.length > 0 ? sseLines.join('\n') : (v.Log || '');
+  tabTask.value = '日志';
+};
+
+// 查看已完成/失败任务的日志（静态）
+const viewLogCompleted = (v) => {
+  view.sseTaskKey = '';
+  view.vLog = v.Log;
+  tabTask.value = '日志';
 };
 
 const removeTask = async (createTime) => {
