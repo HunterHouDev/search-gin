@@ -53,15 +53,6 @@
           icon="ti-close"
           @click="closeWindow"
         />
-        <q-btn
-          flat
-          dense
-          color="red"
-          @click="openChatDialogRef"
-          v-if="isDesktop"
-          label="a"
-          style="position: hidden"
-        ></q-btn>
         <q-btn dense flat color="red" v-if="timeLogout < 60 * 30"
           >时长:{{ timeLogoutShow }}
         </q-btn>
@@ -99,7 +90,6 @@
     </q-page-container>
       <ShutdownComponent ref="shutdown" />
       <ListEdit ref="listEditRef" />
-      <ChatDeepseek ref="chatRef" />
       <ChatRoom ref="chatRoomRef" />
   </q-layout>
 
@@ -115,12 +105,10 @@ import { useBreakpoint } from 'src/composables/useBreakpoint';
 import EssentialLink from 'components/EssentialLink.vue';
 import ListEdit from 'pages/file/components/ListEditDialog.vue';
 import ShutdownComponent from 'components/ShutdownComponent.vue';
-import ChatDeepseek from 'pages/file/components/ChatDeepseek.vue';
 import ChatRoom from 'components/ChatRoom.vue';
 import { useChatWs } from 'src/composables/useChatWs';
 
 const listEditRef = ref(null);
-const chatRef = ref(null);
 const chatRoomRef = ref(null);
 
 const systemProperty = useSystemProperty();
@@ -223,10 +211,6 @@ const closeWindow = () => {
 
 const minusScreen = () => {
   window.electron.hideMainWindow();
-};
-
-const openChatDialogRef = () => {
-  chatRef.value.open();
 };
 
 // 聊天室

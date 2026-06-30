@@ -188,7 +188,6 @@ func BuildAPIRouter(sigChan chan os.Signal) *gin.Engine {
 	router.GET("/api/logMemory", handler.GetLogMemory)
 	router.GET("/api/localLog", handler.GetLocalLog)
 	router.GET("/api/indexHealth", handler.GetIndexHealthCheck)
-	router.POST("/api/chat/deepseek", handler.PostChatDeepSeek)
 	router.GET("/api/ws", handler.HandleWebSocket)
 	router.GET("/api/events", func(c *gin.Context) {
 		handler.HandleSSE(c.Writer, c.Request)

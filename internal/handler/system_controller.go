@@ -16,7 +16,6 @@ func GetSettingInfo(c *gin.Context) {
 	setting := UseApp().config.Get()
 	safeSetting := setting
 	safeSetting.Users = nil
-	safeSetting.DeepSeekApiKey = ""    // 密钥不返回前端
 	safeSetting.AdminPassword = ""     // 密码不返回前端
 	if safeSetting.HardwareAcceleration && safeSetting.HardwareAccelMode == "" {
 		safeSetting.HardwareAccelMode = service.GetHwAccelModeName()
@@ -51,7 +50,7 @@ func PostSetting(c *gin.Context) {
 	}
 
 	// 白名单过滤：只允许修改可安全暴露的字段，禁止通过 API 修改密钥/密码/用户列表
-	// 敏感字段（DeepSeekApiKey, AdminPassword, Users 等）只能通过 setting.json 直接修改
+	// 敏感字段（AdminPassword, Users 等）只能通过 setting.json 直接修改
 	allowedFields := map[string]bool{
 		"Dirs": true, "Types": true, "VideoTypes": true, "ImageTypes": true,
 		"DocsTypes": true, "MovieTypes": true, "Tags": true, "Pages": true,

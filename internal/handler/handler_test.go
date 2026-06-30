@@ -420,7 +420,6 @@ func TestGetSettingInfo_RedactsSensitive(t *testing.T) {
 	service.SetOSSetting(model.Setting{
 		Dirs:          []string{"D:/media"},
 		AdminPassword: "secret",
-		DeepSeekApiKey: "sk-xxx",
 		Users:         []model.User{{Username: "admin"}},
 	})
 	defer service.SetOSSetting(old)
@@ -431,7 +430,6 @@ func TestGetSettingInfo_RedactsSensitive(t *testing.T) {
 	var resp map[string]any
 	json.Unmarshal(w.Body.Bytes(), &resp)
 	assert.Empty(t, resp["AdminPassword"])
-	assert.Empty(t, resp["DeepSeekApiKey"])
 	assert.Nil(t, resp["Users"])
 	assert.NotEmpty(t, resp["Dirs"])
 }
@@ -789,29 +787,6 @@ func TestPostDeleteFolderByPath_InvalidBody(t *testing.T) {
 	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
 
 	w := performPost(t, PostDeleteFolderByPath, `{invalid`)
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-}
-
-// ============== DeepSeek Controller Tests ==============
-
-func TestPostChatDeepSeek_NoAPIKey(t *testing.T) {
-	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
-	old := service.GetOSSetting()
-	service.SetOSSetting(model.Setting{DeepSeekApiKey: ""})
-	defer service.SetOSSetting(old)
-
-	w := performPostWithAuth(t, PostChatDeepSeek, `{"messages":[{"role":"user","content":"hello"}]}`)
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), "未配置")
-}
-
-func TestPostChatDeepSeek_InvalidBody(t *testing.T) {
-	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
-	old := service.GetOSSetting()
-	service.SetOSSetting(model.Setting{DeepSeekApiKey: "sk-test"})
-	defer service.SetOSSetting(old)
-
-	w := performPostWithAuth(t, PostChatDeepSeek, `{invalid`)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 

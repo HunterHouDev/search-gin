@@ -45,8 +45,6 @@ type Setting struct {
 	ControllerHost string
 	FileHost       string
 
-	DeepSeekApiKey string `json:"deepSeekApiKey"`
-
 	// AdminPassword 管理员密码，从 setting.json 读取；未设置时登录将提示配置
 	AdminPassword string `json:"adminPassword"`
 
