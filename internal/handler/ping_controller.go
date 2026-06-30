@@ -7,6 +7,8 @@ import (
 	"runtime"
 	"strings"
 
+	"search-gin/pkg/utils"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -14,12 +16,12 @@ import (
 func PingHost(c *gin.Context) {
 	ip := c.Query("ip")
 	if ip == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"fail": true, "msg": "缺少 ip 参数"})
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("缺少 ip 参数"))
 		return
 	}
 
 	if net.ParseIP(ip) == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"fail": true, "msg": "ip 参数格式无效"})
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("ip 参数格式无效"))
 		return
 	}
 
@@ -41,8 +43,10 @@ func PingHost(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	res := utils.NewSuccess()
+	res.Data = gin.H{
 		"alive": alive,
 		"ip":    ip,
-	})
+	}
+	c.JSON(http.StatusOK, res)
 }

@@ -14,12 +14,14 @@ import (
 // GetLanPeers 获取在线节点列表
 func GetLanPeers(c *gin.Context) {
 	peers := service.GetOnlinePeers()
-	c.JSON(http.StatusOK, gin.H{
+	res := utils.NewSuccess()
+	res.Data = gin.H{
 		"localNodeHost": service.LocalNodeHost,
 		"localNodeName": service.LocalNodeName,
 		"localSubnet":   service.GetLocalSubnet(),
 		"peers":         peers,
-	})
+	}
+	c.JSON(http.StatusOK, res)
 }
 
 // AddLanPeer 手动添加节点
@@ -34,7 +36,7 @@ func AddLanPeer(c *gin.Context) {
 		FilePort string `json:"filePort"` // 文件流端口
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"fail": true, "msg": "参数错误"})
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数错误"))
 		return
 	}
 
@@ -53,14 +55,14 @@ func AddLanPeer(c *gin.Context) {
 	}
 
 	if ip == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"fail": true, "msg": "格式错误，需要 ip"})
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("格式错误，需要 ip"))
 		return
 	}
 
 	if service.AddPeer(ip, port, filePort) {
-		c.JSON(http.StatusOK, gin.H{"success": true, "msg": "添加成功"})
+		c.JSON(http.StatusOK, utils.NewSuccessByMsg("添加成功"))
 	} else {
-		c.JSON(http.StatusBadRequest, gin.H{"fail": true, "msg": "无法连接到该节点"})
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("无法连接到该节点"))
 	}
 }
 
@@ -73,13 +75,13 @@ func RemoveLanPeer(c *gin.Context) {
 		ID string `json:"id"` // "ip:port"
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"fail": true, "msg": "参数错误"})
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数错误"))
 		return
 	}
 	if service.RemovePeer(req.ID) {
-		c.JSON(http.StatusOK, gin.H{"success": true, "msg": "已删除"})
+		c.JSON(http.StatusOK, utils.NewSuccessByMsg("已删除"))
 	} else {
-		c.JSON(http.StatusBadRequest, gin.H{"fail": true, "msg": "节点不存在"})
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("节点不存在"))
 	}
 }
 
@@ -93,7 +95,7 @@ func TogglePeer(c *gin.Context) {
 		Disabled bool   `json:"disabled"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"fail": true, "msg": "参数错误"})
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数错误"))
 		return
 	}
 	if service.TogglePeerDisabled(req.ID, req.Disabled) {
@@ -101,9 +103,9 @@ func TogglePeer(c *gin.Context) {
 		if !req.Disabled {
 			status = "已启用"
 		}
-		c.JSON(http.StatusOK, gin.H{"success": true, "msg": status})
+		c.JSON(http.StatusOK, utils.NewSuccessByMsg(status))
 	} else {
-		c.JSON(http.StatusBadRequest, gin.H{"fail": true, "msg": "节点不存在"})
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("节点不存在"))
 	}
 }
 
@@ -113,11 +115,9 @@ func CleanLanPeers(c *gin.Context) {
 		return
 	}
 	count := service.CleanExpiredPeers()
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"count":   count,
-		"msg":     "已清理 " + strconv.Itoa(count) + " 个超时节点",
-	})
+	res := utils.NewSuccessByMsg("已清理 " + strconv.Itoa(count) + " 个超时节点")
+	res.Data = count
+	c.JSON(http.StatusOK, res)
 }
 
 // DiscoverLanPeers 扫描局域网发现候选节点
@@ -132,22 +132,25 @@ func DiscoverLanPeers(c *gin.Context) {
 	c.ShouldBindJSON(&req)
 
 	peers, localPrefix := service.DiscoverLanPeers(req.Subnet)
-	c.JSON(http.StatusOK, gin.H{
-		"success":     true,
+	res := utils.NewSuccess()
+	res.Data = gin.H{
 		"peers":       peers,
 		"localPrefix": localPrefix,
-	})
+	}
+	c.JSON(http.StatusOK, res)
 }
 
 // GetPeerStats 获取指定节点文件数与总大小
 func GetPeerStats(c *gin.Context) {
 	node := c.Query("node") // "host:port"
 	if node == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"fail": true, "msg": "缺少 node 参数"})
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("缺少 node 参数"))
 		return
 	}
 	cnt, size, name := service.GetPeerStats(node)
-	c.JSON(http.StatusOK, gin.H{"success": true, "nodeName": name, "totalCnt": cnt, "totalSize": size})
+	res := utils.NewSuccess()
+	res.Data = gin.H{"nodeName": name, "totalCnt": cnt, "totalSize": size}
+	c.JSON(http.StatusOK, res)
 }
 
 // GetLanPeersWithStats 获取在线节点列表（含文件统计，并发请求各节点）
@@ -178,9 +181,11 @@ func GetLanPeersWithStats(c *gin.Context) {
 		}(i, p)
 	}
 	wg.Wait()
-	c.JSON(http.StatusOK, gin.H{
+	res := utils.NewSuccess()
+	res.Data = gin.H{
 		"localNodeHost": service.LocalNodeHost,
 		"localNodeName": service.LocalNodeName,
 		"peers":         result,
-	})
+	}
+	c.JSON(http.StatusOK, res)
 }

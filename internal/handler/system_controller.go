@@ -110,11 +110,13 @@ func GetServerPort(c *gin.Context) {
 	}
 	runningPort := service.PortNo
 	changed := cfgPort != runningPort
-	c.JSON(http.StatusOK, gin.H{
+	res := utils.NewSuccess()
+	res.Data = gin.H{
 		"runningPort":    runningPort,
 		"configuredPort": cfgPort,
 		"changed":        changed,
-	})
+	}
+	c.JSON(http.StatusOK, res)
 }
 
 func GetShutdown(c *gin.Context) {

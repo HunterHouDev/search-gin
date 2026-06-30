@@ -18,7 +18,9 @@ type LoginRequest struct {
 // GetInitStatus 检查是否已完成初始化（adminPassword 是否已配置）
 func GetInitStatus(c *gin.Context) {
 	configured := service.GetOSSetting().AdminPassword != ""
-	c.JSON(http.StatusOK, gin.H{"configured": configured})
+	res := utils.NewSuccess()
+	res.Data = configured
+	c.JSON(http.StatusOK, res)
 }
 
 // PostInitSetup 初始化设置管理员密码（仅首次可调用）

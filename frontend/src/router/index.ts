@@ -46,7 +46,7 @@ export default route(function (/* { store, ssrContext } */) {
     // 检查是否已完成初始化
     try {
       const res = await commonAxios().get('/api/init');
-      if (!res.data.configured) {
+      if (!res.data?.Data) {
         next('/init');
         return;
       }

@@ -444,7 +444,8 @@ func TestGetServerPort_Default(t *testing.T) {
 
 	var resp map[string]any
 	json.Unmarshal(w.Body.Bytes(), &resp)
-	assert.Equal(t, ":10081", resp["runningPort"])
+	data := resp["Data"].(map[string]any)
+	assert.Equal(t, ":10081", data["runningPort"])
 }
 
 func TestGetServerPort_ConfiguredDifferent(t *testing.T) {
@@ -455,8 +456,9 @@ func TestGetServerPort_ConfiguredDifferent(t *testing.T) {
 
 	var resp map[string]any
 	json.Unmarshal(w.Body.Bytes(), &resp)
-	assert.Equal(t, ":20081", resp["configuredPort"])
-	assert.Equal(t, true, resp["changed"])
+	data := resp["Data"].(map[string]any)
+	assert.Equal(t, ":20081", data["configuredPort"])
+	assert.Equal(t, true, data["changed"])
 }
 
 // ============== Lan Controller Tests ==============
@@ -475,8 +477,9 @@ func TestGetLanPeers_Empty(t *testing.T) {
 
 	var resp map[string]any
 	json.Unmarshal(w.Body.Bytes(), &resp)
-	assert.Equal(t, "test-pc:10081", resp["localNodeHost"])
-	assert.Equal(t, "测试机", resp["localNodeName"])
+	data := resp["Data"].(map[string]any)
+	assert.Equal(t, "test-pc:10081", data["localNodeHost"])
+	assert.Equal(t, "测试机", data["localNodeName"])
 	// defaultManager 为 nil 时 peers 为 null，unmarshal 后为 nil
 }
 

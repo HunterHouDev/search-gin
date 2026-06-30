@@ -19,7 +19,7 @@ func SignAuthMiddleware() gin.HandlerFunc {
 		}
 		path = stripQuery(path)
 		if !utils.VerifySignedRequest(path, c.Request.URL.Query()) {
-			c.JSON(http.StatusForbidden, gin.H{"fail": true, "msg": "签名无效或已过期"})
+			c.JSON(http.StatusForbidden, utils.NewFailByMsg("签名无效或已过期"))
 			c.Abort()
 			return
 		}
@@ -34,13 +34,13 @@ func StreamTokenAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := c.Query("streamToken")
 		if token == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"fail": true, "msg": "缺少 streamToken"})
+			c.JSON(http.StatusUnauthorized, utils.NewFailByMsg("缺少 streamToken"))
 			c.Abort()
 			return
 		}
 		expire, err := utils.DecryptStreamToken(token)
 		if err != nil || time.Now().Unix() > expire {
-			c.JSON(http.StatusForbidden, gin.H{"fail": true, "msg": "streamToken 无效或已过期"})
+			c.JSON(http.StatusForbidden, utils.NewFailByMsg("streamToken 无效或已过期"))
 			c.Abort()
 			return
 		}

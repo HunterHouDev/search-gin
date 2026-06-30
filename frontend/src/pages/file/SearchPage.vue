@@ -1817,8 +1817,9 @@ const fetchNodeList = async () => {
   try {
     const res = await GetLanPeersWithStats();
     if (res) {
-      view.localNodeName = res.localNodeName || '';
-      view.nodeList = res.peers || [];
+      const data = res.Data || res;
+      view.localNodeName = data.localNodeName || '';
+      view.nodeList = data.peers || [];
     }
   } catch (e) {
     console.error('获取节点列表失败', e);
@@ -2051,8 +2052,9 @@ onMounted(async () => {
   // 获取节点列表（异步，不阻塞初始化）
   GetLanPeersWithStats().then(peerRes => {
     if (peerRes) {
-      view.localNodeName = peerRes.localNodeName || '';
-      view.nodeList = peerRes.peers || [];
+      const data = peerRes.Data || peerRes;
+      view.localNodeName = data.localNodeName || '';
+      view.nodeList = data.peers || [];
     }
   }).catch(() => { /* 忽略 */ });
   // 恢复 URL 中的节点选择（先设值，节点列表稍后异步到达后会更新显示）

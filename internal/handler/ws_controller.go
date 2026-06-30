@@ -35,14 +35,14 @@ func HandleWebSocket(c *gin.Context) {
 
 	if token == "" {
 		utils.InfoFormat("[WS] no token provided")
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "未认证"})
+		c.JSON(http.StatusUnauthorized, utils.NewFailByMsg("未认证"))
 		return
 	}
 
 	tokenInfo, valid := service.ValidateTokenWithInfo(token)
 	if !valid {
 		utils.InfoFormat("[WS] invalid token")
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "未认证"})
+		c.JSON(http.StatusUnauthorized, utils.NewFailByMsg("未认证"))
 		return
 	}
 

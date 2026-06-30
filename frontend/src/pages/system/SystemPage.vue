@@ -560,11 +560,12 @@ const fetchPeers = async () => {
   try {
     const res = await GetLanPeers();
     if (res) {
-      cluster.localNodeHost = res.localNodeHost || '';
-      cluster.localNodeName = res.localNodeName || '';
-      cluster.peers = (res.peers || []).map((p: any) => ({ ...p, _alive: null, _checking: false }));
-      if (res.localSubnet && !cluster.discoverInput) {
-        cluster.discoverInput = res.localSubnet;
+      const data = res.Data || res;
+      cluster.localNodeHost = data.localNodeHost || '';
+      cluster.localNodeName = data.localNodeName || '';
+      cluster.peers = (data.peers || []).map((p: any) => ({ ...p, _alive: null, _checking: false }));
+      if (data.localSubnet && !cluster.discoverInput) {
+        cluster.discoverInput = data.localSubnet;
       }
     }
   } catch (e) {
@@ -597,8 +598,9 @@ const discoverPeers = async () => {
   cluster.discovered = [];
   try {
     const res = await DiscoverLanPeers(input);
-    const peersList = res.peers || [];
-    if (res.success && Array.isArray(peersList)) {
+    const data = res.Data || res;
+    const peersList = data.peers || [];
+    if ((res.Code === 200 || res.success) && Array.isArray(peersList)) {
       const existingIds = new Set(cluster.peers.map((p: any) => p.id));
       cluster.discovered = peersList.map((d: any) => ({
         ...d,
@@ -617,12 +619,12 @@ const addDiscoveredPeer = async (d: any) => {
   d._adding = true;
   try {
     const res = await AddLanPeer(d.ip, d.port, d.filePort || '10082');
-    if (res.success) {
+    if (res.Code === 200 || res.success) {
       $q.notify({ message: `已添加 ${d.ip}`, color: 'positive', position: 'top', timeout: 2000 });
       d._existing = true;
       await fetchPeers();
     } else {
-      $q.notify({ message: res.msg || '添加失败', color: 'negative', position: 'top', timeout: 2000 });
+      $q.notify({ message: res.Message || res.msg || '添加失败', color: 'negative', position: 'top', timeout: 2000 });
     }
   } catch {
     $q.notify({ message: '添加失败', color: 'negative', position: 'top', timeout: 2000 });
@@ -652,7 +654,7 @@ const togglePeer = async (peer: any) => {
   const newDisabled = !peer.disabled;
   try {
     const res = await TogglePeer(peer.id, newDisabled);
-    if (res?.success) {
+    if (res?.Code === 200 || res?.success) {
       peer.disabled = newDisabled;
       $q.notify({
         message: newDisabled ? '节点已禁用，搜索将跳过' : '节点已启用',
@@ -669,11 +671,11 @@ const togglePeer = async (peer: any) => {
 const removePeer = async (peer: any) => {
   try {
     const res = await RemoveLanPeer(peer.id);
-    if (res?.success) {
+    if (res?.Code === 200 || res?.success) {
       $q.notify({ message: '节点已删除', color: 'positive', position: 'top', timeout: 2000 });
       await fetchPeers();
     } else {
-      $q.notify({ message: res?.msg || '删除失败', color: 'negative', position: 'top', timeout: 2000 });
+      $q.notify({ message: res?.Message || res?.msg || '删除失败', color: 'negative', position: 'top', timeout: 2000 });
     }
   } catch (e) {
     console.error('删除节点失败', e);
