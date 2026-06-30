@@ -211,23 +211,6 @@ func ParseTotalSize(s string) int64 {
 	}
 }
 
-// MergeResults 合并本地与远程结果，保留所有文件（不主动去重）
-// 设计意图：跨节点搜索结果故意保留重复项，用户可据此选择删除哪个文件
-func MergeResults(local, remote []model.FileItem) []model.FileItem {
-	merged := make([]model.FileItem, 0, len(local)+len(remote))
-	merged = append(merged, local...)
-	merged = append(merged, remote...)
-	return merged
-}
-
-// dedupKey 生成去重 key：Code+Size（优先）或 Name+Size（兜底）
-func dedupKey(m model.FileItem) string {
-	if m.Code != "" {
-		return fmt.Sprintf("code:%s:%d", m.Code, m.Size)
-	}
-	return fmt.Sprintf("name:%s:%d", m.Name, m.Size)
-}
-
 // FillURLs 为搜索结果填充流媒体 URL
 // 本机文件使用请求进来的网卡 IP；远程文件指向源节点。
 // 在 URL 中附加当前认证 token（而非 HMAC 签名），:10082 侧通过 StreamTokenAuth 校验。

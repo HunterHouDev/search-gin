@@ -27,68 +27,6 @@ func TestSetMovieNode_AssignsHostAndName(t *testing.T) {
 	assert.Empty(t, m.JpgUrl, "SetMovieNode 不应修改 JpgUrl")
 }
 
-// ── dedupKey 测试 ──
-
-func TestDedupKey_WithCode(t *testing.T) {
-	m := model.FileItem{Code: "ABC-123", Size: 999999, Name: "test.mp4"}
-	assert.Equal(t, "code:ABC-123:999999", dedupKey(m))
-}
-
-func TestDedupKey_WithoutCode_FallsBackToName(t *testing.T) {
-	m := model.FileItem{Code: "", Name: "unique.mp4", Size: 500000}
-	assert.Equal(t, "name:unique.mp4:500000", dedupKey(m))
-}
-
-func TestDedupKey_ZeroSize(t *testing.T) {
-	m := model.FileItem{Code: "XYZ", Size: 0}
-	assert.Equal(t, "code:XYZ:0", dedupKey(m))
-}
-
-// ── MergeResults 测试 ──
-// MergeResults 不做去重，跨节点重复文件全部保留供用户知情后手动清理
-
-func TestMergeResults_ConcatenatesLocalAndRemote(t *testing.T) {
-	local := []model.FileItem{
-		{Id: "1", Code: "ABC", Size: 100, Name: "local-a.mp4"},
-	}
-	remote := []model.FileItem{
-		{Id: "2", Code: "ABC", Size: 100, Name: "remote-a.mp4"}, // Code+Size 相同但不同节点，保留
-		{Id: "3", Code: "DEF", Size: 200, Name: "remote-b.mp4"},
-	}
-	merged := MergeResults(local, remote)
-	assert.Len(t, merged, 3) // 不合并，全部保留
-	assert.Equal(t, "1", merged[0].Id)
-	assert.Equal(t, "2", merged[1].Id)
-	assert.Equal(t, "3", merged[2].Id)
-}
-
-func TestMergeResults_KeepsNameSizeDuplicates(t *testing.T) {
-	local := []model.FileItem{
-		{Id: "1", Code: "", Name: "same.mp4", Size: 777},
-	}
-	remote := []model.FileItem{
-		{Id: "2", Code: "", Name: "same.mp4", Size: 777}, // 不同节点同名同大小，保留
-		{Id: "3", Code: "", Name: "same.mp4", Size: 888},
-	}
-	merged := MergeResults(local, remote)
-	assert.Len(t, merged, 3) // 不合并，全部保留
-	assert.Equal(t, "1", merged[0].Id)
-	assert.Equal(t, "2", merged[1].Id)
-	assert.Equal(t, "3", merged[2].Id)
-}
-
-func TestMergeResults_EdgeCases(t *testing.T) {
-	assert.Len(t, MergeResults(nil, nil), 0)
-	assert.Len(t, MergeResults([]model.FileItem{}, nil), 0)
-	assert.Len(t, MergeResults(nil, []model.FileItem{}), 0)
-
-	onlyLocal := []model.FileItem{{Id: "L", Code: "X", Size: 1}}
-	assert.Len(t, MergeResults(onlyLocal, nil), 1)
-
-	onlyRemote := []model.FileItem{{Id: "R", Code: "X", Size: 1}}
-	assert.Len(t, MergeResults(nil, onlyRemote), 1)
-}
-
 // ── PaginateMovies 测试 ──
 
 func TestPaginateMovies_AllCases(t *testing.T) {
