@@ -98,20 +98,6 @@
             <span style="color: orange"> Name: </span>
             {{ formatTitle(view.item.Name) }}
           </div>
-<!-- 
-          <div class="row q-pt-sm">
-            <span align="left" class="full-width no-outline">
-              <span style="color: orange"> DirPath: </span
-              ><a
-                class="cursor-pointer"
-                style="color: blue"
-                @click="OpenFileFolder(view.item.Id)"
-              >
-                {{ view.item.DirPath }}
-              </a>
-            </span>
-          </div> -->
-
           <div class="row q-pt-sm" :class="{ column: isMobile }">
             <span align="left" ripple class="full-width outline">
               <a style="color: grey"  class="cursor-pointer" @click="OpenFileFolder(view.item.Id)">  {{ view.item.Path }} </a>

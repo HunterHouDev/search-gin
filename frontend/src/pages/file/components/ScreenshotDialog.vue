@@ -227,8 +227,6 @@ const drawImage = () => {
     width = canvasData.image.width;
     height = canvasData.image.height;
   }
-  // 透明度0.5
-  // canvasData.context.globalAlpha = 0.99;
   canvasData.context.drawImage(canvasData.image, 0, 0, width, height); // 将图片绘制到画布上
 };
 const drawLine = (e) => {

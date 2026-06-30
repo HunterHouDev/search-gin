@@ -102,14 +102,14 @@ const deleteMouseOut = () => {
 const fetchToUpdateList = inject('fetchToUpdateList', () => undefined);
 
 const picDelete = async (n) => {
-  const { Id } = props.currentData;
+  const idToDelete = props.currentData.Id;
   if (n && n > 0) {
     emmits('nextOne');
   } else {
     emmits('prevOne');
   }
   setTimeout(async () => {
-    const { Code, Message } = await DeleteFile(Id);
+    const { Code, Message } = await DeleteFile(idToDelete);
     if (Code !== 200) {
       $q.notify({ message: `${Message}`, position: 'bottom-left' });
     }

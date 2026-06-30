@@ -112,11 +112,6 @@ export const useSystemProperty = defineStore({
       return this.SettingInfo?.ControllerHost;
     },
     getSuggestions(this) {
-      if (!this.SearchSuggestions || this.SearchSuggestions.length == 0) {
-        this.SearchSuggestions = JSON.parse(
-          localStorage.getItem('SearchSuggestions') || '[]'
-        );
-      }
       return this.SearchSuggestions;
     },
     getSearchParam(this) {

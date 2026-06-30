@@ -163,7 +163,6 @@ const loadTagData = async () => {
   ) {
     view.tagData = systemProperty.tagSizeMap;
   } else {
-    systemProperty.SettingInfo.Tags;
     view.tagData = systemProperty.SettingInfo.Tags.map((item) => {
       return { Name: item };
     });

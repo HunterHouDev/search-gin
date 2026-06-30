@@ -3,11 +3,7 @@
     <q-layout view="lHh lpr lFf" container style="height: 93vh" class="shadow-2 rounded-borders"
       :class="{ 'theme-natural': systemProperty.theme === 'natural' }" :style="themeStyle">
       <!-- 头部 -->
-      <q-header :style="themeStyle" elevated class="q-gutter-sm flex justify-center" style="
-        backdrop-filter: blur(10px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        border-bottom: 1px solid var(--q-border);
-      ">
+      <q-header :style="[themeStyle, { backdropFilter: 'blur(10px)', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', borderBottom: '1px solid var(--q-border)' }]" elevated class="q-gutter-sm flex justify-center">
         <!-- 索引按钮 -->
         <IndexButton v-permission="'op:scan'" ref="indexButton" @refresh-done="onIndexRefresh" glossy dense
           :size="btnSize('head')" />
@@ -801,7 +797,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { date, format, useQuasar } from 'quasar';
 const { humanStorageSize } = format;
 
@@ -825,7 +821,6 @@ import { GetSettingInfo, GetLanPeersWithStats } from 'components/api/settingAPI'
 import {
   DescEnum,
   FieldEnum,
-  /* formatCode, */
   formatSeries,
   formatTitle,
   getLabelByValue,
@@ -1049,9 +1044,6 @@ const sizeUnitOptions = [
   { label: 'MB', value: 1048576 },
   { label: 'GB', value: 1073741824 },
 ];
-
-// 搜索条件折叠状态（已废弃，保留兼容）
-// const showMoreConditions = ref(false);
 
 const filterMinSizeValue = ref(0);
 const filterMinSizeUnit = ref(1073741824); // 默认 GB

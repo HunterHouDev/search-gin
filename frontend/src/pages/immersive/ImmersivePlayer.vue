@@ -470,7 +470,6 @@ import {
 } from 'vue';
 import { format, useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
-import axios from 'axios';
 import { SearchAPI, DeleteFile, RefreshAPI, ResetMovieType, CutImage } from 'components/api/searchAPI';
 
 import {

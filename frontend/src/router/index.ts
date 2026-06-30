@@ -7,7 +7,7 @@ import {
 } from 'vue-router';
 import { commonAxios } from 'src/boot/axios';
 import { usePermissionStore } from 'src/stores/permission';
-// import { SUPER_ADMIN_ROLE } from 'src/types/permission';
+
 
 import routes from './routes';
 

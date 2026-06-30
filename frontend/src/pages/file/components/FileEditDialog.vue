@@ -359,18 +359,6 @@ const { dialogRef, onDialogHide, onDialogOK, onDialogCancel } =
   useDialogPluginComponent();
 // dialogRef      - 用在 QDialog 上的 Vue ref 模板引用
 // onDialogHide   - 处理 QDialog 上 @hide 事件的函数
-// onDialogOK     - 对话框结果为 ok 时会调用的函数
-//                    示例: onDialogOK() - 不带参数
-//                    示例: onDialogOK({ /*.../* }) - 带参数
-// onDialogCancel - 对话框结果为 cancel 时调用的函数
-
-// 这是示例的内容，不是必需的
-// const onOKClick = () => {
-// REQUIRED！ 对话框的结果为 ok 时，必须调用 onDialogOK()  (参数是可选的)
-// onDialogOK()
-// 带参数的版本: onDialogOK({ ... })
-// ...会自动关闭对话框
-// }
 onMounted(() => {
   fetchSetting();
 });

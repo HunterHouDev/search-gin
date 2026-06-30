@@ -866,7 +866,7 @@ const view = reactive({
     HardwareAccelMode: '',
     AdminPassword: '',
     ControllerHost: '',
-    FileHost: ':10081',
+    FileHost: ':10082',
     BaseUrl: '',
     ImageUrl: '',
     Remark: '',
@@ -944,7 +944,7 @@ const fetchSearch = async () => {
     SystemPlayerWidth: '1280',
     HardwareAcceleration: false,
     HardwareAccelMode: '',
-    FileHost: ':10081',
+    FileHost: ':10082',
     ...data,
   };
 };
