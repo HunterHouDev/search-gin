@@ -709,12 +709,16 @@
                 />
               </div>
 
-              <!-- 执行中的任务 -->
+              <!-- 执行中的任务（行内展开日志） -->
               <q-list dense bordered separator class="rounded-borders" v-if="tabTask !== '日志'">
                 <template v-for="v in view.tasking" :key="v.CreateTime">
                   <q-item
                     v-if="v.Status === '执行中'"
+                    clickable
+                    v-ripple
                     class="q-py-xs"
+                    :class="{ 'bg-orange-1': expandedTaskKey === v.CreateTime }"
+                    @click="toggleLogExpand(v)"
                   >
                     <q-item-section avatar>
                       <q-spinner color="orange" size="20px" />
@@ -742,18 +746,57 @@
                       </q-item-label>
                     </q-item-section>
                     <q-item-section side>
-                      <q-btn
-                        dense
-                        flat
-                        size="sm"
-                        icon="article"
+                      <q-icon
+                        :name="expandedTaskKey === v.CreateTime ? 'expand_less' : 'expand_more'"
                         color="orange"
-                        @click="viewLogExecuting(v)"
-                      >
-                        <q-tooltip>实时日志</q-tooltip>
-                      </q-btn>
+                      />
                     </q-item-section>
                   </q-item>
+
+                  <!-- 内联展开的日志面板 -->
+                  <div v-if="expandedTaskKey === v.CreateTime" class="q-px-md q-pb-sm q-pt-xs">
+                    <div class="row items-center justify-between q-mb-xs">
+                      <q-badge color="orange" align="middle">
+                        <q-spinner size="12px" color="white" class="q-mr-xs" />
+                        实时
+                      </q-badge>
+                      <div class="row q-gutter-xs">
+                        <q-btn
+                          dense
+                          flat
+                          size="sm"
+                          :icon="autoScrollOn ? 'vertical_align_bottom' : 'sync_disabled'"
+                          :color="autoScrollOn ? 'orange' : 'grey'"
+                          @click.stop="autoScrollOn = !autoScrollOn"
+                        >
+                          <q-tooltip>{{ autoScrollOn ? '自动滚动：开' : '自动滚动：关' }}</q-tooltip>
+                        </q-btn>
+                        <q-btn
+                          dense
+                          flat
+                          size="sm"
+                          icon="fullscreen"
+                          color="orange"
+                          @click.stop="openFullscreenLog(v)"
+                        >
+                          <q-tooltip>全屏</q-tooltip>
+                        </q-btn>
+                      </div>
+                    </div>
+                    <pre
+                      data-log-task
+                      class="bg-dark text-light-green q-pa-sm rounded-borders"
+                      style="
+                        max-height: 220px;
+                        overflow-y: auto;
+                        white-space: pre-wrap;
+                        word-break: break-all;
+                        font-size: 12px;
+                        font-family: 'Courier New', monospace;
+                        line-height: 1.5;
+                      "
+                    >{{ expandedLog || '等待 ffmpeg 输出...' }}</pre>
+                  </div>
                 </template>
               </q-list>
 
@@ -835,7 +878,7 @@
                 </q-item>
               </q-list>
 
-              <!-- 日志面板 -->
+              <!-- 日志面板（已完成/失败任务） -->
               <div v-if="tabTask === '日志'" class="q-pa-sm">
                 <div class="row items-center q-mb-sm q-gutter-sm">
                   <q-btn
@@ -844,16 +887,8 @@
                     icon="arrow_back"
                     label="返回"
                     size="sm"
-                    @click="tabTask = '全部'; view.sseTaskKey = ''"
+                    @click="tabTask = '全部'"
                   />
-                  <q-badge
-                    v-if="view.sseTaskKey"
-                    color="orange"
-                    align="middle"
-                  >
-                    <q-spinner size="14px" color="white" class="q-mr-xs" />
-                    实时
-                  </q-badge>
                 </div>
                 <pre
                   class="text-caption bg-grey-1 q-pa-sm rounded-borders"
@@ -863,7 +898,6 @@
                     white-space: pre-wrap;
                     word-break: break-all;
                   "
-                  ref="logPreRef"
                 >{{ view.vLog || '暂无日志' }}</pre>
               </div>
             </q-tab-panel>
@@ -977,6 +1011,47 @@
       </q-page-container>
     </q-layout>
   </q-dialog>
+
+  <!-- 全屏日志弹窗 -->
+  <q-dialog v-model="showFulllscreenLog" full-height full-width>
+    <q-card class="column full-height">
+      <q-bar class="bg-dark text-white">
+        <span class="text-weight-medium text-no-wrap" style="max-width: 70vw">
+          {{ fullscreenLogTitle }}
+        </span>
+        <q-space />
+        <q-badge v-if="fullscreenTaskKey" color="orange" align="middle">
+          <q-spinner size="14px" color="white" class="q-mr-xs" />
+          实时
+        </q-badge>
+        <q-btn
+          dense
+          flat
+          size="sm"
+          :icon="autoScrollOn ? 'vertical_align_bottom' : 'sync_disabled'"
+          :color="autoScrollOn ? 'orange' : 'grey'"
+          @click="autoScrollOn = !autoScrollOn"
+        />
+        <q-btn dense flat icon="close" v-close-popup />
+      </q-bar>
+      <q-card-section class="col q-pa-none">
+        <pre
+          ref="fullscreenLogRef"
+          class="bg-dark text-light-green q-pa-md"
+          style="
+            height: 100%;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            font-size: 13px;
+            font-family: 'Courier New', monospace;
+            line-height: 1.6;
+            margin: 0;
+          "
+        >{{ fullscreenLogContent || '暂无日志' }}</pre>
+      </q-card-section>
+    </q-card>
+  </q-dialog>
 </template>
 
 <script setup>
@@ -1041,7 +1116,6 @@ const view = reactive({
   totalCount: [0, 0, 0, 0, 0],
   chooseInput: false,
   input: '',
-  sseTaskKey: '',     // 当前查看实时日志的任务 key
   vLog: '',
 });
 
@@ -1114,13 +1188,27 @@ watch(
   }
 );
 
-// SSE 实时日志：当 taskLogStore 有更新时同步到 vLog
+// SSE 实时日志：当 taskLogStore 有更新时同步到展开面板和全屏弹窗
 watch(
-  () => taskLogStore.logMap[view.sseTaskKey]?.length || 0,
+  () => taskLogStore.logMap[expandedTaskKey.value]?.length || 0,
   () => {
-    if (view.sseTaskKey && tabTask.value === '日志') {
-      const lines = taskLogStore.getLogs(view.sseTaskKey);
-      view.vLog = lines.join('\n');
+    const key = expandedTaskKey.value;
+    if (key) {
+      const lines = taskLogStore.getLogs(key);
+      expandedLog.value = lines.join('\n');
+      scrollLogInline();
+    }
+  }
+);
+
+watch(
+  () => taskLogStore.logMap[fullscreenTaskKey.value]?.length || 0,
+  () => {
+    const key = fullscreenTaskKey.value;
+    if (key) {
+      const lines = taskLogStore.getLogs(key);
+      fullscreenLogContent.value = lines.join('\n');
+      scrollLogFullscreen();
     }
   }
 );
@@ -1129,6 +1217,16 @@ const systemProperty = useSystemProperty();
 const { isMobile } = useBreakpoint();
 const { exec: commonExec } = useCommonExec({ notifyOnSuccess: true });
 const taskLogStore = useTaskLogStore();
+
+// ─── 日志查看状态 ────────────────────────────────────────────────────
+const expandedTaskKey = ref('');
+const expandedLog = ref('');
+const autoScrollOn = ref(true);
+const showFulllscreenLog = ref(false);
+const fullscreenTaskKey = ref('');
+const fullscreenLogContent = ref('');
+const fullscreenLogTitle = ref('');
+const fullscreenLogRef = ref(null);
 
 const getColor = (status) => {
   return status == '完成'
@@ -1140,32 +1238,58 @@ const getColor = (status) => {
     : 'black';
 };
 
-const logPreRef = ref(null);
-
-// 自动滚动到日志底部
-watch(
-  () => view.vLog,
-  () => {
-    nextTick(() => {
-      if (logPreRef.value) {
-        logPreRef.value.scrollTop = logPreRef.value.scrollHeight;
-      }
-    });
-  }
-);
-
-// 查看执行中任务的实时日志
-const viewLogExecuting = (v) => {
-  view.sseTaskKey = v.CreateTime;
-  // 先用 API 中已有的 Log 初始化，后续 SSE 实时追加
-  const sseLines = taskLogStore.getLogs(v.CreateTime);
-  view.vLog = sseLines.length > 0 ? sseLines.join('\n') : (v.Log || '');
-  tabTask.value = '日志';
+// 自动滚动行内日志
+const scrollLogInline = () => {
+  nextTick(() => {
+    if (!autoScrollOn.value) return;
+    const pre = document.querySelector('[data-log-task]');
+    if (pre) {
+      pre.scrollTop = pre.scrollHeight;
+    }
+  });
 };
 
-// 查看已完成/失败任务的日志（静态）
+// 自动滚动全屏日志
+const scrollLogFullscreen = () => {
+  nextTick(() => {
+    if (!autoScrollOn.value) return;
+    if (fullscreenLogRef.value) {
+      fullscreenLogRef.value.scrollTop = fullscreenLogRef.value.scrollHeight;
+    }
+  });
+};
+
+// 行内展开/收起日志
+const toggleLogExpand = (v) => {
+  if (expandedTaskKey.value === v.CreateTime) {
+    expandedTaskKey.value = '';
+    expandedLog.value = '';
+    return;
+  }
+  expandedTaskKey.value = v.CreateTime;
+  const sseLines = taskLogStore.getLogs(v.CreateTime);
+  expandedLog.value = sseLines.length > 0 ? sseLines.join('\n') : (v.Log || '');
+  scrollLogInline();
+};
+
+// 打开全屏日志（执行中 → 实时；已完成/失败 → 静态）
+const openFullscreenLog = (v) => {
+  fullscreenTaskKey.value = v.Status === '执行中' ? v.CreateTime : '';
+  fullscreenLogTitle.value = v.Name || v.Files || v.Command;
+
+  if (v.Status === '执行中') {
+    const sseLines = taskLogStore.getLogs(v.CreateTime);
+    fullscreenLogContent.value = sseLines.length > 0 ? sseLines.join('\n') : (v.Log || '');
+  } else {
+    fullscreenLogContent.value = v.Log || '';
+  }
+  showFulllscreenLog.value = true;
+  scrollLogFullscreen();
+};
+
+// 查看已完成/失败任务的日志（切换到日志 tab — 保持兼容）
 const viewLogCompleted = (v) => {
-  view.sseTaskKey = '';
+  expandedTaskKey.value = '';
   view.vLog = v.Log;
   tabTask.value = '日志';
 };
