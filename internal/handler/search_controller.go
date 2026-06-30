@@ -19,10 +19,8 @@ import (
 // @Produce json
 // @Router /api/search/movies [post]
 func PostMovies(c *gin.Context) {
-	// 检查是否为远程转发请求（X-Search-Gin-Remote: true）
-	isRemote := c.GetHeader("X-Search-Gin-Remote") == "true"
 
-	if !isRemote && UseApp().search.IsEmpty() {
+	if UseApp().search.IsEmpty() {
 		// 异步触发扫描，不阻塞当前请求——用户发起首搜时无需等待扫描完成
 		go func() {
 			defer utils.RecoverPanic()
@@ -36,19 +34,6 @@ func PostMovies(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数绑定失败"))
 		return
 	}
-
-	if isRemote {
-		result := UseApp().search.Page(searchParam)
-		if data, ok := result.Data.([]model.FileItem); ok {
-			service.FillURLs(c, data)
-			result.Data = data
-		} else {
-			result.Data = []model.FileItem{}
-		}
-		c.JSON(http.StatusOK, result)
-		return
-	}
-
 	// 前端请求
 	if searchParam.SearchNode != "" {
 		peer := service.GetPeer(searchParam.SearchNode)
