@@ -67,9 +67,9 @@ func NewSearchService(engine *searchEngineCore, settings Settings, events EventB
 
 type settingsAdapter struct{}
 
-func (settingsAdapter) Get() model.Setting  { return GetOSSetting() }
-func (settingsAdapter) Set(s model.Setting) { SetOSSetting(s) }
-func (settingsAdapter) Flush(path string)   { FlushDictionary(path) }
+func (settingsAdapter) Get() model.Setting     { return GetOSSetting() }
+func (settingsAdapter) Set(s model.Setting)    { SetOSSetting(s) }
+func (settingsAdapter) Flush(path string) error { return FlushDictionary(path) }
 
 type sseAdapter struct{}
 

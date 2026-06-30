@@ -43,7 +43,10 @@ func PostInitSetup(c *gin.Context) {
 		return s
 	})
 	service.CacheAdminPasswordHash()
-	service.FlushDictionary(service.GetOSSetting().SelfPath)
+	if err := service.FlushDictionary(service.GetOSSetting().SelfPath); err != nil {
+		c.JSON(http.StatusInternalServerError, utils.NewFailByMsg("密码保存失败: "+err.Error()))
+		return
+	}
 
 	c.JSON(http.StatusOK, utils.NewSuccessByMsg("管理员密码设置成功，请登录"))
 }

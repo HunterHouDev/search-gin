@@ -45,7 +45,7 @@ type FileService interface {
 type Settings interface {
 	Get() model.Setting
 	Set(s model.Setting)
-	Flush(path string)
+	Flush(path string) error
 }
 
 // EventBus 事件广播抽象，用于服务层向外部（SSE、集群）发送事件通知。

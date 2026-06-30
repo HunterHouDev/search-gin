@@ -70,8 +70,8 @@ type mockSettings struct {
 func (m *mockSettings) Get() model.Setting {
 	return model.Setting{Dirs: m.dirs, ControllerHost: m.controllerHost}
 }
-func (m *mockSettings) Set(s model.Setting) {}
-func (m *mockSettings) Flush(path string)   {}
+func (m *mockSettings) Set(s model.Setting)    {}
+func (m *mockSettings) Flush(path string) error { return nil }
 
 // ============== Test Helpers ==============
 

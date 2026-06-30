@@ -153,36 +153,17 @@ func (fs *bucketFile) searchBucket(searchParam model.SearchParam) model.PageResu
 		}
 	}
 
-	// 定义公共过滤函数：同时检查关键词 + 高级过滤
-	filter := func(file *model.FileItem) bool {
-		if !matchAdvancedFiltersFast(file, searchParam.MinSize, searchParam.MaxSize, dateFrom, dateTo, extSet) {
-			return false
-		}
-		// 作者过滤
-		if searchParam.FilterAuthor != "" && !strings.EqualFold(file.Author, searchParam.FilterAuthor) {
-			return false
-		}
-		// 系列过滤
-		if searchParam.FilterSeries != "" && !strings.EqualFold(file.Studio, searchParam.FilterSeries) {
-			return false
-		}
-		// 标签过滤
-		if searchParam.FilterTag != "" {
-			found := false
-			for _, tag := range file.Tags {
-				if strings.EqualFold(tag, searchParam.FilterTag) {
-					found = true
-					break
-				}
-			}
-			if !found {
-				return false
-			}
-		}
-		if keywords == nil {
-			return true
-		}
-		return matchKeywords(file, keywords)
+	// 构建过滤参数，传入普通函数避免闭包堆分配
+	fp := searchFilterParams{
+		minSize:      searchParam.MinSize,
+		maxSize:      searchParam.MaxSize,
+		dateFrom:     dateFrom,
+		dateTo:       dateTo,
+		extSet:       extSet,
+		keywords:     keywords,
+		filterAuthor: searchParam.FilterAuthor,
+		filterSeries: searchParam.FilterSeries,
+		filterTag:    searchParam.FilterTag,
 	}
 
 	// 快照模式：先拷贝指针列表后释放锁，过滤在锁外执行
@@ -201,7 +182,7 @@ func (fs *bucketFile) searchBucket(searchParam model.SearchParam) model.PageResu
 		fs.mu.RUnlock()
 		resultWrapper.FileList = make([]model.FileItem, 0, len(snapshot))
 		for _, file := range snapshot {
-			if filter(file) {
+			if matchFileFilter(file, &fp) {
 				resultWrapper.FileList = append(resultWrapper.FileList, *file)
 				resultWrapper.Size += file.Size
 			}
@@ -218,7 +199,7 @@ func (fs *bucketFile) searchBucket(searchParam model.SearchParam) model.PageResu
 		// 预分配 FileList 容量，避免 append 多次扩容
 		resultWrapper.FileList = make([]model.FileItem, 0, len(snapshot))
 		for _, file := range snapshot {
-			if filter(file) {
+			if matchFileFilter(file, &fp) {
 				resultWrapper.FileList = append(resultWrapper.FileList, *file)
 				resultWrapper.Size += file.Size
 			}
@@ -227,6 +208,48 @@ func (fs *bucketFile) searchBucket(searchParam model.SearchParam) model.PageResu
 	}
 
 	return resultWrapper
+}
+
+// searchFilterParams 预处理后的搜索过滤参数，避免闭包捕获变量导致堆分配
+type searchFilterParams struct {
+	minSize      int64
+	maxSize      int64
+	dateFrom     *time.Time
+	dateTo       *time.Time
+	extSet       map[string]struct{}
+	keywords     []string
+	filterAuthor string
+	filterSeries string
+	filterTag    string
+}
+
+// matchFileFilter 检查文件是否匹配所有过滤条件（关键词 + 高级过滤 + 作者/系列/标签）
+func matchFileFilter(file *model.FileItem, fp *searchFilterParams) bool {
+	if !matchAdvancedFiltersFast(file, fp.minSize, fp.maxSize, fp.dateFrom, fp.dateTo, fp.extSet) {
+		return false
+	}
+	if fp.filterAuthor != "" && !strings.EqualFold(file.Author, fp.filterAuthor) {
+		return false
+	}
+	if fp.filterSeries != "" && !strings.EqualFold(file.Studio, fp.filterSeries) {
+		return false
+	}
+	if fp.filterTag != "" {
+		found := false
+		for _, tag := range file.Tags {
+			if strings.EqualFold(tag, fp.filterTag) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	if fp.keywords == nil {
+		return true
+	}
+	return matchKeywords(file, fp.keywords)
 }
 
 // matchKeywords 检查文件路径是否匹配所有关键词

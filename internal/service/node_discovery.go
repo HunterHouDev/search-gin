@@ -261,7 +261,10 @@ func AddPeer(ip, port, filePort string) bool {
 		return false
 	}
 	setting := GetOSSetting()
-	FlushDictionary(curDir + utils.PathSeparator + setting.SelfPath)
+	if err := FlushDictionary(curDir + utils.PathSeparator + setting.SelfPath); err != nil {
+		utils.ErrorFormat("持久化节点配置失败: %v", err)
+		return false
+	}
 	utils.InfoFormat("手动添加节点成功: %s (%s)", id, ip)
 	return true
 }
@@ -296,7 +299,10 @@ func RemovePeer(id string) bool {
 		return false
 	}
 	setting := GetOSSetting()
-	FlushDictionary(curDir + utils.PathSeparator + setting.SelfPath)
+	if err := FlushDictionary(curDir + utils.PathSeparator + setting.SelfPath); err != nil {
+		utils.ErrorFormat("持久化节点配置失败: %v", err)
+		return false
+	}
 	utils.InfoFormat("删除节点: %s", id)
 	return true
 }

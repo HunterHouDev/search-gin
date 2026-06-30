@@ -283,79 +283,83 @@ func FillURLs(c *gin.Context, movies []model.FileItem) {
 	}
 }
 
+// localNetsOnce 一次性枚举本机网卡，进程生命周期内不变
+var (
+	localNetsOnce  sync.Once
+	localIPv4Nets  []net.IPNet
+	localIPv6Nets  []net.IPNet
+	localFirstIPv4 string
+)
+
+// pickLocalIPCache clientIP → 本机出口 IP，同网段客户端只算一次
+var pickLocalIPCache sync.Map
+
 // pickLocalIP 从客户端 IP 找到本机同网段的出口 IP
 //
-// 设计说明：多网卡场景下，按请求方网段选择本机 IP（ipNet.Contains 匹配），
-// 保证返回的 IP 是客户端可达的。这是正确行为，不是 Bug ——
-// 例如 eth0(192.168.1.10) 的客户端拿到 192.168.1.x，eth1(10.0.0.10) 的客户端拿到 10.0.0.x。
-// LocalNodeHost 是逻辑标识符 "hostname:port"，不参与 URL 构造。
+// 多网卡场景下，按请求方网段选择本机 IP（ipNet.Contains 匹配），
+// 保证返回的 IP 是客户端可达的。
 func pickLocalIP(clientIP string) string {
-	parsedIP := net.ParseIP(clientIP)
-	if parsedIP == nil || parsedIP.IsLoopback() {
-		return fallbackLocalIP()
+	if v, ok := pickLocalIPCache.Load(clientIP); ok {
+		return v.(string)
 	}
 
-	interfaces, err := net.Interfaces()
-	if err != nil {
-		return fallbackLocalIP()
-	}
+	localNetsOnce.Do(func() {
+		interfaces, err := net.Interfaces()
+		if err != nil {
+			return
+		}
+		for i := range interfaces {
+			addrs, err := interfaces[i].Addrs()
+			if err != nil {
+				continue
+			}
+			for _, addr := range addrs {
+				ipNet, ok := addr.(*net.IPNet)
+				if !ok {
+					continue
+				}
+				if ipNet.IP.To4() != nil {
+					ip := make(net.IP, len(ipNet.IP))
+					copy(ip, ipNet.IP)
+					mask := make(net.IPMask, len(ipNet.Mask))
+					copy(mask, ipNet.Mask)
+					localIPv4Nets = append(localIPv4Nets, net.IPNet{IP: ip, Mask: mask})
+					if localFirstIPv4 == "" && !ipNet.IP.IsLoopback() {
+						localFirstIPv4 = ip.String()
+					}
+				} else {
+					ip := make(net.IP, len(ipNet.IP))
+					copy(ip, ipNet.IP)
+					mask := make(net.IPMask, len(ipNet.Mask))
+					copy(mask, ipNet.Mask)
+					localIPv6Nets = append(localIPv6Nets, net.IPNet{IP: ip, Mask: mask})
+				}
+			}
+		}
+	})
 
-	// 优先匹配 IPv4 同网段
-	for _, iface := range interfaces {
-		addrs, err := iface.Addrs()
-		if err != nil {
-			continue
-		}
-		for _, addr := range addrs {
-			ipNet, ok := addr.(*net.IPNet)
-			if !ok {
-				continue
-			}
-			if ipNet.IP.To4() != nil && ipNet.Contains(parsedIP) {
-				return ipNet.IP.String()
+	result := localFirstIPv4
+	if parsedIP := net.ParseIP(clientIP); parsedIP != nil && !parsedIP.IsLoopback() {
+		for i := range localIPv4Nets {
+			if localIPv4Nets[i].Contains(parsedIP) {
+				result = localIPv4Nets[i].IP.String()
+				break
 			}
 		}
-	}
-	// 兜底：匹配 IPv6 同网段
-	for _, iface := range interfaces {
-		addrs, err := iface.Addrs()
-		if err != nil {
-			continue
-		}
-		for _, addr := range addrs {
-			ipNet, ok := addr.(*net.IPNet)
-			if !ok {
-				continue
-			}
-			if ipNet.Contains(parsedIP) {
-				return ipNet.IP.String()
+		if result == localFirstIPv4 {
+			for i := range localIPv6Nets {
+				if localIPv6Nets[i].Contains(parsedIP) {
+					result = localIPv6Nets[i].IP.String()
+					break
+				}
 			}
 		}
 	}
-	return fallbackLocalIP()
-}
-
-func fallbackLocalIP() string {
-	interfaces, err := net.Interfaces()
-	if err != nil {
-		return "127.0.0.1"
+	if result == "" {
+		result = "127.0.0.1"
 	}
-	for _, iface := range interfaces {
-		addrs, err := iface.Addrs()
-		if err != nil {
-			continue
-		}
-		for _, addr := range addrs {
-			ipNet, ok := addr.(*net.IPNet)
-			if !ok {
-				continue
-			}
-			if !ipNet.IP.IsLoopback() && ipNet.IP.To4() != nil {
-				return ipNet.IP.String()
-			}
-		}
-	}
-	return "127.0.0.1"
+	pickLocalIPCache.Store(clientIP, result)
+	return result
 }
 
 // PaginateMovies 对合并后的结果进行分页

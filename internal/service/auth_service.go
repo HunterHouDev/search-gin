@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"search-gin/internal/model"
 	"search-gin/pkg/utils"
@@ -70,7 +71,6 @@ var (
 	tokenMu    sync.RWMutex
 )
 
-
 // SetToken 设置 token，到期后自动清理
 func SetToken(token string, expireTime time.Time, username string, role string, permissions []string) {
 	tokenMu.Lock()
@@ -96,8 +96,8 @@ func SetToken(token string, expireTime time.Time, username string, role string, 
 // ValidateTokenWithInfo 验证 token 并返回 TokenInfo
 // 整个函数在 tokenMu 写锁保护下执行，避免 tokenStore 的并发读写竞态
 func ValidateTokenWithInfo(token string) (TokenInfo, bool) {
-	tokenMu.Lock()
-	defer tokenMu.Unlock()
+	tokenMu.RLock()
+	defer tokenMu.RUnlock()
 
 	tokenInfo, exists := tokenStore[token]
 	if !exists {
@@ -248,13 +248,13 @@ func defaultSetting() model.Setting {
 			"e://emby",
 			"e://code",
 		},
-		Tags:       []string{"東京"},
-		ImageTypes: []string{"gif", "png", "jpg"},
-		DocsTypes:  []string{"txt", "xlsx"},
-		VideoTypes: []string{"avi", "mkv", "wmv", "mp4"},
-		Types:      []string{"avi", "mkv", "wmv", "mp4", "gif", "png", "jpg", "txt", "xlsx"},
-		MovieTypes: []string{"骑兵", "步兵", "国产", "漫动"},
-		Pages:      []string{"10", "12", "15", "27", "50", "100"},
+		Tags:              []string{"東京"},
+		ImageTypes:        []string{"gif", "png", "jpg"},
+		DocsTypes:         []string{"txt", "xlsx"},
+		VideoTypes:        []string{"avi", "mkv", "wmv", "mp4"},
+		Types:             []string{"avi", "mkv", "wmv", "mp4", "gif", "png", "jpg", "txt", "xlsx"},
+		MovieTypes:        []string{"骑兵", "步兵", "国产", "漫动"},
+		Pages:             []string{"10", "12", "15", "27", "50", "100"},
 		TaskMaxConcurrent: 4,
 	}
 }
@@ -290,8 +290,8 @@ func GetOSSettingUsers() []model.User {
 }
 
 // FlushDictionary 将当前设置持久化到配置文件
-func FlushDictionary(path string) {
-	WriteDictionaryToJson(path, GetOSSetting())
+func FlushDictionary(path string) error {
+	return WriteDictionaryToJson(path, GetOSSetting())
 }
 
 func ReadDictionaryFromJson(path string) model.Setting {
@@ -309,17 +309,15 @@ func ReadDictionaryFromJson(path string) model.Setting {
 	return dict
 }
 
-func WriteDictionaryToJson(path string, dict model.Setting) {
+func WriteDictionaryToJson(path string, dict model.Setting) error {
 	data, err := json.Marshal(dict)
 	if err != nil {
-		utils.InfoFormat("序列化配置文件失败: %v", err)
-		return
+		return fmt.Errorf("序列化配置文件失败: %w", err)
 	}
-	err = os.WriteFile(path, data, 0600)
-	if err != nil {
-		utils.InfoFormat("写入配置文件失败: %v", err)
-		return
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		return fmt.Errorf("写入配置文件失败: %w", err)
 	}
+	return nil
 }
 
 // stringSliceEqual 比较两个字符串切片是否相等（忽略顺序）

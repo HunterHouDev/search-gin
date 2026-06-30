@@ -57,8 +57,10 @@ func InitSetting() {
 		utils.SetStreamSecret(secret)
 		dict.StreamSecret = secret
 		SetOSSetting(dict)
-		// 立即写入磁盘，确保密钥持久化
-		FlushDictionary(curDir + utils.PathSeparator + dict.SelfPath)
+		// 立即写入磁盘，确保密钥持久化（失败则 panic，防止重启后密钥丢失）
+		if err := FlushDictionary(curDir + utils.PathSeparator + dict.SelfPath); err != nil {
+			panic("StreamSecret 持久化失败，无法安全启动: " + err.Error())
+		}
 		utils.InfoFormat("已生成并持久化 StreamSecret")
 	}
 }
@@ -67,13 +69,7 @@ func InitSetting() {
 // 必须在 GetOSSetting() 和 SearchEngine 初始化之后调用
 func InitSearchPool() {
 	dirCount := len(GetOSSetting().Dirs)
-	poolSize := dirCount
-	if poolSize < 4 {
-		poolSize = 4
-	}
-	if poolSize > 50 {
-		poolSize = 50
-	}
+	poolSize := min(max(dirCount, 4), 50)
 	// （当前仅 main.go 调用一次，无活跃泄漏）
 	GetEngine().searchPool = utils.NewGoroutinePool(poolSize)
 	GetEngine().KeywordHistoryCache = utils.NewLRUCache(500)

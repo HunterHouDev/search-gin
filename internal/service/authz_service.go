@@ -195,7 +195,9 @@ func AddRole(role model.Role) error {
 		s.Roles = append(s.Roles, role)
 		return s
 	})
-	FlushDictionary(GetOSSetting().SelfPath)
+	if err := FlushDictionary(GetOSSetting().SelfPath); err != nil {
+		return fmt.Errorf("持久化角色配置失败: %w", err)
+	}
 	return nil
 }
 
@@ -215,7 +217,9 @@ func UpdateRole(name string, role model.Role) error {
 	if !updated {
 		return fmt.Errorf("角色 %q 不存在", name)
 	}
-	FlushDictionary(GetOSSetting().SelfPath)
+	if err := FlushDictionary(GetOSSetting().SelfPath); err != nil {
+		return fmt.Errorf("持久化角色配置失败: %w", err)
+	}
 	return nil
 }
 
@@ -251,6 +255,8 @@ func DeleteRole(name string) error {
 		}
 		return s
 	})
-	FlushDictionary(GetOSSetting().SelfPath)
+	if err := FlushDictionary(GetOSSetting().SelfPath); err != nil {
+		return fmt.Errorf("持久化角色配置失败: %w", err)
+	}
 	return nil
 }

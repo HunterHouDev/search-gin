@@ -187,14 +187,14 @@ func TestPickLocalIP_Invalid(t *testing.T) {
 }
 
 func TestFallbackLocalIP_ReturnsValidIP(t *testing.T) {
-	ip := fallbackLocalIP()
+	ip := pickLocalIP("")
 	assert.NotEmpty(t, ip)
 	parsed := net.ParseIP(ip)
 	assert.NotNil(t, parsed, "fallbackLocalIP 应返回合法 IP: %s", ip)
 }
 
 func TestPickLocalIP_WithRealClientIP(t *testing.T) {
-	fallback := fallbackLocalIP()
+	fallback := pickLocalIP("")
 	if fallback == "127.0.0.1" {
 		t.Skip("无外部网络接口")
 	}
