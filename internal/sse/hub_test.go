@@ -32,7 +32,8 @@ func TestHub_RegisterClient(t *testing.T) {
 		// instead, we just let it run with the test
 	}()
 
-	client := &Client{ID: 1, Events: make(chan Event, 10), lastActive: time.Now()}
+	client := &Client{ID: 1, Events: make(chan Event, 10)}
+	client.lastActiveUnix.Store(time.Now().UnixNano())
 	h.register <- client
 
 	// wait for hub to process
@@ -47,7 +48,8 @@ func TestHub_RegisterAndUnregister(t *testing.T) {
 	h := NewHub()
 	go h.Run()
 
-	client := &Client{ID: 1, Events: make(chan Event, 10), lastActive: time.Now()}
+	client := &Client{ID: 1, Events: make(chan Event, 10)}
+	client.lastActiveUnix.Store(time.Now().UnixNano())
 	h.register <- client
 	time.Sleep(10 * time.Millisecond)
 
@@ -73,7 +75,8 @@ func TestHub_BroadcastToSingleClient(t *testing.T) {
 	h := NewHub()
 	go h.Run()
 
-	client := &Client{ID: 1, Events: make(chan Event, 10), lastActive: time.Now()}
+	client := &Client{ID: 1, Events: make(chan Event, 10)}
+	client.lastActiveUnix.Store(time.Now().UnixNano())
 	h.register <- client
 	time.Sleep(10 * time.Millisecond)
 
@@ -98,8 +101,10 @@ func TestHub_BroadcastToMultipleClients(t *testing.T) {
 	h := NewHub()
 	go h.Run()
 
-	client1 := &Client{ID: 1, Events: make(chan Event, 10), lastActive: time.Now()}
-	client2 := &Client{ID: 2, Events: make(chan Event, 10), lastActive: time.Now()}
+	client1 := &Client{ID: 1, Events: make(chan Event, 10)}
+	client1.lastActiveUnix.Store(time.Now().UnixNano())
+	client2 := &Client{ID: 2, Events: make(chan Event, 10)}
+	client2.lastActiveUnix.Store(time.Now().UnixNano())
 	h.register <- client1
 	h.register <- client2
 	time.Sleep(10 * time.Millisecond)
@@ -124,9 +129,11 @@ func TestHub_CleanupStaleClients(t *testing.T) {
 	go h.Run()
 
 	// active client — will not be cleaned
-	activeClient := &Client{ID: 1, Events: make(chan Event, 10), lastActive: time.Now()}
-	// stale client — lastActive in the past
-	staleClient := &Client{ID: 2, Events: make(chan Event, 10), lastActive: time.Now().Add(-10 * time.Minute)}
+	activeClient := &Client{ID: 1, Events: make(chan Event, 10)}
+	activeClient.lastActiveUnix.Store(time.Now().UnixNano())
+	// stale client — lastActiveUnix in the past
+	staleClient := &Client{ID: 2, Events: make(chan Event, 10)}
+	staleClient.lastActiveUnix.Store(time.Now().Add(-10 * time.Minute).UnixNano())
 
 	h.register <- activeClient
 	h.register <- staleClient

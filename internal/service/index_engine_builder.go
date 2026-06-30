@@ -125,8 +125,8 @@ func buildIndexFromBuckets(buckets map[string]*bucketFile) *searchIndex {
 		index.buckets[k] = v
 	}
 
-	sizeRepeats := make(map[int64]repeatModel, 1000)
-	codeRepeats := make(map[string]repeatModel, 1000)
+	sizeRepeats := make(map[int64]*repeatModel, 1000)
+	codeRepeats := make(map[string]*repeatModel, 1000)
 	fileRepeats := make(map[string]model.FileItem, 2000)
 
 	for _, bucket := range index.buckets {
@@ -141,27 +141,22 @@ func buildIndexFromBuckets(buckets map[string]*bucketFile) *searchIndex {
 			addFileToIndex(index, movie)
 
 			if !movie.IsNull() {
-				pkSize := movie.Size
-				rs, ok := sizeRepeats[pkSize]
-				if ok {
+				if rs, ok := sizeRepeats[movie.Size]; ok {
 					rs.Count++
 					fileRepeats[rs.Files.Path] = rs.Files
 					fileRepeats[movie.Path] = *movie
-					sizeRepeats[pkSize] = rs
 				} else {
-					sizeRepeats[pkSize] = repeatModel{Code: movie.Code, Files: *movie, Count: 1}
+					sizeRepeats[movie.Size] = &repeatModel{Code: movie.Code, Files: *movie, Count: 1}
 				}
 
 				pkCode := strings.ReplaceAll(movie.Code, "-", "")
 				pkCode = strings.ReplaceAll(pkCode, "_", "")
-				rc, ok := codeRepeats[pkCode]
-				if ok {
+				if rc, ok := codeRepeats[pkCode]; ok {
 					rc.Count++
 					fileRepeats[rc.Files.Path] = rc.Files
 					fileRepeats[movie.Path] = *movie
-					codeRepeats[pkCode] = rc
 				} else {
-					codeRepeats[pkCode] = repeatModel{Code: movie.Code, Files: *movie, Count: 1}
+					codeRepeats[pkCode] = &repeatModel{Code: movie.Code, Files: *movie, Count: 1}
 				}
 			}
 		}
@@ -226,8 +221,8 @@ func addBucketToIndex(index *searchIndex, bucket *bucketFile) {
 
 // recomputeRepeats 在所有 bucket 上重新计算重复文件
 func recomputeRepeats(index *searchIndex) {
-	sizeRepeats := make(map[int64]repeatModel, 1000)
-	codeRepeats := make(map[string]repeatModel, 1000)
+	sizeRepeats := make(map[int64]*repeatModel, 1000)
+	codeRepeats := make(map[string]*repeatModel, 1000)
 	fileRepeats := make(map[string]model.FileItem, 2000)
 
 	for _, bucket := range index.buckets {
@@ -241,26 +236,22 @@ func recomputeRepeats(index *searchIndex) {
 				continue
 			}
 
-			rs, ok := sizeRepeats[movie.Size]
-			if ok {
+			if rs, ok := sizeRepeats[movie.Size]; ok {
 				rs.Count++
 				fileRepeats[rs.Files.Path] = rs.Files
 				fileRepeats[movie.Path] = *movie
-				sizeRepeats[movie.Size] = rs
 			} else {
-				sizeRepeats[movie.Size] = repeatModel{Code: movie.Code, Files: *movie, Count: 1}
+				sizeRepeats[movie.Size] = &repeatModel{Code: movie.Code, Files: *movie, Count: 1}
 			}
 
 			pkCode := strings.ReplaceAll(movie.Code, "-", "")
 			pkCode = strings.ReplaceAll(pkCode, "_", "")
-			rc, ok := codeRepeats[pkCode]
-			if ok {
+			if rc, ok := codeRepeats[pkCode]; ok {
 				rc.Count++
 				fileRepeats[rc.Files.Path] = rc.Files
 				fileRepeats[movie.Path] = *movie
-				codeRepeats[pkCode] = rc
 			} else {
-				codeRepeats[pkCode] = repeatModel{Code: movie.Code, Files: *movie, Count: 1}
+				codeRepeats[pkCode] = &repeatModel{Code: movie.Code, Files: *movie, Count: 1}
 			}
 		}
 

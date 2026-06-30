@@ -166,11 +166,14 @@ func GetLanPeersWithStats(c *gin.Context) {
 		TotalSize string `json:"totalSize"`
 	}
 	result := make([]peerInfo, len(peers))
+	sem := make(chan struct{}, 20)
 	var wg sync.WaitGroup
 	for i, p := range peers {
+		sem <- struct{}{}
 		wg.Add(1)
 		go func(idx int, peer *service.Peer) {
 			defer wg.Done()
+			defer func() { <-sem }()
 			defer utils.RecoverPanic()
 			cnt, size, _ := service.GetPeerStats(peer.ID)
 			result[idx] = peerInfo{

@@ -5,6 +5,7 @@ package main
 
 import (
 	"io/fs"
+	"os"
 )
 
 // Dev mode: no-op，生产模式由 assets_prod.go 从 embed 读取
@@ -29,9 +30,9 @@ func ExtractSetting(dest string) error {
 }
 
 func ReadFile(path string) ([]byte, error) {
-	return nil, nil
+	return nil, os.ErrNotExist
 }
 
 func Open(path string) (fs.File, error) {
-	return nil, nil
+	return nil, os.ErrNotExist
 }

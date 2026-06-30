@@ -18,9 +18,9 @@ type Event struct {
 }
 
 type Client struct {
-	ID         int
-	Events     chan Event
-	lastActive time.Time // 最后一次成功发送事件的时间（仅在 Hub.Run() 单 goroutine 内读写，无竞态）
+	ID             int
+	Events         chan Event
+	lastActiveUnix atomic.Int64 // UnixNano，原子读写避免 torn read
 }
 
 type Hub struct {
@@ -98,10 +98,8 @@ func (h *Hub) Run() {
 			for _, client := range clients {
 				select {
 				case client.Events <- event:
-					// 发送成功，更新活跃时间
-					client.lastActive = time.Now()
+					client.lastActiveUnix.Store(time.Now().UnixNano())
 				default:
-					// 缓冲区满，不更新活跃时间（下次清理时若超时则踢出）
 				}
 			}
 
@@ -118,7 +116,7 @@ func (h *Hub) cleanupStaleClients() {
 	h.mu.Lock()
 	var stale []*Client
 	for id, client := range h.clients {
-		if now.Sub(client.lastActive) > clientTimeout {
+		if now.UnixNano()-client.lastActiveUnix.Load() > clientTimeout.Nanoseconds() {
 			stale = append(stale, client)
 			delete(h.clients, id)
 		}
@@ -161,10 +159,10 @@ func HandleSSE(w http.ResponseWriter, r *http.Request) {
 	DefaultHub.mu.Unlock()
 
 	client := &Client{
-		ID:         id,
-		Events:     make(chan Event, 10),
-		lastActive: time.Now(),
+		ID:     id,
+		Events: make(chan Event, 10),
 	}
+	client.lastActiveUnix.Store(time.Now().UnixNano())
 
 	DefaultHub.register <- client
 

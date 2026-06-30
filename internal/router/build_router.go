@@ -217,8 +217,7 @@ func BuildAPIRouter(sigChan chan os.Signal) *gin.Engine {
 }
 
 // BuildFileRouter 构建文件/图片流路由（端口 10082）
-// 使用 StreamTokenAuth 校验 URL 中的 token 参数（复用 API 侧 ValidateTokenWithInfo）
-// NOTE: SignAuthMiddleware（HMAC 签名）对多节点集群不可用，故未注册
+// 使用 StreamTokenAuth 校验 URL 中的 streamToken 参数（AES-256-GCM）
 func BuildFileRouter() *gin.Engine {
 	if env.IsProd {
 		gin.SetMode(gin.ReleaseMode)

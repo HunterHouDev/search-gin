@@ -180,6 +180,10 @@ func (s *searchService) pollTasks() {
 func markTaskExecuting(key time.Time) {
 	TransferTaskMutex.Lock()
 	if t, ok := TransferTask[key]; ok {
+		if t.Status != model.StatusPending {
+			TransferTaskMutex.Unlock()
+			return
+		}
 		t.Status = model.StatusExecuting
 		TransferTask[key] = t
 		PendingTaskCount.Add(-1)

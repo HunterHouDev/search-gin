@@ -31,6 +31,7 @@ type PeerSearchResult struct {
 
 // SearchPeers 并发搜索所有在线远程节点
 // 每个 peer 返回的结果已由远端 Page() 按 PageSize 分页，不会全量返回
+// 注意：远端分页确保单节点返回量 = PageSize（默认 ~60 条），不存在 OOM 风险
 func SearchPeers(searchParam model.SearchParam) ([]model.FileItem, int, int64) {
 	peers := GetOnlinePeers()
 	if len(peers) == 0 {
