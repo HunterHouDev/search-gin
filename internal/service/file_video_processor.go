@@ -3,6 +3,7 @@ package service
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -49,7 +50,7 @@ func transferWithEncoder(task model.TransferTaskModel, encoder, crf string) util
 	}
 	args = append(args, "-i", from, "-c:v", encoder, qualityParam, crf, dest)
 
-	res := ffmpegExec(args, task.CreateTime)
+	res := ffmpegExec(args, task.ID)
 
 	if res.IsSuccess() {
 		cleanupSourceIfNeeded(task.Path)
@@ -88,7 +89,7 @@ func transferFormatWithCopy(task model.TransferTaskModel) utils.Result {
 
 	dest := replaceSuffix(task.Path, suffix, task.To)
 	args := []string{"-i", from, "-c", "copy", dest}
-	res := ffmpegExec(args, task.CreateTime)
+	res := ffmpegExec(args, task.ID)
 
 	if res.IsSuccess() {
 		cleanupSourceIfNeeded(task.Path)
@@ -100,7 +101,7 @@ func transferFormatWithCopy(task model.TransferTaskModel) utils.Result {
 // MergeFiles 合并文件
 func MergeFiles(task model.TransferTaskModel) utils.Result {
 	args := []string{"-f", "concat", "-safe", "0", "-i", task.ConcatFile, "-c", "copy", task.Dest}
-	res := ffmpegExec(args, task.CreateTime)
+	res := ffmpegExec(args, task.ID)
 
 	// 清理临时合并列表文件
 	if task.ConcatFile != "" && utils.ExistsFiles(task.ConcatFile) {
@@ -132,7 +133,7 @@ func CutFormatter(task model.TransferTaskModel) utils.Result {
 
 	dest := replaceSuffix(task.Path, suffix, toSuffix)
 	args := []string{"-i", from, "-ss", task.Start, "-to", task.End, "-c", "copy", dest}
-	res := ffmpegExec(args, task.CreateTime)
+	res := ffmpegExec(args, task.ID)
 
 	if res.IsSuccess() && GetOSSetting().CutThenDelete {
 		cleanupSourceIfNeeded(task.Path)
@@ -203,7 +204,7 @@ func ffmpegBinPath() string {
 }
 
 // updateTaskStatus 集中管理任务状态变更
-func updateTaskStatus(key time.Time, status, log string) {
+func updateTaskStatus(key string, status, log string) {
 	TransferTaskMutex.Lock()
 	defer TransferTaskMutex.Unlock()
 	t, ok := TransferTask[key]
@@ -229,8 +230,21 @@ func ffmpegRun(ctx context.Context, args []string) ([]byte, error) {
 	return cmd.CombinedOutput()
 }
 
-// ffmpegRunStream 流式执行 ffmpeg，通过 SSE 实时推送日志行，同时累积到 task.Log
-func ffmpegRunStream(ctx context.Context, args []string, taskKey time.Time) error {
+// taskLogDir 日志文件目录
+func taskLogDir() string {
+	return filepath.Join(GetWorkDir(), "task_logs")
+}
+
+func ensureTaskLogDir() {
+	os.MkdirAll(taskLogDir(), 0755)
+}
+
+func taskLogPath(taskKey string) string {
+	return filepath.Join(taskLogDir(), taskKey+".log")
+}
+
+// ffmpegRunStream 流式执行 ffmpeg：写日志文件 + 轻量 SSE 通知（不含日志内容）
+func ffmpegRunStream(ctx context.Context, args []string, taskKey string) error {
 	ffmpegPath := ffmpegBinPath()
 	cmd := exec.CommandContext(ctx, ffmpegPath, args...)
 	if runtime.GOOS == "windows" {
@@ -246,20 +260,41 @@ func ffmpegRunStream(ctx context.Context, args []string, taskKey time.Time) erro
 		return err
 	}
 
-	// 读 stderr 逐行推 SSE + 追加到 task.Log
+	// 打开日志文件（追加模式）
+	ensureTaskLogDir()
+	logPath := taskLogPath(taskKey)
+	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("创建日志文件失败: %w", err)
+	}
+	defer f.Close()
+
+	writer := bufio.NewWriter(f)
+	lineCount := 0
 	scanner := bufio.NewScanner(stderr)
-	// ffmpeg progress 行可能很长，增大 buffer
 	scanner.Buffer(make([]byte, 64*1024), 256*1024)
 	for scanner.Scan() {
 		line := scanner.Text()
-		appendTaskLog(taskKey, line)
-		sse.BroadcastEvent("task_log", map[string]interface{}{
-			"taskKey": taskKey,
-			"line":    line,
-		})
-	}
+		writer.WriteString(line + "\n")
+		lineCount++
 
-	// scanner 错误（非 EOF）记录但吞掉，Wait 会给出真正的错误
+		// 每 10 行通知一次前端（防洪）
+		if lineCount%10 == 1 {
+			writer.Flush()
+			sse.BroadcastEvent("task_log", map[string]interface{}{
+				"taskKey": taskKey,
+				"lines":   lineCount,
+			})
+		}
+	}
+	writer.Flush()
+
+	// 最终通知
+	sse.BroadcastEvent("task_log", map[string]interface{}{
+		"taskKey": taskKey,
+		"lines":   lineCount,
+	})
+
 	waitErr := cmd.Wait()
 	if waitErr != nil {
 		return waitErr
@@ -267,19 +302,11 @@ func ffmpegRunStream(ctx context.Context, args []string, taskKey time.Time) erro
 	return nil
 }
 
-// appendTaskLog 向 task.Log 追加一行，线程安全
-func appendTaskLog(key time.Time, line string) {
-	TransferTaskMutex.Lock()
-	t, ok := TransferTask[key]
-	if ok {
-		t.Log += line + "\n"
-		TransferTask[key] = t
-	}
-	TransferTaskMutex.Unlock()
-}
+// appendTaskLog 已废弃 —— 日志改由 ffmpegRunStream 直接写入文件
+func appendTaskLog(key string, line string) {}
 
 // ffmpegExec 编排层：管理任务生命周期 + 执行 ffmpeg + 回写结果
-func ffmpegExec(args []string, taskKey time.Time) utils.Result {
+func ffmpegExec(args []string, taskKey string) utils.Result {
 	TransferTaskMutex.Lock()
 	task, exists := TransferTask[taskKey]
 	if !exists {
@@ -288,9 +315,12 @@ func ffmpegExec(args []string, taskKey time.Time) utils.Result {
 	}
 	task.Status = model.StatusExecuting
 	task.Command = ffmpegBinPath() + " " + strings.Join(args, " ")
-	task.Log = "" // 清空旧日志，准备接收实时日志
+	task.Log = "" // 清空旧日志（内存中的，备用）
 	TransferTask[taskKey] = task
 	TransferTaskMutex.Unlock()
+
+	// 清空旧日志文件（如果存在）
+	os.Remove(taskLogPath(taskKey))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()

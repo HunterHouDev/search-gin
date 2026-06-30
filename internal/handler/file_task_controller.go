@@ -1,11 +1,13 @@
 package handler
 
 import (
+	"bufio"
 	"net/http"
+	"os"
+	"path/filepath"
 	"search-gin/internal/model"
 	"search-gin/internal/service"
 	"search-gin/pkg/utils"
-	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -52,16 +54,50 @@ func GetTransferTask(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-func GetDelTransferTask(c *gin.Context) {
-	createStr := c.Param("create")
-	ti, err := time.Parse(time.RFC3339Nano, createStr)
-	if err != nil {
-		c.JSON(http.StatusOK, utils.NewFailByMsg("参数解析失败"))
+// GetTaskLog 查询单任务日志（从日志文件读取后 1000 行）
+func GetTaskLog(c *gin.Context) {
+	taskID := c.Param("taskID")
+	service.TransferTaskMutex.RLock()
+	task, found := service.TransferTask[taskID]
+	service.TransferTaskMutex.RUnlock()
+	if !found {
+		c.JSON(http.StatusOK, utils.NewFailByMsg("任务不存在"))
 		return
 	}
 
+	// 从文件读取后 1000 行
+	logPath := filepath.Join(service.GetWorkDir(), "task_logs", taskID+".log")
+	logContent := ""
+	if f, err := os.Open(logPath); err == nil {
+		defer f.Close()
+		var lines []string
+		scanner := bufio.NewScanner(f)
+		for scanner.Scan() {
+			lines = append(lines, scanner.Text())
+			if len(lines) > 1000 {
+				lines = lines[len(lines)-1000:]
+			}
+		}
+		logContent = ""
+		for _, l := range lines {
+			logContent += l + "\n"
+		}
+	}
+
+	result := utils.NewSuccess()
+	result.Data = map[string]interface{}{
+		"createTime": task.CreateTime,
+		"status":     task.Status,
+		"command":    task.Command,
+		"log":        logContent,
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+func GetDelTransferTask(c *gin.Context) {
+	taskID := c.Param("taskID")
 	service.TransferTaskMutex.Lock()
-	task, found := service.TransferTask[ti]
+	task, found := service.TransferTask[taskID]
 	if !found {
 		service.TransferTaskMutex.Unlock()
 		c.JSON(http.StatusOK, utils.NewFailByMsg("任务不存在"))
@@ -74,7 +110,7 @@ func GetDelTransferTask(c *gin.Context) {
 		c.JSON(http.StatusOK, r)
 		return
 	}
-	delete(service.TransferTask, ti)
+	delete(service.TransferTask, taskID)
 	service.TransferTaskMutex.Unlock()
 	c.JSON(http.StatusOK, utils.NewSuccess())
 }

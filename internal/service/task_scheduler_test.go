@@ -155,33 +155,34 @@ func TestWakeTaskScheduler_NonBlocking(t *testing.T) {
 // ── markTaskExecuting ──
 
 func TestMarkTaskExecuting_UpdatesStatus(t *testing.T) {
-	now := time.Now()
+	id := time.Now().Format(time.RFC3339Nano)
 
 	TransferTaskMutex.Lock()
-	TransferTask[now] = model.TransferTaskModel{
+	TransferTask[id] = model.TransferTaskModel{
+		ID:     id,
 		Status: model.StatusPending,
 		Path:   "/test/file.mp4",
 	}
 	TransferTaskMutex.Unlock()
 
 	PendingTaskCount.Store(1)
-	markTaskExecuting(now)
+	markTaskExecuting(id)
 
 	TransferTaskMutex.RLock()
-	task := TransferTask[now]
+	task := TransferTask[id]
 	TransferTaskMutex.RUnlock()
 	assert.Equal(t, model.StatusExecuting, task.Status)
 	assert.Equal(t, int32(0), PendingTaskCount.Load())
 
 	// cleanup
 	TransferTaskMutex.Lock()
-	delete(TransferTask, now)
+	delete(TransferTask, id)
 	TransferTaskMutex.Unlock()
 }
 
 func TestMarkTaskExecuting_NonExistentNoop(t *testing.T) {
 	PendingTaskCount.Store(0)
-	markTaskExecuting(time.Now())
+	markTaskExecuting(time.Now().Format(time.RFC3339Nano))
 	assert.Equal(t, int32(0), PendingTaskCount.Load())
 }
 

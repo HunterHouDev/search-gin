@@ -863,7 +863,8 @@ func TestGetDelTransferTask_InvalidTime(t *testing.T) {
 	GetDelTransferTask(c)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Contains(t, w.Body.String(), "参数解析失败")
+	// key 改为 string ID，不存在的直接返回"任务不存在"
+	assert.Contains(t, w.Body.String(), "任务不存在")
 }
 
 func TestGetDelTransferTask_NotFound(t *testing.T) {

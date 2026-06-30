@@ -22,6 +22,7 @@ const (
 const UndefinedStr = "undefined"
 
 type TransferTaskModel struct {
+	ID         string
 	Name       string
 	Path       string
 	Srt        string
@@ -44,38 +45,44 @@ type TransferTaskModel struct {
 }
 
 func NewMergeTask(files []string, dest string, concat string, DeleteSource bool) TransferTaskModel {
+	now := time.Now()
 	return TransferTaskModel{
+		ID:           now.Format(time.RFC3339Nano),
 		Files:        files,
 		Type:         TaskTypeMerge,
 		Dest:         dest,
 		VCode:        "copy",
 		ConcatFile:   concat,
 		DeleteSource: DeleteSource,
-		CreateTime:   time.Now(),
+		CreateTime:   now,
 	}
 }
 
 func NewTask(path string, name string, from string, to string) TransferTaskModel {
+	now := time.Now()
 	return TransferTaskModel{
+		ID:         now.Format(time.RFC3339Nano),
 		Path:       path,
 		Type:       TaskTypeTrans,
 		VCode:      "copy",
 		Name:       name,
 		From:       from,
 		To:         to,
-		CreateTime: time.Now(),
+		CreateTime: now,
 	}
 }
 
 func NewCutTask(path string, name string, start string, end string, to string) TransferTaskModel {
+	now := time.Now()
 	return TransferTaskModel{
+		ID:         now.Format(time.RFC3339Nano),
 		Path:       path,
 		Type:       TaskTypeCut,
 		Name:       name,
 		Start:      start,
 		End:        end,
 		To:         to,
-		CreateTime: time.Now(),
+		CreateTime: now,
 	}
 }
 

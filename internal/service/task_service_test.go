@@ -60,7 +60,7 @@ func TestTransferTask_MaxLimit(t *testing.T) {
 	// 保存原始状态
 	TransferTaskMutex.Lock()
 	origTasks := TransferTask
-	TransferTask = make(map[time.Time]model.TransferTaskModel)
+	TransferTask = make(map[string]model.TransferTaskModel)
 	TransferTaskMutex.Unlock()
 	defer func() {
 		TransferTaskMutex.Lock()
@@ -71,8 +71,9 @@ func TestTransferTask_MaxLimit(t *testing.T) {
 	// 填充到最大限制
 	TransferTaskMutex.Lock()
 	for i := 0; i < MaxTransferTaskCount; i++ {
-		key := time.Now().Add(-time.Duration(i) * time.Second)
+		key := time.Now().Add(-time.Duration(i) * time.Second).Format(time.RFC3339Nano)
 		TransferTask[key] = model.TransferTaskModel{
+			ID:     key,
 			Status: model.StatusCompleted,
 			Path:   "/test/file" + string(rune('0'+i%10)) + ".mp4",
 		}
@@ -94,7 +95,7 @@ func TestTransferTask_MaxLimit(t *testing.T) {
 	TransferTaskMutex.Lock()
 	// 手动删除一些任务模拟用户清理
 	for i := 0; i < 100; i++ {
-		key := time.Now().Add(-time.Duration(i) * time.Second)
+		key := time.Now().Add(-time.Duration(i) * time.Second).Format(time.RFC3339Nano)
 		delete(TransferTask, key)
 	}
 	if len(TransferTask) < MaxTransferTaskCount {

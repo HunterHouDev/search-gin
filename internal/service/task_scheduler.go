@@ -149,8 +149,8 @@ func (s *searchService) pollTasks() {
 	TransferTaskMutex.RUnlock()
 
 	for _, task := range toStart {
-		markTaskExecuting(task.CreateTime)
-		LogMem.Add("pollTasks: 启动任务 CreateTime=%v, type=%s, path=%s", task.CreateTime, task.Type, task.Path)
+		markTaskExecuting(task.ID)
+		LogMem.Add("pollTasks: 启动任务 ID=%v, type=%s, path=%s", task.CreateTime, task.Type, task.Path)
 
 		t := task
 		go func() {
@@ -177,7 +177,7 @@ func (s *searchService) pollTasks() {
 }
 
 // markTaskExecuting 在 TransferTask map 中原子地将任务标记为执行中
-func markTaskExecuting(key time.Time) {
+func markTaskExecuting(key string) {
 	TransferTaskMutex.Lock()
 	if t, ok := TransferTask[key]; ok {
 		if t.Status != model.StatusPending {

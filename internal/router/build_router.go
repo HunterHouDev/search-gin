@@ -128,7 +128,8 @@ func BuildAPIRouter(sigChan chan os.Signal) *gin.Engine {
 	router.POST("/api/cleanLanPeers", handler.CleanLanPeers)
 
 	router.GET("/api/transferTasks", handler.GetTransferTask)
-	router.GET("/api/delTransferTasks/:create", handler.GetDelTransferTask)
+	router.GET("/api/taskLog/:taskID", handler.GetTaskLog)
+	router.GET("/api/delTransferTasks/:taskID", handler.GetDelTransferTask)
 	router.POST("/api/clearCompletedTasks", handler.PostClearCompletedTasks)
 	router.POST("/api/clearFailedTasks", handler.PostClearFailedTasks)
 	router.POST("/api/clearAllTasks", handler.PostClearAllTasks)
@@ -206,10 +207,10 @@ func BuildAPIRouter(sigChan chan os.Signal) *gin.Engine {
 	streamGroup := router.Group("/api/stream")
 	streamGroup.Use(middleware.StreamTokenAuth())
 	{
-	 streamGroup.GET("/file/:id", handler.GetFile)
-	 streamGroup.GET("/png/:path", handler.GetPng)
-	 streamGroup.GET("/jpg/:path", handler.GetJpg)
-	 streamGroup.GET("/GetFileByPathUseEncode/:path", handler.GetFileByPathUseEncode)
+		streamGroup.GET("/file/:id", handler.GetFile)
+		streamGroup.GET("/png/:path", handler.GetPng)
+		streamGroup.GET("/jpg/:path", handler.GetJpg)
+		streamGroup.GET("/GetFileByPathUseEncode/:path", handler.GetFileByPathUseEncode)
 	}
 	buildShutdownRoutes(router, sigChan)
 

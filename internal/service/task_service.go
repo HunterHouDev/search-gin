@@ -10,8 +10,8 @@ import (
 	"time"
 )
 
-// TransferTask 以 CreateTime (time.Time) 为 key，纳秒精度下碰撞概率可忽略
-var TransferTask = map[time.Time]model.TransferTaskModel{}
+// TransferTask 以 ID (string, RFC3339Nano 格式) 为 key
+var TransferTask = map[string]model.TransferTaskModel{}
 var TransferTaskMutex sync.RWMutex // 保护 TransferTask 的并发访问
 
 const MaxTransferTaskCount = 1000
@@ -157,7 +157,7 @@ func CreateMergeTask(fileIds []string, dest string, deleteSource bool) utils.Res
 		TransferTaskMutex.Unlock()
 		return utils.NewFailByMsg("任务队列已满（最多1000个），请清理已完成任务后再试")
 	}
-	TransferTask[task.CreateTime] = task
+	TransferTask[task.ID] = task
 	PendingTaskCount.Add(1)
 	TransferTaskMutex.Unlock()
 
@@ -200,7 +200,7 @@ func CreateTransferTask(id string, xcode string) utils.Result {
 	if xcode != "" {
 		task.VCode = xcode
 	}
-	TransferTask[task.CreateTime] = task
+	TransferTask[task.ID] = task
 	PendingTaskCount.Add(1)
 	TransferTaskMutex.Unlock()
 	wakeTaskScheduler()
@@ -224,7 +224,7 @@ func CreateCutTask(id string, start string, end string) utils.Result {
 		TransferTaskMutex.Unlock()
 		return utils.NewFailByMsg("任务队列已满（最多1000个），请清理已完成任务后再试")
 	}
-	TransferTask[task.CreateTime] = task
+	TransferTask[task.ID] = task
 	PendingTaskCount.Add(1)
 	TransferTaskMutex.Unlock()
 

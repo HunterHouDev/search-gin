@@ -133,6 +133,9 @@ const fetchSetting = async () => {
 };
 
 const toggleJavBus = () => {
+  if(!systemProperty.fileEditAutoCode) {
+    systemProperty.fileEditAutoCode = true;
+  }
   if (!showBus.value) {
     let vcode = view.item?.Code || '';
     vcode = vcode.replace(/[\r\n\t]+/g, '');

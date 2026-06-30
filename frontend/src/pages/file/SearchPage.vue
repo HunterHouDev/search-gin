@@ -797,7 +797,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup>
 import { date, format, useQuasar } from 'quasar';
 const { humanStorageSize } = format;
 
@@ -1038,13 +1038,6 @@ const view = reactive({
 const sortOptions = useSortOptions('   ');
 
 // ========== 高级过滤 ==========
-const sizeUnitOptions = [
-  { label: 'B', value: 1 },
-  { label: 'KB', value: 1024 },
-  { label: 'MB', value: 1048576 },
-  { label: 'GB', value: 1073741824 },
-];
-
 const filterMinSizeValue = ref(0);
 const filterMinSizeUnit = ref(1073741824); // 默认 GB
 const filterMaxSizeValue = ref(0);
@@ -1071,22 +1064,6 @@ const pickBestUnit = (bytes) => {
   return { value: bytes, unit: 1 };
 };
 
-const onMinSizeChange = () => {
-  view.queryParam.minSize = filterMinSizeValue.value > 0
-    ? Math.round(filterMinSizeValue.value * filterMinSizeUnit.value)
-    : 0;
-  view.queryParam.Page = 1;
-  fetchSearch();
-};
-
-const onMaxSizeChange = () => {
-  view.queryParam.maxSize = filterMaxSizeValue.value > 0
-    ? Math.round(filterMaxSizeValue.value * filterMaxSizeUnit.value)
-    : 0;
-  view.queryParam.Page = 1;
-  fetchSearch();
-};
-
 const onFilterChange = () => {
   view.queryParam.Page = 1;
   fetchSearch();
@@ -1102,11 +1079,6 @@ const hasAdvancedFilters = computed(() => {
     (view.queryParam.filterTag !== '') ||
     (view.queryParam.filterSeries !== '');
 });
-
-const applyExtPreset = (exts) => {
-  view.queryParam.fileExts = [...exts];
-  onFilterChange();
-};
 
 const applySizePreset = (minBytes, maxBytes) => {
   view.queryParam.minSize = minBytes;
@@ -1173,7 +1145,6 @@ const datePresets = computed(() => {
   const presets = [];
 
   const DAY = 86400;
-  const YEAR = 365 * DAY;
 
   const items = [
     { label: '近一周', days: 7 },
@@ -1290,8 +1261,6 @@ const unselectedSeries = computed(() => {
 // 已选中的过滤条件（在重置行平铺显示）
 const selectedFilterChips = computed(() => {
   const chips = [];
-  const MB = 1048576;
-  const GB = 1073741824;
 
   // 聚合: 作者
   if (view.queryParam.filterAuthor && Array.isArray(aggregatesAuthors.value)) {

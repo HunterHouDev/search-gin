@@ -65,8 +65,8 @@ export const TransferTasksInfo = async () => {
   return res && res.data;
 };
 
-export const DelTransferTasksInfo = async (create: string) => {
-  const res = await commonAxios().get(`/api/delTransferTasks/${create}`);
+export const DelTransferTasksInfo = async (taskID: string) => {
+  const res = await commonAxios().get(`/api/delTransferTasks/${taskID}`);
   return res && res.data;
 };
 
@@ -136,6 +136,12 @@ export const OpenFolderByPath = async (data: unknown) => {
 };
 export const DeleteFolderByPath = async (data: unknown) => {
   const res = await commonAxios().post('/api/DeleteFolderByPath', data);
+  return res && res.data;
+};
+
+// 查询单任务日志
+export const GetTaskLogAPI = async (taskID: string) => {
+  const res = await commonAxios().get(`/api/taskLog/${taskID}`);
   return res && res.data;
 };
 

@@ -14,11 +14,8 @@ import { onMounted, onUnmounted, watch, onErrorCaptured } from 'vue';
 import { useQuasar } from 'quasar';
 import ParticleBackground from 'components/ParticleBackground.vue';
 import { useSystemProperty } from './stores/System';
-import { useGlobalSSE } from './composables/useGlobalSSE';
-
 const systemProperty = useSystemProperty();
 const $q = useQuasar();
-const { connect: connectSSE, disconnect: disconnectSSE } = useGlobalSSE();
 
 // 设置主题类
 const applyTheme = (theme: string) => {
@@ -55,7 +52,7 @@ onErrorCaptured((err, instance, info) => {
 onMounted(() => {
   applyTheme(systemProperty.theme);
   document.body.classList.add('app-ready');
-  connectSSE(); // 全局 SSE 常驻，路由切换不断连
+  // 全局 SSE 已移除，任务日志 SSE 在 ListEditDialog 弹窗内独立管理
 
   window.addEventListener('unhandledrejection', (event) => {
     console.error('[Unhandled Promise]', event.reason);
@@ -63,9 +60,7 @@ onMounted(() => {
   });
 });
 
-onUnmounted(() => {
-  disconnectSSE();
-});
+  // onUnmounted 无需额外清理，任务日志 SSE 在弹窗内管理
 </script>
 
 <style>
