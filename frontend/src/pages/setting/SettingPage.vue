@@ -870,8 +870,6 @@ const view = reactive({
     BaseUrl: '',
     ImageUrl: '',
     Remark: '',
-    IsDb: false,
-    IsJavBus: false,
     EnableLanDiscovery: null,
     NodeName: '',
     DiscoveryPeers: [] as string[],

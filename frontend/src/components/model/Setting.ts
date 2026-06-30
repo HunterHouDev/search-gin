@@ -19,9 +19,6 @@ export class SettingInfo {
   HardwareAcceleration = false;
   HardwareAccelMode = '';
 
-  IsDb = false;
-  IsJavBus = false;
-
   EnableLanDiscovery: boolean | null = null;
   NodeName: string | undefined;
   DiscoveryPeers: string[] = [];
