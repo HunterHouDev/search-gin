@@ -1169,7 +1169,7 @@ const redirectUrl = (item) => {
 
 const fetchTasking = async () => {
   const res = await TransferTasksInfo();
-  view.tasking = res.Data?.tasks || [];
+  view.tasking = (res.Data?.tasks || []).sort((a, b) => (b.CreateTime || '').localeCompare(a.CreateTime || ''));
   view.totalCount = res.Data?.counts || [0, 0, 0, 0, 0];
 };
 
