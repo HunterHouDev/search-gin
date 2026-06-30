@@ -48,6 +48,7 @@ func NewSearchParam(keyword string, page int, pageSize int, sortField string, so
 
 }
 
+// UniWords 生成搜索条件的唯一标识，不含 Page/PageSize，确保不同分页命中同一缓存
 func (p *SearchParam) UniWords() string {
 	p.Keyword = strings.TrimSpace(p.Keyword)
 	key := p.Keyword + "::" + p.MovieType + "::" + p.SortField + "::" + p.SortType

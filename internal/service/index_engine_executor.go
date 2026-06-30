@@ -281,11 +281,13 @@ func buildAuthorResult(authors []model.Author, param model.SearchParam) model.Pa
 }
 
 // computeAggregates 从搜索结果文件中统计聚合数据
+// 内部使用指针 map 避免 struct 值拷贝，返回时转换为值 map 供 JSON 序列化
 func computeAggregates(files []model.FileItem) (authorAgg, tagAgg, seriesAgg, extAgg map[string]model.AggItem, minSize, maxSize, minDate, maxDate int64) {
-	authorAgg = make(map[string]model.AggItem)
-	tagAgg = make(map[string]model.AggItem)
-	seriesAgg = make(map[string]model.AggItem)
-	extAgg = make(map[string]model.AggItem)
+	type aggPtr = *model.AggItem
+	authorPtrs := make(map[string]aggPtr)
+	tagPtrs := make(map[string]aggPtr)
+	seriesPtrs := make(map[string]aggPtr)
+	extPtrs := make(map[string]aggPtr)
 
 	for _, f := range files {
 		// 大小范围
@@ -306,15 +308,11 @@ func computeAggregates(files []model.FileItem) (authorAgg, tagAgg, seriesAgg, ex
 
 		// 按作者聚合
 		if f.Author != "" {
-			if entry, ok := authorAgg[f.Author]; ok {
+			if entry, ok := authorPtrs[f.Author]; ok {
 				entry.Cnt++
 				entry.Size += f.Size
-				authorAgg[f.Author] = entry
 			} else {
-				authorAgg[f.Author] = model.AggItem{
-					Cnt:  1,
-					Size: f.Size,
-				}
+				authorPtrs[f.Author] = &model.AggItem{Cnt: 1, Size: f.Size}
 			}
 		}
 
@@ -323,37 +321,48 @@ func computeAggregates(files []model.FileItem) (authorAgg, tagAgg, seriesAgg, ex
 			if tag == "" {
 				continue
 			}
-			if entry, ok := tagAgg[tag]; ok {
+			if entry, ok := tagPtrs[tag]; ok {
 				entry.Cnt++
-				tagAgg[tag] = entry
 			} else {
-				tagAgg[tag] = model.AggItem{
-					Cnt: 1,
-				}
+				tagPtrs[tag] = &model.AggItem{Cnt: 1}
 			}
 		}
 
 		// 按系列（Studio）聚合
 		if f.Studio != "" {
-			if entry, ok := seriesAgg[f.Studio]; ok {
+			if entry, ok := seriesPtrs[f.Studio]; ok {
 				entry.Cnt++
-				seriesAgg[f.Studio] = entry
 			} else {
-				seriesAgg[f.Studio] = model.AggItem{
-					Cnt: 1,
-				}
+				seriesPtrs[f.Studio] = &model.AggItem{Cnt: 1}
 			}
 		}
 
 		// 按扩展名聚合
 		if ext := utils.GetSuffix(f.Name); ext != "" {
-			if entry, ok := extAgg[ext]; ok {
+			if entry, ok := extPtrs[ext]; ok {
 				entry.Cnt++
-				extAgg[ext] = entry
 			} else {
-				extAgg[ext] = model.AggItem{Cnt: 1}
+				extPtrs[ext] = &model.AggItem{Cnt: 1}
 			}
 		}
+	}
+
+	// 转换为值 map
+	authorAgg = make(map[string]model.AggItem, len(authorPtrs))
+	for k, v := range authorPtrs {
+		authorAgg[k] = *v
+	}
+	tagAgg = make(map[string]model.AggItem, len(tagPtrs))
+	for k, v := range tagPtrs {
+		tagAgg[k] = *v
+	}
+	seriesAgg = make(map[string]model.AggItem, len(seriesPtrs))
+	for k, v := range seriesPtrs {
+		seriesAgg[k] = *v
+	}
+	extAgg = make(map[string]model.AggItem, len(extPtrs))
+	for k, v := range extPtrs {
+		extAgg[k] = *v
 	}
 
 	return

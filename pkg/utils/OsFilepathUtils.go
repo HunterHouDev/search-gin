@@ -52,8 +52,12 @@ func DirpathForId(path string) string {
 }
 
 func ConcatSuffix(path string, suffix string) string {
-	path = strings.ReplaceAll(path, GetSuffix(path), suffix)
-	return path
+	oldSuffix := GetSuffix(path)
+	idx := strings.LastIndex(path, "."+oldSuffix)
+	if idx < 0 {
+		return path + "." + suffix
+	}
+	return path[:idx] + "." + suffix
 }
 
 func ExistsFiles(path string) bool {

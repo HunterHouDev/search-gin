@@ -94,58 +94,56 @@ func SetToken(token string, expireTime time.Time, username string, role string, 
 }
 
 // ValidateTokenWithInfo 验证 token 并返回 TokenInfo
+// 整个函数在 tokenMu 写锁保护下执行，避免 tokenStore 的并发读写竞态
 func ValidateTokenWithInfo(token string) (TokenInfo, bool) {
 	tokenMu.Lock()
+	defer tokenMu.Unlock()
+
 	tokenInfo, exists := tokenStore[token]
 	if !exists {
-		tokenMu.Unlock()
 		return TokenInfo{}, false
 	}
 
 	if time.Now().After(tokenInfo.ExpireTime) {
 		delete(tokenStore, token)
-		tokenMu.Unlock()
 		return TokenInfo{}, false
 	}
 
 	// 兼容旧 token：admin 用户 role 为空时自动补全并持久化
 	if tokenInfo.Role == "" && tokenInfo.Username == AdminUsername {
+		tokenInfo.Role = AdminRole
 		info := tokenStore[token]
 		info.Role = AdminRole
 		tokenStore[token] = info
-		tokenInfo.Role = AdminRole
 	}
 
 	// 兼容旧 token：Permissions 为空时自动填充
 	if len(tokenInfo.Permissions) == 0 {
-		info := tokenStore[token]
 		perms := GetUserPermissions(tokenInfo.Username, tokenInfo.Role)
+		tokenInfo.Permissions = perms
+		info := tokenStore[token]
 		info.Permissions = perms
 		tokenStore[token] = info
-		tokenInfo.Permissions = perms
 	}
 
-	// 普通用户检查有效期
+	// 普通用户检查有效期 + 权限同步
 	if tokenInfo.Username != AdminUsername && tokenInfo.Username != "" {
-		tokenMu.Unlock()
 		for _, user := range GetOSSettingUsers() {
 			if user.Username == tokenInfo.Username {
 				if user.ExpireDate != "" {
 					expireTime, err := time.Parse("2006-01-02", user.ExpireDate)
 					if err == nil && time.Now().After(expireTime) {
-						tokenMu.Lock()
 						delete(tokenStore, token)
-						tokenMu.Unlock()
 						return TokenInfo{}, false
 					}
 				}
 				// 权限变更同步：每次验证时从 setting 同步最新权限
 				if !stringSliceEqual(tokenInfo.Permissions, user.Permissions) && user.Permissions != nil {
-					info := tokenStore[token]
 					perms := GetUserPermissions(tokenInfo.Username, tokenInfo.Role)
+					tokenInfo.Permissions = perms
+					info := tokenStore[token]
 					info.Permissions = perms
 					tokenStore[token] = info
-					tokenInfo.Permissions = perms
 				}
 				break
 			}
@@ -153,7 +151,6 @@ func ValidateTokenWithInfo(token string) (TokenInfo, bool) {
 		return tokenInfo, true
 	}
 
-	tokenMu.Unlock()
 	return tokenInfo, true
 }
 

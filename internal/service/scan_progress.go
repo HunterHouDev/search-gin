@@ -20,7 +20,8 @@ var Sp = ScanProgress{mu: &sync.RWMutex{}}
 // Get 读锁安全拷贝，供外部读取进度
 func (sp *ScanProgress) Get() ScanProgress {
 	sp.mu.RLock()
-	result := ScanProgress{
+	defer sp.mu.RUnlock()
+	return ScanProgress{
 		Phase:            sp.Phase,
 		TotalDirs:        sp.TotalDirs,
 		CompletedDirs:    sp.CompletedDirs,
@@ -30,13 +31,12 @@ func (sp *ScanProgress) Get() ScanProgress {
 		ProcessedBuckets: sp.ProcessedBuckets,
 		CurrentPhase:     sp.CurrentPhase,
 	}
-	sp.mu.RUnlock()
-	return result
 }
 
 // Init 初始化扫描进度（写锁）
 func (sp *ScanProgress) Init(dirCount int) {
 	sp.mu.Lock()
+	defer sp.mu.Unlock()
 	sp.Phase = "scanning"
 	sp.TotalDirs = dirCount
 	sp.CompletedDirs = 0
@@ -45,7 +45,6 @@ func (sp *ScanProgress) Init(dirCount int) {
 	sp.TotalBuckets = dirCount
 	sp.ProcessedBuckets = 0
 	sp.CurrentPhase = "正在扫描目录..."
-	sp.mu.Unlock()
 }
 
 // setPhase 内部设置阶段和描述（不加锁，由调用方持锁）
@@ -57,30 +56,30 @@ func (sp *ScanProgress) setPhase(phase, desc string) {
 // SetPhase 更新阶段和描述（写锁）
 func (sp *ScanProgress) SetPhase(phase, desc string) {
 	sp.mu.Lock()
+	defer sp.mu.Unlock()
 	sp.setPhase(phase, desc)
-	sp.mu.Unlock()
 }
 
 // Complete 标记扫描完成（写锁）
 func (sp *ScanProgress) Complete() {
 	sp.mu.Lock()
+	defer sp.mu.Unlock()
 	sp.setPhase("done", "扫描完成")
 	sp.CompletedDirs = sp.TotalDirs
-	sp.mu.Unlock()
 }
 
 // IncrementCompletedDirs 已完成目录数+1（写锁）
 func (sp *ScanProgress) IncrementCompletedDirs() {
 	sp.mu.Lock()
+	defer sp.mu.Unlock()
 	sp.CompletedDirs++
-	sp.mu.Unlock()
 }
 
 // SetCurrentDir 设置当前扫描目录（写锁）
 func (sp *ScanProgress) SetCurrentDir(dir string) {
 	sp.mu.Lock()
+	defer sp.mu.Unlock()
 	sp.CurrentDir = dir
-	sp.mu.Unlock()
 }
 
 // AddScannedFiles 增加已扫描文件数（写锁）

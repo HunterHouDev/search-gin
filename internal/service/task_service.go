@@ -10,6 +10,7 @@ import (
 	"time"
 )
 
+// TransferTask 以 CreateTime (time.Time) 为 key，纳秒精度下碰撞概率可忽略
 var TransferTask = map[time.Time]model.TransferTaskModel{}
 var TransferTaskMutex sync.RWMutex // 保护 TransferTask 的并发访问
 
@@ -177,23 +178,27 @@ func CreateTransferTask(id string, xcode string) utils.Result {
 	from := utils.GetSuffix(movieFile.Path)
 	to := "mp4"
 
-	TransferTaskMutex.Lock()
+	// 读锁检查重复任务
+	TransferTaskMutex.RLock()
 	for _, taskModel := range TransferTask {
 		if taskModel.Path == movieFile.Path &&
 			(taskModel.Status == model.StatusPending || taskModel.Status == model.StatusExecuting) {
-			TransferTaskMutex.Unlock()
+			TransferTaskMutex.RUnlock()
 			return utils.NewFailByMsg("该文件已有转码任务在执行，请等待完成")
 		}
 	}
+	TransferTaskMutex.RUnlock()
 
+	// 写锁创建任务
+	TransferTaskMutex.Lock()
+	if len(TransferTask) >= MaxTransferTaskCount {
+		TransferTaskMutex.Unlock()
+		return utils.NewFailByMsg("任务队列已满（最多1000个），请清理已完成任务后再试")
+	}
 	task := model.NewTask(movieFile.Path, movieFile.Name, from, to)
 	task.SetStatus(model.StatusPending)
 	if xcode != "" {
 		task.VCode = xcode
-	}
-	if len(TransferTask) >= MaxTransferTaskCount {
-		TransferTaskMutex.Unlock()
-		return utils.NewFailByMsg("任务队列已满（最多1000个），请清理已完成任务后再试")
 	}
 	TransferTask[task.CreateTime] = task
 	PendingTaskCount.Add(1)

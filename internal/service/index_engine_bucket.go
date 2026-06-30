@@ -278,5 +278,3 @@ func matchAdvancedFiltersFast(file *model.FileItem, minSize, maxSize int64, date
 	return true
 }
 
-// matchAdvancedFilters 已废弃，请使用 matchAdvancedFiltersFast
-// 保留仅用于编译兼容，实际已无调用点

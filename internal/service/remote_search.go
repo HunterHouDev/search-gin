@@ -30,6 +30,7 @@ type PeerSearchResult struct {
 }
 
 // SearchPeers 并发搜索所有在线远程节点
+// 每个 peer 返回的结果已由远端 Page() 按 PageSize 分页，不会全量返回
 func SearchPeers(searchParam model.SearchParam) ([]model.FileItem, int, int64) {
 	peers := GetOnlinePeers()
 	if len(peers) == 0 {
@@ -210,6 +211,7 @@ func ParseTotalSize(s string) int64 {
 }
 
 // MergeResults 合并本地与远程结果，保留所有文件（不主动去重）
+// 设计意图：跨节点搜索结果故意保留重复项，用户可据此选择删除哪个文件
 func MergeResults(local, remote []model.FileItem) []model.FileItem {
 	merged := make([]model.FileItem, 0, len(local)+len(remote))
 	merged = append(merged, local...)

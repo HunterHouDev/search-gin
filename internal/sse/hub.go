@@ -20,7 +20,7 @@ type Event struct {
 type Client struct {
 	ID         int
 	Events     chan Event
-	lastActive time.Time // 最后一次成功发送事件的时间
+	lastActive time.Time // 最后一次成功发送事件的时间（仅在 Hub.Run() 单 goroutine 内读写，无竞态）
 }
 
 type Hub struct {

@@ -92,7 +92,7 @@ func FlushCache() {
 		cacheDebounceTimer.Stop()
 		cacheDebounceTimer = nil
 	}
-	cacheDebounceIndex = nil
+	// 不置 nil：若 shutdown 后仍有 saveIndexToCache 调用，新数据仍可被下次 flush 写入
 	cacheDebounceMu.Unlock()
 
 	if idx == nil {
@@ -156,8 +156,11 @@ func doFlushCache(idx *searchIndex) {
 			return
 		}
 
+		// Windows 上 os.Rename 目标已存在会失败，需先删除
+		os.Remove(cachePath)
 		if err := os.Rename(tmpPath, cachePath); err != nil {
 			utils.InfoFormat("保存索引缓存失败(重命名): %v", err)
+			os.Remove(tmpPath)
 			return
 		}
 		LogMem.Add("索引缓存已保存: %s (%d buckets, %d files)", cachePath, len(data.Buckets), idx.totalCount)
