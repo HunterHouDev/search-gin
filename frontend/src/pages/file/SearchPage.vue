@@ -114,15 +114,16 @@
             @mousedown.prevent="onFabDragStart" @mousemove="onFabDragMove" @mouseup="onFabDragEnd"
             @mouseleave="onFabDragEnd">
             <q-fab-action v-permission="['op:edit', 'op:tag', 'op:transcode', 'op:merge', 'op:cut', 'op:movie:type']"
-              @click="openListEditRef('filelist')" color="primary" label="编辑" />
-            <q-fab-action @click="openListEditRef('tasking')" color="primary" label="任务" />
+              @click="openBatchEdit" color="primary" label="编辑" />
+            <q-fab-action @click="openTaskList" color="primary" label="任务" />
           </q-fab>
         </div>
       </q-header>
 
       <!-- 高级过滤面板 -->
       <q-slide-transition>
-        <div v-show="view.showAdvancedFilter" class="advanced-filter-panel" :style="[themeStyle, { padding: '8px 12px' }]">
+        <div v-show="view.showAdvancedFilter" class="advanced-filter-panel" :style="[themeStyle, { padding: '8px 12px' }]"
+          @mouseleave="view.showAdvancedFilter = false">
 
           <!-- 作者聚合（已选中的隐藏，移到最底部） -->
           <div v-if="unselectedAuthors && unselectedAuthors.length > 0" class="row no-wrap q-mb-sm">
@@ -219,37 +220,20 @@
       <!-- 底部 -->
       <q-footer elevated :style="themeStyle" class="glossy">
         <div class="flex flex-center">
-          <!-- 页码输入框 -->
-          <q-btn icon="settings" color="orange" flat dense>
-            <q-popup-proxy v-model="view.pageSetting" style="background: rgba(250, 250, 250, 0.8)">
-              <div class="q-gutter-md" style="
-                width: 18rem;
-                height: 8rem;
-                display: flex;
-                flex-direction: column;
-                justify-content: space-evenly;
-              ">
-
-                <div class="row justify-between">
-                  <q-btn flat dense> 每页大小 </q-btn>
-                  <q-select size="sm" dense flat @update:model-value="currentPageSizeChange" filled bgColor="orange"
-                    class="page-control" v-model="view.queryParam.PageSize" :options="pageOptions">
-                  </q-select>
-                </div>
-                <div class="row justify-between">
-                  <q-btn flat dense>页码 </q-btn>
-                  <q-input v-model="gotoPage" :dense="true" style="text-align: center; width: 40%" bgColor="orange"
-                    :max="view.resultData.TotalPage" :min="1" :debounce="1000" @focus="focusEvent($event)"
-                    @update:model-value="pageNoGoto" />
-                </div>
-              </div>
-              <!-- 每页数量选择 -->
-            </q-popup-proxy>
-          </q-btn>
           <!-- 分页器 -->
           <q-pagination v-model="view.queryParam.Page" @update:model-value="gotoPageNo" color="deep-orange"
             :ellipses="true" :max="view.resultData.TotalPage || 0" :max-pages="isSmall ? 5 : 10" boundary-numbers
             direction-links></q-pagination>
+            <!-- 每页大小 -->
+          <q-select size="sm" dense borderless dark
+            @update:model-value="currentPageSizeChange"
+            v-model="view.queryParam.PageSize" :options="pageOptions"
+            style="min-width: 60px" />
+          <!-- 页码直达 -->
+          <q-input v-model="gotoPage" dense dark borderless
+            style="width: 44px; text-align: center"
+            placeholder="#"
+            @update:model-value="pageNoGoto" />
 
         </div>
         <div style="position: fixed; right: 10px; bottom: 40px; z-index: 10">
@@ -651,12 +635,9 @@
     <FileInfo ref="fileInfoRef" @next-one="viewNextOne('edit')" @prev-one="viewPrevOne('edit')"
       @hide="view.currentDataInEditor = {}" />
 
-    <!-- 列表编辑对话框 @close="fetchSearch" -->
-    <ListEdit ref="listEditRef" @callback-word="
-      (e) => {
-        searchKeyword(e);
-      }
-    " />
+    <!-- 批量操作 / 任务列表 -->
+    <BatchEdit ref="batchEditRef" />
+    <TaskList ref="taskListRef" />
     <!-- 截图对话框 -->
     <Screenshot ref="fileCutImageRef" @next-one="viewNextOne('cut')" @prev-one="viewPrevOne('cut')"
       @hide="view.currentDataInEditor = {}" @close="
@@ -735,7 +716,8 @@ import AppPreference from 'components/AppPreference.vue';
 import { useSystemProperty } from 'stores/System';
 import FileEdit from './components/FileEditDialog.vue';
 import FileInfo from './components/FileInfoDialog.vue';
-import ListEdit from './components/ListEditDialog.vue';
+import BatchEdit from './components/BatchEditDialog.vue';
+import TaskList from './components/TaskListDialog.vue';
 import Screenshot from './components/ScreenshotDialog.vue';
 import InnerVideoPlayer from './components/VideoPlayerInPicture.vue';
 import QrDownloadDialog from 'components/QrDownloadDialog.vue';
@@ -796,7 +778,8 @@ const $q = useQuasar();
 const { exec: commonExec } = useCommonExec();
 const fileEditRef = ref(null);
 const fileInfoRef = ref(null);
-const listEditRef = ref(null);
+const batchEditRef = ref(null);
+const taskListRef = ref(null);
 const videoRef = ref(null);
 const indexButton = ref(null);
 const fileCutImageRef = ref(null);
@@ -1321,12 +1304,15 @@ const redirectUrl = (item) => {
   fetchSearch();
   return;
 };
-const listEditCallback = (data) => {
-  const { settingInfo } = data;
-  if (settingInfo) {
-    view.settingInfo = settingInfo;
-  }
+const openBatchEdit = () => {
+  batchEditRef.value?.open({
+    queryParam: view.queryParam,
+    settingInfo: view.settingInfo,
+    cb: (data) => { if (data?.settingInfo) view.settingInfo = data.settingInfo; },
+  });
 };
+
+const openTaskList = () => taskListRef.value?.open();
 
 const simgleWindow = computed(() => {
   return systemProperty.singleWindow;
@@ -1588,15 +1574,6 @@ const viewPrevOne = async (type) => {
       }
     }
   }
-};
-
-const openListEditRef = (tabName) => {
-  listEditRef.value.open({
-    queryParam: view.queryParam,
-    settingInfo: view.settingInfo,
-    cb: listEditCallback,
-    tabName,
-  });
 };
 
 const openFileInfoRef = (item, playing) => {
