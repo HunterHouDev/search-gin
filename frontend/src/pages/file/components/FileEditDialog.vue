@@ -29,7 +29,8 @@
         <q-space />
         <q-btn style="margin-right: 10px" color="orange" align="evenly" label="移动" glossy @click="editMoveout" />
         <q-btn style="margin-right: 10px" color="orange" align="evenly" label="改名" glossy @click="editItemSubmit()" />
-        <q-btn style="margin-right: 10px" icon="close" color="red" @click="onDialogCancel">
+        <q-space />
+        <q-btn style="margin-right: 10px" icon="close" @click="onDialogCancel">
           <q-tooltip class="bg-white text-primary">关闭</q-tooltip>
         </q-btn>
         <q-btn color="red" flat icon="ti-shift-right" :size="isMobile ? 'sm' : 'md'" @click="nextOne">
@@ -133,7 +134,7 @@ const fetchSetting = async () => {
 };
 
 const toggleJavBus = () => {
-  if(!systemProperty.fileEditAutoCode) {
+  if (!systemProperty.fileEditAutoCode) {
     systemProperty.fileEditAutoCode = true;
   }
   if (!showBus.value) {

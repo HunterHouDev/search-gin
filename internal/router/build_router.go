@@ -188,6 +188,8 @@ func BuildAPIRouter(sigChan chan os.Signal) *gin.Engine {
 	router.GET("/api/pingHost", handler.PingHost)
 	router.GET("/api/logMemory", handler.GetLogMemory)
 	router.GET("/api/localLog", handler.GetLocalLog)
+	router.POST("/api/clearMemoryLog", handler.ClearMemoryLog)
+	router.POST("/api/clearLocalLog", handler.ClearLocalLog)
 	router.GET("/api/indexHealth", handler.GetIndexHealthCheck)
 	router.GET("/api/ws", handler.HandleWebSocket)
 	router.GET("/api/events", func(c *gin.Context) {

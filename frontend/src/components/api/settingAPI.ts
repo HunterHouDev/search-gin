@@ -11,6 +11,16 @@ export const GetLocalLog = async () => {
   return res;
 };
 
+export const ClearMemoryLog = async () => {
+  const res = await commonAxios().post('/api/clearMemoryLog');
+  return res && res.data;
+};
+
+export const ClearLocalLog = async () => {
+  const res = await commonAxios().post('/api/clearLocalLog');
+  return res && res.data;
+};
+
 export const GetSettingInfo = async () => {
   const res = await commonAxios().get('/api/settingInfo');
   return res;

@@ -53,6 +53,20 @@ func GetLogMemory(c *gin.Context) {
 	c.JSON(http.StatusOK, service.LogMem.GetAll())
 }
 
+func ClearMemoryLog(c *gin.Context) {
+	service.LogMem.Clear()
+	c.JSON(http.StatusOK, utils.NewSuccess())
+}
+
+func ClearLocalLog(c *gin.Context) {
+	logPath := filepath.Join(service.GetWorkDir(), "gin.log")
+	if err := os.Truncate(logPath, 0); err != nil {
+		c.JSON(http.StatusOK, utils.NewFailByMsg("清空文件日志失败"))
+		return
+	}
+	c.JSON(http.StatusOK, utils.NewSuccess())
+}
+
 type LocalLogLine struct {
 	Raw string `json:"raw"`
 }

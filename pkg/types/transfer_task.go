@@ -36,6 +36,7 @@ type TransferTaskModel struct {
 	Command    string
 	ConcatFile string
 
+	Log          string
 	Files        []string
 	Dest         string
 	DeleteSource bool

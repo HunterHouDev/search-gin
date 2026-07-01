@@ -105,16 +105,8 @@
 
         <!-- 设置按钮 -->
         <!-- Q-FAB 固定悬浮按钮 -->
-        <div class="fab-container">
-          <q-fab icon="ti-pencil-alt" direction="left" :color="view.runningTaskCount > 0 ? 'red' : 'orange'" glossy
-            :style="fabStyle" @touchstart="onFabTouchStart" @touchmove="onFabTouchMove" @touchend="onFabTouchEnd"
-            @mousedown.prevent="onFabDragStart" @mousemove="onFabDragMove" @mouseup="onFabDragEnd"
-            @mouseleave="onFabDragEnd">
-            <q-fab-action v-permission="['op:edit', 'op:tag', 'op:transcode', 'op:merge', 'op:cut', 'op:movie:type']"
-              @click="openBatchEdit" color="primary" label="编辑" />
-            <q-fab-action @click="openTaskList" color="primary" label="任务" />
-          </q-fab>
-        </div>
+        <q-btn icon="ti-pencil-alt" color="orange" glossy round :style="fabStyle"
+          @click="openBatchEdit" />
       </q-header>
 
       <!-- 高级过滤面板 -->
@@ -642,9 +634,8 @@
     <FileInfo ref="fileInfoRef" @next-one="viewNextOne('edit')" @prev-one="viewPrevOne('edit')"
       @hide="view.currentDataInEditor = {}" />
 
-    <!-- 批量操作 / 任务列表 -->
+    <!-- 批量操作 / 任务列表（已合并） -->
     <BatchEdit ref="batchEditRef" />
-    <TaskList ref="taskListRef" />
     <!-- 截图对话框 -->
     <Screenshot ref="fileCutImageRef" @next-one="viewNextOne('cut')" @prev-one="viewPrevOne('cut')"
       @hide="view.currentDataInEditor = {}" @close="
@@ -692,7 +683,6 @@ import {
   PlayMovie,
   ResetMovieType,
   SearchAPI,
-  TransferTasksInfo,
 } from 'components/api/searchAPI';
 import { computed, onMounted, onUnmounted, provide, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -723,7 +713,6 @@ import { useSystemProperty } from 'stores/System';
 import FileEdit from './components/FileEditDialog.vue';
 import FileInfo from './components/FileInfoDialog.vue';
 import BatchEdit from './components/BatchEditDialog.vue';
-import TaskList from './components/TaskListDialog.vue';
 import Screenshot from './components/ScreenshotDialog.vue';
 import InnerVideoPlayer from './components/VideoPlayerInPicture.vue';
 import QrDownloadDialog from 'components/QrDownloadDialog.vue';
@@ -790,7 +779,6 @@ const { exec: commonExec } = useCommonExec();
 const fileEditRef = ref(null);
 const fileInfoRef = ref(null);
 const batchEditRef = ref(null);
-const taskListRef = ref(null);
 const videoRef = ref(null);
 const indexButton = ref(null);
 const fileCutImageRef = ref(null);
@@ -808,77 +796,16 @@ const moveView = reactive({
   targetId: '',
 });
 
-// 悬浮按钮自由拖动
+// 悬浮按钮位置
 const fabPos = reactive({ x: 10, y: 150 });
-const fabDragging = ref(false);
-const fabStart = reactive({ x: 0, y: 0, posX: 0, posY: 0 });
-// 触摸拖动检测：移动超过 10px 才算拖动，否则触发点击
 
 const fabStyle = computed(() => ({
   position: 'fixed',
   right: `${fabPos.x}px`,
   top: `${fabPos.y}px`,
-  cursor: fabDragging.value ? 'grabbing' : 'grab',
-  touchAction: 'none',
-  userSelect: 'none',
 }));
 
-const onFabTouchStart = (e) => {
-  fabDragging.value = true;
-  fabStart.posX = fabPos.x;
-  fabStart.posY = fabPos.y;
-  if ('touches' in e) {
-    fabStart.x = e.touches[0].clientX;
-    fabStart.y = e.touches[0].clientY;
-  }
-};
 
-const onFabTouchMove = (e) => {
-  if (!fabDragging.value) return;
-  const touch = e.touches[0];
-  const dx = fabStart.x - touch.clientX;
-  const dy = touch.clientY - fabStart.y;
-  fabPos.x = Math.max(0, Math.min(window.innerWidth - 60, fabStart.posX + dx));
-  fabPos.y = Math.max(0, Math.min(window.innerHeight - 60, fabStart.posY + dy));
-};
-
-const onFabTouchEnd = () => {
-  fabDragging.value = false;
-  // 如果没拖动（轻触），不阻止默认行为，让 click 正常触发
-};
-
-const onFabDragStart = (e) => {
-  fabDragging.value = true;
-  fabStart.posX = fabPos.x;
-  fabStart.posY = fabPos.y;
-  if ('touches' in e) {
-    fabStart.x = e.touches[0].clientX;
-    fabStart.y = e.touches[0].clientY;
-  } else {
-    fabStart.x = e.clientX;
-    fabStart.y = e.clientY;
-  }
-};
-
-const onFabDragMove = (e) => {
-  if (!fabDragging.value) return;
-  let clientX, clientY;
-  if ('touches' in e) {
-    clientX = e.touches[0].clientX;
-    clientY = e.touches[0].clientY;
-  } else {
-    clientX = e.clientX;
-    clientY = e.clientY;
-  }
-  const dx = fabStart.x - clientX;
-  const dy = clientY - fabStart.y;
-  fabPos.x = Math.max(0, Math.min(window.innerWidth - 60, fabStart.posX + dx));
-  fabPos.y = Math.max(0, Math.min(window.innerHeight - 60, fabStart.posY + dy));
-};
-
-const onFabDragEnd = () => {
-  fabDragging.value = false;
-};
 
 const view = reactive({
   currentDataInPlayer: {},
@@ -1249,8 +1176,6 @@ const openBatchEdit = () => {
     cb: (data) => { if (data?.settingInfo) view.settingInfo = data.settingInfo; },
   });
 };
-
-const openTaskList = () => taskListRef.value?.open();
 
 const playByPage = (item) => {
   systemProperty.savePlayTime(item.Id);
@@ -1699,19 +1624,6 @@ const setMovieType = async (Id, Type) => {
   }
 };
 
-const fetchTasking = async () => {
-  const res = await TransferTasksInfo();
-  if (!res?.Data) return;
-  let runningTaskCount = 0
-  Object.keys(res.Data).forEach((key) => {
-    const v = res.Data[key];
-    if (v.Status == '执行中') {
-      runningTaskCount++;
-    }
-  });
-  view.runningTaskCount = runningTaskCount;
-};
-
 const thisRoute = useRoute();
 const { resolve, push } = useRouter();
 
@@ -1768,11 +1680,7 @@ const onIndexRefresh = () => {
   fetchSearch();
 };
 
-let taskInterval = null;
 onMounted(async () => {
-  taskInterval = setInterval(() => {
-    fetchTasking()
-  }, 9000);
   if ($q.platform.is.mobile) {
     systemProperty.showStyle = 'sm';
   }
@@ -1841,10 +1749,6 @@ onMounted(async () => {
 
 onUnmounted(() => {
   clearTimeout(sseDebounceTimer);
-  if (taskInterval) {
-    clearInterval(taskInterval);
-    taskInterval = null;
-  }
 });
 </script>
 

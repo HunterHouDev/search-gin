@@ -45,6 +45,7 @@ func transferWithEncoder(task model.TransferTaskModel, encoder, crf string) util
 	qualityParam := getHwQualityParam()
 
 	args := make([]string, 0, 10)
+	args = append(args, "-y")
 	if decodeParams != "" {
 		args = append(args, strings.Fields(decodeParams)...)
 	}
@@ -88,7 +89,7 @@ func transferFormatWithCopy(task model.TransferTaskModel) utils.Result {
 	}
 
 	dest := replaceSuffix(task.Path, suffix, task.To)
-	args := []string{"-i", from, "-c", "copy", dest}
+	args := []string{"-y", "-i", from, "-c", "copy", dest}
 	res := ffmpegExec(args, task.ID)
 
 	if res.IsSuccess() {
@@ -232,12 +233,14 @@ func taskLogDir() string {
 	return filepath.Join(GetWorkDir(), "task_logs")
 }
 
-func ensureTaskLogDir() {
-	os.MkdirAll(taskLogDir(), 0755)
+func ensureTaskLogDir() error {
+	return os.MkdirAll(taskLogDir(), 0755)
 }
 
 func taskLogPath(taskKey string) string {
-	return filepath.Join(taskLogDir(), taskKey+".log")
+	// Windows 文件名不允许冒号，替换为下划线
+	safeKey := strings.ReplaceAll(taskKey, ":", "-")
+	return filepath.Join(taskLogDir(), safeKey+".log")
 }
 
 // ffmpegRunStream 流式执行 ffmpeg：写日志文件 + 轻量 SSE 通知（不含日志内容）
@@ -258,11 +261,13 @@ func ffmpegRunStream(ctx context.Context, args []string, taskKey string) error {
 	}
 
 	// 打开日志文件（追加模式）
-	ensureTaskLogDir()
+	if err := ensureTaskLogDir(); err != nil {
+		return fmt.Errorf("创建日志目录失败 (%s): %w", taskLogDir(), err)
+	}
 	logPath := taskLogPath(taskKey)
 	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return fmt.Errorf("创建日志文件失败: %w", err)
+		return fmt.Errorf("创建日志文件失败 (%s): %w", logPath, err)
 	}
 	defer f.Close()
 
@@ -328,6 +333,20 @@ func ffmpegExec(args []string, taskKey string) utils.Result {
 	if cmdErr != nil {
 		updateTaskStatus(taskKey, model.StatusFailed)
 		utils.InfoFormat("命令执行失败: %v, 参数: %v", cmdErr, args)
+
+		// 捕获错误日志到任务内存
+		if logData, err := os.ReadFile(taskLogPath(taskKey)); err == nil {
+			content := string(logData)
+			if len(content) > 2000 {
+				content = content[len(content)-2000:]
+			}
+			TransferTaskMutex.Lock()
+			if t, ok := TransferTask[taskKey]; ok {
+				t.Log = content
+				TransferTask[taskKey] = t
+			}
+			TransferTaskMutex.Unlock()
+		}
 		return utils.NewFailByMsg("转换失败")
 	}
 

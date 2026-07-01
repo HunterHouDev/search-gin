@@ -46,6 +46,13 @@ func (ml *MemoryLog) Add(format string, v ...any) {
 	ml.mu.Unlock()
 }
 
+// Clear 清空全部日志
+func (ml *MemoryLog) Clear() {
+	ml.mu.Lock()
+	ml.logs = ml.logs[:0]
+	ml.mu.Unlock()
+}
+
 // GetAll 返回全部日志
 func (ml *MemoryLog) GetAll() []LogEntry {
 	ml.mu.Lock()

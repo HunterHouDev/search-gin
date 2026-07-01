@@ -218,7 +218,12 @@
                 toggleColor="blue"
               />
               <q-space />
-              <q-btn dense flat icon="refresh" size="sm" @click="logTab === 'memory' ? fetchMemoryLog() : fetchLocalLog()" />
+              <q-btn dense flat icon="delete" size="sm" color="orange" label="清空内存"
+                @click="clearMemoryLog" />
+              <q-btn dense flat icon="delete" size="sm" color="red" label="清空文件"
+                @click="clearLocalLog" />
+              <q-btn dense flat icon="refresh" size="sm"
+                @click="logTab === 'memory' ? fetchMemoryLog() : fetchLocalLog()" />
             </div>
             <!-- 内存日志 -->
             <template v-if="logTab === 'memory'">
@@ -297,7 +302,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRoute, useRouter } from 'vue-router';
-import { GetSettingInfo, GetIpAddr, GeMemeryLog, GetLocalLog, GetLanPeers, PostSettingInfo, AddLanPeer, RemoveLanPeer, TogglePeer, GetUsers, AddUser, DeleteUser, DiscoverLanPeers } from '../../components/api/settingAPI';
+import { GetSettingInfo, GetIpAddr, GeMemeryLog, GetLocalLog, ClearMemoryLog, ClearLocalLog, GetLanPeers, PostSettingInfo, AddLanPeer, RemoveLanPeer, TogglePeer, GetUsers, AddUser, DeleteUser, DiscoverLanPeers } from '../../components/api/settingAPI';
 import { useSystemProperty } from '../../stores/System';
 
 const systemProperty = useSystemProperty();
@@ -504,6 +509,14 @@ async function fetchMemoryLog() {
   const { data } = await GeMemeryLog();
   allMemoryLogs.value = Array.isArray(data) ? data : [];
 }
+const clearMemoryLog = async () => {
+  await ClearMemoryLog();
+  allMemoryLogs.value = [];
+};
+const clearLocalLog = async () => {
+  await ClearLocalLog();
+  allLocalLines.value = [];
+};
 
 const fetchSearch = async () => {
   const { data } = await GetSettingInfo();
