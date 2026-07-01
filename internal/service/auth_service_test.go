@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"search-gin/internal/model"
+
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -73,15 +74,6 @@ func TestCacheAdminPasswordHash(t *testing.T) {
 	result := LoginUser("admin", "testpass")
 	if !result.Success {
 		t.Error("Login should succeed with correct password after CacheAdminPasswordHash")
-	}
-}
-
-func TestRequireAdmin(t *testing.T) {
-	if !RequireAdmin(AdminRole) {
-		t.Error("RequireAdmin should return true for super_admin")
-	}
-	if RequireAdmin("user") {
-		t.Error("RequireAdmin should return false for user role")
 	}
 }
 

@@ -216,11 +216,6 @@ func issueToken(username, role string) LoginResult {
 	}
 }
 
-// RequireAdmin 检查角色是否为管理员
-func RequireAdmin(role string) bool {
-	return role == AdminRole
-}
-
 // RequireAdminWithName 检查角色或用户名是否为管理员（兼容旧 token）
 func RequireAdminWithName(role, username string) bool {
 	return role == AdminRole || username == AdminUsername

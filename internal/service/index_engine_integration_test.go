@@ -243,7 +243,7 @@ func TestIntegration_RepeatSearch(t *testing.T) {
 
 	// 搜索重复文件
 	param := model.SearchParam{Page: 1, PageSize: 10}
-	param.SetOnlyRepeat(true)
+	param.OnlyRepeat = true
 	result := engine.Page(param)
 	list := result.Data.([]model.FileItem)
 	// DUP-1 有 2 个文件（重复），DUP-2 只有 1 个

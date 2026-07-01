@@ -11,7 +11,6 @@ import (
 
 var folderTime sync.Map
 
-func InitFolderTime()                { folderTime = sync.Map{} }
 func AddFolderTime(f model.FileInfo) { folderTime.Store(f.Name, f) }
 func GetFolderTime() *sync.Map       { return &folderTime }
 

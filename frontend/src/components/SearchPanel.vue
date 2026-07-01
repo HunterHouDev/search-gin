@@ -163,19 +163,19 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch } from 'vue';
+import { ref, reactive, watch } from 'vue';
 import { format } from 'quasar';
 import { useQuasar } from 'quasar';
 import { useBreakpoint } from 'src/composables/useBreakpoint';
+import { useSortOptions } from 'src/composables/useSortOptions';
 import { SearchAPI, ResetMovieType } from 'components/api/searchAPI';
 import { QueryDirImages, DeleteFileByPathUseEncode } from 'components/api/searchAPI';
 import { GetFileByPathUseEncode } from 'components/utils/images';
+import { getTimeAgo } from 'src/utils/date';
 
 import {
   MovieTypeSelects,
   MovieTypeOptions,
-  FieldEnum,
-  DescEnum,
   formatTitle,
 } from 'components/utils';
 import IndexButton from 'components/IndexButton.vue';
@@ -210,18 +210,7 @@ const searchParams = reactive({
   PageSize: 20,
 });
 
-const sortOptions = computed(() => {
-  const options = [];
-  for (const field of FieldEnum) {
-    for (const desc of DescEnum) {
-      options.push({
-        label: `${field.label}${desc.label}`,
-        value: `${field.value}_${desc.value}`
-      });
-    }
-  }
-  return options;
-});
+const sortOptions = useSortOptions('');
 
 const currentSort = computed({
   get: () => `${searchParams.SortField}_${searchParams.SortType}`,
@@ -243,15 +232,6 @@ function getTagColor(tag) {
     'rgba(236, 72, 153, 0.25)', 'rgba(34, 197, 94, 0.25)',
   ];
   return colors[tag % colors.length];
-}
-
-function getTimeAgo(MTime) {
-  const diff = Date.now() - new Date(MTime).getTime();
-  const days = Math.floor(diff / 86400000);
-  if (days < 1) return '今日';
-  if (days < 30) return `${days}天前`;
-  if (days < 365) return `${Math.floor(days / 30)}月前`;
-  return `${Math.floor(days / 365)}年前`;
 }
 
 // ── 搜索 ──────────────────────────────────────────────────────────────

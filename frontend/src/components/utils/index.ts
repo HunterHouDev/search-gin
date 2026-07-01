@@ -1,4 +1,4 @@
-export const formatMovieType = (title: string) => {
+const formatMovieType = (title: string) => {
   if (title.indexOf('{{') >= 0) {
     title = title.split('{{')[1];
   }
@@ -8,7 +8,7 @@ export const formatMovieType = (title: string) => {
   return title;
 };
 
-export const formatTags = (title: string) => {
+const formatTags = (title: string) => {
   if (title.indexOf('《') >= 0) {
     title = title.split('《')[1];
   }
@@ -27,14 +27,6 @@ export const formatSeries = (code: string | undefined) => {
   }
 };
 
-export const formatNumber = (code: string | undefined) => {
-  if (code) {
-    if (code.indexOf('-') == 0) {
-      return code.substring(1);
-    }
-    return code?.split('-')[1];
-  }
-};
 
 export const formatCode = (code: string | undefined) => {
   if (code) {

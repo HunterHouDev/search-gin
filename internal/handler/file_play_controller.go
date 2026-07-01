@@ -19,10 +19,8 @@ func GetPlay(c *gin.Context) {
 		return
 	}
 
-	sanitizePath, err := utils.ValidatePath(file.Path, UseApp().config.Get().Dirs)
-	if err != nil {
-		utils.ErrorFormat("命令注入攻击尝试: %s, 错误: %v", file.Path, err)
-		c.JSON(http.StatusForbidden, utils.NewFailByMsg("文件路径不在允许范围内"))
+	sanitizePath, ok := validatePathOrRespond(c, file.Path, "文件路径不在允许范围内")
+	if !ok {
 		return
 	}
 

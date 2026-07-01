@@ -83,31 +83,12 @@ func (act *Author) MinusSize(size int64) {
 
 // GetAuthorPageOfFiles 作者分页
 func GetAuthorPageOfFiles(files []Author, pageNo int, pageSize int) ([]Author, int64) {
-	if len(files) == 0 {
-		return files, 0
-	}
-	if pageNo <= 0 {
-		pageNo = 1
-	}
-	length := len(files)
-	start := (pageNo - 1) * pageSize
-
-	if start >= length {
-		return []Author{}, 0
-	}
-
-	end := length
-	if length-start >= pageSize {
-		end = start + pageSize
-	}
-
+	paged, _ := utils.SlicePage(files, pageNo, pageSize)
 	var volume int64
-	data := make([]Author, end-start)
-	for i := start; i < end; i++ {
-		data[i-start] = files[i]
-		volume += files[i].Size
+	for _, f := range paged {
+		volume += f.Size
 	}
-	return data, volume
+	return paged, volume
 }
 
 // SearchAuthorByKeyWord 按关键词搜索作者

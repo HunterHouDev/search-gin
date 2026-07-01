@@ -395,7 +395,6 @@ func TestGetSeriesSize(t *testing.T) {
 
 func TestGetScanTime_Empty(t *testing.T) {
 	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
-	service.InitFolderTime()
 
 	w := performGet(t, GetScanTime)
 	assert.Equal(t, http.StatusOK, w.Code)

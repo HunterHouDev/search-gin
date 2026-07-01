@@ -24,9 +24,8 @@ func GetOpenFolder(c *gin.Context) {
 		return
 	}
 
-	validatedPath, err := utils.ValidatePath(file.DirPath, UseApp().config.Get().Dirs)
-	if err != nil {
-		c.JSON(http.StatusForbidden, utils.NewFailByMsg("路径不在允许范围内"))
+	validatedPath, ok := validatePathOrRespond(c, file.DirPath, "路径不在允许范围内")
+	if !ok {
 		return
 	}
 
@@ -47,9 +46,8 @@ func PostOpenFolderByPath(c *gin.Context) {
 	}
 	dirpath := forms["dirpath"]
 	dirpath = strings.ReplaceAll(dirpath, utils.PathSeparator+utils.PathSeparator, utils.PathSeparator)
-	validatedPath, err := utils.ValidatePath(dirpath, UseApp().config.Get().Dirs)
-	if err != nil {
-		c.JSON(http.StatusForbidden, utils.NewFailByMsg("路径不在允许范围内"))
+	validatedPath, ok := validatePathOrRespond(c, dirpath, "路径不在允许范围内")
+	if !ok {
 		return
 	}
 	utils.ExecCmdStart(validatedPath)
@@ -68,9 +66,8 @@ func PostDeleteFolderByPath(c *gin.Context) {
 	}
 	dirpath := forms["dirpath"]
 	dirpath = strings.ReplaceAll(dirpath, utils.PathSeparator+utils.PathSeparator, utils.PathSeparator)
-	validatedPath, err := utils.ValidatePath(dirpath, UseApp().config.Get().Dirs)
-	if err != nil {
-		c.JSON(http.StatusForbidden, utils.NewFailByMsg("路径不在允许范围内"))
+	validatedPath, ok := validatePathOrRespond(c, dirpath, "路径不在允许范围内")
+	if !ok {
 		return
 	}
 	UseApp().files.DownDeleteDir(validatedPath)

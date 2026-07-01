@@ -28,7 +28,7 @@ type FileItem struct {
 	Flag      int64
 	SizeStr   string
 	MTime     string
-	MTimeUnix int64  // Unix 时间戳，用于过滤器快速比较，避免每次查询都 time.Parse
+	MTimeUnix int64 // Unix 时间戳，用于过滤器快速比较，避免每次查询都 time.Parse
 	MovieType string
 	PathUpper string
 	Tags      []string
@@ -61,38 +61,6 @@ func EasyFile(dir string, path string, name string, fileType string, size int64,
 	code := utils.GetCode(name)
 	result := FileItem{
 		Id:        fileKey,
-		Code:      code,
-		Title:     utils.GetTitle(name),
-		Name:      name,
-		Path:      path,
-		PathUpper: strings.ToUpper(path),
-		Png:       utils.ConcatSuffix(path, "png"),
-		Jpg:       utils.ConcatSuffix(path, "jpg"),
-		Srt:       utils.ConcatSuffix(path, "srt"),
-		Gif:       utils.ConcatSuffix(path, "gif"),
-		Tags:      utils.GetTags(path, ""),
-		Author:    author,
-		FileType:  fileType,
-		DirPath:   dir,
-		Size:      size,
-		Flag:      1,
-		Studio:    utils.GetSeriesByCode(code),
-		SizeStr:   utils.GetSizeStr(size),
-		MTime:     modTime.Format("2006-01-02 15:04:05"),
-		MTimeUnix: modTime.Unix(),
-		MovieType: movieType,
-		BaseDir:   baseDir,
-	}
-	return result
-}
-
-// NewFile 创建文件条目（完整参数）
-func NewFile(dir string, path string, name string, fileType string, size int64, modTime time.Time, movieType string, baseDir string) FileItem {
-	generateId := utils.DirpathForId(path)
-	code := utils.GetCode(name)
-	author := utils.GetAuthor(name)
-	result := FileItem{
-		Id:        generateId,
 		Code:      code,
 		Title:     utils.GetTitle(name),
 		Name:      name,
@@ -159,31 +127,12 @@ func SortFileItems(sortModels []FileItem, sF string, sT string) {
 
 // GetPageOfFiles 分页
 func GetPageOfFiles(files []FileItem, pageNo int, pageSize int) ([]FileItem, int64) {
-	if len(files) == 0 {
-		return files, 0
-	}
-	if pageNo <= 0 {
-		pageNo = 1
-	}
-	length := len(files)
-	start := (pageNo - 1) * pageSize
-
-	if start >= length {
-		return []FileItem{}, 0
-	}
-
-	end := length
-	if length-start >= pageSize {
-		end = start + pageSize
-	}
-	data := make([]FileItem, 0, end-start)
+	paged, _ := utils.SlicePage(files, pageNo, pageSize)
 	var volume int64
-	for i := start; i < end; i++ {
-		curFile := files[i]
-		volume += curFile.Size
-		data = append(data, curFile)
+	for _, f := range paged {
+		volume += f.Size
 	}
-	return data, volume
+	return paged, volume
 }
 
 // RenameAll 重命名主文件 + 附属图片 + 字幕文件（jpg/png/gif/srt），含回滚

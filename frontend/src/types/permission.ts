@@ -44,20 +44,5 @@ export const ALL_PERMISSION_KEYS = [
   PERM_OP_NETWORK,
 ] as const
 
-export const DEFAULT_USER_PERMISSIONS = [
-  PERM_MENU_HOME,
-  PERM_MENU_SEARCH,
-  PERM_MENU_PICTURE,
-  PERM_MENU_IMMERSIVE,
-  PERM_OP_TORRENT,
-  PERM_OP_CHAT,
-]
-
 // super_admin 固定角色，拥有全部权限
 export const SUPER_ADMIN_ROLE = 'super_admin'
-
-export interface RoleDef {
-  name: string
-  label: string
-  permissions: string[]
-}

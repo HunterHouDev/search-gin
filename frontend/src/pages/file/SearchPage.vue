@@ -1184,33 +1184,9 @@ onKeyStroke(['Enter'], () => {
 });
 
 const btnSize = (position) => {
-  if (position === 'head') {
-    if (isLarge.value) {
-      return '14px';
-    }
-    if (isMedium.value) {
-      return '13px';
-    }
-    return '12px';
-  }
-  if (position === 'top') {
-    if (isLarge.value) {
-      return '14px';
-    }
-    if (isMedium.value) {
-      return '12px';
-    }
-    return '12px';
-  }
-  if (position === 'footer' || !position) {
-    if (isLarge.value) {
-      return '14px';
-    }
-    if (isMedium.value) {
-      return '12px';
-    }
-    return '12px';
-  }
+  if (isLarge.value) return '14px';
+  if (isMedium.value && position === 'head') return '13px';
+  return '12px';
 };
 
 const formatPlayTime = (timestamp) => {
@@ -1263,10 +1239,6 @@ const openBatchEdit = () => {
 
 const openTaskList = () => taskListRef.value?.open();
 
-const simgleWindow = computed(() => {
-  return systemProperty.singleWindow;
-});
-
 const playByPage = (item) => {
   systemProperty.savePlayTime(item.Id);
   const url = `#/playing/${item.Id}?a=refresh`;
@@ -1274,8 +1246,8 @@ const playByPage = (item) => {
   if ($q.platform.is.electron) {
     window.electron.createWindow({ router: url });
   } else {
-    const options = `width=${simgleWindow.value.width},height=${simgleWindow.value.height},titleBarStyle=`;
-    window.open(url, 'player', options);
+    const opts = `width=${systemProperty.singleWindow.width},height=${systemProperty.singleWindow.height},titleBarStyle=`;
+    window.open(url, 'player', opts);
   }
 };
 
@@ -1771,7 +1743,6 @@ const gotoPrevPage = () => {
   gotoPageNo(view.queryParam.Page - 1);
 };
 
-provide('refreshDebounceFn', refreshDebounceFn);
 provide('fetchToUpdateList', fetchToUpdateList);
 provide('searchKeyword', searchKeyword);
 provide('gotoNextPage', gotoNextPage);

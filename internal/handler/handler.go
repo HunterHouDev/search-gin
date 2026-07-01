@@ -1,7 +1,11 @@
 package handler
 
 import (
+	"net/http"
 	"search-gin/internal/service"
+	"search-gin/pkg/utils"
+
+	"github.com/gin-gonic/gin"
 )
 
 // AppHandle handler 层入口结构体，所有依赖通过 InitApp 注入。
@@ -32,4 +36,14 @@ func InitApp(search service.IndexEngine, files service.FileService, config servi
 // 所有 handler 函数通过此函数获取注入的依赖，不直接引用 service 包中的全局变量。
 func UseApp() *AppHandle {
 	return appHandle
+}
+
+// validatePathOrRespond 验证路径在允许目录范围内，失败时自动响应 403 并返回 false
+func validatePathOrRespond(c *gin.Context, path, errMsg string) (string, bool) {
+	validated, err := utils.ValidatePath(path, UseApp().config.Get().Dirs)
+	if err != nil {
+		c.JSON(http.StatusForbidden, utils.NewFailByMsg(errMsg))
+		return "", false
+	}
+	return validated, true
 }

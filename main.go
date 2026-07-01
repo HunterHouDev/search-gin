@@ -114,7 +114,7 @@ func main() {
 	// ── 17. 优雅关闭监听（启动 goroutine 等信号，非阻塞） ──
 	server.GracefulShutdown(sigChan, []*http.Server{apiSrv, fileSrv})
 
-	// ── 19. 等待所有 HTTP 服务退出 ──
+	// ── 18. 等待所有 HTTP 服务退出 ──
 	if err := g.Wait(); err != nil && err != http.ErrServerClosed {
 		utils.InfoFormat("服务异常: %v", err)
 	} else {

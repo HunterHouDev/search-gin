@@ -15,6 +15,18 @@ import (
 
 var pendingRenameCount atomic.Int32
 
+// readBodyTwice 读取请求体并重置，用于需要多次读取 body 的场景
+func readBodyTwice(c *gin.Context) ([]byte, error) {
+	bodyBytes, err := io.ReadAll(io.LimitReader(c.Request.Body, 10<<20))
+	if err != nil {
+		utils.InfoNormal(err)
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("读取请求体失败"))
+		return nil, err
+	}
+	c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+	return bodyBytes, nil
+}
+
 func SetMovieType(c *gin.Context) {
 	if !requirePermission(c, "op:movie:type") {
 		return
@@ -34,13 +46,10 @@ func PostRename(c *gin.Context) {
 	if !requirePermission(c, "op:edit") {
 		return
 	}
-	bodyBytes, err := io.ReadAll(io.LimitReader(c.Request.Body, 10<<20)) // 10MB 上限
+	bodyBytes, err := readBodyTwice(c)
 	if err != nil {
-		utils.InfoNormal(err)
-		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("读取请求体失败"))
 		return
 	}
-	c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 
 	currentFile := model.FileEdit{}
 	if err = c.ShouldBindJSON(&currentFile); err != nil {
@@ -71,13 +80,10 @@ func PostMove(c *gin.Context) {
 	if !requirePermission(c, "op:edit") {
 		return
 	}
-	bodyBytes, err := io.ReadAll(io.LimitReader(c.Request.Body, 10<<20)) // 10MB 上限
+	bodyBytes, err := readBodyTwice(c)
 	if err != nil {
-		utils.InfoNormal(err)
-		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("读取请求体失败"))
 		return
 	}
-	c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 
 	currentFile := model.FileEdit{}
 	if err = c.ShouldBindJSON(&currentFile); err != nil {

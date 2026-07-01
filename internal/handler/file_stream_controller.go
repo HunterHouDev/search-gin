@@ -18,9 +18,8 @@ func GetRefreshTargetIndex(c *gin.Context) {
 	dir := c.Param("dir")
 	baseDir, _ := url.QueryUnescape(dir)
 
-	validatedDir, err := utils.ValidatePath(baseDir, UseApp().config.Get().Dirs)
-	if err != nil {
-		c.JSON(http.StatusForbidden, utils.NewFailByMsg("路径不在允许范围内"))
+	validatedDir, ok := validatePathOrRespond(c, baseDir, "路径不在允许范围内")
+	if !ok {
 		return
 	}
 
@@ -44,10 +43,8 @@ func GetFileByPathUseEncode(c *gin.Context) {
 		return
 	}
 
-	validatedPath, err := utils.ValidatePath(decodedPath, UseApp().config.Get().Dirs)
-	if err != nil {
-		utils.ErrorFormat("路径遍历攻击尝试: %s, 错误: %v", decodedPath, err)
-		c.JSON(http.StatusForbidden, utils.NewFailByMsg("访问被拒绝：路径不在允许范围内"))
+	validatedPath, ok := validatePathOrRespond(c, decodedPath, "访问被拒绝：路径不在允许范围内")
+	if !ok {
 		return
 	}
 
@@ -69,10 +66,8 @@ func GetDeleteFileByPathUseEncode(c *gin.Context) {
 		return
 	}
 
-	validatedPath, err := utils.ValidatePath(decodedPath, UseApp().config.Get().Dirs)
-	if err != nil {
-		utils.ErrorFormat("路径遍历攻击尝试: %s, 错误: %v", decodedPath, err)
-		c.JSON(http.StatusForbidden, utils.NewFailByMsg("删除被拒绝：路径不在允许范围内"))
+	validatedPath, ok := validatePathOrRespond(c, decodedPath, "删除被拒绝：路径不在允许范围内")
+	if !ok {
 		return
 	}
 

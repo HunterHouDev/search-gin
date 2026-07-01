@@ -475,11 +475,12 @@ import { SearchAPI, DeleteFile, RefreshAPI, ResetMovieType, CutImage } from 'com
 import {
   MovieTypeSelects,
   MovieTypeOptions,
-  FieldEnum,
-  DescEnum,
   formatTitle,
+  parseTime,
 } from 'components/utils';
 import { useSystemProperty } from 'stores/System';
+import { useSortOptions } from 'src/composables/useSortOptions';
+import { getTimeAgo } from 'src/utils/date';
 import PlayerSetting from 'components/PlayerSetting.vue';
 import VideoCutParam from 'components/VideoCutParam.vue';
 import EditVideoTag from 'components/EditVideoTag.vue';
@@ -606,18 +607,7 @@ const bufferedPercent = computed(() => {
 const { isSmall: screenIsSmall, isMobile } = useBreakpoint()
 const isSmall = computed(() => systemProperty.showStyle === 'sm' || screenIsSmall.value || isMobile.value)
 
-const sortOptions = computed(() => {
-  const options = [];
-  for (const field of FieldEnum) {
-    for (const desc of DescEnum) {
-      options.push({
-        label: `${field.label} ${desc.label}`,
-        value: `${field.value}_${desc.value}`
-      });
-    }
-  }
-  return options;
-});
+const sortOptions = useSortOptions(' ');
 
 const currentSort = computed({
   get: () => `${searchParams.SortField}_${searchParams.SortType}`,
@@ -792,26 +782,6 @@ async function fetchSearch() {
   } finally {
     searchLoading.value = false;
   }
-}
-
-// ── 时间格式化 ────────────────────────────────────────────────────────────────
-function getTimeAgo(MTime) {
-  if (!MTime) return '';
-  const days = Math.floor((Date.now() - new Date(MTime).getTime()) / 86400000);
-  if (days > 365) return `${Math.floor(days / 365)}年前`;
-  if (days > 30) return `${Math.floor(days / 30)}个月前`;
-  if (days > 0) return `${days}天前`;
-  return '今天';
-}
-
-function parseTime(seconds) {
-  if (isNaN(seconds) || seconds < 0) return '00:00:00';
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(
-    s
-  ).padStart(2, '0')}`;
 }
 
 // ── 文件拖拽 ──────────────────────────────────────────────────────────────────

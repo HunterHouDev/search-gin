@@ -3,7 +3,6 @@ package ws
 import (
 	"encoding/json"
 	"fmt"
-	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -212,11 +211,6 @@ func (h *Hub) GetOnlineUsers() []*ClientConn {
 	}
 	h.mu.RUnlock()
 	return clients
-}
-
-// contains 辅助判断字符串是否在切片中
-func contains(slice []string, s string) bool {
-	return slices.Contains(slice, s)
 }
 
 // GetChatHistory 获取聊天历史

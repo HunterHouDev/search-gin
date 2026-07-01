@@ -89,7 +89,6 @@
       </router-view>
     </q-page-container>
       <ShutdownComponent ref="shutdown" />
-      <ListEdit ref="listEditRef" />
       <ChatRoom ref="chatRoomRef" />
   </q-layout>
 
@@ -103,12 +102,10 @@ import { usePermissionStore } from 'src/stores/permission';
 import { useQuasar } from 'quasar';
 import { useBreakpoint } from 'src/composables/useBreakpoint';
 import EssentialLink from 'components/EssentialLink.vue';
-import ListEdit from 'pages/file/components/ListEditDialog.vue';
 import ShutdownComponent from 'components/ShutdownComponent.vue';
 import ChatRoom from 'components/ChatRoom.vue';
 import { useChatWs } from 'src/composables/useChatWs';
 
-const listEditRef = ref(null);
 const chatRoomRef = ref(null);
 
 const systemProperty = useSystemProperty();

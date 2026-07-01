@@ -34,7 +34,6 @@ func (s *searchService) ScanAll() int {
 	})
 
 	ClearSmallDir()
-	InitFolderTime()
 	// 清空搜索引擎缓存
 	s.engine.ClearCache()
 

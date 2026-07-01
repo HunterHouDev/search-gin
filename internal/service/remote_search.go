@@ -359,20 +359,5 @@ func pickLocalIP(clientIP string) string {
 
 // PaginateMovies 对合并后的结果进行分页
 func PaginateMovies(movies []model.FileItem, pageNo, pageSize int) ([]model.FileItem, int) {
-	total := len(movies)
-	if pageNo <= 0 {
-		pageNo = 1
-	}
-	if pageSize <= 0 {
-		pageSize = 20
-	}
-	start := (pageNo - 1) * pageSize
-	if start >= total {
-		return nil, total
-	}
-	end := start + pageSize
-	if end > total {
-		end = total
-	}
-	return movies[start:end], total
+	return utils.SlicePage(movies, pageNo, pageSize)
 }

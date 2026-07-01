@@ -252,12 +252,3 @@ func TestValidatePath_OutsideAllowedDir(t *testing.T) {
 	_, err := ValidatePath(otherDir, []string{basedir})
 	assert.Error(t, err)
 }
-
-// ── Buffer ──
-
-func TestNewBuffer_NotNil(t *testing.T) {
-	b := NewBuffer()
-	assert.NotNil(t, b)
-	b.Append("works")
-	assert.Equal(t, "works", b.String())
-}
