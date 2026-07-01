@@ -255,7 +255,7 @@ func FillURLs(c *gin.Context, movies []model.FileItem) {
 
 	for i := range movies {
 		m := &movies[i]
-		if m.NodeHost != "" {
+		if m.StreamUrl != "" {
 			continue
 		}
 		localBase := localBases[i%2] // 交替使用两个端口，突破浏览器 HTTP/1.1 每域名 6 连接限制
