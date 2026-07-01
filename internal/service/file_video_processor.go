@@ -272,7 +272,8 @@ func ffmpegRunStream(ctx context.Context, args []string, taskKey string) error {
 	scanner.Buffer(make([]byte, 64*1024), 256*1024)
 	for scanner.Scan() {
 		line := scanner.Text()
-		writer.WriteString(line + "\n")
+		writer.WriteString(line)
+		writer.WriteByte('\n')
 		lineCount++
 
 		// 每 10 行通知一次前端（防洪）
@@ -283,6 +284,9 @@ func ffmpegRunStream(ctx context.Context, args []string, taskKey string) error {
 				"lines":   lineCount,
 			})
 		}
+	}
+	if err := scanner.Err(); err != nil {
+		utils.ErrorFormat("读取 stderr 失败: %v", err)
 	}
 	writer.Flush()
 
