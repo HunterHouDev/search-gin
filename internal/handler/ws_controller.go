@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"search-gin/internal/model"
 	"search-gin/internal/service"
 	"search-gin/internal/ws"
 	"search-gin/pkg/utils"
@@ -106,12 +107,12 @@ func HandleWebSocket(c *gin.Context) {
 		}
 
 		switch msg.Type {
-		case "chat":
+		case model.WSChat:
 			if msg.Content == "" {
 				continue
 			}
 			chatMsg := ws.ChatMessage{
-				Type:     "chat",
+				Type:     model.WSChat,
 				Username: username,
 				Role:     role,
 				Content:  msg.Content,
@@ -121,13 +122,13 @@ func HandleWebSocket(c *gin.Context) {
 			data, _ := json.Marshal(chatMsg)
 			ws.DefaultHub.Broadcast(data)
 
-		case "signal":
+		case model.WSSignal:
 			// WebRTC 信令中继：透传给指定用户
 			if msg.To == "" {
 				continue
 			}
 			signal := map[string]interface{}{
-				"type":   "signal",
+				"type":   model.WSSignal,
 				"from":   username,
 				"action": msg.Action,
 				"data":   msg.Data,
@@ -135,10 +136,10 @@ func HandleWebSocket(c *gin.Context) {
 			data, _ := json.Marshal(signal)
 			ws.DefaultHub.SendToUser(msg.To, data)
 
-		case "signal-all":
+		case model.WSSignalAll:
 			// 广播给所有人（包括同名其他设备），由前端根据 fromSession 过滤
 			signal := map[string]interface{}{
-				"type":        "signal",
+				"type":        model.WSSignal,
 				"from":        username,
 				"fromSession": msg.FromSession,
 				"action":      msg.Action,

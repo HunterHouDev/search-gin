@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"search-gin/internal/model"
+
 	"github.com/gorilla/websocket"
 )
 
@@ -173,7 +175,7 @@ func TestHub_Broadcast_SendsToAllClients(t *testing.T) {
 	defer close2()
 
 	// 发送聊天消息
-	chatMsg := ChatMessage{Type: "chat", Username: "alice", Content: "hello", Time: time.Now()}
+	chatMsg := ChatMessage{Type: model.WSChat, Username: "alice", Content: "hello", Time: time.Now()}
 	data, _ := json.Marshal(chatMsg)
 	hub.Broadcast(data)
 
@@ -182,7 +184,7 @@ func TestHub_Broadcast_SendsToAllClients(t *testing.T) {
 		for i := 0; i < 10; i++ {
 			msg := readWSMessage(t, conn)
 			var cm ChatMessage
-			if json.Unmarshal(msg, &cm) == nil && cm.Type == "chat" {
+			if json.Unmarshal(msg, &cm) == nil && cm.Type == model.WSChat {
 				return cm
 			}
 		}
@@ -205,7 +207,7 @@ func TestHub_Broadcast_SavesChatHistory(t *testing.T) {
 	hub := NewHub(10)
 	go hub.Run()
 
-	chatMsg := ChatMessage{Type: "chat", Username: "testuser", Content: "history test", Time: time.Now()}
+	chatMsg := ChatMessage{Type: model.WSChat, Username: "testuser", Content: "history test", Time: time.Now()}
 	data, _ := json.Marshal(chatMsg)
 	hub.Broadcast(data)
 	time.Sleep(30 * time.Millisecond)
@@ -219,7 +221,7 @@ func TestHub_Broadcast_SavesChatHistory(t *testing.T) {
 	}
 
 	// 非 chat 类型不应写入历史
-	onlineMsg := ChatMessage{Type: "online"}
+	onlineMsg := ChatMessage{Type: model.WSOnline}
 	data, _ = json.Marshal(onlineMsg)
 	hub.Broadcast(data)
 	time.Sleep(20 * time.Millisecond)
@@ -235,7 +237,7 @@ func TestHub_History_MaxLimit(t *testing.T) {
 	go hub.Run()
 
 	for i := 0; i < 5; i++ {
-		msg := ChatMessage{Type: "chat", Content: "msg", Time: time.Now()}
+		msg := ChatMessage{Type: model.WSChat, Content: "msg", Time: time.Now()}
 		data, _ := json.Marshal(msg)
 		hub.Broadcast(data)
 	}
@@ -256,7 +258,7 @@ func TestHub_SendToUser(t *testing.T) {
 	conn2, _, close2 := testWsClient(t, hub, "other", "user", "")
 	defer close2()
 
-	msg, _ := json.Marshal(ChatMessage{Type: "chat", Content: "private message", Time: time.Now()})
+	msg, _ := json.Marshal(ChatMessage{Type: model.WSChat, Content: "private message", Time: time.Now()})
 	count := hub.SendToUser("target", msg)
 	if count != 1 {
 		t.Errorf("SendToUser 返回 %d, want 1", count)
@@ -267,7 +269,7 @@ func TestHub_SendToUser(t *testing.T) {
 		for i := 0; i < 10; i++ {
 			msg := readWSMessage(t, conn)
 			var cm ChatMessage
-			if json.Unmarshal(msg, &cm) == nil && cm.Type == "chat" {
+			if json.Unmarshal(msg, &cm) == nil && cm.Type == model.WSChat {
 				return cm
 			}
 		}
@@ -316,7 +318,7 @@ func TestHub_ChatHistory_CopyIsolation(t *testing.T) {
 	hub := NewHub(100)
 	go hub.Run()
 
-	msg := ChatMessage{Type: "chat", Content: "test", Time: time.Now()}
+	msg := ChatMessage{Type: model.WSChat, Content: "test", Time: time.Now()}
 	data, _ := json.Marshal(msg)
 	hub.Broadcast(data)
 	time.Sleep(30 * time.Millisecond)
@@ -340,7 +342,7 @@ func findChatMsg(t *testing.T, conn *websocket.Conn) ChatMessage {
 	for i := 0; i < 10; i++ {
 		msg := readWSMessage(t, conn)
 		var cm ChatMessage
-		if json.Unmarshal(msg, &cm) == nil && cm.Type == "chat" {
+		if json.Unmarshal(msg, &cm) == nil && cm.Type == model.WSChat {
 			return cm
 		}
 	}
@@ -392,9 +394,9 @@ func TestClientConn_SendBatchHistory(t *testing.T) {
 
 	// SendBatchHistory 批量发送多条历史
 	history := []ChatMessage{
-		{Type: "chat", Username: "alice", Content: "msg1", Time: time.Now()},
-		{Type: "chat", Username: "bob", Content: "msg2", Time: time.Now()},
-		{Type: "chat", Username: "alice", Content: "msg3", Time: time.Now()},
+		{Type: model.WSChat, Username: "alice", Content: "msg1", Time: time.Now()},
+		{Type: model.WSChat, Username: "bob", Content: "msg2", Time: time.Now()},
+		{Type: model.WSChat, Username: "alice", Content: "msg3", Time: time.Now()},
 	}
 	cc.SendBatchHistory(history)
 
@@ -407,7 +409,7 @@ func TestClientConn_SendBatchHistory(t *testing.T) {
 			break
 		}
 		var cm ChatMessage
-		if json.Unmarshal(msg, &cm) == nil && cm.Type == "chat" {
+		if json.Unmarshal(msg, &cm) == nil && cm.Type == model.WSChat {
 			received = append(received, cm)
 			if len(received) == 3 {
 				break

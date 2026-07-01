@@ -8,12 +8,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	"search-gin/internal/model"
+
 	"github.com/gorilla/websocket"
 )
 
 // ChatMessage 聊天消息
 type ChatMessage struct {
-	Type     string       `json:"type"` // "online" | "chat" | "system"
+	Type     string       `json:"type"` // model.WSOnline | model.WSChat | model.WSSystem
 	Username string       `json:"username,omitempty"`
 	Role     string       `json:"role,omitempty"`
 	Content  string       `json:"content,omitempty"`
@@ -123,7 +125,7 @@ func (h *Hub) Run() {
 
 		case message := <-h.broadcast:
 			var chatMsg ChatMessage
-			if err := json.Unmarshal(message, &chatMsg); err == nil && chatMsg.Type == "chat" {
+			if err := json.Unmarshal(message, &chatMsg); err == nil && chatMsg.Type == model.WSChat {
 				h.historyMu.Lock()
 				h.chatHistory = append(h.chatHistory, chatMsg)
 				if len(h.chatHistory) > h.maxHistory {
@@ -242,7 +244,7 @@ func (h *Hub) broadcastOnlineUsers() {
 	h.mu.RUnlock()
 
 	msg := ChatMessage{
-		Type:   "online",
+		Type:   model.WSOnline,
 		Time:   time.Now(),
 		Client: clientList,
 	}

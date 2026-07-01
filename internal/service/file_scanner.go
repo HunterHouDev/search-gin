@@ -29,7 +29,7 @@ func (s *searchService) ScanAll() int {
 	// 初始化扫描进度
 	Sp.Init(dirCount)
 
-	s.events.Broadcast("scan_start", map[string]interface{}{
+	s.events.Broadcast(model.SSEScanStart, map[string]interface{}{
 		"totalDirs": dirCount,
 	})
 
@@ -65,11 +65,11 @@ func (s *searchService) ScanAll() int {
 	// 扫描完成
 	Sp.Complete()
 
-	s.events.Broadcast("scan_complete", map[string]interface{}{
+	s.events.Broadcast(model.SSEScanComplete, map[string]interface{}{
 		"dirCount":  dirCount,
 		"fileCount": s.engine.GetTotalCount(),
 	})
-	s.events.Broadcast("index_health", map[string]interface{}{
+	s.events.Broadcast(model.SSEIndexHealth, map[string]interface{}{
 		"bucketCount":  bucketCount,
 		"indexNumber":  indexNumber,
 		"totalCount":   s.engine.GetTotalCount(),
@@ -148,7 +148,7 @@ func (s *searchService) scanDir(baseDir string, types []string, resultChan chan<
 	}
 	LogMem.Add("扫描目录:[%s] 耗时:[%d] 大小:[%s],剩余目录数:%d", baseDir, ti.Milliseconds(), utils.GetSizeStr(size), IndexNumber.Load())
 	AddFolderTime(thisTime)
-	s.events.Broadcast("scan_one_done", map[string]interface{}{
+	s.events.Broadcast(model.SSEScanOneDone, map[string]interface{}{
 		"dir":     baseDir,
 		"time":    ti.Milliseconds(),
 		"size":    int64(len(files)),

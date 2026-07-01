@@ -267,7 +267,7 @@ func (s *searchService) Delete(id string) utils.Result {
 	}
 	s.DeleteFilesOnDisk(file.DirPath, file.Title)
 	s.engine.DeleteOnIndex(file) // 入队索引删除，由 flushLoop 批量应用
-	s.events.Broadcast("file_changed", map[string]interface{}{
+	s.events.Broadcast(model.SSEFileChanged, map[string]interface{}{
 		"action": "delete",
 		"id":     id,
 		"path":   file.Path,
@@ -300,7 +300,7 @@ func (s *searchService) notifyFileChanged(oldFile, updated model.FileItem, actio
 	s.engine.ReplaceFileOnIndex(oldFile, updated)
 	res := utils.NewSuccessByMsg("执行成功")
 	res.Data = updated
-	s.events.Broadcast("file_changed", map[string]interface{}{
+	s.events.Broadcast(model.SSEFileChanged, map[string]interface{}{
 		"action": action,
 		"id":     updated.Id,
 		"old":    oldFile.Path,

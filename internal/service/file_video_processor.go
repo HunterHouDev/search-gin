@@ -278,7 +278,7 @@ func ffmpegRunStream(ctx context.Context, args []string, taskKey string) error {
 		// 每 10 行通知一次前端（防洪）
 		if lineCount%10 == 1 {
 			writer.Flush()
-			sse.BroadcastEvent("task_log", map[string]interface{}{
+			sse.BroadcastEvent(model.SSETaskLog, map[string]interface{}{
 				"taskKey": taskKey,
 				"lines":   lineCount,
 			})

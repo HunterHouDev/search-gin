@@ -99,7 +99,7 @@ func (se *searchEngineCore) rebuildWithBucketIncremental(baseDir string, newBuck
 
 	Sp.IncrementProcessedBuckets()
 	prog := Sp.Get()
-	sse.BroadcastEvent("index_update", map[string]interface{}{
+	sse.BroadcastEvent(model.SSEIndexUpdate, map[string]interface{}{
 		"processed": prog.ProcessedBuckets,
 		"total":     prog.TotalBuckets,
 	})

@@ -383,6 +383,7 @@ import { useCommonExec } from 'src/composables/useCommonExec';
 import { useBreakpoint } from 'src/composables/useBreakpoint';
 import { notifyTaskLog } from 'src/stores/taskLog';
 import TaskLogFullscreen from './TaskLogFullscreen.vue';
+import { SSEEventType } from 'src/types';
 
 import {
   MovieTypeOptions,
@@ -829,7 +830,7 @@ function openTaskLogSSE() {
   taskLogEventSource.onmessage = (e) => {
     try {
       const event = JSON.parse(e.data);
-      if (event.Type === 'task_log' && event.Data?.taskKey) {
+      if (event.Type === SSEEventType.TaskLog && event.Data?.taskKey) {
         notifyTaskLog();
       }
     } catch (err) {

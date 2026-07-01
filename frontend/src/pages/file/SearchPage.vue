@@ -718,6 +718,7 @@ import {
   MovieTypeOptions,
   MovieTypeSelects,
 } from 'components/utils';
+import { SSEEventType } from 'src/types';
 
 
 const getImage = (item) => {
@@ -753,7 +754,7 @@ const debouncedFetchSearch = () => {
   sseDebounceTimer = setTimeout(() => fetchSearch(), 2000)
 }
 const handleSSEEvent = (event) => {
-  if (event.Type === 'file_changed') {
+  if (event.Type === SSEEventType.FileChanged) {
     debouncedFetchSearch()
     const action = event.Data?.action;
     const path = event.Data?.path || event.Data?.new || '';
@@ -763,28 +764,28 @@ const handleSSEEvent = (event) => {
       $q.notify({ type: 'info', message: `文件已移动/重命名`, position: 'bottom-left', timeout: 2000 });
     }
   }
-  if (event.Type === 'scan_start') {
+  if (event.Type === SSEEventType.ScanStart) {
     indexButton.value?.queryHealth();
     const total = event.Data?.totalDirs || '';
     $q.notify({ type: 'info', message: `开始扫描 ${total} 个目录...`, position: 'bottom-left', timeout: 2000 });
   }
-  if (event.Type === 'scan_one_done') {
+  if (event.Type === SSEEventType.ScanOneDone) {
     indexButton.value?.queryHealth();
   }
-  if (event.Type === 'scan_complete') {
+  if (event.Type === SSEEventType.ScanComplete) {
     indexButton.value?.queryHealth();
     debouncedFetchSearch();
     const cnt = event.Data?.fileCount || '';
     $q.notify({ type: 'positive', message: `扫描完成，共 ${cnt} 个文件`, position: 'bottom-left', timeout: 3000 });
   }
-  if (event.Type === 'scan_error') {
+  if (event.Type === SSEEventType.ScanError) {
     const dir = event.Data?.dir || '';
     $q.notify({ type: 'negative', message: `扫描 "${dir}" 失败`, position: 'bottom-left', timeout: 5000 });
   }
-  if (event.Type === 'index_update') {
+  if (event.Type === SSEEventType.IndexUpdate) {
     indexButton.value?.queryHealth();
   }
-  if (event.Type === 'index_health' && indexButton.value) {
+  if (event.Type === SSEEventType.IndexHealth && indexButton.value) {
     indexButton.value.updateHealth(event.Data);
   }
 };

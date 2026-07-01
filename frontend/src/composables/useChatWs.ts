@@ -1,8 +1,9 @@
 import { ref } from 'vue';
 import { commonAxios, api } from 'src/boot/axios';
+import { WSMessageType } from 'src/types';
 
 export interface ChatMessage {
-  type: 'online' | 'chat' | 'system' | 'signal';
+  type: WSMessageType;
   username?: string;
   role?: string;
   content?: string;
@@ -106,9 +107,9 @@ function connectSingleton() {
     try {
       const msg: ChatMessage = JSON.parse(event.data);
 
-      if (msg.type === 'online') {
+      if (msg.type === WSMessageType.Online) {
         onlineUsers.value = msg.onlineUsers || [];
-      } else if (msg.type === 'signal') {
+      } else if (msg.type === WSMessageType.Signal) {
         // 分发给视频会议的回调
         signalHandlers.forEach(fn => fn(msg));
       } else {
@@ -156,7 +157,7 @@ export function useChatWs() {
   const sendChat = (content: string) => {
     if (!ws.value || ws.value.readyState !== WebSocket.OPEN) return;
     ws.value.send(JSON.stringify({
-      type: 'chat',
+      type: WSMessageType.Chat,
       content,
     }));
   };

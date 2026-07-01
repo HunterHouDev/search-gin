@@ -1,6 +1,7 @@
 import { ref, reactive, onUnmounted } from 'vue';
 import { useChatWs } from './useChatWs';
 import type { ChatMessage } from './useChatWs';
+import { WSMessageType, SignalAction } from 'src/types';
 
 const ICE_SERVERS = {
   iceServers: [
@@ -63,9 +64,9 @@ export function useVideoConference() {
     pc.onicecandidate = (event) => {
       if (event.candidate) {
         sendJSON({
-          type: 'signal',
+          type: WSMessageType.Signal,
           to: remoteUsername,
-          action: 'ice',
+          action: SignalAction.Ice,
           data: event.candidate.toJSON(),
         });
       }
@@ -89,9 +90,9 @@ export function useVideoConference() {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       sendJSON({
-        type: 'signal',
+        type: WSMessageType.Signal,
         to: remoteUsername,
-        action: 'offer',
+        action: SignalAction.Offer,
         data: { sdp: pc.localDescription?.sdp, type: pc.localDescription?.type },
       });
     } catch (e) {
@@ -107,9 +108,9 @@ export function useVideoConference() {
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       sendJSON({
-        type: 'signal',
+        type: WSMessageType.Signal,
         to: from,
-        action: 'answer',
+        action: SignalAction.Answer,
         data: { sdp: pc.localDescription?.sdp, type: pc.localDescription?.type },
       });
     } catch (e) {
@@ -156,21 +157,21 @@ export function useVideoConference() {
     if ((msg as any).fromSession === sessionId) return;
 
     switch (msg.action) {
-      case 'join':
+      case SignalAction.Join:
         if (inCall.value && msg.from !== currentUser) {
           createOffer(msg.from);
         }
         break;
-      case 'offer':
+      case SignalAction.Offer:
         if (msg.data) handleOffer(msg.from, msg.data);
         break;
-      case 'answer':
+      case SignalAction.Answer:
         if (msg.data) handleAnswer(msg.from, msg.data);
         break;
-      case 'ice':
+      case SignalAction.Ice:
         if (msg.data) handleIce(msg.from, msg.data);
         break;
-      case 'leave':
+      case SignalAction.Leave:
         handleLeave(msg.from);
         break;
     }
@@ -189,8 +190,8 @@ export function useVideoConference() {
 
       // 广播给所有人：我进来了
       sendJSON({
-        type: 'signal-all',
-        action: 'join',
+        type: WSMessageType.SignalAll,
+        action: SignalAction.Join,
         fromSession: sessionId,
       });
     } catch (e: any) {
@@ -203,8 +204,8 @@ export function useVideoConference() {
   function leave() {
     // 广播离开
     sendJSON({
-      type: 'signal-all',
-      action: 'leave',
+      type: WSMessageType.SignalAll,
+      action: SignalAction.Leave,
       fromSession: sessionId,
     });
 

@@ -83,6 +83,35 @@ export interface SettingInfo {
   CutThenDelete: boolean
 }
 
+// ── SSE / WebSocket 事件枚举 ───────────────────────────────────────
+
+export enum SSEEventType {
+  ScanStart = 'scan_start',
+  ScanComplete = 'scan_complete',
+  ScanOneDone = 'scan_one_done',
+  ScanError = 'scan_error',
+  FileChanged = 'file_changed',
+  IndexUpdate = 'index_update',
+  IndexHealth = 'index_health',
+  TaskLog = 'task_log',
+}
+
+export enum WSMessageType {
+  Chat = 'chat',
+  Online = 'online',
+  System = 'system',
+  Signal = 'signal',
+  SignalAll = 'signal-all',
+}
+
+export enum SignalAction {
+  Join = 'join',
+  Leave = 'leave',
+  Offer = 'offer',
+  Answer = 'answer',
+  Ice = 'ice',
+}
+
 // ── 节点信息 ──────────────────────────────────────────────────────
 
 export interface PeerInfo {
