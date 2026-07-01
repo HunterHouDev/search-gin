@@ -42,7 +42,7 @@ func (s *searchService) SetMovieType(movie model.FileItem, movieType string) uti
 
 	updated, err := movie.RenameAll(newFilePath, newName)
 	if err != nil {
-		return utils.NewFailByMsg("重命名视频失败: " + err.Error())
+		return utils.NewFailByMsg("重命名失败: " + err.Error())
 	}
 	return s.notifyFileChanged(movie, updated, "type_change")
 }
