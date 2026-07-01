@@ -40,9 +40,11 @@ func ClearCompletedTasks() utils.Result {
 	for key, task := range TransferTask {
 		if task.Status == model.StatusCompleted {
 			delete(TransferTask, key)
+			DeleteTaskLog(key)
 			count++
 		}
 	}
+	CleanupExpiredTaskLogs(7)
 	return utils.NewSuccessByMsg(fmt.Sprintf("已清除 %d 个已完成任务", count))
 }
 
@@ -55,9 +57,11 @@ func ClearFailedTasks() utils.Result {
 	for key, task := range TransferTask {
 		if task.Status == model.StatusFailed {
 			delete(TransferTask, key)
+			DeleteTaskLog(key)
 			count++
 		}
 	}
+	CleanupExpiredTaskLogs(7)
 	return utils.NewSuccessByMsg(fmt.Sprintf("已清除 %d 个失败任务", count))
 }
 
@@ -70,6 +74,7 @@ func ClearAllTasks() utils.Result {
 	for key, task := range TransferTask {
 		if task.Status != model.StatusExecuting {
 			delete(TransferTask, key)
+			DeleteTaskLog(key)
 			count++
 		}
 	}
@@ -80,7 +85,46 @@ func ClearAllTasks() utils.Result {
 			PendingTaskCount.Add(1)
 		}
 	}
+	CleanupExpiredTaskLogs(7)
 	return utils.NewSuccessByMsg(fmt.Sprintf("已清除 %d 个任务", count))
+}
+
+// DeleteTaskLog 删除单任务日志文件
+func DeleteTaskLog(taskID string) {
+	if err := os.Remove(taskLogPath(taskID)); err != nil && !os.IsNotExist(err) {
+		utils.InfoFormat("删除任务日志文件失败: %s, 错误: %v", taskID, err)
+	}
+}
+
+// CleanupExpiredTaskLogs 清理 task_logs 目录中创建时间超过 keepDays 天的日志文件
+func CleanupExpiredTaskLogs(keepDays int) {
+	dir := taskLogDir()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			utils.InfoFormat("读取日志目录失败: %v", err)
+		}
+		return
+	}
+	cutoff := time.Now().AddDate(0, 0, -keepDays)
+	removed := 0
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		if info.ModTime().Before(cutoff) {
+			if err := os.Remove(filepath.Join(dir, entry.Name())); err == nil {
+				removed++
+			}
+		}
+	}
+	if removed > 0 {
+		utils.InfoFormat("清理了 %d 个过期任务日志文件（超过 %d 天）", removed, keepDays)
+	}
 }
 
 // DeleteIndexByPath 按路径删除文件：索引移除 + 物理删除 + 附属文件清理 + 空目录清理

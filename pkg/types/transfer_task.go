@@ -1,7 +1,6 @@
 package types
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -25,7 +24,6 @@ type TransferTaskModel struct {
 	ID         string
 	Name       string
 	Path       string
-	Srt        string
 	Type       string
 	Start      string
 	End        string
@@ -34,7 +32,6 @@ type TransferTaskModel struct {
 	CreateTime time.Time
 	FinishTime time.Time
 	Status     string
-	Log        string
 	VCode      string
 	Command    string
 	ConcatFile string
@@ -88,16 +85,4 @@ func NewCutTask(path string, name string, start string, end string, to string) T
 
 func (p *TransferTaskModel) SetStatus(sts string) {
 	p.Status = sts
-}
-
-func (p *TransferTaskModel) Key() string {
-	return fmt.Sprintf("%s:%s:%d", p.Path, p.Type, p.CreateTime.UnixNano())
-}
-
-func (p *TransferTaskModel) GetLast() int64 {
-	return (p.FinishTime.UnixMilli() - p.CreateTime.UnixMilli()) / 1000
-}
-
-func (p *TransferTaskModel) SetLog(log string) {
-	p.Log = log
 }

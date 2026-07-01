@@ -10,7 +10,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, watch, onErrorCaptured } from 'vue';
+import { onMounted, watch, onErrorCaptured } from 'vue';
 import { useQuasar } from 'quasar';
 import ParticleBackground from 'components/ParticleBackground.vue';
 import { useSystemProperty } from './stores/System';

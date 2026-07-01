@@ -60,39 +60,3 @@ func TestSetStatus(t *testing.T) {
 	task.SetStatus(StatusCompleted)
 	assert.Equal(t, StatusCompleted, task.Status)
 }
-
-func TestKey(t *testing.T) {
-	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-	task := TransferTaskModel{
-		Path:       "/test.mp4",
-		Type:       TaskTypeTrans,
-		CreateTime: now,
-	}
-	expected := "/test.mp4:转码:1704067200000000000"
-	assert.Equal(t, expected, task.Key())
-}
-
-func TestGetLast(t *testing.T) {
-	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-	end := time.Date(2024, 1, 1, 0, 0, 10, 0, time.UTC) // 10s later
-	task := TransferTaskModel{
-		CreateTime: start,
-		FinishTime: end,
-	}
-	assert.Equal(t, int64(10), task.GetLast())
-}
-
-func TestGetLast_ZeroDuration(t *testing.T) {
-	now := time.Now()
-	task := TransferTaskModel{
-		CreateTime: now,
-		FinishTime: now,
-	}
-	assert.Equal(t, int64(0), task.GetLast())
-}
-
-func TestSetLog(t *testing.T) {
-	task := TransferTaskModel{}
-	task.SetLog("test log message")
-	assert.Equal(t, "test log message", task.Log)
-}

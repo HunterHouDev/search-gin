@@ -204,7 +204,7 @@ func ffmpegBinPath() string {
 }
 
 // updateTaskStatus 集中管理任务状态变更
-func updateTaskStatus(key string, status, log string) {
+func updateTaskStatus(key string, status string) {
 	TransferTaskMutex.Lock()
 	defer TransferTaskMutex.Unlock()
 	t, ok := TransferTask[key]
@@ -213,9 +213,6 @@ func updateTaskStatus(key string, status, log string) {
 	}
 	t.Status = status
 	t.FinishTime = time.Now()
-	if log != "" {
-		t.Log = log
-	}
 	TransferTask[key] = t
 	wakeTaskScheduler()
 }
@@ -302,8 +299,6 @@ func ffmpegRunStream(ctx context.Context, args []string, taskKey string) error {
 	return nil
 }
 
-// appendTaskLog 已废弃 —— 日志改由 ffmpegRunStream 直接写入文件
-func appendTaskLog(key string, line string) {}
 
 // ffmpegExec 编排层：管理任务生命周期 + 执行 ffmpeg + 回写结果
 func ffmpegExec(args []string, taskKey string) utils.Result {
@@ -315,7 +310,6 @@ func ffmpegExec(args []string, taskKey string) utils.Result {
 	}
 	task.Status = model.StatusExecuting
 	task.Command = ffmpegBinPath() + " " + strings.Join(args, " ")
-	task.Log = "" // 清空旧日志（内存中的，备用）
 	TransferTask[taskKey] = task
 	TransferTaskMutex.Unlock()
 
@@ -328,11 +322,11 @@ func ffmpegExec(args []string, taskKey string) utils.Result {
 	cmdErr := ffmpegRunStream(ctx, args, taskKey)
 
 	if cmdErr != nil {
-		updateTaskStatus(taskKey, model.StatusFailed, "")
+		updateTaskStatus(taskKey, model.StatusFailed)
 		utils.InfoFormat("命令执行失败: %v, 参数: %v", cmdErr, args)
 		return utils.NewFailByMsg("转换失败")
 	}
 
-	updateTaskStatus(taskKey, model.StatusCompleted, "")
+	updateTaskStatus(taskKey, model.StatusCompleted)
 	return utils.NewSuccessByMsg("转换成功")
 }

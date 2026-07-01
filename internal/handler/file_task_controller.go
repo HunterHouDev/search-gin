@@ -78,7 +78,6 @@ func GetTaskLog(c *gin.Context) {
 				lines = lines[len(lines)-1000:]
 			}
 		}
-		logContent = ""
 		for _, l := range lines {
 			logContent += l + "\n"
 		}
@@ -112,6 +111,8 @@ func GetDelTransferTask(c *gin.Context) {
 	}
 	delete(service.TransferTask, taskID)
 	service.TransferTaskMutex.Unlock()
+	service.DeleteTaskLog(taskID)
+	service.CleanupExpiredTaskLogs(7)
 	c.JSON(http.StatusOK, utils.NewSuccess())
 }
 
