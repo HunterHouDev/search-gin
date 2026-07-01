@@ -24,7 +24,7 @@
           checked-icon="task_alt"
           unchecked-icon="panorama_fish_eye"
           :val="false"
-          label="字典"
+          label="常用"
           @click="loadTagSize"
         />
         <q-checkbox

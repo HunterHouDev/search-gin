@@ -10,8 +10,6 @@
           :indicator-color="systemProperty.theme === 'natural' ? 'green' : 'white'">
           <q-tab name="filelist" :label="isMobile ? '操作' : '批量操作'" />
           <q-tab name="tasking" :label="isMobile ? '任务' : '任务执行'" />
-          <q-tab name="history" :label="isMobile ? '最近' : '最近浏览'" />
-          <q-tab name="setting" :label="isMobile ? '主題' : '主題设置'" />
         </q-tabs>
         <q-btn dense flat icon="close" @click="dialogHide">
           <q-tooltip class="bg-white text-primary">关闭</q-tooltip>
@@ -40,7 +38,7 @@
               <div class="col">
                 <q-btn flat dense> 种草来源 </q-btn>
                 <q-radio v-model="view.chooseInput" checked-icon="task_alt" unchecked-icon="panorama_fish_eye"
-                  :val="false" label="字典" />
+                  :val="false" label="常用" />
                 <q-checkbox v-model="view.chooseInput" checked-icon="task_alt" unchecked-icon="panorama_fish_eye"
                   :val="false" label="输入" @click="chooseInput" />
               </div>
@@ -246,77 +244,6 @@
                 </div>
               </div>
             </q-tab-panel>
-            <q-tab-panel name="setting" style="padding: 6px; height: 100%">
-              <q-btn v-ripple color="primary" align="center" style="width: 99%" @click="
-                () => {
-                  systemProperty.pictureInPictureVideoOffset =
-                    defaultVideoOffset;
-                  systemProperty.pictureInPictureVideoWidth =
-                    defaultVideoWidth;
-                  dialogHide();
-                }
-              ">重置播放器位置</q-btn>
-              <q-field color="purple-12" label="显示模式" stack-label>
-                <template v-slot:control>
-                  <q-radio v-model="systemProperty.showStyle" checked-icon="task_alt" unchecked-icon="panorama_fish_eye"
-                    v-for="item in showStyleOptions" :key="item.value" :val="item.value" :label="item.label" />
-                </template>
-              </q-field>
-              <q-field color="purple-12" label="搜索自动加载" stack-label>
-                <template v-slot:control>
-                  <q-radio v-model="systemProperty.searchPageAutoPullData" checked-icon="task_alt"
-                    unchecked-icon="panorama_fish_eye" :val="true" label="开启" />
-                  <q-radio v-model="systemProperty.searchPageAutoPullData" checked-icon="task_alt"
-                    unchecked-icon="panorama_fish_eye" :val="false" label="禁止" />
-                </template>
-              </q-field>
-              <q-field color="purple-12" label="播放器种草后" stack-label>
-                <template v-slot:control>
-                  <q-radio v-model="systemProperty.addPlayingTagGoNext" checked-icon="task_alt"
-                    unchecked-icon="panorama_fish_eye" :val="true" label="播放下一个" />
-                  <q-radio v-model="systemProperty.addPlayingTagGoNext" checked-icon="task_alt"
-                    unchecked-icon="panorama_fish_eye" :val="false" label="播放上一个" />
-                </template>
-              </q-field>
-
-              <q-field color="purple-12" label="种草来源" stack-label>
-                <template v-slot:control>
-                  <q-radio v-model="systemProperty.submitTagFromData" checked-icon="task_alt"
-                    unchecked-icon="panorama_fish_eye" :val="true" label="标签统计" />
-                  <q-radio v-model="systemProperty.submitTagFromData" checked-icon="task_alt"
-                    unchecked-icon="panorama_fish_eye" :val="false" label="标签设置" />
-                </template>
-              </q-field>
-              <q-field color="purple-12" label="种草多选" stack-label>
-                <template v-slot:control>
-                  <q-radio v-model="systemProperty.submitMutiTag" checked-icon="task_alt"
-                    unchecked-icon="panorama_fish_eye" :val="true" label="多选" />
-                  <q-radio v-model="systemProperty.submitMutiTag" checked-icon="task_alt"
-                    unchecked-icon="panorama_fish_eye" :val="false" label="单选" />
-                </template>
-              </q-field>
-              <q-field color="purple-12" :label="'播放器音量:' + systemProperty.videoOptions.volume" stack-label>
-                <q-slider v-model="systemProperty.videoOptions.volume" :min="0" :max="1" :step="0.1" label label-always
-                  class="q-mt-lg" color="green" />
-              </q-field>
-
-              <q-field color="purple-12" label="图鉴点击" stack-label>
-                <template v-slot:control>
-                  <q-radio v-model="systemProperty.goAuthorNewWidow" checked-icon="task_alt"
-                    unchecked-icon="panorama_fish_eye" :val="true" label="新窗口" />
-                  <q-radio v-model="systemProperty.goAuthorNewWidow" checked-icon="task_alt"
-                    unchecked-icon="panorama_fish_eye" :val="false" label="本地" />
-                </template>
-              </q-field>
-              <q-field color="purple-12" label="Search点击" stack-label>
-                <template v-slot:control>
-                  <q-radio v-model="systemProperty.goSearchNewWidow" checked-icon="task_alt"
-                    unchecked-icon="panorama_fish_eye" :val="true" label="新窗口" />
-                  <q-radio v-model="systemProperty.goSearchNewWidow" checked-icon="task_alt"
-                    unchecked-icon="panorama_fish_eye" :val="false" label="本地" />
-                </template>
-              </q-field>
-            </q-tab-panel>
 
             <q-tab-panel name="tasking" style="padding: 6px; height: 100%">
               <q-tabs alert ripple v-model="tabTask" align="justify" class="shadow-2 w100" dense no-caps>
@@ -340,14 +267,13 @@
                     view.totalCount[0]
                     }}</q-badge>
                 </q-tab>
-                <q-tab name="日志" label="日志" />
                 <q-separator vertical />
                 <q-tab name="all" label="" class="justify-center">
                   <q-toggle color="green" v-model="view.autoRefresh" label="自动" dense />
                 </q-tab>
               </q-tabs>
 
-              <div class="row items-center q-pa-xs q-gutter-xs" v-if="tabTask !== '日志'" style="min-height: 36px">
+              <div class="row items-center q-pa-xs q-gutter-xs" style="min-height: 36px">
                 <q-space />
                 <q-btn v-if="tabTask === '完成'" outline color="orange" icon="delete_sweep" label="清除已完成" size="sm" dense
                   @click="clearCompletedTasks" />
@@ -357,11 +283,10 @@
                   @click="clearAllTasks" />
               </div>
 
-              <!-- 执行中的任务（行内展开日志） -->
-              <q-list dense bordered separator class="rounded-borders" v-if="tabTask !== '日志'">
+              <!-- 执行中的任务 -->
+              <q-list dense bordered separator class="rounded-borders">
                 <template v-for="v in view.tasking" :key="v.CreateTime">
-                  <q-item v-if="v.Status === '执行中'" clickable v-ripple class="q-py-xs"
-                    :class="{ 'bg-orange-1': expandedTaskKey === v.CreateTime }" @click="toggleLogExpand(v)">
+                  <q-item v-if="v.Status === '执行中'" class="q-py-xs">
                     <q-item-section avatar>
                       <q-spinner color="orange" size="20px" />
                     </q-item-section>
@@ -385,46 +310,16 @@
                       </q-item-label>
                     </q-item-section>
                     <q-item-section side>
-                      <q-icon :name="expandedTaskKey === v.CreateTime ? 'expand_less' : 'expand_more'" color="orange" />
+                      <q-btn dense flat size="sm" icon="fullscreen" color="orange" @click="openFullscreenLog(v)">
+                        <q-tooltip>全屏查看日志</q-tooltip>
+                      </q-btn>
                     </q-item-section>
                   </q-item>
-
-                  <!-- 内联展开的日志面板 -->
-                  <div v-if="expandedTaskKey === v.CreateTime" class="q-px-md q-pb-sm q-pt-xs">
-                    <div class="row items-center justify-between q-mb-xs">
-                      <q-badge color="orange" align="middle">
-                        <q-spinner size="12px" color="white" class="q-mr-xs" />
-                        实时
-                      </q-badge>
-                      <div class="row q-gutter-xs">
-                        <q-btn dense flat size="sm" :icon="autoScrollOn ? 'vertical_align_bottom' : 'sync_disabled'"
-                          :color="autoScrollOn ? 'orange' : 'grey'" @click.stop="autoScrollOn = !autoScrollOn">
-                          <q-tooltip>{{ autoScrollOn ? '自动滚动：开' : '自动滚动：关' }}</q-tooltip>
-                        </q-btn>
-                        <q-btn dense flat size="sm" icon="fullscreen" color="orange" @click.stop="openFullscreenLog(v)">
-                          <q-tooltip>全屏</q-tooltip>
-                        </q-btn>
-                        <q-btn dense flat size="sm" icon="refresh" color="grey-7"
-                          @click.stop="refreshTaskLog(v.ID)">
-                          <q-tooltip>刷新日志</q-tooltip>
-                        </q-btn>
-                      </div>
-                    </div>
-                    <pre data-log-task class="bg-dark text-light-green q-pa-sm rounded-borders" style="
-                        max-height: 220px;
-                        overflow-y: auto;
-                        white-space: pre-wrap;
-                        word-break: break-all;
-                        font-size: 12px;
-                        font-family: 'Courier New', monospace;
-                        line-height: 1.5;
-                      ">{{ expandedLog || '等待 ffmpeg 输出...' }}</pre>
-                  </div>
                 </template>
               </q-list>
 
               <!-- 等待/完成/失败/全部 任务列表 -->
-              <q-list dense bordered separator class="rounded-borders" v-if="tabTask !== '日志'"
+              <q-list dense bordered separator class="rounded-borders"
                 style="max-height: calc(100% - 120px); overflow-y: auto">
                 <template v-for="v in view.tasking" :key="v.CreateTime">
                   <q-item v-if="
@@ -457,11 +352,8 @@
                       </q-item-label>
                     </q-item-section>
                     <q-item-section side>
-                      <div class="row q-gutter-xs items-center">
-                        <q-btn v-if="v.Log" dense flat size="sm" icon="article" color="grey"
-                          @click="viewLogCompleted(v)" />
-                        <q-btn dense flat size="sm" icon="close" color="red" @click="removeTask(v.ID)" />
-                      </div>
+                      <q-btn v-if="v.Log" dense flat size="sm" icon="fullscreen" color="grey" @click="openFullscreenLog(v)" />
+                      <q-btn dense flat size="sm" icon="close" color="red" @click="removeTask(v.ID)" />
                     </q-item-section>
                   </q-item>
                 </template>
@@ -472,78 +364,6 @@
                 </q-item>
               </q-list>
 
-              <!-- 日志面板（已完成/失败任务） -->
-              <div v-if="tabTask === '日志'" class="q-pa-sm">
-                <div class="row items-center q-mb-sm q-gutter-sm">
-                  <q-btn flat dense icon="arrow_back" label="返回" size="sm" @click="tabTask = '全部'" />
-                </div>
-                <pre class="text-caption bg-grey-1 q-pa-sm rounded-borders" style="
-                    max-height: calc(100% - 50px);
-                    overflow-y: auto;
-                    white-space: pre-wrap;
-                    word-break: break-all;
-                  ">{{ view.vLog || '暂无日志' }}</pre>
-              </div>
-            </q-tab-panel>
-            <q-tab-panel name="history" style="padding: 6px; height: 100%">
-              <div class="row justify-between">
-                <div style="width: 48%">
-                  <span ripple flat>搜索记录
-                    <q-btn ripple flat color="red" @click="systemProperty.SearchWords = {}">清空</q-btn></span>
-                  <div style="
-                      display: flex;
-                      flex-wrap: wrap;
-                      flex-direction: row;
-                      align-content: flex-start;
-                      justify-content: space-around;
-                      align-items: flex-start;
-                      padding-top: 10px;
-                      height: 66vh;
-                      overflow-y: auto;
-                    ">
-                    <div v-for="(his, idx) in systemProperty.SearchWords" :key="his">
-                      <q-btn color="red" flat outline v-close-popup v-if="his > 1" align="left" ripple @click="
-                        () => {
-                          searchKeyword(idx);
-                        }
-                      ">{{ idx }}
-                        <q-badge color="red" floating>{{ his }}</q-badge>
-                      </q-btn>
-                    </div>
-                  </div>
-                </div>
-                <div style="width: 48%">
-                  <span ripple flat>搜索记录
-                    <q-btn ripple flat color="red" @click="systemProperty.SearchRecords = []">清空</q-btn></span>
-                  <q-list bordered separator style="height: 66vh; overflow: auto">
-                    <div v-for="(his, idx) in [...systemProperty.SearchRecords].sort(
-                      (a, b) => {
-                        return b.createdAt - a.createdAt;
-                      }
-                    )" :key="idx">
-                      <div class="row justify-between cursor-pointer" style="
-                          border: 1px dotted blue;
-                          margin: 4px;
-                          padding: 4px;
-                        " ripple v-close-popup align="left" @click="redirectUrl(his)">
-                        <div style="float: left">
-                          {{
-                            `${his.Page} -${his.PageSize} -${getLabelByValue(
-                              his.MovieType,
-                              MovieTypeOptions
-                            ) || '全部'
-                            }-${sortOptions.find(o => o.value === `${his.SortField}_${his.SortType}`)?.label || ''} `
-                          }}
-                        </div>
-                        <div style="float: right">
-                          {{ his.Keyword == null ? '无' : his.Keyword }} -
-                          {{ date.formatDate(his.createdAt, 'HH:mm') }}
-                        </div>
-                      </div>
-                    </div>
-                  </q-list>
-                </div>
-              </div>
             </q-tab-panel>
           </q-tab-panels>
         </q-page>
@@ -551,59 +371,24 @@
     </q-layout>
   </q-dialog>
 
-  <!-- 全屏日志弹窗 -->
-  <q-dialog v-model="showFulllscreenLog" full-height full-width>
-    <q-card class="column full-height">
-      <q-bar class="bg-dark text-white">
-        <span class="text-weight-medium" style="max-width: 70vw">
-          {{ fullscreenLogTitle }}
-        </span>
-        <q-space />
-        <q-badge v-if="fullscreenTaskKey" color="orange" align="middle">
-          <q-spinner size="14px" color="white" class="q-mr-xs" />
-          实时
-        </q-badge>
-        <q-btn dense flat size="sm" icon="refresh" color="grey-7" @click.stop="refreshTaskLog(expandedTaskKey)">
-          <q-tooltip>刷新日志</q-tooltip>
-        </q-btn>
-        <q-btn dense flat size="sm" :icon="autoScrollOn ? 'vertical_align_bottom' : 'sync_disabled'"
-          :color="autoScrollOn ? 'orange' : 'grey'" @click="autoScrollOn = !autoScrollOn" />
-        <q-btn dense flat icon="close" v-close-popup />
-      </q-bar>
-      <q-card-section class="col q-pa-none">
-        <pre ref="fullscreenLogRef" class="bg-dark text-light-green q-pa-md" style="
-            height: 100%;
-            overflow-y: auto;
-            white-space: pre-wrap;
-            word-break: break-all;
-            font-size: 13px;
-            font-family: 'Courier New', monospace;
-            line-height: 1.6;
-            margin: 0;
-          ">{{ fullscreenLogContent || '暂无日志' }}</pre>
-      </q-card-section>
-    </q-card>
-  </q-dialog>
+  <TaskLogFullscreen ref="taskLogFullscreenRef" />
 </template>
 
 <script setup>
 import { useQuasar, date } from 'quasar';
 import { useDialogPluginComponent } from 'quasar';
-import { reactive, ref, watch, computed, nextTick } from 'vue';
+import { reactive, ref, watch, computed } from 'vue';
 import { useSystemProperty } from 'stores/System';
 import { useCommonExec } from 'src/composables/useCommonExec';
 import { useBreakpoint } from 'src/composables/useBreakpoint';
-import { logVersion, notifyTaskLog } from 'src/stores/taskLog';
+import { notifyTaskLog } from 'src/stores/taskLog';
+import TaskLogFullscreen from './TaskLogFullscreen.vue';
 
 import {
   MovieTypeOptions,
-  DescEnum,
-  FieldEnum,
-  defaultVideoOffset,
 } from 'components/utils';
 import {
   parseTimeZH,
-  getLabelByValue,
 } from 'components/utils';
 import {
   ResetMovieType,
@@ -612,7 +397,6 @@ import {
   DeleteFile,
   FilesMerge,
   TransferTasksInfo,
-  GetTaskLogAPI,
   TansferFileVcode,
   CloseTag,
   DelTransferTasksInfo,
@@ -626,11 +410,6 @@ import {
 import Sortable from 'sortablejs';
 const $q = useQuasar();
 
-const showStyleOptions = [
-  { label: '大', value: 'lg' },
-  { label: '中', value: 'md' },
-  { label: '小', value: 'sm' },
-];
 const tab = ref('filelist');
 const tabTask = ref('等待');
 const view = reactive({
@@ -649,26 +428,12 @@ const view = reactive({
   totalCount: [0, 0, 0, 0, 0],
   chooseInput: false,
   input: '',
-  vLog: '',
 });
 
 const isBatchProcessing = ref(false);
 const batchProgress = ref(0);
 
 const selectedCount = computed(() => view.selector.length);
-
-const sortOptions = computed(() => {
-  const options = [];
-  for (const field of FieldEnum) {
-    for (const desc of DescEnum) {
-      options.push({
-        label: `${field.label}${desc.label}`,
-        value: `${field.value}_${desc.value}`
-      });
-    }
-  }
-  return options;
-});
 
 const checkThis = (item) => {
   if (view.selector.indexOf(item.Id) < 0) {
@@ -725,30 +490,8 @@ const systemProperty = useSystemProperty();
 const { isMobile } = useBreakpoint();
 const { exec: commonExec } = useCommonExec({ notifyOnSuccess: true });
 
-// ─── 日志查看状态（必须在 watch 之前声明） ─────────────────────────
-const expandedTaskKey = ref('');
-const expandedLog = ref('');
-const autoScrollOn = ref(true);
-const showFulllscreenLog = ref(false);
-const fullscreenTaskKey = ref('');
-const fullscreenLogContent = ref('');
-const fullscreenLogTitle = ref('');
-const fullscreenLogRef = ref(null);
-
-// SSE 实时日志通知 → 自动调用刷新按钮逻辑
-watch(
-  () => `${expandedTaskKey.value}:${logVersion.value}`,
-  () => {
-    if (expandedTaskKey.value) refreshTaskLog(expandedTaskKey.value);
-  }
-);
-
-watch(
-  () => `${fullscreenTaskKey.value}:${logVersion.value}`,
-  () => {
-    if (fullscreenTaskKey.value) refreshTaskLog(fullscreenTaskKey.value);
-  }
-);
+// ─── 全屏日志 ─────────────────────────
+const taskLogFullscreenRef = ref(null);
 
 const getColor = (status) => {
   return status == '完成'
@@ -760,74 +503,8 @@ const getColor = (status) => {
         : 'black';
 };
 
-// 自动滚动行内日志
-const scrollLogInline = () => {
-  nextTick(() => {
-    if (!autoScrollOn.value) return;
-    const pre = document.querySelector('[data-log-task]');
-    if (pre) {
-      pre.scrollTop = pre.scrollHeight;
-    }
-  });
-};
-
-// 自动滚动全屏日志
-const scrollLogFullscreen = () => {
-  nextTick(() => {
-    if (!autoScrollOn.value) return;
-    if (fullscreenLogRef.value) {
-      fullscreenLogRef.value.scrollTop = fullscreenLogRef.value.scrollHeight;
-    }
-  });
-};
-
-// 行内展开/收起日志
-const toggleLogExpand = (v) => {
-  if (expandedTaskKey.value === v.CreateTime) {
-    expandedTaskKey.value = '';
-    expandedLog.value = '';
-    return;
-  }
-  expandedTaskKey.value = v.ID;
-  expandedLog.value = v.Log || '';
-  refreshTaskLog(v.ID); // 立即从文件拉最新日志
-  scrollLogInline();
-};
-
-// 手动刷新任务日志（从 API 拉取最新 Log）
-const refreshTaskLog = async (ID) => {
-  const res = await GetTaskLogAPI(ID);
-  if (res?.Code === 200 && res.Data?.log !== undefined) {
-    if (expandedTaskKey.value === ID) {
-      expandedLog.value = res.Data.log;
-      scrollLogInline();
-    }
-    if (fullscreenTaskKey.value === ID) {
-      fullscreenLogContent.value = res.Data.log;
-      scrollLogFullscreen();
-    }
-  }
-};
-
-// 打开全屏日志（执行中 → 实时；已完成/失败 → 静态）
-const openFullscreenLog = (v) => {
-  fullscreenTaskKey.value = v.ID;
-  fullscreenLogTitle.value = v.Name || v.Files || v.Command;
-
-  fullscreenLogContent.value = v.Log || '';
-  if (v.Status === '执行中') {
-    refreshTaskLog(v.ID);
-  }
-  showFulllscreenLog.value = true;
-  scrollLogFullscreen();
-};
-
-// 查看已完成/失败任务的日志（切换到日志 tab — 保持兼容）
-const viewLogCompleted = (v) => {
-  expandedTaskKey.value = '';
-  view.vLog = v.Log;
-  tabTask.value = '日志';
-};
+// 打开全屏日志
+const openFullscreenLog = (v) => taskLogFullscreenRef.value?.open(v);
 
 const removeTask = async (taskId) => {
   commonExec(() => DelTransferTasksInfo(taskId));
@@ -856,41 +533,6 @@ const doSetMovieType = async (item, type) => {
 const doCloseTag = async (item, tag) => {
   const updated = await commonExec(() => CloseTag(item.Id, tag));
   if (updated) Object.assign(item, updated);
-};
-
-const emmits = defineEmits([
-  // REQUIRED; 需要明确指出
-  // 组件通过 useDialogPluginComponent() 暴露哪些事件
-  ...useDialogPluginComponent.emits,
-  'callbackWord',
-]);
-
-const searchKeyword = (word) => {
-  emmits('callbackWord', word);
-  dialogHide();
-};
-
-const redirectUrl = (item) => {
-  const queryString = Object.entries(item)
-    .map(
-      ([key, value]) =>
-        `${encodeURIComponent(key)}=${encodeURIComponent(value || '')}`
-    )
-    .join('&');
-  systemProperty.setPage(item.Page);
-  systemProperty.setPageSize(item.PageSize);
-  if (item.Keyword) {
-    systemProperty.setKeyword(item.Keyword);
-  } else {
-    systemProperty.setKeyword('');
-  }
-  systemProperty.setMovieType(item.MovieType);
-  systemProperty.setSortField(item.SortField);
-  systemProperty.setSortType(item.SortType);
-  window.location.href = `#/search?${queryString}`;
-  window.location.reload();
-
-  return;
 };
 
 const fetchTasking = async () => {

@@ -219,9 +219,13 @@
                 <div class="item-label">标签库</div>
                 <div class="item-hint">可选的标签列表</div>
               </div>
-              <div class="item-control ">
+              <div class="item-control row items-center q-gutter-sm">
                 <MutiInput v-model="view.settingInfo.TagsLib" :style="{ maxWidth: '80%' }"
                   @onchange="(arr) => (view.settingInfo.TagsLib = arr)" />
+                <q-btn dense flat size="sm" icon="cloud_download" color="primary" label="统计标签"
+                  :loading="tagLoading" @click="openTagStatsDialog">
+                  <q-tooltip>加载扫描到的标签</q-tooltip>
+                </q-btn>
               </div>
             </div>
 
@@ -480,6 +484,36 @@
           </q-card>
         </q-dialog>
 
+        <!-- 标签统计弹窗 -->
+        <q-dialog v-model="tagDialog.show" persistent>
+          <q-card style="min-width: 400px; max-width: 500px">
+            <q-card-section class="row items-center">
+              <div class="text-h6">加载统计标签</div>
+              <q-space />
+              <q-btn flat dense icon="close" v-close-popup />
+            </q-card-section>
+            <q-card-section class="q-pt-none">
+              <div class="text-caption text-grey-6 q-mb-sm">
+                已扫描 {{ tagDialog.allTags.length }} 个标签，勾选要添加到标签库的标签
+              </div>
+              <div class="row q-gutter-sm" style="max-height: 300px; overflow-y: auto">
+                <q-checkbox v-for="tag in tagDialog.allTags" :key="tag" v-model="tagDialog.checked" :val="tag"
+                  :label="tag" dense class="col-5 q-mb-xs" />
+              </div>
+              <div v-if="tagDialog.allTags.length === 0" class="text-center text-grey-5 q-py-md">
+                未扫描到标签，请先执行全量扫描
+              </div>
+            </q-card-section>
+            <q-card-actions align="right">
+              <q-btn flat label="全选" color="primary" @click="tagDialog.checked = [...tagDialog.allTags]" />
+              <q-btn flat label="取消" v-close-popup />
+              <q-btn color="primary" glossy label="添加到标签库"
+                :disable="tagDialog.checked.length === 0"
+                @click="addTagsToLib" />
+            </q-card-actions>
+          </q-card>
+        </q-dialog>
+
         <!-- 底部提交按钮 -->
         <div class="submit-bar">
           <q-btn :color="systemProperty.theme === 'star' ? 'black' : 'primary'" glossy rounded align="evenly"
@@ -510,6 +544,7 @@ import {
   DeleteRole,
   GetRoles,
 } from '../../components/api/settingAPI';
+import { TagSizeMap } from '../../components/api/homeAPI';
 import { commonAxios } from '../../boot/axios';
 import MutiSelector from '../../components/MutiSelector.vue';
 import MutiInput from '../../components/MutiInput.vue';
@@ -844,6 +879,37 @@ const fetchAllPerms = async () => {
     }
   } catch { /* ignore */ }
 }
+
+// ── 标签统计弹窗 ──────────────────────────────────────────────────
+const tagLoading = ref(false);
+const tagDialog = reactive({
+  show: false,
+  allTags: [] as string[],
+  checked: [] as string[],
+});
+
+const openTagStatsDialog = async () => {
+  tagLoading.value = true;
+  try {
+    const res = await TagSizeMap();
+    const data = Array.isArray(res) ? res : (res?.Data || res?.data || []);
+    tagDialog.allTags = data.map((t: any) => t.Name || t.name || '').filter(Boolean).sort();
+    tagDialog.checked = [];
+    tagDialog.show = true;
+  } catch {
+    $q.notify({ type: 'negative', message: '获取标签统计失败', position: 'top' });
+  } finally {
+    tagLoading.value = false;
+  }
+};
+
+const addTagsToLib = () => {
+  const current = new Set(view.settingInfo.TagsLib || []);
+  tagDialog.checked.forEach(t => current.add(t));
+  view.settingInfo.TagsLib = Array.from(current).sort();
+  tagDialog.show = false;
+  $q.notify({ type: 'positive', message: `已添加 ${tagDialog.checked.length} 个标签`, position: 'top' });
+};
 
 const view = reactive({
   settingInfo: {
