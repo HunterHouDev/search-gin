@@ -1451,6 +1451,7 @@ const picInPic = async (item, webFullScreen) => {
   if (!item) {
     return;
   }
+  view.playBy = 'picInPic'
   systemProperty.savePlayTime(item.Id);
   view.currentDataInPlayer = item;
   videoRef.value.openVideo({
