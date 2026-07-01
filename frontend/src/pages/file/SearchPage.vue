@@ -644,7 +644,6 @@
     <q-dialog v-model="moveView.targetPathDialog" title="移动文件">
       <q-card style="min-width: 350px; width: 600px">
         <q-card-section>
-          <!-- <div class="text-h6"  @click="moveView.targetPath = moveView.originPath">地址:{{ moveView.originPath }}</div> -->
           <q-input bg-color="green" label="原始地址" outlined :readonly="true" stack-label filled autogrow
             v-model="moveView.originPath" @click="moveView.targetPath = moveView.originPath">
           </q-input>
@@ -803,8 +802,6 @@ const fabPos = reactive({ x: 10, y: 150 });
 const fabDragging = ref(false);
 const fabStart = reactive({ x: 0, y: 0, posX: 0, posY: 0 });
 // 触摸拖动检测：移动超过 10px 才算拖动，否则触发点击
-const FAB_DRAG_THRESHOLD = 10;
-const fabTouchMoved = ref(false);
 
 const fabStyle = computed(() => ({
   position: 'fixed',
@@ -817,7 +814,6 @@ const fabStyle = computed(() => ({
 
 const onFabTouchStart = (e) => {
   fabDragging.value = true;
-  fabTouchMoved.value = false;
   fabStart.posX = fabPos.x;
   fabStart.posY = fabPos.y;
   if ('touches' in e) {
@@ -831,10 +827,6 @@ const onFabTouchMove = (e) => {
   const touch = e.touches[0];
   const dx = fabStart.x - touch.clientX;
   const dy = touch.clientY - fabStart.y;
-  if (Math.abs(fabStart.x - touch.clientX) > FAB_DRAG_THRESHOLD ||
-    Math.abs(touch.clientY - fabStart.y) > FAB_DRAG_THRESHOLD) {
-    fabTouchMoved.value = true;
-  }
   fabPos.x = Math.max(0, Math.min(window.innerWidth - 60, fabStart.posX + dx));
   fabPos.y = Math.max(0, Math.min(window.innerHeight - 60, fabStart.posY + dy));
 };
@@ -878,12 +870,10 @@ const onFabDragEnd = () => {
 };
 
 const view = reactive({
-  indexDone: 0,
   currentDataInPlayer: {},
   currentDataInEditor: {},
   settingInfo: {},
   allPageNo: 0,
-  resultShow: '',
   showAdvancedFilter: false,
   playBy: '',
   queryParam: {
@@ -914,32 +904,6 @@ const view = reactive({
 const sortOptions = useSortOptions('   ');
 
 // ========== 高级过滤 ==========
-const filterMinSizeValue = ref(0);
-const filterMinSizeUnit = ref(1073741824); // 默认 GB
-const filterMaxSizeValue = ref(0);
-const filterMaxSizeUnit = ref(1073741824);
-
-// 从 queryParam 恢复过滤 UI 状态（初始化时调用）
-const syncFilterUI = () => {
-  if (view.queryParam.minSize > 0) {
-    const best = pickBestUnit(view.queryParam.minSize);
-    filterMinSizeValue.value = best.value;
-    filterMinSizeUnit.value = best.unit;
-  }
-  if (view.queryParam.maxSize > 0) {
-    const best = pickBestUnit(view.queryParam.maxSize);
-    filterMaxSizeValue.value = best.value;
-    filterMaxSizeUnit.value = best.unit;
-  }
-};
-
-const pickBestUnit = (bytes) => {
-  if (bytes >= 1073741824) return { value: Math.round(bytes / 1073741824 * 10) / 10, unit: 1073741824 };
-  if (bytes >= 1048576) return { value: Math.round(bytes / 1048576 * 10) / 10, unit: 1048576 };
-  if (bytes >= 1024) return { value: Math.round(bytes / 1024 * 10) / 10, unit: 1024 };
-  return { value: bytes, unit: 1 };
-};
-
 const onFilterChange = () => {
   view.queryParam.Page = 1;
   fetchSearch();
@@ -959,16 +923,6 @@ const hasAdvancedFilters = computed(() => {
 const applySizePreset = (minBytes, maxBytes) => {
   view.queryParam.minSize = minBytes;
   view.queryParam.maxSize = maxBytes;
-  if (minBytes > 0) {
-    const best = pickBestUnit(minBytes);
-    filterMinSizeValue.value = best.value;
-    filterMinSizeUnit.value = best.unit;
-  }
-  if (maxBytes > 0) {
-    const best = pickBestUnit(maxBytes);
-    filterMaxSizeValue.value = best.value;
-    filterMaxSizeUnit.value = best.unit;
-  }
   onFilterChange();
 };
 
@@ -1079,10 +1033,6 @@ const clearAdvancedFilters = () => {
   view.queryParam.filterAuthor = '';
   view.queryParam.filterTag = '';
   view.queryParam.filterSeries = '';
-  filterMinSizeValue.value = 0;
-  filterMaxSizeValue.value = 0;
-  filterMinSizeUnit.value = 1073741824;
-  filterMaxSizeUnit.value = 1073741824;
   onFilterChange();
 };
 
@@ -1161,7 +1111,7 @@ const selectedFilterChips = computed(() => {
     if (minStr && maxStr) label = `${minStr}~${maxStr}`;
     else if (minStr) label = `>${minStr}`;
     else label = `<${maxStr}`;
-    chips.push({ key: 'size', label: `大小: ${label}`, color: 'blue-grey-5', onRemove: () => { view.queryParam.minSize = 0; view.queryParam.maxSize = 0; filterMinSizeValue.value = 0; filterMaxSizeValue.value = 0; onFilterChange(); } });
+    chips.push({ key: 'size', label: `大小: ${label}`, color: 'blue-grey-5', onRemove: () => { view.queryParam.minSize = 0; view.queryParam.maxSize = 0; onFilterChange(); } });
   }
   // 日期
   if (view.queryParam.dateFrom || view.queryParam.dateTo) {
@@ -1204,8 +1154,7 @@ const currentSort = computed({
   }
 });
 
-const source = ref('Hello');
-const { copy } = useClipboard({ source });
+const { copy } = useClipboard({ source: ref('') });
 
 const systemProperty = useSystemProperty();
 const suggestions = computed(() => {
@@ -1733,7 +1682,6 @@ const fetchSearch = async (replace = false) => {
     view.resultData = { ...data };
     const { ResultSize, ResultCnt } = data;
     document.title = `${Keyword || ''}  ${ResultSize} {${ResultCnt}}`;
-    view.resultShow = `${ResultSize}(${ResultCnt})`;
   } catch (e) {
     if (e?.name === 'CanceledError' || e?.name === 'AbortError') return;
     console.error('搜索请求异常:', e);
@@ -1901,7 +1849,6 @@ onMounted(async () => {
   }
   // 恢复高级过滤 UI 状态（从 localStorage/pinia 恢复的 queryParam 中同步）
   ensureFilterDefaults();
-  syncFilterUI();
   skipIndexRefresh = true;  // 初始化期间不响应 IndexButton 的 refreshDone
   fetchSearch(true);  // 异步执行
   // fetchSearch 完成后允许 IndexButton 触发搜索
@@ -1922,14 +1869,8 @@ onUnmounted(() => {
 .scrollRef::-webkit-scrollbar {
   display: none;
 }
-
-// 兼容 Firefox
 .scrollRef {
   scrollbar-width: none;
-}
-
-// 兼容 IE 和 Edge
-.scrollRef {
   -ms-overflow-style: none;
 }
 
@@ -1944,10 +1885,6 @@ onUnmounted(() => {
     transform: translateY(-1px);
     background: rgba(0, 0, 0, 1);
   }
-}
-
-.mr10 {
-  margin-right: 4px;
 }
 
 .card-top-tag {
@@ -2084,10 +2021,6 @@ onUnmounted(() => {
   }
 }
 
-.q-card__section--vert {
-  padding: 4px;
-}
-
 .chip-tag {
   margin-left: 0;
   padding: 0 2px;
@@ -2173,36 +2106,6 @@ onUnmounted(() => {
   &--rounded {
     margin: 2px;
   }
-}
-
-.theme-selector-btn {
-  border-radius: 50%;
-  width: 28px;
-  height: 28px;
-  min-height: 28px;
-  transition: all 0.3s ease;
-  opacity: 0.6;
-
-  &:hover {
-    opacity: 1;
-    background: rgba(255, 255, 255, 0.1) !important;
-    transform: scale(1.1);
-  }
-
-  :deep(.q-btn__content) {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-  }
-}
-
-.theme-icon {
-  transition: transform 0.3s ease, filter 0.3s ease;
-}
-
-.theme-selector-btn:hover .theme-icon {
-  transform: rotate(15deg) scale(1.05);
 }
 
 :deep(.q-item) {
