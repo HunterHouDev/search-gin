@@ -5,6 +5,7 @@ import (
 
 	"search-gin/internal/model"
 	"search-gin/internal/service"
+	"search-gin/middleware"
 	"search-gin/pkg/utils"
 
 	"github.com/gin-gonic/gin"
@@ -13,14 +14,6 @@ import (
 type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
-}
-
-// GetInitStatus 检查是否已完成初始化（adminPassword 是否已配置）
-func GetInitStatus(c *gin.Context) {
-	configured := service.GetOSSetting().AdminPassword != ""
-	res := utils.NewSuccess()
-	res.Data = configured
-	c.JSON(http.StatusOK, res)
 }
 
 // PostInitSetup 初始化设置管理员密码（仅首次可调用）
@@ -43,6 +36,7 @@ func PostInitSetup(c *gin.Context) {
 		return s
 	})
 	service.CacheAdminPasswordHash()
+	middleware.MarkInitialized()
 	if err := service.FlushDictionary(service.GetOSSetting().SelfPath); err != nil {
 		c.JSON(http.StatusInternalServerError, utils.NewFailByMsg("密码保存失败: "+err.Error()))
 		return

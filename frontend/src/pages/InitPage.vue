@@ -52,6 +52,14 @@
                 label="初始化"
                 :loading="loading"
               />
+
+              <q-btn
+                flat
+                color="grey-6"
+                class="full-width q-mt-sm"
+                label="跳转登录页"
+                @click="router.push('/login')"
+              />
             </q-form>
           </q-card-section>
         </q-card>

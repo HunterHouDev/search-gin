@@ -44,6 +44,14 @@ export default boot(({ app, router }) => {
       const data = error?.response?.data;
       const msg = data?.Message || data?.message || data?.msg || '';
 
+      if (status === 412) {
+        // 系统未初始化 → 跳转初始化页
+        if (router) {
+          router.push('/init');
+        }
+        return Promise.reject(error);
+      }
+
       if (status === 401) {
         // Token 过期 → 静默清理并跳转登录
         sessionStorage.removeItem('authToken');

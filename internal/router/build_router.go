@@ -102,9 +102,10 @@ func BuildAPIRouter(sigChan chan os.Signal) *gin.Engine {
 	buildCommonMiddleware(router)
 
 	// 初始化接口（无需认证，首次部署时使用）
-	router.GET("/api/init", handler.GetInitStatus)
 	router.POST("/api/init/setup", handler.PostInitSetup)
 
+	// 以下所有路由需系统已初始化，否则返回 412 触发前端跳转 /init
+	router.Use(middleware.InitCheckMiddleware())
 	router.Use(middleware.AuthMiddleware())
 
 	if !env.IsProd {

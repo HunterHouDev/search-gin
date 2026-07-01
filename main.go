@@ -11,6 +11,7 @@ import (
 	"search-gin/internal/router"
 	"search-gin/internal/server"
 	"search-gin/internal/service"
+	"search-gin/middleware"
 	"search-gin/pkg/utils"
 
 	"golang.org/x/sync/errgroup"
@@ -67,6 +68,7 @@ func main() {
 
 	// ── 9. 初始化配置和扫描队列 ──
 	service.InitSetting()
+	middleware.InitInitializedFlag()
 	service.InitSearchPool()
 	service.StartScanQueue()
 

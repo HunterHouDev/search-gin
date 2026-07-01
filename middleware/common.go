@@ -4,12 +4,41 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"search-gin/internal/service"
 	"search-gin/pkg/utils"
 )
+
+var initialized atomic.Bool
+
+// InitInitializedFlag 启动时调用，根据配置赋值初始化状态
+func InitInitializedFlag() { initialized.Store(service.GetOSSetting().AdminPassword != "") }
+
+// MarkInitialized 初始化完成后翻转标记（PostInitSetup 成功时调用）
+func MarkInitialized() { initialized.Store(true) }
+
+// InitCheckMiddleware 检查系统是否已完成初始化，未初始化时返回 412
+func InitCheckMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		path := c.Request.URL.Path
+
+		// 非 API 路径放行（静态资源/页面入口），/api/init/setup 放行（初始化提交）
+		if !strings.HasPrefix(path, "/api/") || path == "/api/init/setup" {
+			c.Next()
+			return
+		}
+
+		if !initialized.Load() {
+			utils.InfoFormat("系统未初始化，拒绝请求: %s", path)
+			c.AbortWithStatusJSON(http.StatusPreconditionFailed, utils.NewFailByMsg("系统未初始化"))
+			return
+		}
+		c.Next()
+	}
+}
 
 // SlowRequestLogger 记录耗时超过阈值的请求（开发环境）
 func SlowRequestLogger() gin.HandlerFunc {
