@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// SearchParam 查询参数
+// MergeParam 合并请求参数
 type MergeParam struct {
 	Files        []string
 	Dest         string
@@ -33,19 +33,6 @@ type SearchParam struct {
 	FilterAuthor string   `json:"filterAuthor,omitempty"` // 按作者精确过滤
 	FilterTag    string   `json:"filterTag,omitempty"`    // 按标签精确过滤
 	FilterSeries string   `json:"filterSeries,omitempty"` // 按系列精确过滤
-}
-
-func NewSearchParam(keyword string, page int, pageSize int, sortField string, sortType string, moiveType string) SearchParam {
-	res := SearchParam{
-		Keyword:   strings.TrimSpace(keyword),
-		Page:      page,
-		PageSize:  pageSize,
-		SortField: sortField,
-		SortType:  sortType,
-		MovieType: strings.TrimSpace(moiveType),
-	}
-	return res
-
 }
 
 // UniWords 生成搜索条件的唯一标识，不含 Page/PageSize，确保不同分页命中同一缓存
@@ -78,53 +65,4 @@ func (p *SearchParam) UniWords() string {
 		key += "::series" + p.FilterSeries
 	}
 	return key
-}
-
-func (p *SearchParam) GetKeywords() string {
-	p.Keyword = strings.TrimSpace(p.Keyword)
-	return p.Keyword
-}
-
-func (p *SearchParam) GetMovieType() string {
-	p.MovieType = strings.TrimSpace(p.MovieType)
-	return p.MovieType
-}
-
-func (p *SearchParam) SetOnlyRepeat(b bool) {
-	p.OnlyRepeat = b
-}
-
-func (p *SearchParam) StartNum() int {
-	if p.Page <= 0 {
-		return 0
-	}
-	return (p.Page - 1) * p.PageSize
-}
-
-func (p *SearchParam) GetPageSize() int {
-	if p.PageSize <= 0 {
-		return 0
-	}
-	return p.PageSize
-}
-
-func (p *SearchParam) GetPage() int {
-	if p.Page <= 0 {
-		return 0
-	}
-	return p.Page
-}
-
-func (p *SearchParam) GetSort() []string {
-	if p.SortType == "" {
-		p.SortType = "desc"
-	}
-	return []string{p.GetSortField() + p.SortType}
-}
-
-func (p *SearchParam) GetSortField() string {
-	if p.SortField == "" {
-		p.SortField = "m_time"
-	}
-	return p.SortField + " "
 }
