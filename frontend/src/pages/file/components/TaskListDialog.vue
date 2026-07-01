@@ -82,9 +82,9 @@
   <TaskLogFullscreen ref="taskLogFullscreenRef" />
 </template>
 
-<script setup>
-import { useQuasar, date } from 'quasar';
-import { reactive, ref, watch, computed, onUnmounted, nextTick } from 'vue';
+<script setup lang="ts">
+import { date } from 'quasar';
+import { ref, watch, computed } from 'vue';
 import { useCommonExec } from 'src/composables/useCommonExec';
 import { useDialogShell } from 'src/composables/useDialogShell';
 import { parseTimeZH } from 'components/utils';
@@ -94,10 +94,9 @@ import {
 } from 'components/api/searchAPI';
 import TaskLogFullscreen from './TaskLogFullscreen.vue';
 
-const $q = useQuasar();
 const { exec: commonExec } = useCommonExec({ notifyOnSuccess: true });
 
-const taskLogFullscreenRef = ref(null);
+const taskLogFullscreenRef = ref<InstanceType<typeof TaskLogFullscreen> | null>(null);
 
 let timer: any = null;
 const autoRefresh = ref(true);
@@ -111,10 +110,10 @@ const filteredTasks = computed(() => {
   return tasks.value.filter((t: any) => t.Status === tab.value && t.Status !== '执行中');
 });
 
-const statusColor = (s) => s === '完成' ? 'green' : s === '失败' ? 'red' : s === '执行中' ? 'orange' : 'black';
-const fmtTime = (t) => date.formatDate(new Date(t), 'MM/DD HH:mm');
+const statusColor = (s: string) => s === '完成' ? 'green' : s === '失败' ? 'red' : s === '执行中' ? 'orange' : 'black';
+const fmtTime = (t: string) => date.formatDate(new Date(t), 'MM/DD HH:mm');
 
-const showTimeUse = (end, start) => {
+const showTimeUse = (end: string, start: string) => {
   const sec = ((new Date(end).getFullYear() > 1000 ? new Date(end).getTime() : Date.now()) - new Date(start).getTime()) / 1000;
   return parseTimeZH(Number(sec.toFixed(0)));
 };
@@ -125,7 +124,7 @@ const fetchTasking = async () => {
   totalCount.value = res.Data?.counts || [0, 0, 0, 0, 0];
 };
 
-const removeTask = async (taskId) => commonExec(() => DelTransferTasksInfo(taskId));
+const removeTask = async (taskId: string) => commonExec(() => DelTransferTasksInfo(taskId));
 const clearCompleted = async () => { await commonExec(() => ClearCompletedTasks()); fetchTasking(); };
 const clearFailed = async () => { await commonExec(() => ClearFailedTasks()); fetchTasking(); };
 const clearAll = async () => { await commonExec(() => ClearAllTasks()); fetchTasking(); };

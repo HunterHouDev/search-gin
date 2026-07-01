@@ -1,7 +1,7 @@
 <template>
   <q-dialog ref="dialogRef" v-model="show" @hide="dialogHide" @before-show="beforeShow">
-    <q-layout container view="hHh Lpr lff" style="height: 82vh; margin: 0"
-      :style="{ 'max-width': isMobile ? '94vw' : '800px' }">
+    <q-layout container view="hHh Lpr lff" style="margin: 0"
+      :style="isMobile ? { width: '90vw', height: '90vh' } : { width: '400px', height: '700px' }">
       <q-header class="bg-primary text-white shadow-2 row items-center q-px-sm"
         style="min-height: 40px; border-radius: 8px 8px 0 0">
         <q-toolbar-title class="text-subtitle2">批量操作</q-toolbar-title>
@@ -207,8 +207,8 @@ const state = reactive({
   cutListIds: [],
   resultData: {},
   queryParam: { Keyword: '', MovieType: '', Page: 1, PageSize: 20 },
-  settingInfo: {} as any,
-  callback: null as any,
+  settingInfo: {} ,
+  callback: null ,
   submitMutiTag: [],
   chooseInput: false,
   input: '',
@@ -257,7 +257,7 @@ const resetSelector = () => { state.selector = []; state.selectAll = false; };
 const selectAll = () => {
   state.selectAll = !state.selectAll;
   state.selectAll
-    ? (state.selector = state.resultData.Data.map((f: any) => f.Id))
+    ? (state.selector = state.resultData.Data.map((f) => f.Id))
     : resetSelector();
 };
 
@@ -265,7 +265,7 @@ const selectAll = () => {
 const setTypeBySelector = async (value) => {
   if (!state.selector.length) return;
   for (const id of state.selector) {
-    const item = state.resultData.Data?.find((f: any) => f.Id === id);
+    const item = state.resultData.Data?.find((f) => f.Id === id);
     const updated = await commonExec(() => ResetMovieType(id, value));
     if (item && updated) Object.assign(item, updated);
   }
@@ -275,7 +275,7 @@ const setTypeBySelector = async (value) => {
 const addTagBySelector = async (value) => {
   if (!state.selector.length) return;
   for (const id of state.selector) {
-    const item = state.resultData.Data?.find((f: any) => f.Id === id);
+    const item = state.resultData.Data?.find((f) => f.Id === id);
     const updated = await commonExec(() => AddTag(id, value));
     if (item && updated) Object.assign(item, updated);
   }
@@ -336,7 +336,7 @@ const batchRename = () => {
     if (!baseName) { $q.notify({ type: 'warning', message: '名称不能为空', position: 'bottom-left' }); return; }
     const ids = state.selector.slice();
     const { ok, fail, total } = await batchExec(ids, async (id, i) => {
-      const file = state.resultData.Data.find((f: any) => f.Id === id);
+      const file = state.resultData.Data.find((f) => f.Id === id);
       if (!file) return { Code: -1 };
       const ext = file.FileType ? `.${file.FileType}` : '';
       return FileRename({ Id: id, Name: (ids.length === 1 ? baseName : `${baseName}_${String(i + 1).padStart(2, '0')}`) + ext });

@@ -222,13 +222,13 @@
             :ellipses="true" :max="view.resultData.TotalPage || 0" :max-pages="isSmall ? 5 : 10" boundary-numbers
             direction-links></q-pagination>
             <!-- 每页大小 -->
-          <q-select size="sm" dense borderless dark
+          <q-select size="sm" dense borderless dark class="q-ml-sm"
             @update:model-value="currentPageSizeChange"
             v-model="view.queryParam.PageSize" :options="pageOptions"
             style="min-width: 60px" />
           <!-- 页码直达 -->
-          <q-input v-model="gotoPage" dense dark borderless
-            style="width: 44px; text-align: center"
+          <q-input v-model="gotoPage" dense dark borderless  class="q-ml-sm"
+            style="width: 56px; text-align: center"
             placeholder="#"
             @update:model-value="pageNoGoto" />
 
@@ -236,47 +236,58 @@
         <div style="position: fixed; right: 10px; bottom: 40px; z-index: 10">
           <q-btn icon="history" color="blue" glossy>
             <q-popup-proxy v-model="view.showHistory" class="history-popup">
-              <q-card flat bordered class="no-shadow">
+              <q-card flat bordered class="no-shadow" style="width: 380px">
                 <q-card-section class="q-pa-sm row items-center justify-between">
-                  <span class="text-weight-medium text-grey-8">历史记录</span>
                   <q-btn flat dense size="sm" color="red" icon="delete_sweep" label="清空"
                     @click="systemProperty.SearchRecords = []; systemProperty.SearchWords = {}" />
                 </q-card-section>
 
-                <!-- 搜索记录(关键词) -->
-                <q-card-section v-if="Object.keys(systemProperty.SearchWords).length" class="q-pa-sm q-pt-none">
-                  <div class="text-caption text-grey-6 q-mb-xs">搜索记录(关键词)</div>
-                  <div class="row q-gutter-xs" style="max-height: 120px; overflow-y: auto">
-                    <q-chip v-for="(count, word) in systemProperty.SearchWords" :key="word"
-                      clickable size="sm" color="red" text-color="white"
-                      @click="searchByKeyword(word)">
-                      {{ word }}
-                      <q-badge v-if="count > 1" color="red" floating>{{ count }}</q-badge>
-                    </q-chip>
-                  </div>
-                </q-card-section>
+                <q-tabs v-model="view.historyTab" dense no-caps class="text-grey-7 q-mx-sm"
+                  active-color="primary" indicator-color="primary">
+                  <q-tab name="records" label="记录" />
+                  <q-tab name="keywords" label="关键词" />
+                </q-tabs>
 
-                <q-separator v-if="sortedSearchRecords.length" />
+                <q-tab-panels v-model="view.historyTab" animated class="bg-transparent">
+                  <!-- 关键词面板 -->
+                  <q-tab-panel name="keywords" class="q-pa-sm">
+                    <div v-if="Object.keys(systemProperty.SearchWords).length"
+                      class="row q-gutter-xs" style="max-height: 40vh; overflow-y: auto">
+                      <q-chip v-for="(count, word) in systemProperty.SearchWords" :key="word"
+                        clickable size="sm" color="red" text-color="white"
+                        @click="searchByKeyword(word)">
+                        {{ word }}
+                        <q-badge v-if="count > 1" color="red" floating>{{ count }}</q-badge>
+                      </q-chip>
+                    </div>
+                    <div v-else class="text-caption text-grey-5 text-center q-py-md">
+                      暂无关键词记录
+                    </div>
+                  </q-tab-panel>
 
-                <!-- 搜索记录(列表) -->
-                <q-card-section v-if="sortedSearchRecords.length" class="q-pa-sm q-pt-none">
-                  <div class="text-caption text-grey-6 q-mb-xs">搜索记录</div>
-                  <q-list dense separator style="max-height: 40vh; overflow-y: auto">
-                    <q-item v-for="(his, idx) in sortedSearchRecords" :key="idx" clickable v-ripple
-                      v-close-popup @click="redirectUrl(his)" class="q-px-sm q-py-xs">
-                      <q-item-section>
-                        <q-item-label class="text-caption text-grey-8">
-                          {{ his.Keyword || '无' }} &mdash;
-                          {{ his.Page }}/{{ his.PageSize }}
-                          {{ getLabelByValue(his.MovieType, MovieTypeOptions) || '全部' }}
-                        </q-item-label>
-                        <q-item-label caption>
-                          {{ date.formatDate(his.createdAt, 'MM-DD HH:mm') }}
-                        </q-item-label>
-                      </q-item-section>
-                    </q-item>
-                  </q-list>
-                </q-card-section>
+                  <!-- 记录面板 -->
+                  <q-tab-panel name="records" class="q-pa-sm">
+                    <q-list v-if="sortedSearchRecords.length" dense separator
+                      style="max-height: 40vh; overflow-y: auto">
+                      <q-item v-for="(his, idx) in sortedSearchRecords" :key="idx" clickable v-ripple
+                        v-close-popup @click="redirectUrl(his)" class="q-px-sm q-py-xs">
+                        <q-item-section>
+                          <q-item-label class="text-caption text-grey-8">
+                            {{ his.Keyword || '无' }} &mdash;
+                            {{ his.Page }}/{{ his.PageSize }}
+                            {{ getLabelByValue(his.MovieType, MovieTypeOptions) || '全部' }}
+                          </q-item-label>
+                          <q-item-label caption>
+                            {{ date.formatDate(his.createdAt, 'MM-DD HH:mm') }}
+                          </q-item-label>
+                        </q-item-section>
+                      </q-item>
+                    </q-list>
+                    <div v-else class="text-caption text-grey-5 text-center q-py-md">
+                      暂无搜索记录
+                    </div>
+                  </q-tab-panel>
+                </q-tab-panels>
               </q-card>
             </q-popup-proxy>
           </q-btn>
@@ -899,6 +910,8 @@ const view = reactive({
   localNodeName: '',
   showNodeDialog: false,
   nodeList: [],
+  showHistory: false,
+  historyTab: 'records',
 });
 
 const sortOptions = useSortOptions('   ');
@@ -2158,14 +2171,5 @@ onUnmounted(() => {
       0 6px 16px rgba(0, 0, 0, 0.25),
       inset 0 1px 0 rgba(255, 255, 255, 0.05);
   }
-}
-
-// 历史记录弹窗
-.history-popup {
-  background: var(--q-bg-card);
-  border-radius: 12px;
-  width: 380px;
-  max-height: 70vh;
-  overflow: hidden;
 }
 </style>

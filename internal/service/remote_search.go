@@ -255,40 +255,24 @@ func FillURLs(c *gin.Context, movies []model.FileItem) {
 
 	for i := range movies {
 		m := &movies[i]
-		if m.NodeHost == localNode || m.NodeHost == "" {
-			localBase := localBases[i%2] // 交替使用两个端口，突破浏览器 HTTP/1.1 每域名 6 连接限制
-			m.StreamUrl = localBase + streamPath + url.QueryEscape(m.Path) + streamTokenParam
-			m.PngUrl = localBase + pngPath + m.Id + imgTokenParam
-			m.JpgUrl = localBase + jpgPath + m.Id + imgTokenParam
-			m.NodeHost = localNode
-			m.NodeName = LocalNodeName
-		} else {
-			peerFilePort := filePort
-			if p := GetPeer(m.NodeHost); p != nil && p.FilePort != "" {
-				peerFilePort = p.FilePort
-			}
-			if peerIP := ResolvePeerIP(m.NodeHost); peerIP != "" {
-				peerBase := "http://" + peerIP + ":" + peerFilePort
-				if i%2 == 0 {
-					// 从 NodeHost "hostname:port" 中提取远程节点的 API 端口
-					if _, apiPortStr, err := net.SplitHostPort(m.NodeHost); err == nil {
-						peerBase = "http://" + peerIP + ":" + apiPortStr
-					}
-				}
-				m.StreamUrl = peerBase + streamPath + url.QueryEscape(m.Path) + streamTokenParam
-				m.PngUrl = peerBase + pngPath + m.Id + imgTokenParam
-				m.JpgUrl = peerBase + jpgPath + m.Id + imgTokenParam
-			}
+		if m.NodeHost != "" {
+			continue
 		}
+		localBase := localBases[i%2] // 交替使用两个端口，突破浏览器 HTTP/1.1 每域名 6 连接限制
+		m.StreamUrl = localBase + streamPath + url.QueryEscape(m.Path) + streamTokenParam
+		m.PngUrl = localBase + pngPath + m.Id + imgTokenParam
+		m.JpgUrl = localBase + jpgPath + m.Id + imgTokenParam
+		m.NodeHost = localNode
+		m.NodeName = LocalNodeName
 	}
 }
 
 // localNetsOnce 一次性枚举本机网卡，进程生命周期内不变
 var (
-	localNetsOnce  sync.Once
-	localIPv4Nets  []net.IPNet
-	localIPv6Nets  []net.IPNet
-	localFirstIP   string
+	localNetsOnce sync.Once
+	localIPv4Nets []net.IPNet
+	localIPv6Nets []net.IPNet
+	localFirstIP  string
 )
 
 // pickLocalIPCache clientIP → 本机出口 IP，同网段客户端只算一次

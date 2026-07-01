@@ -326,7 +326,7 @@ const onSearchPanelPlay = (item) => {
 
 const onSearchPanelKeyword = (keyword) => {
   // 可在搜索面板内按关键词继续搜索，这里暂时关闭面板
-
+  console.log('onSearchPanelKeyword', keyword);
 };
 
 const onSearchPanelEdit = (item) => {

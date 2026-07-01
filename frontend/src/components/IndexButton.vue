@@ -80,7 +80,7 @@
 <script setup>
 import { HeartBeatQuery, RefreshAPI, IndexHealthQuery } from 'components/api/searchAPI';
 import { useQuasar } from 'quasar';
-import { onMounted, onBeforeUnmount, reactive, computed } from 'vue';
+import { onMounted, reactive, computed } from 'vue';
 const $q = useQuasar();
 const emit = defineEmits(['refreshDone']);
 const props = defineProps({
@@ -164,8 +164,8 @@ const updateHealth = (health) => {
   view.scanProgress = health.scanProgress || null;
 };
 
-const BASE_INTERVAL = 200;
-const MAX_INTERVAL = 20000;
+const BASE_INTERVAL = 2000;
+const MAX_INTERVAL = 30000;
 
 const scheduleNextHeartBeat = () => {
   view.heartBeatTimer = setTimeout(async () => {
