@@ -89,6 +89,7 @@ export enum SSEEventType {
   ScanStart = 'scan_start',
   ScanComplete = 'scan_complete',
   ScanOneDone = 'scan_one_done',
+  RenameStart = 'rename_start',
   ScanError = 'scan_error',
   FileChanged = 'file_changed',
   IndexUpdate = 'index_update',

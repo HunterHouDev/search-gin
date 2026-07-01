@@ -189,13 +189,9 @@ watch(showBus, (val) => {
 });
 
 const emits = defineEmits([
-  // REQUIRED; 需要明确指出
-  // 组件通过 useDialogPluginComponent() 暴露哪些事件
   'success',
-  'plus-one',
   'next-one',
   'prev-one',
-  'sub-one',
   'update:modelValue',
   ...useDialogPluginComponent.emits,
 ]);
@@ -317,7 +313,6 @@ const editItemSubmit = async (MoveOut = false) => {
     Png,
     NoRefresh: true,
   };
-  emits('plus-one');
   if (systemProperty.fileEditAutoNext) {
     await emits('next-one');
   } else {
@@ -336,12 +331,10 @@ const editItemSubmit = async (MoveOut = false) => {
   systemProperty.lastAuthores = [Author, ...systemProperty.lastAuthores];
   const res = await FileRename(param);
   if (res.Code === 200) {
-    emits('sub-one');
     if (systemProperty.fileEditAutoRefresh) {
       emits('success', Id);
     }
   } else {
-    emits('sub-one');
     $q.notify({
       type: 'negative',
       message: res.Message,

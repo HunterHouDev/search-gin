@@ -5,6 +5,7 @@ package model
 const (
 	SSEScanStart    = "scan_start"
 	SSEScanComplete = "scan_complete"
+	SSERenameStart  = "rename_start"
 	SSEScanOneDone  = "scan_one_done"
 	SSEScanError    = "scan_error"
 	SSEFileChanged  = "file_changed"

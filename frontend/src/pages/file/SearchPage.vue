@@ -9,14 +9,11 @@
           :size="btnSize('head')" />
         <!-- 用户行为偏好 -->
         <AppPreference />
-        <!-- 重命名按钮 -->
-        <q-btn :loading="view.renameCount > 0" v-if="view.renameCount > 0" class="q-mt-sm" color="red"
-          :size="btnSize('head')" dense :label="`重命名 (${view.renameCount})`">
-          <template v-slot:loading>
-            <q-spinner-facebook size="xs"></q-spinner-facebook>
-            {{ `r:${view.renameCount}` }}
-          </template>
-        </q-btn>
+        <!-- 重命名中指示 -->
+        <q-chip v-if="pendingRenames > 0" color="red" text-color="white" size="md" dense icon="drive_file_rename_outline">
+          {{ pendingRenames }}
+          <q-tooltip>改名中 {{ pendingRenames }} 个文件</q-tooltip>
+        </q-chip>
 
         <!-- 排序字段选择 -->
         <q-btn-dropdown glossy :size="btnSize('head')" class="w-5" :label="getLabelByValue(currentSort, sortOptions)">
@@ -628,8 +625,7 @@
       " @close="view.currentDataInPlayer = {}" />
 
     <!-- 文件编辑对话框 -->
-    <FileEdit ref="fileEditRef" @plus-one="view.renameCount = view.renameCount + 1"
-      @sub-one="view.renameCount = view.renameCount - 1" @next-one="viewNextOne('info')" @prev-one="viewPrevOne('info')"
+    <FileEdit ref="fileEditRef" @next-one="viewNextOne('info')" @prev-one="viewPrevOne('info')"
       @success="fetchToUpdateList" @hide="view.currentDataInEditor = {}" />
     <!-- 文件信息对话框 -->
     <FileInfo ref="fileInfoRef" @next-one="viewNextOne('edit')" @prev-one="viewPrevOne('edit')"
@@ -735,7 +731,12 @@ const debouncedFetchSearch = () => {
   clearTimeout(sseDebounceTimer)
   sseDebounceTimer = setTimeout(() => fetchSearch(), 2000)
 }
+const pendingRenames = ref(0);
+
 const handleSSEEvent = (event) => {
+  if (event.Type === SSEEventType.RenameStart) {
+    pendingRenames.value = event.Data?.count || 0;
+  }
   if (event.Type === SSEEventType.FileChanged) {
     debouncedFetchSearch()
     const action = event.Data?.action;
@@ -877,7 +878,6 @@ const onFabDragEnd = () => {
 };
 
 const view = reactive({
-  renameCount: 0,
   indexDone: 0,
   currentDataInPlayer: {},
   currentDataInEditor: {},
@@ -1366,10 +1366,6 @@ const searchCode = (item) => {
       window.open(url);
     }
   }
-};
-
-const focusEvent = (e) => {
-  e.target.select();
 };
 
 const openFolder = (item) => {

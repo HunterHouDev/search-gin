@@ -6,10 +6,14 @@ import (
 	"net/http"
 	"search-gin/internal/model"
 	"search-gin/internal/service"
+	"search-gin/internal/sse"
 	"search-gin/pkg/utils"
+	"sync/atomic"
 
 	"github.com/gin-gonic/gin"
 )
+
+var pendingRenameCount atomic.Int32
 
 func SetMovieType(c *gin.Context) {
 	if !requirePermission(c, "op:movie:type") {
@@ -51,7 +55,15 @@ func PostRename(c *gin.Context) {
 	}
 
 	utils.InfoFormat("PostRename :searchCnt[%v]", currentFile)
+	count := pendingRenameCount.Add(1)
+	sse.BroadcastEvent(model.SSERenameStart, map[string]interface{}{
+		"count": count,
+	})
 	res := UseApp().files.Rename(currentFile)
+	count = pendingRenameCount.Add(-1)
+	sse.BroadcastEvent(model.SSERenameStart, map[string]interface{}{
+		"count": count,
+	})
 	c.JSON(http.StatusOK, res)
 }
 
