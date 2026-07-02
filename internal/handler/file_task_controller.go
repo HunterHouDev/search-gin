@@ -54,15 +54,9 @@ func GetTransferTask(c *gin.Context) {
 }
 
 // GetTaskLog 查询单任务日志（从日志文件读取后 1000 行）
+// 不依赖 TransferTask map，taskID 可直接推导出日志文件路径。
 func GetTaskLog(c *gin.Context) {
 	taskID := c.Param("taskID")
-	service.TransferTaskMutex.RLock()
-	task, found := service.TransferTask[taskID]
-	service.TransferTaskMutex.RUnlock()
-	if !found {
-		c.JSON(http.StatusOK, utils.NewFailByMsg("任务不存在"))
-		return
-	}
 
 	// 从文件读取后 1000 行
 	logPath := service.TaskLogPath(taskID)
@@ -83,12 +77,21 @@ func GetTaskLog(c *gin.Context) {
 	}
 
 	result := utils.NewSuccess()
-	result.Data = map[string]interface{}{
-		"createTime": task.CreateTime,
-		"status":     task.Status,
-		"command":    task.Command,
-		"log":        logContent,
+	data := map[string]interface{}{
+		"log": logContent,
 	}
+
+	// 如果任务还在内存中，补充元信息（status / command / createTime）
+	if service.TransferTaskMutex.RLock(); true {
+		if task, found := service.TransferTask[taskID]; found {
+			data["createTime"] = task.CreateTime
+			data["status"] = task.Status
+			data["command"] = task.Command
+		}
+		service.TransferTaskMutex.RUnlock()
+	}
+
+	result.Data = data
 	c.JSON(http.StatusOK, result)
 }
 
