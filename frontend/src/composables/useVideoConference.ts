@@ -48,9 +48,10 @@ export function useVideoConference() {
     const pc = new RTCPeerConnection(ICE_SERVERS);
 
     // 添加本地流
-    if (localStream.value) {
-      localStream.value.getTracks().forEach(track => {
-        pc.addTrack(track, localStream.value!);
+    const stream = localStream.value;
+    if (stream) {
+      stream.getTracks().forEach(track => {
+        pc.addTrack(track, stream);
       });
     }
 

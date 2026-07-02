@@ -2,7 +2,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 
 export interface SSEEvent {
   Type: string;
-  Data: any;
+  Data: unknown;
 }
 
 const SSE_MAX_BACKOFF = 30_000; // 最大退避 30s
