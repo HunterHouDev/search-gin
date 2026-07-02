@@ -342,7 +342,7 @@ const taskShowTimeUse = (end, start) => {
 };
 const taskFetch = async () => {
   const res = await TransferTasksInfo();
-  taskList.value = (res.Data?.tasks || []).sort((a, b) => (b.CreateTime || '').localeCompare(a.CreateTime || ''));
+  taskList.value = res.Data?.tasks || [];
   taskTotalCount.value = res.Data?.counts || [0, 0, 0, 0, 0];
 };
 const taskRemove = async (id) => commonExec(() => DelTransferTasksInfo(id));

@@ -7,6 +7,7 @@ import (
 	"search-gin/internal/model"
 	"search-gin/internal/service"
 	"search-gin/pkg/utils"
+	"sort"
 
 	"github.com/gin-gonic/gin"
 )
@@ -43,6 +44,10 @@ func GetTransferTask(c *gin.Context) {
 			counts[4]++
 		}
 	}
+	// 按创建时间倒序（最新在上），map 遍历无序
+	sort.Slice(tasks, func(i, j int) bool {
+		return tasks[i].CreateTime.After(tasks[j].CreateTime)
+	})
 	service.TransferTaskMutex.RUnlock()
 
 	result := utils.NewSuccess()
