@@ -505,10 +505,10 @@ defineExpose({ open, openTaskPanel });
   color: var(--q-text-primary);
 }
 .batch-item .dim {
-  color: var(--q-text-secondary);
+  color: var(--q-text-muted);
 }
 .q-item-label--caption {
-  color: var(--q-text-secondary) !important;
+  color: var(--q-text-muted) !important;
 }
 </style>
 <style>

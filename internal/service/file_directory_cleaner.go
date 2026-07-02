@@ -46,13 +46,13 @@ func WalkInner(baseDir string, opts WalkOptions) (allFiles []model.FileItem, dir
 
 			var fileCount int
 			var subDirs []string
+			sizeMap[cur.path] = 0
 			for _, f := range files {
 				p := filepath.Join(cur.path, f.Name())
 				if f.IsDir() {
 					subDirs = append(subDirs, p)
 				} else {
 					fileCount++
-					sizeMap[cur.path] = 0
 					name := f.Name()
 					suffix := utils.GetSuffix(name)
 					info, err := f.Info()

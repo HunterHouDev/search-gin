@@ -17,6 +17,8 @@ func Index(c *gin.Context) {
 	c.HTML(http.StatusOK, "index.html", gin.H{"title": "首页"})
 }
 
+const maxMapItems = 200
+
 func GetTypeSize(c *gin.Context) {
 	if UseApp().search.IsEmpty() {
 		go func() {
@@ -25,6 +27,9 @@ func GetTypeSize(c *gin.Context) {
 		}()
 	}
 	res := mapToSlice(UseApp().search.GetTypeMenu())
+	if len(res) > maxMapItems {
+		res = res[:maxMapItems]
+	}
 	smallDirs := service.GetSmallDir()
 	if len(smallDirs) > 0 {
 		smallSize := model.NewFileInfo("小文件数量", int64(len(smallDirs)))
@@ -41,11 +46,17 @@ func GetTypeSize(c *gin.Context) {
 
 func GetTagSize(c *gin.Context) {
 	res := mapToSlice(UseApp().search.GetTagMenu())
+	if len(res) > maxMapItems {
+		res = res[:maxMapItems]
+	}
 	c.JSON(http.StatusOK, res)
 }
 
 func GetSeriesSize(c *gin.Context) {
 	res := mapToSlice(UseApp().search.GetSeriesCount())
+	if len(res) > maxMapItems {
+		res = res[:maxMapItems]
+	}
 	c.JSON(http.StatusOK, res)
 }
 

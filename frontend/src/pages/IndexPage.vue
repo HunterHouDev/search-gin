@@ -1,52 +1,27 @@
 <template>
-  <q-layout
-    view="lHh lpr lFf"
-    container
-    style="height: 93vh"
-  >
+  <q-layout view="lHh lpr lFf" container style="height: 93vh">
     <!-- 头部 -->
     <q-header elevated class="bg-gradient-primary">
       <div class="row justify-between items-center w100 q-pa-sm">
         <div class="row items-center q-gutter-sm">
-          <IndexButton
-            glossy
-            color="primary"
-            ref="indexButton"
-            @refresh-done="loadTypeSize"
-          />
-          <q-btn 
-            color="white" 
-            text-color="primary" 
-            label="刷新" 
-            icon="refresh"
-            flat
-            @click="f5" 
-          />
+          <IndexButton glossy color="primary" ref="indexButton" @refresh-done="loadTypeSize" />
+          <q-btn color="white" text-color="primary" label="刷新" icon="refresh" flat @click="f5" />
         </div>
-        <q-btn-toggle
-          v-model="currentDiv"
-          color="white"
-          outline
-          glossy
-          text-color="white"
-          toggle-color="primary"
-          toggle-text-color="white"
-          @update:model-value="toDiv"
-          :options="[
+        <q-btn-toggle v-model="currentDiv" color="white" outline glossy text-color="white" toggle-color="primary"
+          toggle-text-color="white" @update:model-value="toDiv" :options="[
             { value: 'tagDiv', label: '标签', icon: 'label' },
             { value: 'seriesDiv', label: '系列', icon: 'movie' },
-            { value: 'typeDiv', label: '类型', icon: 'category' },
-            { value: 'diskDiv', label: '容量', icon: 'hard_drive' },
+            { value: 'diskDiv', label: '容量', icon: 'storage' },
             { value: 'scanTimeDiv', label: '耗时', icon: 'timer' },
-          ]"
-        />
+            { value: 'typeDiv', label: '类型', icon: 'category' },
+          ]" />
       </div>
     </q-header>
-    
+
     <q-page-container class="q-pa-md q-gutter-md">
       <!-- 加载状态 -->
       <SkeletonLoader v-if="isLoading" type="list" :count="8" />
-      
+
       <!-- 标签分析卡片 -->
       <q-card class="cardcard" v-if="tagData.filter(t => t.Cnt > 1).length > 0">
         <q-toolbar class="bg-gradient-primary text-white" id="tagDiv">
@@ -54,19 +29,13 @@
           标签分析
           <q-space />
           <q-badge color="orange" text-color="white">
-            {{ tagData.filter(t => t.Cnt > 1).length }} 个标签
+            {{tagData.filter(t => t.Cnt > 1).length}} 个标签
           </q-badge>
         </q-toolbar>
         <div class="q-pa-md">
           <div class="row q-gutter-sm">
-            <q-btn
-              v-for="tag in tagData.filter(t => t.Cnt > 1)"
-              :key="tag.Name"
-              color="primary"
-              glossy
-              rounded
-              @click="folderGotoMenu(tag.Name)"
-            >
+            <q-btn v-for="tag in tagData.filter(t => t.Cnt > 1)" :key="tag.Name" color="primary" glossy rounded
+              @click="folderGotoMenu(tag.Name)">
               {{ tag.Name }}
               <q-badge color="orange" text-color="white" class="q-ml-xs">
                 {{ tag.Cnt }}
@@ -84,88 +53,19 @@
           系列分析
           <q-space />
           <q-badge color="orange" text-color="white">
-            {{ seriesData.filter(t => t.Cnt > 1).length }} 个系列
+            {{seriesData.filter(t => t.Cnt > 1).length}} 个系列
           </q-badge>
         </q-toolbar>
         <div class="q-pa-md">
           <div class="row q-gutter-sm">
-            <q-btn
-              v-for="tag in seriesData.filter(t => t.Cnt > 1)"
-              :key="tag.Name"
-              color="secondary"
-              glossy
-              rounded
-              @click="folderGotoMenu(tag.Name)"
-            >
+            <q-btn v-for="tag in seriesData.filter(t => t.Cnt > 1)" :key="tag.Name" color="secondary" glossy rounded
+              @click="folderGotoMenu(tag.Name)">
               {{ tag.Name }}
               <q-badge color="orange" text-color="white" class="q-ml-xs">
                 {{ tag.Cnt }}
               </q-badge>
               <q-tooltip>{{ tag.SizeStr }}</q-tooltip>
             </q-btn>
-          </div>
-        </div>
-      </q-card>
-
-      <!-- 类型分析卡片 -->
-      <q-card class="cardcard">
-        <q-toolbar class="bg-gradient-primary text-white" id="typeDiv">
-          <q-icon name="category" class="q-mr-sm" />
-          类型分析
-          <q-space />
-          <q-badge color="orange" text-color="white">
-            {{ tableData.length }} 种类型
-          </q-badge>
-        </q-toolbar>
-        <div class="q-pa-md">
-          <div class="row q-gutter-md">
-            <q-card
-              class="type-card"
-              v-for="item in tableData"
-              :key="item.Name"
-              flat
-              bordered
-            >
-              <q-badge color="negative" floating>{{ item.Cnt }}</q-badge>
-              <q-card-section>
-                <div class="row items-center justify-between">
-                  <q-btn
-                    dense
-                    :icon="item.IsDir ? 'folder' : 'description'"
-                    :color="item.IsDir ? 'amber' : 'primary'"
-                    flat
-                    @click="gotoMenu(item)"
-                  >
-                    {{ item.IsDir ? '📁 ' + item.Name : item.Name }}
-                  </q-btn>
-                </div>
-                <div class="text-caption q-mt-sm" style="color: var(--q-text-secondary)">
-                  <q-icon name="storage" size="xs" />
-                  {{ item.SizeStr }}
-                  <q-icon name="description" size="xs" class="q-ml-sm" />
-                  {{ item.Cnt }} 个文件
-                </div>
-              </q-card-section>
-
-              <q-card-actions v-if="item.IsDir" align="center">
-                <q-btn
-                  color="primary"
-                  flat
-                  glossy
-                  dense
-                  icon="folder-open"
-                  @click="openThis(item)"
-                >打开</q-btn>
-                <q-btn
-                  color="negative"
-                  glossy
-                  dense
-                  flat
-                  icon="delete"
-                  @click="deleteThis(item)"
-                >删除</q-btn>
-              </q-card-actions>
-            </q-card>
           </div>
         </div>
       </q-card>
@@ -181,8 +81,8 @@
           </q-badge>
         </q-toolbar>
         <div class="q-pa-md">
-          <div class="q-gutter-md">
-            <div v-for="item in diskUsage" :key="item.Path" class="disk-item">
+          <div class="row q-gutter-md">
+            <div v-for="item in diskUsage" :key="item.Path" class="disk-item col-12 col-sm-6 col-md-4">
               <div class="row items-center justify-between q-mb-xs">
                 <div class="text-subtitle2">
                   <q-icon name="folder" color="primary" class="q-mr-xs" />
@@ -192,13 +92,8 @@
                   {{ formatSize(item.Used) }} / {{ formatSize(item.All) }}
                 </div>
               </div>
-              <q-linear-progress
-                :value="item.Percent / 100"
-                :color="getProgressColor(item.Percent)"
-                size="12px"
-                rounded
-                stripe
-              >
+              <q-linear-progress :value="item.Percent / 100" :color="getProgressColor(item.Percent)" size="12px" rounded
+                stripe>
                 <div class="absolute-full flex flex-center">
                   <q-badge color="white" text-color="dark" :label="item.Percent.toFixed(1) + '%'" />
                 </div>
@@ -220,25 +115,13 @@
         </q-toolbar>
         <div class="q-pa-md">
           <div class="row q-gutter-md">
-            <q-card
-              v-for="item in scanTime"
-              :key="item.Name"
-              class="disk-card"
-              flat
-              bordered
-            >
+            <q-card v-for="item in scanTime" :key="item.Name" class="disk-card" flat bordered>
               <q-card-section>
                 <div class="row items-center justify-between">
-                  <q-btn
-                    flat
-                    dense
-                    icon="folder"
-                    :label="item.Name"
-                    color="primary"
-                    @click="folderGotoMenu(item.Name)"
-                  />
+                  <q-btn flat dense icon="folder" :label="item.Name" color="primary"
+                    @click="folderGotoMenu(item.Name)" />
                 </div>
-                <div class="text-caption q-mt-sm" style="color: var(--q-text-secondary)">
+                <div class="text-caption q-mt-sm" style="color: var(--q-text-primary)">
                   <q-icon name="storage" size="xs" />
                   {{ item.SizeStr }}
                   <q-icon name="timer" size="xs" class="q-ml-sm" />
@@ -247,25 +130,70 @@
               </q-card-section>
 
               <q-card-actions v-if="item.IsDir" align="center">
-                <q-btn
-                  color="primary"
-                  flat
-                  glossy
-                  dense
-                  icon="folder-open"
-                  @click="openThis(item)"
-                >打开</q-btn>
-                <q-btn
-                  color="negative"
-                  dense
-                  glossy
-                  flat
-                  icon="delete"
-                  @click="deleteThis(item)"
-                >删除</q-btn>
+                <q-btn color="primary" flat glossy dense icon="folder-open" @click="openThis(item)">打开</q-btn>
+                <q-btn color="negative" dense glossy flat icon="delete" @click="deleteThis(item)">删除</q-btn>
               </q-card-actions>
             </q-card>
           </div>
+        </div>
+      </q-card>
+
+      <!-- 类型分析卡片 -->
+      <q-card class="cardcard">
+        <q-toolbar class="bg-gradient-primary text-white" id="typeDiv">
+          <q-icon name="category" class="q-mr-sm" />
+          类型分析
+          <q-space />
+          <q-badge color="orange" text-color="white">
+            {{ typeCards().length }} 种类型
+          </q-badge>
+        </q-toolbar>
+        <div class="q-pa-md">
+          <q-table v-if="smallFiles().length" :rows="smallFiles()" row-key="Name" flat dense hide-pagination
+            :rows-per-page-options="[0]" class="q-mb-md">
+            <template v-slot:header>
+              <q-tr>
+                <q-th style="width: 350px">大小</q-th>
+                <q-th style="width: 400px">操作</q-th>
+                <q-th style="width: auto">目录</q-th>
+              </q-tr>
+            </template>
+            <template v-slot:body="props">
+              <q-tr :props="props">
+                <q-td>{{ props.row.SizeStr }}</q-td>
+                <q-td>
+                  <q-btn flat dense size="md" color="primary" label="打开" @click="openThis(props.row)" />
+                  <q-btn flat dense size="md" color="negative" label="删除" @click="deleteThis(props.row)" />
+                </q-td>
+                <q-td>{{ '📁' + props.row.Name }}</q-td>
+              </q-tr>
+            </template>
+          </q-table>
+          <div class="row q-gutter-md">
+            <q-card class="type-card" v-for="item in typeCards()" :key="item.Name" flat bordered>
+              <q-badge color="negative" floating>{{ item.Cnt }}</q-badge>
+              <q-card-section>
+                <div class="row items-center justify-between">
+                  <q-btn dense :icon="item.IsDir ? 'folder' : 'description'" :color="item.IsDir ? 'amber' : 'primary'"
+                    flat @click="gotoMenu(item)">
+                    {{ item.Name }}
+                  </q-btn>
+                </div>
+                <div class="text-caption q-mt-sm" style="color: var(--q-text-muted)">
+                  <q-icon name="storage" size="xs" />
+                  {{ item.SizeStr }}
+                  <q-icon name="description" size="xs" class="q-ml-sm" />
+                  {{ item.Cnt }} 个文件
+                </div>
+              </q-card-section>
+
+              <q-card-actions v-if="item.IsDir" align="center">
+                <q-btn color="primary" flat glossy dense icon="folder-open" @click="openThis(item)">打开</q-btn>
+                <q-btn color="negative" glossy dense flat icon="delete" @click="deleteThis(item)">删除</q-btn>
+              </q-card-actions>
+            </q-card>
+          </div>
+
         </div>
       </q-card>
     </q-page-container>
@@ -274,7 +202,7 @@
 
 <script setup>
 import { useQuasar } from 'quasar';
-import { onMounted, onUnmounted, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import SkeletonLoader from 'components/SkeletonLoader.vue';
 import {
@@ -293,6 +221,7 @@ import { useSystemProperty } from '../stores/System';
 import IndexButton from 'components/IndexButton.vue';
 const { push } = useRouter();
 const systemProperty = useSystemProperty();
+const indexButton = ref(null);
 document.title = '分析';
 
 const $q = useQuasar();
@@ -303,7 +232,7 @@ const scanTime = ref([]);
 const diskUsage = ref([]);
 const currentDiv = ref('tagDiv');
 const isLoading = ref(true);
-let inter;
+let hasInitLoaded = false;
 
 onKeyStroke(['`'], () => {
   refreshIndex();
@@ -334,16 +263,18 @@ const gotoMenu = (data) => {
 };
 const loadTypeSize = async () => {
   isLoading.value = true;
-  const res = await TypeSizeMap();
-  if (res) {
-    tableData.value = res;
-  }
-  await Promise.all([
-    loadTagSize(),
-    loadScanTime(),
-    loadSeriesCount(),
-    loadDiskUsage(),
-  ]);
+  try {
+    const res = await TypeSizeMap();
+    if (res) tableData.value = Array.isArray(res) && res.length > 100 ? res.slice(0, 100) : res;
+  } catch (e) { console.error('TypeSizeMap error:', e); }
+  try {
+    await Promise.all([
+      loadTagSize(),
+      loadScanTime(),
+      loadSeriesCount(),
+      loadDiskUsage(),
+    ]);
+  } catch (e) { console.error('loadTypeSize error:', e); }
   isLoading.value = false;
 };
 
@@ -372,7 +303,7 @@ const loadScanTime = async () => {
   scanTime.value = [...(await ScanTime() || [])].sort((a, b) => {
     return b.Cnt - a.Cnt;
   });
-  systemProperty.SettingInfo.Dirs.forEach((item) => {
+  (systemProperty.SettingInfo.Dirs || []).forEach((item) => {
     if (scanTime.value) {
       const find = scanTime.value.find((i) => i.Name === item);
       if (!find) {
@@ -394,16 +325,10 @@ const loadScanTime = async () => {
   });
 };
 onMounted(() => {
-  inter = setInterval(() => {
-    if (!tableData.value || tableData.value.length === 0) {
-      loadTypeSize();
-    } else {
-      clearInterval(inter);
-    }
-  }, 5000);
-});
-onUnmounted(() => {
-  if (inter) clearInterval(inter);
+  if (hasInitLoaded) return;
+  hasInitLoaded = true;
+  const timeout = setTimeout(() => { isLoading.value = false; }, 10000);
+  loadTypeSize().finally(() => clearTimeout(timeout));
 });
 
 const openThis = async (data) => {
@@ -419,13 +344,20 @@ const deleteThis = async (data) => {
   const { Name } = data;
   const res = await DeleteFolderByPath({ dirpath: Name });
   if (res.Code === 200) {
-    $q.notify({ type: 'positive', message: '执行成功' });
-    indexButton.value.refreshIndex();
-    await f5();
+    $q.notify({ type: 'positive', message: '删除成功' });
+    tableData.value = tableData.value.filter((item) => item.Name !== Name);
+    diskUsage.value = diskUsage.value.filter((item) => item.Path !== Name);
+    scanTime.value = scanTime.value.filter((item) => item.Name !== Name);
+    tagData.value = tagData.value.filter((item) => item.Name !== Name);
+    seriesData.value = seriesData.value.filter((item) => item.Name !== Name);
+    indexButton.value?.refreshIndex();
   } else {
     $q.notify({ type: 'warning', message: '执行失败' });
   }
 };
+
+const typeCards = () => (tableData.value || []).filter((item) => item.Name !== '小文件数量' && !item.IsDir);
+const smallFiles = () => (tableData.value || []).filter((item) => item.Name === '小文件数量' || item.IsDir);
 
 const formatSize = (bytes) => {
   if (!bytes || bytes <= 0) return '0 B';
@@ -441,7 +373,7 @@ const getProgressColor = (percent) => {
   return 'positive';
 };
 const refreshIndex = async () => {
-  indexButton.value.refreshIndex();
+  indexButton.value?.refreshIndex();
 };
 
 const f5 = () => {
@@ -467,6 +399,7 @@ const f5 = () => {
   transition: all 0.3s ease;
   min-width: 200px;
   flex: 1 1 auto;
+  max-width: 300px;
 }
 
 .type-card:hover {
@@ -479,6 +412,7 @@ const f5 = () => {
   transition: all 0.3s ease;
   min-width: 200px;
   flex: 1 1 auto;
+
 }
 
 .disk-card:hover {
@@ -491,6 +425,7 @@ const f5 = () => {
   border-radius: 8px;
   background: var(--q-bg-card);
   border: 1px solid var(--q-border);
+  max-width: 300px;
 }
 
 .bg-gradient-primary {

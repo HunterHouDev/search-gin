@@ -3,14 +3,17 @@
     <q-layout view="lHh lpr lFf" container style="height: 93vh" class="shadow-2 rounded-borders"
       :class="{ 'theme-natural': systemProperty.theme === 'natural' }" :style="themeStyle">
       <!-- 头部 -->
-      <q-header :style="[themeStyle, { backdropFilter: 'blur(10px)', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', borderBottom: '1px solid var(--q-border)' }]" elevated class="q-gutter-sm flex justify-center">
+      <q-header
+        :style="[themeStyle, { backdropFilter: 'blur(10px)', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', borderBottom: '1px solid var(--q-border)' }]"
+        elevated class="q-gutter-sm flex justify-center">
         <!-- 索引按钮 -->
         <IndexButton v-permission="'op:scan'" ref="indexButton" @refresh-done="onIndexRefresh" glossy dense
           :size="btnSize('head')" />
         <!-- 用户行为偏好 -->
         <AppPreference />
         <!-- 重命名中指示 -->
-        <q-chip v-if="pendingRenames > 0" color="red" text-color="white" size="md" dense icon="drive_file_rename_outline">
+        <q-chip v-if="pendingRenames > 0" color="red" text-color="white" size="md" dense
+          icon="drive_file_rename_outline">
           {{ pendingRenames }}
           <q-tooltip>改名中 {{ pendingRenames }} 个文件</q-tooltip>
         </q-chip>
@@ -105,22 +108,20 @@
 
         <!-- 设置按钮 -->
         <!-- Q-FAB 固定悬浮按钮 -->
-        <q-btn icon="ti-pencil-alt" color="orange" glossy round :style="fabStyle"
-          @click="openBatchEdit" />
+        <q-btn icon="ti-pencil-alt" color="orange" glossy round :style="fabStyle" @click="openBatchEdit" />
       </q-header>
 
       <!-- 高级过滤面板 -->
       <q-slide-transition>
-        <div v-show="view.showAdvancedFilter" class="advanced-filter-panel" :style="[themeStyle, { padding: '8px 12px' }]"
-          @mouseleave="view.showAdvancedFilter = false">
+        <div v-show="view.showAdvancedFilter" class="advanced-filter-panel"
+          :style="[themeStyle, { padding: '8px 12px' }]" @mouseleave="view.showAdvancedFilter = false">
 
           <!-- 作者聚合（已选中的隐藏，移到最底部） -->
           <div v-if="unselectedAuthors && unselectedAuthors.length > 0" class="row no-wrap q-mb-sm">
             <div class="text-caption text-grey-7" style="width: 48px; line-height: 28px; flex-shrink: 0;">作者</div>
             <div style="display: flex; flex-wrap: wrap; gap: 4px;">
-              <q-chip v-for="item in (unselectedAuthors || [])" :key="item.name"
-                color="indigo-1" text-color="indigo-7" size="md" dense clickable
-                @click="toggleAggFilter('filterAuthor', item.name)">
+              <q-chip v-for="item in (unselectedAuthors || [])" :key="item.name" color="indigo-1" text-color="indigo-7"
+                size="md" dense clickable @click="toggleAggFilter('filterAuthor', item.name)">
                 {{ item.name }} ({{ item.cnt }})
               </q-chip>
             </div>
@@ -130,9 +131,8 @@
           <div v-if="unselectedTags && unselectedTags.length > 0" class="row no-wrap q-mb-sm">
             <div class="text-caption text-grey-7" style="width: 48px; line-height: 28px; flex-shrink: 0;">标签</div>
             <div style="display: flex; flex-wrap: wrap; gap: 4px;">
-              <q-chip v-for="item in (unselectedTags || [])" :key="item.name"
-                color="orange-1" text-color="orange-8" size="md" dense clickable
-                @click="toggleAggFilter('filterTag', item.name)">
+              <q-chip v-for="item in (unselectedTags || [])" :key="item.name" color="orange-1" text-color="orange-8"
+                size="md" dense clickable @click="toggleAggFilter('filterTag', item.name)">
                 {{ item.name }} ({{ item.cnt }})
               </q-chip>
             </div>
@@ -142,9 +142,8 @@
           <div v-if="unselectedSeries && unselectedSeries.length > 0" class="row no-wrap q-mb-sm">
             <div class="text-caption text-grey-7" style="width: 48px; line-height: 28px; flex-shrink: 0;">系列</div>
             <div style="display: flex; flex-wrap: wrap; gap: 4px;">
-              <q-chip v-for="item in (unselectedSeries || [])" :key="item.name"
-                color="green-1" text-color="green-7" size="md" dense clickable
-                @click="toggleAggFilter('filterSeries', item.name)">
+              <q-chip v-for="item in (unselectedSeries || [])" :key="item.name" color="green-1" text-color="green-7"
+                size="md" dense clickable @click="toggleAggFilter('filterSeries', item.name)">
                 {{ item.name }} ({{ item.cnt }})
               </q-chip>
             </div>
@@ -155,8 +154,7 @@
             <div class="text-caption text-grey-7" style="width: 48px; line-height: 28px; flex-shrink: 0;">大小</div>
             <div style="display: flex; flex-wrap: wrap; gap: 6px;">
               <q-btn v-for="p in (sizePresets || [])" :key="p.label" dense flat size="md"
-                :color="p.label.startsWith('<') ? 'deep-orange-6' : 'indigo-6'"
-                :label="p.label"
+                :color="p.label.startsWith('<') ? 'deep-orange-6' : 'indigo-6'" :label="p.label"
                 @click="applySizePreset(p.min, p.max)" />
             </div>
           </div>
@@ -176,11 +174,9 @@
           <div v-if="extPresets && extPresets.length > 0" class="row no-wrap q-mb-sm">
             <div class="text-caption text-grey-7" style="width: 48px; line-height: 28px; flex-shrink: 0;">扩展名</div>
             <div style="display: flex; flex-wrap: wrap; gap: 4px;">
-              <q-chip v-for="e in (extPresets || [])" :key="e.ext"
-                :color="isExtSelected(e.ext) ? 'primary' : 'grey-3'"
+              <q-chip v-for="e in (extPresets || [])" :key="e.ext" :color="isExtSelected(e.ext) ? 'primary' : 'grey-3'"
                 :text-color="isExtSelected(e.ext) ? 'white' : 'grey-8'" size="md" dense clickable
-                @click="toggleExt(e.ext)" :removable="isExtSelected(e.ext)"
-                @remove="toggleExt(e.ext)">
+                @click="toggleExt(e.ext)" :removable="isExtSelected(e.ext)" @remove="toggleExt(e.ext)">
                 {{ e.ext }} ({{ e.cnt }})
               </q-chip>
             </div>
@@ -193,9 +189,8 @@
             <div class="row q-gutter-xs items-center" v-if="selectedFilterChips.length > 0">
               <span class="text-caption text-grey-7 q-mr-xs">已选</span>
               <template v-for="chip in selectedFilterChips" :key="chip.key">
-                <q-chip v-if="chip.label" dense size="md"
-                  :color="chip.color" text-color="white"
-                  removable @remove="chip.onRemove()">
+                <q-chip v-if="chip.label" dense size="md" :color="chip.color" text-color="white" removable
+                  @remove="chip.onRemove()">
                   {{ chip.label }}
                 </q-chip>
               </template>
@@ -213,16 +208,12 @@
           <q-pagination v-model="view.queryParam.Page" @update:model-value="gotoPageNo" color="deep-orange"
             :ellipses="true" :max="view.resultData.TotalPage || 0" :max-pages="isSmall ? 5 : 10" boundary-numbers
             direction-links></q-pagination>
-            <!-- 每页大小 -->
-          <q-select size="sm" dense borderless dark class="q-ml-sm"
-            @update:model-value="currentPageSizeChange"
-            v-model="view.queryParam.PageSize" :options="pageOptions"
-            style="min-width: 60px" />
+          <!-- 每页大小 -->
+          <q-select size="sm" dense borderless dark class="q-ml-sm" @update:model-value="currentPageSizeChange"
+            v-model="view.queryParam.PageSize" :options="pageOptions" style="min-width: 60px" />
           <!-- 页码直达 -->
-          <q-input v-model="gotoPage" dense dark borderless  class="q-ml-sm"
-            style="width: 56px; text-align: center"
-            placeholder="#"
-            @update:model-value="pageNoGoto" />
+          <q-input v-model="gotoPage" dense dark borderless class="q-ml-sm" style="width: 56px; text-align: center"
+            placeholder="#" @update:model-value="pageNoGoto" />
 
         </div>
         <div style="position: fixed; right: 10px; bottom: 40px; z-index: 10">
@@ -234,8 +225,8 @@
                     @click="systemProperty.SearchRecords = []; systemProperty.SearchWords = {}" />
                 </q-card-section>
 
-                <q-tabs v-model="view.historyTab" dense no-caps class="text-grey-7 q-mx-sm"
-                  active-color="primary" indicator-color="primary">
+                <q-tabs v-model="view.historyTab" dense no-caps class="text-grey-7 q-mx-sm" active-color="primary"
+                  indicator-color="primary">
                   <q-tab name="records" label="记录" />
                   <q-tab name="keywords" label="关键词" />
                 </q-tabs>
@@ -243,11 +234,10 @@
                 <q-tab-panels v-model="view.historyTab" animated class="bg-transparent">
                   <!-- 关键词面板 -->
                   <q-tab-panel name="keywords" class="q-pa-sm">
-                    <div v-if="Object.keys(systemProperty.SearchWords).length"
-                      class="row q-gutter-xs" style="max-height: 40vh; overflow-y: auto">
-                      <q-chip v-for="(count, word) in systemProperty.SearchWords" :key="word"
-                        clickable size="sm" color="red" text-color="white"
-                        @click="searchByKeyword(word)">
+                    <div v-if="Object.keys(systemProperty.SearchWords).length" class="row q-gutter-xs"
+                      style="max-height: 40vh; overflow-y: auto">
+                      <q-chip v-for="(count, word) in systemProperty.SearchWords" :key="word" clickable size="sm"
+                        color="red" text-color="white" @click="searchByKeyword(word)">
                         {{ word }}
                         <q-badge v-if="count > 1" color="red" floating>{{ count }}</q-badge>
                       </q-chip>
@@ -261,16 +251,15 @@
                   <q-tab-panel name="records" class="q-pa-sm">
                     <q-list v-if="sortedSearchRecords.length" dense separator
                       style="max-height: 40vh; overflow-y: auto">
-                      <q-item v-for="(his, idx) in sortedSearchRecords" :key="idx" clickable v-ripple
-                        v-close-popup @click="redirectUrl(his)" class="q-px-sm q-py-xs">
+                      <q-item v-for="(his, idx) in sortedSearchRecords" :key="idx" clickable v-ripple v-close-popup
+                        @click="redirectUrl(his)" class="q-px-sm q-py-xs">
                         <q-item-section>
-                          <q-item-label class="text-caption text-grey-8">
-                            {{ his.Keyword || '无' }} &mdash;
-                            {{ his.Page }}/{{ his.PageSize }}
-                            {{ getLabelByValue(his.MovieType, MovieTypeOptions) || '全部' }}
-                          </q-item-label>
-                          <q-item-label caption>
-                            {{ date.formatDate(his.createdAt, 'MM-DD HH:mm') }}
+                          <q-item-label class="text-caption text-blue row justify-between">
+                            <span> {{ his.Keyword || '无' }} &mdash;
+                              {{ his.Page }}/{{ his.PageSize }}
+                              {{ getLabelByValue(his.MovieType, MovieTypeOptions) || '全部' }}</span>
+                            <span>{{ date.formatDate(his.createdAt, 'MM-DD HH:mm') }}</span>
+
                           </q-item-label>
                         </q-item-section>
                       </q-item>
@@ -1757,6 +1746,7 @@ onUnmounted(() => {
 .scrollRef::-webkit-scrollbar {
   display: none;
 }
+
 .scrollRef {
   scrollbar-width: none;
   -ms-overflow-style: none;
