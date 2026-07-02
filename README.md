@@ -37,7 +37,7 @@
 
 ```bash
 # 后端（默认端口 :10081）
-go run main.go
+go run .
 
 # 前端（另开终端，代理 /api → localhost:10081）
 cd frontend && yarn install && quasar dev
@@ -46,25 +46,70 @@ cd frontend && yarn install && quasar dev
 ### 生产构建
 
 ```bash
-# 全量构建（前端 + Go embed）→ qapp/appQuaser.exe
-bash ball_build.sh
+# 方式一：Makefile（推荐）
+make build               # 全量构建 → qapp/appQuaser.exe
 
-# 仅构建前端 → qapp/dist/
-bash bfront_build.sh
-
-# Electron 桌面打包
-bash bpc_build.sh
+# 方式二：Shell 脚本
+bash ball_build.sh       # 全量构建（前端 + Go embed）→ qapp/appQuaser.exe
+bash bfront_build.sh     # 仅构建前端 → qapp/dist/
+bash bpc_build.sh        # Electron 桌面打包
 ```
 
-`ball_build.sh` 流程：`yarn build` → 复制 `dist/spa/*` 到根 `dist/` → `go build -tags=prod -ldflags "-H=windowsgui -s -w"`
+`make build` / `ball_build.sh` 流程：`yarn build` → 复制 `dist/spa/*` 到根 `dist/` → `go build -tags=prod -ldflags "-H=windowsgui -s -w"`
+
+### Docker 部署
+
+```bash
+docker compose up -d
+# 访问 http://localhost:10081
+```
+
+三段式构建：`node:20-alpine` 编译前端 → `golang:1.25-alpine` 编译 Go → `alpine:3.20` 运行时（安装 ffmpeg、ca-certificates）。详见 `Dockerfile` 和 `docker-compose.yml`。
+
+### CI / 代码质量
+
+项目使用 GitHub Actions CI（`.github/workflows/ci.yml`），自动运行：
+
+- **golangci-lint**：`govet`、`staticcheck`、`gosimple`、`errcheck`、`ineffassign`、`unused`、`gosec`、`misspell`
+- **前端 lint**：ESLint + Prettier
+- **Pre-commit hooks**：Husky + lint-staged，提交前自动格式化和检查
+
+其他 `make` 目标：
+
+| 命令 | 说明 |
+|------|------|
+| `make dev` | 开发模式运行后端 |
+| `make frontend-dev` | 启动前端开发服务器 |
+| `make build-quick` | 仅构建 Go（不重建前端） |
+| `make test` | 运行全部测试 |
+| `make lint` | Go + 前端 lint |
+| `make clean` | 清理构建产物 |
 
 ### 运行
 
 ```bash
 ./qapp/appQuaser.exe
 # 访问 http://localhost:10081
-# 默认登录：用户名留空 或 admin / 密码需在 setting.json 配置 adminPassword
+# 登录：setting.json 中配置 users 数组（支持多用户 + 角色 + 权限）
+# 或兼容旧版 adminPassword 字段（用户名为空或 admin）
 ```
+
+### 首次初始化
+
+系统启动时检查 `setting.json` 是否配置了密码。未配置时进入**未初始化状态**，所有 `/api/*` 请求返回 `412`。
+
+**初始化流程：**
+
+1. 启动后访问前端页面
+2. 前端请求后端接口，收到 `412` 响应后自动跳转到初始化页面
+3. 在初始化页面提交管理员密码
+4. 密码保存到 `setting.json`，系统解除阻断，自动跳转到登录页
+
+**判断逻辑：**
+- 启动时 `InitInitializedFlag()` 检查 `AdminPassword` 是否为空
+- 为空：`initialized = false`，`InitCheckMiddleware` 拦截所有 API（返回 412）
+- 非空：`initialized = true`，系统正常运行
+- `/api/init/setup` 未初始化时放行，已初始化后返回 403（防止重复初始化攻击）
 
 ## 文件流安全（:10082 端口）
 
@@ -74,12 +119,16 @@ bash bpc_build.sh
 - 图片预览 token：**5 分钟**有效期
 - 视频流 token：**4 小时**有效期
 - `:10082` 侧 `StreamTokenAuth` 中间件解密验证 token，不依赖内存 session map
-- 每个节点启动时随机生成独立 AES-256-GCM 密钥，不持久化
+- AES-256-GCM 密钥通过 `setting.json` 的 `streamSecret` 字段配置（64 字符 hex）
+  - 默认自动生成并持久化到 `setting.json`
+  - 同一集群所有节点应使用相同密钥以实现跨节点流媒体互通
 - 旧版 HMAC 签名（`SignAuthMiddleware`）保留但不注册
 
-## 管理密码
+## 用户认证与权限
 
-管理员密码必须通过 `setting.json` 配置，无编译回退：
+支持多用户、角色和权限管理。所有配置通过 `setting.json` 进行，无编译回退。
+
+### 管理员密码（兼容模式）
 
 ```json
 {
@@ -87,9 +136,43 @@ bash bpc_build.sh
 }
 ```
 
-- 未配置时登录将提示"未配置管理员密码"
-- `GetSettingInfo` API 不返回密码字段
+- 未配置时系统进入**未初始化状态**，所有 API 返回 412，需通过 `/api/init/setup` 完成首次配置
 - 登录时支持用户名留空（仅凭密码匹配管理员）
+
+### 多用户 + 角色权限（推荐）
+
+```json
+{
+  "users": [
+    {
+      "username": "admin",
+      "password": "strong-password",
+      "role": "super_admin",
+      "expireDate": "",
+      "permissions": []
+    }
+  ],
+  "roles": [
+    {
+      "name": "custom_role",
+      "label": "自定义角色",
+      "permissions": ["menu:home", "op:edit", "op:scan"]
+    }
+  ],
+  "defaultPermissions": ["menu:home", "menu:search"]
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `users` | 用户数组，每项含用户名、密码、角色、过期时间、个人权限 |
+| `roles` | 自定义角色定义（名称、标签、权限列表） |
+| `defaultPermissions` | 新用户默认权限列表（叠加在角色之上） |
+
+支持的角色：`super_admin` / `admin` / `user` + 自定义角色。`requireAdmin()` 兼容旧 token（role 为空时自动放行）。
+
+- `GetSettingInfo` API 不返回密码字段
+- Token 存内存 map（`sync.RWMutex` 保护），`time.AfterFunc` 到期自动删除，无定时轮询
 
 ## 项目结构
 
@@ -121,8 +204,10 @@ search-gin/
 │   │   ├── file_directory_cleaner.go # DeleteOne / DownDeleteDir / removeWalk
 │   │   ├── hw_accel.go             # 硬件加速检测 / 编码器选择
 │   │   ├── task_scheduler.go       # TaskExecuting / HeartBeat + 扫描任务队列
-│   │   ├── background_launch.go    # InitSetting / StartScanQueue / StartBackgroundTasks
-│   │   ├── auth_service.go         # 认证（setting.json adminPassword 必须配置，无编译回退）
+│   │   ├── task_service.go         # 传输任务管理（TransferTask / ClearCompletedTasks）
+│   │   ├── scan_progress.go         # 扫描进度追踪（ScanProgress struct + 读锁安全拷贝）
+│   │   ├── auth_service.go         # 认证（Token 签发/校验、time.AfterFunc 自动过期）
+│   │   ├── authz_service.go        # 权限管理（PermissionDef / AllPermissions / RBAC）
 │   │   ├── node_discovery.go       # 集群节点管理（HTTP 信令 + 反向心跳）
 │   │   ├── remote_search.go        # 跨节点搜索 + 合并去重 + streamToken URL 生成
 │   │   ├── remote_operation.go     # 跨节点文件操作转发（c.GetRawData() 读取 body）
@@ -132,12 +217,18 @@ search-gin/
 │   └── env/             # 环境配置（prod/dev build tag）
 ├── pkg/
 │   ├── consts/          # 基础常量（端口等，逐步迁移至 internal）
-│   ├── types/           # 类型定义（Setting, User, TransferTaskModel）
+│   ├── types/           # 类型定义（Setting, User, TransferTaskModel, Role）
 │   └── utils/           # 日志、LRU 缓存、FNV 哈希、文件工具、协程池、stream_crypto
-├── middleware/           # Gin 中间件（认证、recovery、streamToken 校验）
+├── middleware/           # Gin 中间件
+│   ├── common.go        # AuthMiddleware / InitCheckMiddleware / SlowRequestLogger
+│   ├── stream_auth.go   # StreamTokenAuth（AES-256-GCM 文件流 token 校验）
+│   └── recovery.go      # CustomRecovery（panic 恢复 → 500 JSON）
 ├── frontend/            # Vue 3 + Quasar 前端源码
 ├── dist/                # 前端构建产物（被 embed 嵌入）
-├── setting.json         # 运行时配置（扫描目录、文件类型、adminPassword、多节点配置等）
+├── setting.json         # 运行时配置（Dirs / adminPassword / users / roles / 多节点等）
+├── Makefile             # 构建辅助（make dev / make build / make test / make lint）
+├── Dockerfile           # Docker 三段式构建（node → golang → alpine）
+├── docker-compose.yml   # Docker 编排（暴露 :10081/:10082，挂载 /media 和 data 卷）
 └── ffmpeg.exe ffplay.exe  # 媒体处理工具
 ```
 
@@ -244,7 +335,10 @@ func DirpathForId(path string) string {
 - **端口分配**：
   - `:10081` — API + 前端（Token 认证）
   - `:10082` — 文件/图片/视频流（streamToken 认证：AES-256-GCM）
-- **认证**：管理员 `admin`，密码必须配 `setting.json` 的 `adminPassword`（无编译回退），Token 存储在内存中，每个 token 到期自动删除
+- **认证**：支持多用户 + 角色权限（`setting.json` 的 `users` 数组配置），也兼容旧版 `adminPassword` 字段
+  - 启动时如未配置密码，系统进入**未初始化状态**（`InitCheckMiddleware` 拦截所有 API 返回 412）
+  - 通过 `/api/init/setup` 完成首次配置后自动解除阻断
+  - Token 存储在内存中（`sync.RWMutex` 保护），每个 token 到期自动删除（`time.AfterFunc`），无定时轮询
 - **无数据库**：所有数据为内存存储，通过文件系统扫描填充。索引快照自动持久化到 `search_cache.gob`（gob 序列化），重启后优先加载缓存，用户无空白等待期；后台继续扫描以同步最新文件变更
 - **多节点**：`setting.json` 中配置 `enableLanDiscovery: true` 并在 `discoveryPeers` 中添加对端地址，节点间通过 HTTP 信令 + 反向心跳自动发现，文件流通过 `:10082` 直连传输（streamToken 认证）
 - **集群安全认证**：跨节点 API 请求携带 `X-Search-Gin-Remote: true` header 绕过 Token 认证，但来源 IP 必须为集群内已知 peer。首次遇到未知 IP 时自动反向心跳验证（GET 该 IP 的 `/api/heartBeat`），通过后自动加入集群并持久化到 `setting.json`，后续请求直达免验证
@@ -262,17 +356,21 @@ func DirpathForId(path string) string {
 | SSE `/api/events` 无认证 | SSE 是只读推送，安全靠前端 token 校验 |
 | LRU Cache Get 不移到头部 | 读并发性能优于标准 LRU 实现 |
 | 无数据库 | 所有数据存内存，索引快照用 gob 持久化，简化设计 |
-| 每节点独立 AES 密钥 | 每次启动随机生成，不持久化，token 短过期，无需跨节点共享 |
+| 每节点独立 AES 密钥 | 默认自动生成并持久化到 `setting.json` 的 `streamSecret`，集群节点应配置相同密钥以互通 |
 
 ## 主要依赖
 
 | 依赖                         | 用途            |
 | ---------------------------- | --------------- |
 | github.com/gin-gonic/gin     | Web 框架        |
+| github.com/gin-contrib/cors  | CORS 中间件     |
 | github.com/anacrolix/torrent | 磁力链/BT 下载   |
+| github.com/gorilla/websocket | WebSocket       |
 | github.com/sirupsen/logrus   | 结构化日志       |
+| github.com/shirou/gopsutil/v3| 系统监控         |
 | github.com/stretchr/testify  | 测试断言        |
 | github.com/go-resty/resty/v2 | HTTP 客户端     |
+| golang.org/x/sync            | errgroup 并发管理 |
 
 ---
 

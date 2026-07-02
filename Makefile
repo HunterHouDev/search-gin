@@ -15,7 +15,7 @@ help: ## 显示帮助
 		{printf "  \033[32m%-20s\033[0m %s\n", $$1, $$2}}'
 
 dev: ## 开发模式运行后端（热重载需 air）
-	go run main.go
+	go run .
 
 frontend-dev: ## 启动前端开发服务器（端口 9000，代理 API → :10081）
 	cd frontend && quasar dev

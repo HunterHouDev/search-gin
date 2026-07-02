@@ -17,12 +17,8 @@ type LoginRequest struct {
 }
 
 // PostInitSetup 初始化设置管理员密码（仅首次可调用）
+// 已初始化时由 InitCheckMiddleware 返回 403
 func PostInitSetup(c *gin.Context) {
-	if service.GetOSSetting().AdminPassword != "" {
-		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("管理员密码已配置，无法重复初始化"))
-		return
-	}
-
 	var req struct {
 		Password string `json:"password"`
 	}

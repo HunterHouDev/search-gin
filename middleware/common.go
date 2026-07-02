@@ -25,8 +25,18 @@ func InitCheckMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
 
-		// 非 API 路径放行（静态资源/页面入口），/api/init/setup 放行（初始化提交）
-		if !strings.HasPrefix(path, "/api/") || path == "/api/init/setup" {
+		// 非 API 路径放行（静态资源/页面入口）
+		if !strings.HasPrefix(path, "/api/") {
+			c.Next()
+			return
+		}
+
+		// 已初始化后，/api/init/setup 返回 403
+		if path == "/api/init/setup" {
+			if initialized.Load() {
+				c.AbortWithStatusJSON(http.StatusForbidden, utils.NewFailByMsg("系统已初始化"))
+				return
+			}
 			c.Next()
 			return
 		}

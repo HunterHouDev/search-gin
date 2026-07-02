@@ -19,7 +19,7 @@ git clone https://github.com/hunter/search-gin.git
 cd search-gin
 
 # 后端开发
-go run main.go                # 启动 API 服务（默认 :10081）
+go run .                       # 启动 API 服务（默认 :10081）
 
 # 前端开发（另开终端）
 cd frontend

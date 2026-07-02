@@ -2,7 +2,7 @@
 
 ## Build tag 系统
 
-`-tags=prod` 控制两件事：**资源嵌入**（`assets_dev.go` 无 embed vs `assets_prod.go` `//go:embed dist ffmpeg.exe ffplay.exe setting.json`）和**运行时模式**（`internal/env/config.go` `IsProd=false` 默认 vs `internal/env/prod_config.go` `init()` 设 `IsProd=true`）。生产模式：Gin ReleaseMode、禁用 pprof、日志级别 `ErrorLevel`。开发模式 `go run main.go` 默认。
+`-tags=prod` 控制两件事：**资源嵌入**（`assets_dev.go` 无 embed vs `assets_prod.go` `//go:embed dist ffmpeg.exe ffplay.exe setting.json`）和**运行时模式**（`internal/env/config.go` `IsProd=false` 默认 vs `internal/env/prod_config.go` `init()` 设 `IsProd=true`）。生产模式：Gin ReleaseMode、禁用 pprof、日志级别 `ErrorLevel`。开发模式 `go run .` 默认。
 
 ## 端口
 
@@ -35,7 +35,7 @@
 cd frontend && yarn build && cp -R dist/spa/* ../dist/ && go build -tags=prod
 ```
 
-- 开发模式 `go run main.go` 从磁盘读 `./dist/`
+- 开发模式 `go run .` 从磁盘读 `./dist/`
 - 生产二进制启动时解压嵌入资源到工作目录
 
 ## 认证
@@ -98,7 +98,7 @@ cd frontend && yarn build && cp -R dist/spa/* ../dist/ && go build -tags=prod
 ## 开发命令
 
 ```bash
-go run main.go                          # 后端（开发模式）
+go run .                          # 后端（开发模式）
 cd frontend && quasar dev               # 前端开发服务器（代理 /api → :10081）
 go test ./...                            # Go 测试
 cd frontend && yarn lint && yarn format  # 前端 lint + format
