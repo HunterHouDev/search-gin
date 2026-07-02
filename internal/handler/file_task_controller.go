@@ -76,6 +76,9 @@ func GetTaskLog(c *gin.Context) {
 				lines = lines[len(lines)-1000:]
 			}
 		}
+		if scanErr := scanner.Err(); scanErr != nil {
+			utils.InfoFormat("读取任务日志文件失败: %s, 错误: %v", logPath, scanErr)
+		}
 		for _, l := range lines {
 			logContent += l + "\n"
 		}
