@@ -1,14 +1,15 @@
 <template>
-  <q-dialog ref="dialogRef" v-model="show" :fullscreen="isMobile" full-width @hide="dialogHide"
-    @before-show="beforeShow">
-    <div style="width: 66vw;align-content: center;">
-      <q-layout container view="hHh Lpr lff" style="height: 88vh; background: var(--q-bg-card); border-radius: 8px">
-        <q-header class="text-white shadow-2">
+  <q-dialog ref="dialogRef" v-model="show" :fullscreen="isMobile" @hide="dialogHide" @before-show="beforeShow"
+    :style="isMobile ? '' : 'min-width: 360px'">
+    <div :style="isMobile ? '' : 'width: 80vw; max-width: 1100px; min-width: 600px; align-content: center;'">
+      <q-layout container view="hHh Lpr lff"
+        :style="'background: #0F1117; border-radius: 8px; ' + (isMobile ? 'height: 100vh' : 'height: 88vh')">
+        <q-header class="shadow-2">
 
-          <q-tabs v-model="dialogTab" class="bg-black" active-color="white" indicator-color="yellow">
-            <q-space />
-            <q-tab name="batch" label="批量编辑" />
-            <q-tab name="tasks" label="任务列表">
+          <q-tabs v-model="dialogTab" class="bg-dark" active-color="white" indicator-color="grey-5"
+            narrow-indicator>
+            <q-tab name="batch" label="批量编辑" style="min-width: 100px" />
+            <q-tab name="tasks" label="任务列表" style="min-width: 100px">
               <q-badge v-if="taskRunningCount > 0" color="orange" floating>{{ taskRunningCount }}</q-badge>
             </q-tab>
             <q-space />

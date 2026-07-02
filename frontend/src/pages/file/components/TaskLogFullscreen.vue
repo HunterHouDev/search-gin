@@ -1,8 +1,8 @@
 <template>
-  <q-dialog v-model="show" full-height full-width>
-    <q-card class="column full-height">
+  <q-dialog v-model="show" @before-show="scrollToBottom">
+    <q-card class="column" style="width: 80vw; max-width: 1100px; min-width: 500px; height: 70vh;">
       <q-bar class="bg-dark text-white">
-        <span class="text-weight-medium" style="max-width: 70vw">{{ title }}</span>
+        <span class="text-weight-medium ellipsis" style="max-width: 60%;">{{ title }}</span>
         <q-space />
         <q-badge v-if="isRunning" color="orange" align="middle">
           <q-spinner size="14px" color="white" class="q-mr-xs" />实时
