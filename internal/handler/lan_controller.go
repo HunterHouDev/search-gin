@@ -127,9 +127,12 @@ func DiscoverLanPeers(c *gin.Context) {
 		return
 	}
 	var req struct {
-		Subnet string `json:"subnet"`
+	 Subnet string `json:"subnet"`
 	}
-	c.ShouldBindJSON(&req)
+	if err := c.ShouldBindJSON(&req); err != nil {
+	 c.JSON(http.StatusBadRequest, utils.NewFailByMsg("请求参数格式错误"))
+	 return
+	}
 
 	peers, localPrefix := service.DiscoverLanPeers(req.Subnet)
 	res := utils.NewSuccess()

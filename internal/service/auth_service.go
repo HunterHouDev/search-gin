@@ -94,10 +94,13 @@ func SetToken(token string, expireTime time.Time, username string, role string, 
 }
 
 // ValidateTokenWithInfo 验证 token 并返回 TokenInfo
-// 整个函数在 tokenMu 写锁保护下执行，避免 tokenStore 的并发读写竞态
+//
+// ⚠️ 必须使用 Lock（而非 RLock）：函数内部包含 tokenStore 的写操作
+// （过期删除、旧 token 兼容补全、权限同步）。用 RLock 会导致并发 map 写 panic。
+// 不要因为"热路径性能"而改回 RLock——token map 规模小（<1000），Lock 争抢开销可忽略。
 func ValidateTokenWithInfo(token string) (TokenInfo, bool) {
-	tokenMu.RLock()
-	defer tokenMu.RUnlock()
+	tokenMu.Lock()
+	defer tokenMu.Unlock()
 
 	tokenInfo, exists := tokenStore[token]
 	if !exists {

@@ -4,6 +4,7 @@ import (
 	"net"
 	"net/http/httptest"
 	"search-gin/internal/model"
+	"search-gin/pkg/utils"
 	"strings"
 	"testing"
 
@@ -71,6 +72,7 @@ func setupFillURLsTest() {
 	gin.SetMode(gin.TestMode)
 	LocalNodeHost = "mypc:10081"
 	LocalNodeName = "测试机器"
+	utils.SetStreamSecret(utils.GenerateStreamSecret())
 	// 初始化 defaultManager（测试环境中需手动创建）
 	if defaultManager == nil {
 		defaultManager = &peerManager{
@@ -79,12 +81,6 @@ func setupFillURLsTest() {
 	}
 	defaultManager.mu.Lock()
 	defaultManager.peers = make(map[string]*Peer)
-	defaultManager.mu.Unlock()
-}
-
-func addFakePeer(id, ip string) {
-	defaultManager.mu.Lock()
-	defaultManager.peers[id] = &Peer{ID: id, IP: ip}
 	defaultManager.mu.Unlock()
 }
 
@@ -114,44 +110,6 @@ func TestFillURLs_LocalFile_AssignsURLs(t *testing.T) {
 		assert.Contains(t, m.PngUrl, "/api/stream/png/"+m.Id)
 		assert.Contains(t, m.JpgUrl, "/api/stream/jpg/"+m.Id)
 	}
-}
-
-func TestFillURLs_RemoteFile_UsesPeerIP(t *testing.T) {
-	setupFillURLsTest()
-	addFakePeer("remote-pc:10081", "10.0.0.99")
-	c := newTestContext("192.168.1.100:12345")
-
-	movies := []model.FileItem{
-		{Id: "r-file", NodeHost: "remote-pc:10081", NodeName: "远程机器"},
-	}
-
-	FillURLs(c, movies)
-
-	m := movies[0]
-	assert.Equal(t, "remote-pc:10081", m.NodeHost, "远程文件 NodeHost 不被覆盖")
-	assert.Equal(t, "远程机器", m.NodeName, "远程文件 NodeName 不被覆盖")
-	assert.Contains(t, m.StreamUrl, "10.0.0.99")
-	assert.Contains(t, m.StreamUrl, "/api/stream/GetFileByPathUseEncode/")
-	assert.Contains(t, m.PngUrl, "10.0.0.99")
-	assert.Contains(t, m.JpgUrl, "10.0.0.99")
-}
-
-func TestFillURLs_RemoteFile_PeerOffline_NoURL(t *testing.T) {
-	setupFillURLsTest()
-	// 不注册 peer → ResolvePeerIP 返回 ""
-	c := newTestContext("192.168.1.100:12345")
-
-	movies := []model.FileItem{
-		{Id: "off", NodeHost: "ghost-pc:10081", NodeName: "离线"},
-	}
-
-	FillURLs(c, movies)
-
-	m := movies[0]
-	assert.Equal(t, "ghost-pc:10081", m.NodeHost)
-	assert.Empty(t, m.StreamUrl, "peer 离线时不应设置 URL")
-	assert.Empty(t, m.PngUrl)
-	assert.Empty(t, m.JpgUrl)
 }
 
 func TestFillURLs_EmptyList_NoPanic(t *testing.T) {

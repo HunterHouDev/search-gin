@@ -218,16 +218,6 @@ func updateTaskStatus(key string, status string) {
 	wakeTaskScheduler()
 }
 
-// ffmpegRun 纯执行层：只跑 ffmpeg 命令，不关心任务状态
-func ffmpegRun(ctx context.Context, args []string) ([]byte, error) {
-	ffmpegPath := ffmpegBinPath()
-	cmd := exec.CommandContext(ctx, ffmpegPath, args...)
-	if runtime.GOOS == "windows" {
-		utils.FixOnWin(cmd)
-	}
-	return cmd.CombinedOutput()
-}
-
 // taskLogDir 日志文件目录
 func taskLogDir() string {
 	return filepath.Join(GetWorkDir(), "task_logs")
@@ -276,9 +266,13 @@ func ffmpegRunStream(ctx context.Context, args []string, taskKey string) error {
 	scanner := bufio.NewScanner(stderr)
 	scanner.Buffer(make([]byte, 64*1024), 256*1024)
 	for scanner.Scan() {
-		line := scanner.Text()
-		writer.WriteString(line)
-		writer.WriteByte('\n')
+	 line := scanner.Text()
+	 if _, err := writer.WriteString(line); err != nil {
+	  return fmt.Errorf("写入日志行失败: %w", err)
+	 }
+	 if _, err := writer.WriteString("\n"); err != nil {
+	  return fmt.Errorf("写入日志换行失败: %w", err)
+	 }
 		lineCount++
 
 		// 每 10 行通知一次前端（防洪）
@@ -307,7 +301,6 @@ func ffmpegRunStream(ctx context.Context, args []string, taskKey string) error {
 	}
 	return nil
 }
-
 
 // ffmpegExec 编排层：管理任务生命周期 + 执行 ffmpeg + 回写结果
 func ffmpegExec(args []string, taskKey string) utils.Result {

@@ -69,6 +69,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		path := c.Request.URL.Path
 		skipPaths := []string{
 			"/api/login",
+			"/api/init/setup",
 			"/login",
 			"/index.html",
 			"/api/ws",

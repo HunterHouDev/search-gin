@@ -212,7 +212,7 @@ func ParseTotalSize(s string) int64 {
 }
 
 // FillURLs 为搜索结果填充流媒体 URL
-// 本机文件使用请求进来的网卡 IP；远程文件指向源节点。
+// 本机文件使用请求进来的网卡 IP；远程搜索结果由远端节点自行处理 URL。
 // 在 URL 中附加当前认证 token（而非 HMAC 签名），:10082 侧通过 StreamTokenAuth 校验。
 func FillURLs(c *gin.Context, movies []model.FileItem) {
 	clientIP := c.ClientIP()

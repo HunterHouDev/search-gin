@@ -101,10 +101,7 @@ func BuildAPIRouter(sigChan chan os.Signal) *gin.Engine {
 	router := gin.New()
 	buildCommonMiddleware(router)
 
-	// 初始化接口（无需认证，首次部署时使用）
-	router.POST("/api/init/setup", handler.PostInitSetup)
-
-	// 以下所有路由需系统已初始化，否则返回 412 触发前端跳转 /init
+	// 初始化检查中间件（未初始化返回 412，已初始化后 /api/init/setup 返回 403）
 	router.Use(middleware.InitCheckMiddleware())
 	router.Use(middleware.AuthMiddleware())
 
@@ -116,6 +113,7 @@ func BuildAPIRouter(sigChan chan os.Signal) *gin.Engine {
 	router.GET("/", handler.Index)
 
 	router.POST("/api/login", handler.Login)
+	router.POST("/api/init/setup", handler.PostInitSetup)
 	router.POST("/api/movieList", handler.PostMovies)
 
 	// 多节点：在线节点列表（无认证，仅用于前端识别局域网内其他节点）
