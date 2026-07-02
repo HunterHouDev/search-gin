@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"net/http"
 	"os"
-	"path/filepath"
 	"search-gin/internal/model"
 	"search-gin/internal/service"
 	"search-gin/pkg/utils"
@@ -66,7 +65,7 @@ func GetTaskLog(c *gin.Context) {
 	}
 
 	// 从文件读取后 1000 行
-	logPath := filepath.Join(service.GetWorkDir(), "task_logs", taskID+".log")
+	logPath := service.TaskLogPath(taskID)
 	logContent := ""
 	if f, err := os.Open(logPath); err == nil {
 		defer f.Close()

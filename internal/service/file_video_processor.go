@@ -227,10 +227,9 @@ func ensureTaskLogDir() error {
 	return os.MkdirAll(taskLogDir(), 0755)
 }
 
-func taskLogPath(taskKey string) string {
-	// Windows 文件名不允许冒号，替换为下划线
-	safeKey := strings.ReplaceAll(taskKey, ":", "-")
-	return filepath.Join(taskLogDir(), safeKey+".log")
+// TaskLogPath 返回任务日志文件路径
+func TaskLogPath(taskKey string) string {
+	return filepath.Join(taskLogDir(), taskKey+".log")
 }
 
 // ffmpegRunStream 流式执行 ffmpeg：写日志文件 + 轻量 SSE 通知（不含日志内容）
@@ -254,7 +253,7 @@ func ffmpegRunStream(ctx context.Context, args []string, taskKey string) error {
 	if err := ensureTaskLogDir(); err != nil {
 		return fmt.Errorf("创建日志目录失败 (%s): %w", taskLogDir(), err)
 	}
-	logPath := taskLogPath(taskKey)
+	logPath := TaskLogPath(taskKey)
 	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return fmt.Errorf("创建日志文件失败 (%s): %w", logPath, err)
@@ -316,7 +315,7 @@ func ffmpegExec(args []string, taskKey string) utils.Result {
 	TransferTaskMutex.Unlock()
 
 	// 清空旧日志文件（如果存在）
-	os.Remove(taskLogPath(taskKey))
+	os.Remove(TaskLogPath(taskKey))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
@@ -328,7 +327,7 @@ func ffmpegExec(args []string, taskKey string) utils.Result {
 		utils.InfoFormat("命令执行失败: %v, 参数: %v", cmdErr, args)
 
 		// 捕获错误日志到任务内存
-		if logData, err := os.ReadFile(taskLogPath(taskKey)); err == nil {
+		if logData, err := os.ReadFile(TaskLogPath(taskKey)); err == nil {
 			content := string(logData)
 			if len(content) > 2000 {
 				content = content[len(content)-2000:]

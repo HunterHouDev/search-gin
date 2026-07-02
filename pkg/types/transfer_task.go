@@ -1,6 +1,7 @@
 package types
 
 import (
+	"strings"
 	"time"
 )
 
@@ -45,7 +46,7 @@ type TransferTaskModel struct {
 func NewMergeTask(files []string, dest string, concat string, DeleteSource bool) TransferTaskModel {
 	now := time.Now()
 	return TransferTaskModel{
-		ID:           now.Format(time.RFC3339Nano),
+		ID:           safeTaskID(now),
 		Files:        files,
 		Type:         TaskTypeMerge,
 		Dest:         dest,
@@ -59,7 +60,7 @@ func NewMergeTask(files []string, dest string, concat string, DeleteSource bool)
 func NewTask(path string, name string, from string, to string) TransferTaskModel {
 	now := time.Now()
 	return TransferTaskModel{
-		ID:         now.Format(time.RFC3339Nano),
+		ID:         safeTaskID(now),
 		Path:       path,
 		Type:       TaskTypeTrans,
 		VCode:      "copy",
@@ -73,7 +74,7 @@ func NewTask(path string, name string, from string, to string) TransferTaskModel
 func NewCutTask(path string, name string, start string, end string, to string) TransferTaskModel {
 	now := time.Now()
 	return TransferTaskModel{
-		ID:         now.Format(time.RFC3339Nano),
+		ID:         safeTaskID(now),
 		Path:       path,
 		Type:       TaskTypeCut,
 		Name:       name,
@@ -86,4 +87,9 @@ func NewCutTask(path string, name string, start string, end string, to string) T
 
 func (p *TransferTaskModel) SetStatus(sts string) {
 	p.Status = sts
+}
+
+// safeTaskID 生成不含 `:` 的任务 ID（Windows 文件名安全）
+func safeTaskID(t time.Time) string {
+	return strings.ReplaceAll(t.Format(time.RFC3339Nano), ":", "-")
 }

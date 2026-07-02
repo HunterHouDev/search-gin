@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// TransferTask 以 ID (string, RFC3339Nano 格式) 为 key
+// TransferTask 以 ID (string, safeTaskID 格式) 为 key
 var TransferTask = map[string]model.TransferTaskModel{}
 var TransferTaskMutex sync.RWMutex // 保护 TransferTask 的并发访问
 
@@ -91,7 +91,7 @@ func ClearAllTasks() utils.Result {
 
 // DeleteTaskLog 删除单任务日志文件
 func DeleteTaskLog(taskID string) {
-	if err := os.Remove(taskLogPath(taskID)); err != nil && !os.IsNotExist(err) {
+	if err := os.Remove(TaskLogPath(taskID)); err != nil && !os.IsNotExist(err) {
 		utils.InfoFormat("删除任务日志文件失败: %s, 错误: %v", taskID, err)
 	}
 }

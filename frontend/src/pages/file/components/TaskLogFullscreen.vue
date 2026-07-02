@@ -65,11 +65,11 @@ watch(show, (val) => {
   if (val && taskId.value) refreshLog();
 });
 
-// SSE 通知自动刷新（仅执行中的任务需要）
+// SSE 通知自动刷新（弹窗打开时无论任务状态都拉取最新日志）
 watch(
   () => `${taskId.value}:${logVersion.value}`,
   () => {
-    if (show.value && isRunning.value) refreshLog();
+    if (show.value) refreshLog();
   }
 );
 
