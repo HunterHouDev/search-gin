@@ -66,20 +66,7 @@ docs(readme): 更新 API 文档链接
 
 ## 代码规范
 
-### Go
-
-- 使用 `gofmt` 格式化（tabs，`indent_size=4`）
-- 运行 `golangci-lint run ./...` 确保无 warning
-- 运行 `go vet ./...` 检查代码正确性
-- 所有导出函数需有注释
-- 错误处理：不要忽略 error 返回值，除非有明确理由
-
-### 前端
-
-- TypeScript 严格模式
-- 使用 Prettier 格式化（单引号、分号）
-- Vue 3 Composition API + `<script setup>`
-- Pinia 状态管理，避免组件间直接 props 穿透
+详见 [AGENTS.md](AGENTS.md#代码风格)。
 
 ## PR 流程
 
@@ -92,16 +79,7 @@ docs(readme): 更新 API 文档链接
 
 ## 测试
 
-```bash
-# Go 测试
-go test ./... -v -count=1
-
-# Handler 层测试
-go test ./internal/handler/ -v
-
-# 前端测试（如果有）
-cd frontend && npx vitest run
-```
+详见 [AGENTS.md](AGENTS.md#测试)。
 
 ## 架构笔记
 
@@ -110,6 +88,5 @@ cd frontend && npx vitest run
 - `internal/service/interfaces.go` — 核心接口定义
 - `internal/service/index_engine_executor.go` — 无锁搜索引擎
 - `internal/handler/handler.go` — 依赖注入入口
-- `frontend/src/css/app.scss` — 设计系统 CSS 变量
 
-详细架构说明见 [README.md](README.md#架构解析无锁内存搜索引擎)。
+详细架构说明见 [AGENTS.md](AGENTS.md#后端架构)。
