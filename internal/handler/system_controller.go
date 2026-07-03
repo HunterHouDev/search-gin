@@ -83,7 +83,7 @@ func PostSetting(c *gin.Context) {
 	}
 
 	UseApp().config.Set(updated)
-	UseApp().config.Flush(updated.SelfPath)
+	UseApp().config.Flush(service.SettingFileName)
 	if service.HwAccelSettingChanged() {
 		service.ForceHwAccelDetect()
 	}

@@ -105,7 +105,7 @@
               :key="username"
               class="video-cell"
             >
-              <video :ref="(el) => setRemoteVideo(el, stream)" autoplay playsinline class="video-player"></video>
+              <video :ref="(el: Element | ComponentPublicInstance | null) => setRemoteVideo(el, stream)" autoplay playsinline class="video-player"></video>
               <div class="video-label">{{ username }}</div>
             </div>
 
@@ -185,7 +185,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, computed } from 'vue';
+import { ref, watch, nextTick, computed, type ComponentPublicInstance } from 'vue';
 import { useChatWs } from 'src/composables/useChatWs';
 import { useVideoConference } from 'src/composables/useVideoConference';
 import { useQuasar } from 'quasar';
@@ -237,9 +237,9 @@ watch(localStream, (stream) => {
 }, { immediate: true });
 
 // 绑定远程流
-function setRemoteVideo(el: Element | null, stream: MediaStream) {
+function setRemoteVideo(el: Element | ComponentPublicInstance | null, stream: MediaStream) {
   if (el && stream) {
-    el.srcObject = stream;
+    (el as HTMLVideoElement).srcObject = stream;
   }
 }
 

@@ -38,7 +38,7 @@ RUN apk add --no-cache \
 RUN adduser -D -u 1000 search
 WORKDIR /app
 COPY --from=builder /search-gin /app/
-COPY --from=builder /build/setting.json /app/ 2>/dev/null || true
+COPY --from=builder /build/setting.example.json /app/ 2>/dev/null || true
 COPY --from=builder /build/ffmpeg /app/ 2>/dev/null || true
 COPY --from=builder /build/ffplay /app/ 2>/dev/null || true
 

@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 )
 
-//go:embed dist ffmpeg.exe ffplay.exe setting.json
+//go:embed dist ffmpeg.exe ffplay.exe setting.example.json
 var staticFiles embed.FS
 
 func ExtractAll(dest string) error {
@@ -66,11 +66,11 @@ func ExtractFfplay(dest string) error {
 }
 
 func ExtractSetting(dest string) error {
-	content, err := staticFiles.ReadFile("setting.json")
+	content, err := staticFiles.ReadFile("setting.example.json")
 	if err != nil {
 		return err
 	}
-	filePath := filepath.Join(dest, "setting.json")
+	filePath := filepath.Join(dest, "setting.example.json")
 	return os.WriteFile(filePath, content, 0644)
 }
 

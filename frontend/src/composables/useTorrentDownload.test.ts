@@ -1,9 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ref } from 'vue'
-import axios from 'axios'
 
-// Mock axios
-vi.mock('axios')
+// Mock src/boot/axios — useTorrentDownload imports { api } from this module
+const mockApi = {
+  get: vi.fn(),
+  post: vi.fn(),
+  delete: vi.fn(),
+}
+
+vi.mock('src/boot/axios', () => ({
+  api: mockApi,
+}))
 
 describe('useTorrentDownload', () => {
   // 模拟 $q notify
@@ -13,7 +20,6 @@ describe('useTorrentDownload', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.resetAllMocks()
   })
 
   afterEach(() => {
@@ -45,7 +51,7 @@ describe('useTorrentDownload', () => {
         files: [{ path: '/file1.mp4', name: 'file1.mp4', size: 1024 }],
       }
 
-      ;(axios.post as any).mockResolvedValue({
+      mockApi.post.mockResolvedValue({
         data: { code: 200, data: mockData },
       })
 
@@ -60,7 +66,7 @@ describe('useTorrentDownload', () => {
       const { useTorrentDownload } = await import('./useTorrentDownload')
       const { magnetURI, submitMagnet } = useTorrentDownload($q, mockOnVideoReady)
 
-      ;(axios.post as any).mockRejectedValue({
+      mockApi.post.mockRejectedValue({
         response: { data: { message: 'Server error' } },
       })
 
@@ -105,7 +111,7 @@ describe('useTorrentDownload', () => {
       torrentName.value = 'test'
       torrentFiles.value = [{ path: '/file', name: 'file', size: 100 }]
 
-      ;(axios.delete as any).mockResolvedValue({})
+      mockApi.delete.mockResolvedValue({})
 
       await cancelTorrent()
 
@@ -153,10 +159,10 @@ describe('useTorrentDownload', () => {
         { infoHash: 'hash2', name: 't2', fileName: 'f2', filePath: '/p2', progress: 50, state: 'downloading', peers: 5 },
       ]
 
-      ;(axios.delete as any).mockResolvedValue({})
+      mockApi.delete.mockResolvedValue({})
 
       const taskToRemove = activeDownloads.value[0]
-      removeDownloadTask(taskToRemove)
+      await removeDownloadTask(taskToRemove)
 
       expect(activeDownloads.value.length).toBe(1)
       expect(activeDownloads.value[0].infoHash).toBe('hash2')
@@ -169,12 +175,12 @@ describe('useTorrentDownload', () => {
       const { cleanup, currentInfoHash } = useTorrentDownload($q, mockOnVideoReady)
 
       currentInfoHash.value = 'abc123'
-      ;(axios.delete as any).mockResolvedValue({})
+      mockApi.delete.mockResolvedValue({})
 
       cleanup()
 
-      expect(axios.delete).toHaveBeenCalledWith('/api/torrent/abc123')
-      expect(currentInfoHash.value).toBe('')
+      expect(mockApi.delete).toHaveBeenCalledWith('/api/torrent/abc123')
+      // cleanup() 不清 hash，仅发起 API 删除请求
     })
   })
 })

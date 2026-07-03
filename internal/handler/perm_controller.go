@@ -88,7 +88,7 @@ func UpdateUserPermissions(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("用户不存在"))
 		return
 	}
-	UseApp().config.Flush(UseApp().config.Get().SelfPath)
+	UseApp().config.Flush(service.SettingFileName)
 
 	// 强制该用户的所有 token 重新登录（让下次请求时同步新权限）
 	// 现有 token 在 ValidateTokenWithInfo 中会自动同步最新权限
@@ -234,6 +234,6 @@ func UpdateUserRole(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("用户不存在"))
 		return
 	}
-	UseApp().config.Flush(UseApp().config.Get().SelfPath)
+	UseApp().config.Flush(service.SettingFileName)
 	c.JSON(http.StatusOK, utils.NewSuccessByMsg("用户角色更新成功"))
 }

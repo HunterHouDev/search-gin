@@ -18,7 +18,6 @@ type User struct {
 type Setting struct {
 	EnableTimeScan bool
 	CutThenDelete  bool
-	SelfPath       string
 	BaseUrl        string
 	ImageUrl       string
 	Remark         string

@@ -33,7 +33,7 @@ func PostInitSetup(c *gin.Context) {
 	})
 	service.CacheAdminPasswordHash()
 	middleware.MarkInitialized()
-	if err := service.FlushDictionary(service.GetOSSetting().SelfPath); err != nil {
+	if err := service.FlushDictionary(service.SettingFileName); err != nil {
 		c.JSON(http.StatusInternalServerError, utils.NewFailByMsg("密码保存失败: "+err.Error()))
 		return
 	}

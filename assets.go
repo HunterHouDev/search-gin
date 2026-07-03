@@ -27,7 +27,7 @@ func extractAssets(workDir string) chan struct{} {
 		}
 	}
 
-	extractIfNotExist("setting.json", "setting.json", ExtractSetting)
+	extractIfNotExist("setting.example.json", "setting.example.json", ExtractSetting)
 
 	go func() {
 		defer utils.RecoverPanic()

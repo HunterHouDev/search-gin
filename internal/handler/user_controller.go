@@ -107,11 +107,11 @@ func AddUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("用户名已存在"))
 		return
 	}
-	UseApp().config.Flush(UseApp().config.Get().SelfPath)
-	c.JSON(http.StatusOK, utils.NewSuccess())
-}
+	UseApp().config.Flush(service.SettingFileName)
+	 c.JSON(http.StatusOK, utils.NewSuccess())
+	}
 
-func DeleteUser(c *gin.Context) {
+	func DeleteUser(c *gin.Context) {
 	if !requireAdmin(c) {
 		return
 	}
@@ -144,6 +144,6 @@ func DeleteUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("用户不存在"))
 		return
 	}
-	UseApp().config.Flush(UseApp().config.Get().SelfPath)
-	c.JSON(http.StatusOK, utils.NewSuccess())
-}
+	UseApp().config.Flush(service.SettingFileName)
+	 c.JSON(http.StatusOK, utils.NewSuccess())
+	}

@@ -1,19 +1,20 @@
 package service
 
 import (
-	"encoding/json"
-	"fmt"
-	"io"
-	"net"
-	"net/http"
-	"os"
-	"search-gin/internal/model"
-	"search-gin/pkg/utils"
-	"strconv"
-	"strings"
-	"sync"
-	"time"
-)
+  "encoding/json"
+  "fmt"
+  "io"
+  "net"
+  "net/http"
+  "os"
+  "path/filepath"
+  "search-gin/internal/model"
+  "search-gin/pkg/utils"
+  "strconv"
+  "strings"
+  "sync"
+  "time"
+ )
 
 var (
 	// LocalNodeHost 本机节点标识 "hostname:port"
@@ -260,10 +261,9 @@ func AddPeer(ip, port, filePort string) bool {
 		utils.ErrorFormat("获取当前目录失败: %v", err)
 		return false
 	}
-	setting := GetOSSetting()
-	if err := FlushDictionary(curDir + utils.PathSeparator + setting.SelfPath); err != nil {
-		utils.ErrorFormat("持久化节点配置失败: %v", err)
-		return false
+	if err := FlushDictionary(filepath.Join(curDir, SettingFileName)); err != nil {
+	 utils.ErrorFormat("持久化节点配置失败: %v", err)
+	 return false
 	}
 	utils.InfoFormat("手动添加节点成功: %s (%s)", id, ip)
 	return true
@@ -298,12 +298,11 @@ func RemovePeer(id string) bool {
 		utils.ErrorFormat("获取当前目录失败: %v", err)
 		return false
 	}
-	setting := GetOSSetting()
-	if err := FlushDictionary(curDir + utils.PathSeparator + setting.SelfPath); err != nil {
-		utils.ErrorFormat("持久化节点配置失败: %v", err)
-		return false
-	}
-	utils.InfoFormat("删除节点: %s", id)
+	if err := FlushDictionary(filepath.Join(curDir, SettingFileName)); err != nil {
+	  utils.ErrorFormat("持久化节点配置失败: %v", err)
+	  return false
+	 }
+	 utils.InfoFormat("删除节点: %s", id)
 	return true
 }
 
@@ -545,5 +544,3 @@ func GetPeer(nodeHost string) *Peer {
 	}
 	return nil
 }
-
-

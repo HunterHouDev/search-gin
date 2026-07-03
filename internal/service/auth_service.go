@@ -224,6 +224,11 @@ func RequireAdminWithName(role, username string) bool {
 	return role == AdminRole || username == AdminUsername
 }
 
+// ─── 常量 ──────────────────────────────────────
+
+// SettingFileName 配置文件名称
+const SettingFileName = "setting.json"
+
 // ─── OSSetting 管理 ─────────────────────────────────────────────
 
 var (
@@ -234,7 +239,6 @@ var (
 // defaultSetting 返回默认系统设置
 func defaultSetting() model.Setting {
 	return model.Setting{
-		SelfPath:             "setting.json",
 		ControllerHost:       ":10081",
 		FileHost:             ":10082",
 		BaseUrl:              "https://www.busjav.blog/",
