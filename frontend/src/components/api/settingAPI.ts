@@ -102,11 +102,12 @@ export const GetUsers = async () => {
   return res && res.data;
 };
 
-export const AddUser = async (username: string, password: string, expireDate = '') => {
+export const AddUser = async (username: string, password: string, expireDate = '', role = '') => {
   const res = await commonAxios().post('/api/user/add', {
     username,
     password,
-    expireDate
+    expireDate,
+    role
   });
   return res && res.data;
 };

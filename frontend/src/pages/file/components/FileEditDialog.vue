@@ -1,7 +1,7 @@
 <template>
   <q-dialog ref="dialogRef" full-width @hide="onDialogHide">
     <div class="dialog">
-      <q-toolbar class="rounded-borders justify-between w100" style="background-color: rgba(0, 0, 0, 0.9)" wrap>
+      <q-toolbar class="bg-primary rounded-borders justify-between w100" wrap>
         <q-btn color="red" flat icon="ti-shift-left" :size="isMobile ? 'sm' : 'md'" @click="prevOne">
           <q-tooltip class="bg-white text-primary">上一个</q-tooltip>
         </q-btn>
@@ -22,16 +22,15 @@
               </div>
             </q-popup-proxy>
           </span>
-          <a style="color: green; border-bottom: 1px solid green; cursor: pointer" v-if="systemProperty.lastAuthor"
-            @click="view.item.Author = systemProperty.lastAuthor">
+          <a style="color: green; border-bottom: 1px solid green; cursor: pointer;margin-right: 2rem;"
+            v-if="systemProperty.lastAuthor" @click="view.item.Author = systemProperty.lastAuthor">
             {{ systemProperty.lastAuthor }}</a>
         </span>
-        <q-space />
         <q-btn color="orange" align="evenly" style="width: 6rem;" outline label="改名" glossy @click="editItemSubmit()" />
         <q-btn style="margin-left: 10px;width: 6rem;" color="green" size="md" outline align="evenly" label="移动" glossy
           @click="editMoveout" />
         <q-space />
-        <q-btn style="margin-right: 10px" icon="close" @click="onDialogCancel">
+        <q-btn flat style="margin-right: 10px" color="orange" size="lg" icon="close" @click="onDialogCancel">
           <q-tooltip class="bg-white text-primary">关闭</q-tooltip>
         </q-btn>
         <q-btn color="red" flat icon="ti-shift-right" :size="isMobile ? 'sm' : 'md'" @click="nextOne">

@@ -6,7 +6,7 @@
         :style="'background: #0F1117; border-radius: 8px; ' + (isMobile ? 'height: 100vh' : 'height: 88vh')">
         <q-header class="shadow-2">
 
-          <q-tabs v-model="dialogTab" class="bg-dark" active-color="white" indicator-color="grey-5"
+          <q-tabs v-model="dialogTab" class="bg-primary" active-color="white" indicator-color="grey-5"
             narrow-indicator>
             <q-tab name="batch" label="批量编辑" style="min-width: 100px" />
             <q-tab name="tasks" label="任务列表" style="min-width: 100px">
@@ -19,7 +19,7 @@
         </q-header>
 
         <q-page-container>
-          <q-page class="q-pa-sm">
+          <q-page class="q-pa-sm bg-grey-4">
             <!-- 批量操作 -->
             <template v-if="dialogTab === 'batch'">
               <div class="row q-gutter-xs q-mb-sm items-center">
@@ -223,7 +223,7 @@
                     </q-item-label>
                   </q-item-section>
                   <q-item-section side>
-                    <q-btn v-if="v.Log" dense flat  icon="fullscreen" color="grey"
+                    <q-btn  dense flat  icon="fullscreen" color="grey"
                       @click="taskLogFullscreenRef?.open(v)" />
                     <q-btn dense flat  icon="close" color="red" @click="taskRemove(v.ID)" />
                   </q-item-section>

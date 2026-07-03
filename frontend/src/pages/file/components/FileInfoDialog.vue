@@ -1,23 +1,12 @@
 <template>
-  <q-dialog
-    ref="dialogRef"
-    @escape-key="onDialogClose"
-    @before-hide="onDialogClose"
-    @hide="onDialogClose"
-    v-model:model-value="isDialogOpen"
-    :fullWidth="true"
-    square
-  >
-    <q-layout
-      view="lHh Lpr lFf"
-      container
-      :style="{
-        width: isMobile ? '100vw!important' : '1000px!important',
-        maxHeight: isMobile ? '80vh!important' : '900px!important',
-      }"
-    >
+  <q-dialog ref="dialogRef" @escape-key="onDialogClose" @before-hide="onDialogClose" @hide="onDialogClose"
+    v-model:model-value="isDialogOpen" :fullWidth="true" square>
+    <q-layout view="lHh Lpr lFf" container :style="{
+      width: isMobile ? '100vw!important' : '1000px!important',
+      maxHeight: isMobile ? '80vh!important' : '900px!important',
+    }">
       <q-header bordered class="justify-between w100">
-        <q-toolbar class="bg-black text-white shadow-2 rounded-borders">
+        <q-toolbar class="bg-primary text-white shadow-2 rounded-borders">
           <q-btn color="green" flat dense @click="prevOne" icon="ti-shift-left">
             <q-tooltip class="bg-white text-primary">上一个</q-tooltip>
           </q-btn>
@@ -27,44 +16,24 @@
           </q-toolbar-title>
           <q-space />
           <q-tabs v-model="showDetail" shrink mobile-arrows>
-            <q-tab
-              v-for="item in ClickButtons"
-              :key="item.value"
-              :name="item.value"
-              :label="item.label"
-              @click="tabClick(item.value)"
-            />
+            <q-tab v-for="item in ClickButtons" :key="item.value" :name="item.value" :label="item.label"
+              @click="tabClick(item.value)" />
           </q-tabs>
           <q-space />
-          <q-btn dense flat icon="close" @click="onDialogClose">
+          <q-btn flat icon="close" size="lg" @click="onDialogClose">
             <q-tooltip class="bg-white text-primary">关闭</q-tooltip>
           </q-btn>
-          <q-btn
-            color="green"
-            flat
-            dense
-            icon="ti-shift-right"
-            @click="nextOne"
-          >
+          <q-btn color="green" flat dense icon="ti-shift-right" @click="nextOne">
             <q-tooltip class="bg-white text-primary">下一个</q-tooltip>
           </q-btn>
-        </q-toolbar></q-header
-      >
+        </q-toolbar></q-header>
 
-      <q-tab-panels
-        v-model="showDetail"
-        style="height: auto; padding-top: 3rem"
-      >
+      <q-tab-panels v-model="showDetail" style="height: auto; padding-top: 3rem">
         <q-tab-panel name="detail">
-          <q-img
-            fit="scale-down"
-            draggable
-            :src="view.item.JpgUrl"
-            style="max-height: 560px"
-          >
+          <q-img fit="scale-down" draggable :src="view.item.JpgUrl" style="max-height: 560px">
           </q-img>
           <div class="row justify-left q-gutter-md" :class="{ column: isMobile }">
-            
+
             <q-field label="Time" stack-label>
               <template v-slot:control>
                 <div class="self-center full-width no-outline" tabindex="0">
@@ -79,20 +48,16 @@
                 </div>
               </template>
             </q-field>
-            
+
             <q-field label="Code" stack-label>
               <template v-slot:control>
-                <div
-                  class="self-center full-width no-outline cursor-pointer"
-                  style="color: blue"
-                  tabindex="0"
-                  @click="searchCode(view.item)"
-                >
+                <div class="self-center full-width no-outline cursor-pointer" style="color: blue" tabindex="0"
+                  @click="searchCode(view.item)">
                   {{ view.item.Code }}
                 </div>
               </template>
             </q-field>
-            
+
           </div>
           <div class="row q-pt-sm" :class="{ column: isMobile }">
             <span style="color: orange"> Name: </span>
@@ -100,54 +65,31 @@
           </div>
           <div class="row q-pt-sm" :class="{ column: isMobile }">
             <span align="left" ripple class="full-width outline">
-              <a style="color: grey"  class="cursor-pointer" @click="OpenFileFolder(view.item.Id)">  {{ view.item.Path }} </a>
+              <a style="color: grey" class="cursor-pointer" @click="OpenFileFolder(view.item.Id)"> {{ view.item.Path }}
+              </a>
             </span>
           </div>
         </q-tab-panel>
         <q-tab-panel name="image">
-          <q-img
-            fit="contain"
-            v-for="item in view.prewiewImages"
-            :key="item.Id"
-            :src="item.StreamUrl"
-            style="width: 100%; height: auto; max-height: 500px"
-          >
+          <q-img fit="contain" v-for="item in view.prewiewImages" :key="item.Id" :src="item.StreamUrl"
+            style="width: 100%; height: auto; max-height: 500px">
             <template v-slot:error>
               <!-- 图片加载失败时显示的占位图 -->
               <div class="text-subtitle1 text-white">
                 <q-icon name="image_not_supported" size="8em"></q-icon>
                 <div>图片加载失败</div>
-                <q-btn
-                  color="rgba(0,0,0,0.5)"
-                  size="sm"
-                  dense
-                  ripple
-                  @click="deleteTemp(item.Path)"
-                  icon="ti-trash"
-                >
+                <q-btn color="rgba(0,0,0,0.5)" size="sm" dense ripple @click="deleteTemp(item.Path)" icon="ti-trash">
                   <q-tooltip class="bg-white text-primary">删除</q-tooltip>
                 </q-btn>
               </div>
             </template>
             <div style="padding: 0; position: relative; float: right">
-              <q-btn
-                color="rgba(0,0,0,0.5)"
-                size="sm"
-                dense
-                ripple
-                @click="deleteTemp(item.Path)"
-                icon="ti-trash"
-              >
+              <q-btn color="rgba(0,0,0,0.5)" size="sm" dense ripple @click="deleteTemp(item.Path)" icon="ti-trash">
                 <q-tooltip class="bg-white text-primary">删除</q-tooltip>
               </q-btn>
             </div>
-          </q-img></q-tab-panel
-        >
-        <q-tab-panel
-          name="movie"
-          class="bg-black"
-          style="padding: 8px 1px 1px 1px"
-        >
+          </q-img></q-tab-panel>
+        <q-tab-panel name="movie" class="bg-black" style="padding: 8px 1px 1px 1px">
           <VideoPlayer ref="videoRef" @next-one="nextOnePlayer" />
         </q-tab-panel>
       </q-tab-panels>
@@ -337,6 +279,7 @@ defineExpose({
   height: auto;
   max-height: 220px;
 }
+
 .chip-tag {
   margin-left: 0;
   padding: 0 4px;
@@ -350,6 +293,7 @@ defineExpose({
   .q-tab-panel {
     padding: 8px 4px;
   }
+
   .q-field--with-bottom {
     padding-bottom: 4px;
   }

@@ -60,7 +60,9 @@ func (se *searchEngineCore) Page(searchParam model.SearchParam) utils.Page {
 func (se *searchEngineCore) pageAsync(p model.SearchParam) model.PageResultWrapper {
 	index := se.loadIndex()
 	if p.OnlyRepeat {
-		return se.returnRepeatSearch(index)
+		w := se.returnRepeatSearch(index)
+		model.SortFileItems(w.FileList, p.SortField, p.SortType)
+		return w
 	}
 	if cached, ok := se.tryCache(p); ok {
 		return cached

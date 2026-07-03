@@ -1,5 +1,5 @@
 <template>
-  <div class="q-pa-sm">
+  <div class="q-pa-0">
     <q-tabs
       v-model="tab"
       class="q-mb-xs bg-black text-white"
@@ -9,7 +9,7 @@
     >
       <q-tab name="info" label="系统信息" />
       <q-tab name="cluster" label="集群信息" />
-      <q-tab name="user" label="用户管理" />
+
       <q-tab name="log" label="系统日志" />
     </q-tabs>
 
@@ -153,57 +153,6 @@
         </q-card>
       </q-tab-panel>
 
-      <q-tab-panel name="user" class="q-pa-xs">
-        <q-card flat bordered class="q-pa-xs">
-          <q-card-section class="q-pa-sm">
-            <div class="row items-center justify-between q-mb-xs">
-              <div class="text-subtitle2">用户列表</div>
-              <q-btn flat dense color="primary" icon="person_add" size="sm" @click="showAddUserDialog = true">添加用户</q-btn>
-            </div>
-            <q-list bordered separator>
-              <q-item v-for="user in userList" :key="user.username" class="q-py-xs">
-                <q-item-section>
-                  <q-item-label class="text-caption">{{ user.username }}</q-item-label>
-                  <q-item-label caption v-if="user.expireDate" class="text-caption">有效期至：{{ user.expireDate }}</q-item-label>
-                  <q-item-label caption v-else class="text-caption">永不过期</q-item-label>
-                </q-item-section>
-                <q-item-section side>
-                  <q-btn flat round icon="delete" color="negative" size="sm" @click="deleteUser(user.username)" />
-                </q-item-section>
-              </q-item>
-              <div v-if="userList.length === 0" class="text-center text-grey q-py-md">
-                <q-icon name="group_off" size="3em" class="q-mb-sm" />
-                <div class="text-caption">暂无用户，点击右上角添加</div>
-              </div>
-            </q-list>
-          </q-card-section>
-        </q-card>
-
-        <!-- 添加用户弹窗 -->
-        <q-dialog v-model="showAddUserDialog" persistent>
-          <q-card style="min-width: 360px">
-            <q-card-section class="q-pa-sm">
-              <div class="text-subtitle2 q-mb-sm">添加用户</div>
-              <q-input v-model="newUser.username" label="用户名" class="q-mb-xs" autofocus />
-              <q-input v-model="newUser.password" label="密码" type="password" class="q-mb-xs" />
-              <q-input v-model="newUser.expireDate" label="有效期（可选）" class="q-mb-xs">
-                <template v-slot:append>
-                  <q-icon name="event" class="cursor-pointer">
-                    <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-                      <q-date v-model="newUser.expireDate" mask="YYYY-MM-DD" today-btn />
-                    </q-popup-proxy>
-                  </q-icon>
-                </template>
-              </q-input>
-            </q-card-section>
-            <q-card-actions align="right" class="q-pa-sm q-pt-none">
-              <q-btn flat dense label="取消" color="grey" v-close-popup @click="resetNewUser" />
-              <q-btn flat dense label="添加" color="primary" @click="addUser" />
-            </q-card-actions>
-          </q-card>
-        </q-dialog>
-      </q-tab-panel>
-
       <q-tab-panel name="log" class="q-pa-xs">
         <q-card class="q-pa-xs">
           <q-card-section class="q-pa-sm">
@@ -302,7 +251,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRoute, useRouter } from 'vue-router';
-import { GetSettingInfo, GetIpAddr, GeMemeryLog, GetLocalLog, ClearMemoryLog, ClearLocalLog, GetLanPeers, PostSettingInfo, AddLanPeer, RemoveLanPeer, TogglePeer, GetUsers, AddUser, DeleteUser, DiscoverLanPeers } from '../../components/api/settingAPI';
+import { GetSettingInfo, GetIpAddr, GeMemeryLog, GetLocalLog, ClearMemoryLog, ClearLocalLog, GetLanPeers, PostSettingInfo, AddLanPeer, RemoveLanPeer, TogglePeer, DiscoverLanPeers } from '../../components/api/settingAPI';
 import { useSystemProperty } from '../../stores/System';
 
 const systemProperty = useSystemProperty();
@@ -315,68 +264,6 @@ const themeStyle = computed(() => ({
 const route = useRoute();
 const router = useRouter();
 const tab = ref((route.query.tab as string) || 'info');
-
-// 用户管理
-const showAddUserDialog = ref(false);
-const newUser = reactive({
-  username: '',
-  password: '',
-  expireDate: '',
-});
-const userList = ref<any[]>([]);
-
-const resetNewUser = () => {
-  newUser.username = '';
-  newUser.password = '';
-  newUser.expireDate = '';
-};
-
-const fetchUsers = async () => {
-  try {
-    const res = await GetUsers();
-    if (res.code === 200) {
-      userList.value = res.data;
-    }
-  } catch (error) {
-    console.error('获取用户列表失败:', error);
-  }
-};
-
-const addUser = async () => {
-  if (!newUser.username || !newUser.password) {
-    $q.notify({ type: 'warning', message: '请填写用户名和密码' });
-    return;
-  }
-  try {
-    const res = await AddUser(newUser.username, newUser.password, newUser.expireDate);
-    if (res.code === 200) {
-      $q.notify({ type: 'positive', message: '添加成功' });
-      showAddUserDialog.value = false;
-      resetNewUser();
-      fetchUsers();
-    } else {
-      $q.notify({ type: 'negative', message: res.message || '添加失败' });
-    }
-  } catch (error) {
-    $q.notify({ type: 'negative', message: '添加失败' });
-    console.error(error);
-  }
-};
-
-const deleteUser = async (username: string) => {
-  try {
-    const res = await DeleteUser(username);
-    if (res.code === 200) {
-      $q.notify({ type: 'positive', message: '删除成功' });
-      fetchUsers();
-    } else {
-      $q.notify({ type: 'negative', message: res.message || '删除失败' });
-    }
-  } catch (error) {
-    $q.notify({ type: 'negative', message: '删除失败' });
-    console.error(error);
-  }
-};
 
 const view = reactive({
   settingInfo: {} as any,
@@ -716,7 +603,6 @@ onMounted(() => {
   fetchMemoryLog();
   fetchLocalLog();
   fetchPeers();
-  fetchUsers();
   // 如果初始 tab 就是日志，启动定时轮询
   if (tab.value === 'log') {
     logIntervalId = setInterval(() => {

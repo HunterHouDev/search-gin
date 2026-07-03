@@ -12,11 +12,11 @@
         <!-- 用户行为偏好 -->
         <AppPreference />
         <!-- 重命名中指示 -->
-        <q-chip v-if="pendingRenames > 0" color="red" text-color="white" size="md" dense
+        <q-btn v-if="pendingRenames > 0" color="red" text-color="white" size="md" 
           icon="drive_file_rename_outline">
           {{ pendingRenames }}
           <q-tooltip>改名中 {{ pendingRenames }} 个文件</q-tooltip>
-        </q-chip>
+        </q-btn>
 
         <!-- 排序字段选择 -->
         <q-btn-dropdown glossy :size="btnSize('head')" class="w-5" :label="getLabelByValue(currentSort, sortOptions)">
@@ -1186,7 +1186,7 @@ const searchCode = (item) => {
   vcode = vcode.replace(/[\r\n\t]+/g, '');
   vcode = vcode.replace(/&nbsp;/g, '');
   vcode = vcode.trimEnd();
-  const itemCode = vcode.match(reg);
+  let itemCode = vcode.match(reg);
   if (!itemCode) {
     return;
   }

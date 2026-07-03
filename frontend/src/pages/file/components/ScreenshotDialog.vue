@@ -3,12 +3,12 @@
     <q-layout view="lHh Lpr lFf" container style="height: 80vh;"
       :style="{ width: isMobile() ? '100%' : '800px', ...themeStyle }">
       <q-header>
-        <q-toolbar class="bg-black text-white shadow-2 rounded-borders w100 justify-between">
+        <q-toolbar class="bg-primary text-white shadow-2 rounded-borders w100 justify-between">
           <q-btn color="red" dense flat icon="ti-shift-left" @click="prevOne">
             <q-tooltip class="bg-white text-primary">上一个</q-tooltip>
           </q-btn>
           <q-tabs ripple v-model="tab" align="justify" style="width: 60%"
-            :active-color="systemProperty.theme === 'natural' ? 'primary' : 'white'"
+            :active-color="systemProperty.theme === 'natural' ? 'green' : 'white'"
             :indicator-color="systemProperty.theme === 'natural' ? 'green' : 'white'"
             @update:model-value="view.startTime = '00:00:05'">
             <q-tab name="png" label="png" />
@@ -22,50 +22,51 @@
             <q-tooltip class="bg-white text-primary">下一个</q-tooltip>
           </q-btn>
         </q-toolbar>
-        <p style="
+      </q-header>
+
+      <q-page-container style="padding: 60px 1px 1px 1px">
+        <q-page>
+          <p style="
             display: -webkit-box; /* 将对象作为弹性伸缩盒子模型显示 */
             -webkit-box-orient: vertical; /* 设置子元素的排列方式为垂直方向 */
             line-clamp: 2; /* 设置显示的行数 */
             overflow: hidden; /* 隐藏溢出文本 */
             text-overflow: ellipsis; /* 显示省略号 */
             padding: 4px 4px;
+            color: gray;
           ">
-          {{ view.item.Name }}
-        </p>
-        <div style="
+            {{ view.item.Name }}
+          </p>
+          <div style="
             display: flex;
             flex-direction: row;
-            justify-content: center;
-            padding: 0;
+            justify-content: space-evenly;
+            align-items: center;
           " :style="themeStyle">
-          <q-input v-model="view.startTime" mask="fulltime" :rules="['fulltime']" @change="previewPicture">
-            <template v-slot:append>
-              <div style="width: 100%">
-                <q-icon name="access_time" class="cursor-pointer">
-                  <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-                    <q-time v-model="view.startTime" with-seconds format24h>
-                      <div class="row items-center justify-end">
-                        <q-btn v-close-popup label="Close" color="primary" flat />
-                      </div>
-                    </q-time>
-                  </q-popup-proxy>
-                </q-icon>
-              </div>
-            </template>
-          </q-input>
-          <q-btn size="md" flat color="orange" label="截" @click="previewPicture" />
-          <q-btn color="primary" v-for="(item, index) in btns" :key="index" :label="item" flat @click="timePlus(item)"
-            @contextmenu="
-              (e) => {
-                timePlus(-item);
-                e.returnValue = false;
-              }
-            " />
-        </div>
-      </q-header>
-
-      <q-page-container style="padding: 160px 1px 1px 1px">
-        <q-page>
+            <q-input v-model="view.startTime" mask="fulltime" :rules="['fulltime']" @change="previewPicture">
+              <template v-slot:append>
+                <div style="width: 100%">
+                  <q-icon name="access_time" class="cursor-pointer">
+                    <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+                      <q-time v-model="view.startTime" with-seconds format24h>
+                        <div class="row items-center justify-end">
+                          <q-btn v-close-popup label="Close" color="primary" flat />
+                        </div>
+                      </q-time>
+                    </q-popup-proxy>
+                  </q-icon>
+                </div>
+              </template>
+            </q-input>
+            <q-btn size="md" color="orange" label="截" @click="previewPicture" />
+            <q-btn size="md" color="primary" v-for="(item, index) in btns" :key="index" :label="item"
+              @click="timePlus(item)" @contextmenu="
+                (e) => {
+                  timePlus(-item);
+                  e.returnValue = false;
+                }
+              " />
+          </div>
           <q-tab-panels v-model="tab" animated style="height: 100%; overflow: auto; margin: 0; width: 100%">
             <q-tab-panel name="jpg">
               <q-img fit="fill" class="max-image-height" v-if="!view.uImage" :src="view.item.JpgUrl" />
@@ -85,8 +86,8 @@
               <q-btn color="primary" flat @click="scalePng" label="裁剪" v-show="view.showCanvas"></q-btn>
             </q-tab-panel>
             <q-tab-panel name="cut" class="q-gutter-y-xs">
-              <q-img fit="contain" v-for="item in view.prewiewImages" :key="item.Id"
-                :src="item.StreamUrl" style="width: 100%; height: auto" class="max-image-height">
+              <q-img fit="contain" v-for="item in view.prewiewImages" :key="item.Id" :src="item.StreamUrl"
+                style="width: 100%; height: auto" class="max-image-height">
                 <template v-slot:error>
                   <!-- 图片加载失败时显示的占位图 -->
                   <div class="text-subtitle1 text-white">

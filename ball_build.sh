@@ -20,6 +20,13 @@ clean_dirs() {
 build_frontend() {
     log "INFO" "开始打包前端文件..."
     cd frontend || { log "ERROR" "无法进入 frontend 目录"; exit 1; }
+    if [ ! -d "node_modules" ]; then
+        log "INFO" "安装前端依赖..."
+        if ! yarn install; then
+            log "ERROR" "依赖安装失败"
+            exit 1
+        fi
+    fi
     if ! yarn build; then
         log "ERROR" "前端文件打包失败"
         exit 1
