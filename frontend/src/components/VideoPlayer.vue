@@ -193,7 +193,7 @@
 import { useQuasar } from 'quasar';
 import { onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useSystemProperty } from 'stores/System';
-import { CutImage, DeleteFile } from 'components/api/searchAPI';
+import { CutImage, DeleteFile, FindFileInfo } from 'components/api/searchAPI';
 import { VideoClass } from 'components/utils/video';
 import { getVideoSrt } from 'components/utils/images';
 import { parseTime } from 'components/utils';
@@ -279,10 +279,22 @@ let loadedMetadataHandler = null;
 
 const openVideo = async (item) => {
   currentItemId = item.Id;
+  // 获取最新 token 刷新 URL，防止搜索时的 token 过期
+  let streamUrl = item.StreamUrl;
+  let jpgUrl = item.JpgUrl;
+  try {
+    const fresh = await FindFileInfo(item.Id);
+    if (fresh?.StreamUrl) {
+      streamUrl = fresh.StreamUrl;
+      jpgUrl = fresh.JpgUrl;
+    }
+  } catch (_) { /* 刷新失败时继续使用原有的 URL */ }
+  item.StreamUrl = streamUrl;
+  item.JpgUrl = jpgUrl;
   view.currentData = item;
   systemProperty.PlayingMovie = item;
-  view.videoUrl = item.StreamUrl;
-  view.videoPoster = item.JpgUrl;
+  view.videoUrl = streamUrl;
+  view.videoPoster = jpgUrl;
   view.videoSubtitles = getVideoSrt(item.Srt);
 
   // 移除旧监听器，防止重复

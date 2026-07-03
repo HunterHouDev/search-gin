@@ -50,7 +50,7 @@ func buildStreamMiddleware(router *gin.Engine) {
 	router.GET("/api/stream/file/:id", handler.GetFile)
 	router.GET("/api/stream/png/:path", handler.GetPng)
 	router.GET("/api/stream/jpg/:path", handler.GetJpg)
-	router.GET("/api/stream/GetFileByPathUseEncode/:path", handler.GetFileByPathUseEncode)
+	// GetFileByPathUseEncode 由各路由入口单独注册（先于 StreamTokenAuth），不走 token 校验
 }
 
 func buildShutdownRoutes(router *gin.Engine, sigChan chan os.Signal) {
@@ -133,7 +133,7 @@ func BuildAPIRouter(sigChan chan os.Signal) *gin.Engine {
 	router.POST("/api/clearFailedTasks", handler.PostClearFailedTasks)
 	router.POST("/api/clearAllTasks", handler.PostClearAllTasks)
 	router.POST("/api/authorList", handler.PostAuthor)
-	router.GET("/api/authorImage/:path", handler.GetAuthorImage)
+	router.GET("/api/authorImage/:name", handler.GetAuthorImage)
 
 	router.GET("/api/play/:id", handler.GetPlay)
 	router.GET("/api/tranferToMp4/:id/:xcode", handler.GetTransferToMp4)
@@ -211,8 +211,10 @@ func BuildAPIRouter(sigChan chan os.Signal) *gin.Engine {
 		streamGroup.GET("/file/:id", handler.GetFile)
 		streamGroup.GET("/png/:path", handler.GetPng)
 		streamGroup.GET("/jpg/:path", handler.GetJpg)
-		streamGroup.GET("/GetFileByPathUseEncode/:path", handler.GetFileByPathUseEncode)
+		// GetFileByPathUseEncode 不走 StreamTokenAuth —— 前端直接拼路径生成 URL，无法带 streamToken
+		// 该接口核心安全在路径校验（validatePathOrRespond），放到主路由由 AuthMiddleware 跳过即可
 	}
+	router.GET("/api/stream/GetFileByPathUseEncode/:path", handler.GetFileByPathUseEncode)
 	buildShutdownRoutes(router, sigChan)
 
 	return router
@@ -229,6 +231,9 @@ func BuildFileRouter() *gin.Engine {
 
 	router := gin.New()
 	buildCommonMiddleware(router)
+	// GetFileByPathUseEncode 由前端直接拼路径生成 URL（不带 streamToken），
+	// 必须在 StreamTokenAuth 之前注册以绕过 token 校验，核心安全依靠路径验证。
+	router.GET("/api/stream/GetFileByPathUseEncode/:path", handler.GetFileByPathUseEncode)
 	router.Use(middleware.StreamTokenAuth())
 	buildStreamMiddleware(router)
 

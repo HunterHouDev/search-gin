@@ -215,7 +215,7 @@
           fit="fill"
           v-for="item in view.prewiewImages"
           :key="item.Id"
-          :src="GetFileByPathUseEncode(item.Path)"
+          :src="item.StreamUrl"
           width="400px"
         >
           <div style="padding: 0; position: relative; float: right">
@@ -253,7 +253,6 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
-import { GetFileByPathUseEncode } from 'components/utils/images';
 import { formatCode, formatTitle } from 'components/utils';
 import {
   SearchAPI,

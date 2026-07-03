@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os/exec"
 	"path/filepath"
+	"search-gin/internal/model"
 	"search-gin/internal/service"
 	"search-gin/pkg/utils"
 	"strings"
@@ -75,11 +76,18 @@ func GetInfo(c *gin.Context) {
 		return
 	}
 	file := UseApp().search.FindById(id)
-	c.JSON(http.StatusOK, file)
+	if file.IsNull() {
+		c.JSON(http.StatusNotFound, utils.NewFailByMsg("文件不存在"))
+		return
+	}
+	// 生成新的 streamToken 填充 URL，确保前端拿到的是有效 token
+	items := []model.FileItem{file}
+	service.FillURLs(c, items)
+	c.JSON(http.StatusOK, items[0])
 }
 
 func GetAuthorImage(c *gin.Context) {
-	path := c.Param("path")
+	path := c.Param("name")
 	author := UseApp().search.FindAuthorByName(path)
 	if author.IsNotEmpty() {
 		for _, v := range author.Images {

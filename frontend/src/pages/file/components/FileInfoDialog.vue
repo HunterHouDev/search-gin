@@ -109,7 +109,7 @@
             fit="contain"
             v-for="item in view.prewiewImages"
             :key="item.Id"
-            :src="GetFileByPathUseEncode(item.Path)"
+            :src="item.StreamUrl"
             style="width: 100%; height: auto; max-height: 500px"
           >
             <template v-slot:error>
@@ -166,8 +166,8 @@ import {
   QueryDirImages,
   OpenFileFolder,
   DeleteFileByPathUseEncode,
+  FindFileInfo,
 } from 'components/api/searchAPI';
-import { GetFileByPathUseEncode } from 'src/components/utils/images';
 import { useBreakpoint } from 'src/composables/useBreakpoint';
 const { dialogRef, onDialogHide } = useDialogPluginComponent();
 
@@ -233,11 +233,20 @@ const prevOne = () => {
   emmits('prevOne');
 };
 
-const open = (data) => {
+const open = async (data) => {
   const { item, playing } = data;
   view.prewiewImages = [];
   view.item = { ...item };
   isDialogOpen.value = true;
+  // 获取最新 token 刷新 URL，防止搜索时的 token 过期
+  try {
+    const fresh = await FindFileInfo(item.Id);
+    if (fresh?.StreamUrl) {
+      view.item.StreamUrl = fresh.StreamUrl;
+      view.item.JpgUrl = fresh.JpgUrl;
+      view.item.PngUrl = fresh.PngUrl;
+    }
+  } catch (_) { /* 刷新失败时继续使用原有的 URL */ }
   if (playing || showDetail.value == 'movie') {
     showMovie();
   }

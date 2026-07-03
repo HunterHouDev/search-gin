@@ -153,11 +153,6 @@ export const useSystemProperty = defineStore('system', () => {
 
   function setSettingInfo(settingInfo: SettingInfo) {
     SettingInfo.value = settingInfo;
-    // 同步图片/文件流基础 URL（FileHost 默认值由后端 init() 保证）
-    const port = settingInfo.FileHost?.split(':').pop();
-    import('components/utils/images').then(({ setFileBaseUrl }) => {
-      setFileBaseUrl(`${window.location.protocol}//${window.location.hostname}:${port}`);
-    });
   }
 
   function setControllerHost(url: string) {

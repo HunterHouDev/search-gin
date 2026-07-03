@@ -86,7 +86,7 @@
             </q-tab-panel>
             <q-tab-panel name="cut" class="q-gutter-y-xs">
               <q-img fit="contain" v-for="item in view.prewiewImages" :key="item.Id"
-                :src="GetFileByPathUseEncode(item.Path)" style="width: 100%; height: auto" class="max-image-height">
+                :src="item.StreamUrl" style="width: 100%; height: auto" class="max-image-height">
                 <template v-slot:error>
                   <!-- 图片加载失败时显示的占位图 -->
                   <div class="text-subtitle1 text-white">
@@ -125,8 +125,8 @@ import {
   DeleteFileByPathUseEncode,
   QueryDirImages,
   OpenFolderByPath,
+  FindFileInfo,
 } from 'components/api/searchAPI';
-import { GetFileByPathUseEncode } from 'components/utils/images';
 import { isMobile } from 'src/boot/platform';
 import { useSystemProperty } from 'src/stores/System';
 
@@ -148,7 +148,7 @@ const view = reactive({
 
 const { dialogRef, onDialogCancel } = useDialogPluginComponent();
 
-const open = (item) => {
+const open = async (item) => {
   if (dialogRef.value) {
     dialogRef.value.show();
   }
@@ -156,6 +156,15 @@ const open = (item) => {
   view.uImage = '';
   view.startTime = '00:00:05';
   view.item = item;
+  // 获取最新 token 刷新 URL，防止搜索时的 token 过期
+  try {
+    const fresh = await FindFileInfo(item.Id);
+    if (fresh?.StreamUrl) {
+      view.item.StreamUrl = fresh.StreamUrl;
+      view.item.JpgUrl = fresh.JpgUrl;
+      view.item.PngUrl = fresh.PngUrl;
+    }
+  } catch (_) { /* 刷新失败时继续使用原有的 URL */ }
 
   const img = new Image(); // 创建一个新的图片对象
   img.crossOrigin = 'anonymous'; // 处理跨域问题

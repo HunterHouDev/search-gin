@@ -151,6 +151,7 @@ func GetDirInfo(c *gin.Context) {
 	file := UseApp().search.FindById(id)
 	files := UseApp().files.Walk(file.DirPath, Images, false)
 	model.SortFileItems(files, "MTime", sort)
+	service.FillURLs(c, files)
 	c.JSON(http.StatusOK, files)
 }
 

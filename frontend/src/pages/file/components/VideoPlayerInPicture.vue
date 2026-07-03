@@ -360,7 +360,7 @@ import { isMobile } from 'src/boot/platform';
 
 import { VideoClass } from 'components/utils/video';
 import { parseTime, formatTitle } from 'components/utils';
-import { DeleteFile } from 'components/api/searchAPI';
+import { DeleteFile, FindFileInfo } from 'components/api/searchAPI';
 import { onKeyStroke, useDebounceFn, useClipboard } from '@vueuse/core';
 
 import PlayerSetting from 'components/PlayerSetting.vue';
@@ -590,10 +590,21 @@ const openVideo = async (params) => {
   if (!item) {
     return;
   }
+  // 获取最新 token 刷新 URL，防止搜索时的 token 过期
+  let streamUrl = item.StreamUrl;
+  try {
+    const fresh = await FindFileInfo(item.Id);
+    if (fresh?.StreamUrl) {
+      streamUrl = fresh.StreamUrl;
+      item.JpgUrl = fresh.JpgUrl;
+      item.PngUrl = fresh.PngUrl;
+    }
+  } catch (_) { /* 刷新失败时继续使用原有的 URL */ }
+  item.StreamUrl = streamUrl;
   view.queryParam = queryParam;
   view.currentData = item;
   systemProperty.PlayingMovie = item;
-  view.videoUrl = item.StreamUrl;
+  view.videoUrl = streamUrl;
 
   const videoElement = document.getElementById('hoverVideoID');
   const videoLocation = systemProperty.getPlayerLocation(item.Id);

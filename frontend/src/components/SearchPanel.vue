@@ -138,7 +138,7 @@
       <template v-else-if="localImages && localImages.length > 0">
         <div class="local-images-grid">
           <div v-for="item in localImages" :key="item.Id" class="local-image-item">
-            <q-img fit="fill" :src="GetFileByPathUseEncode(item.Path)" style="border-radius: 6px; overflow: hidden;">
+            <q-img fit="fill" :src="item.StreamUrl" style="border-radius: 6px; overflow: hidden;">
               <template v-slot:error>
                 <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,1)">
                   <q-icon name="image_not_supported" size="2em" color="grey-6" />
@@ -170,7 +170,6 @@ import { useBreakpoint } from 'src/composables/useBreakpoint';
 import { useSortOptions } from 'src/composables/useSortOptions';
 import { SearchAPI, ResetMovieType } from 'components/api/searchAPI';
 import { QueryDirImages, DeleteFileByPathUseEncode } from 'components/api/searchAPI';
-import { GetFileByPathUseEncode } from 'components/utils/images';
 import { getTimeAgo } from 'src/utils/date';
 
 import {
