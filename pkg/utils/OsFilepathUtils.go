@@ -197,6 +197,7 @@ func GetCode(fileName string) string {
 			lefts := strings.Split(right, "]")
 			for _, left := range lefts {
 				if strings.Contains(left, "-") || strings.Contains(left, "_") {
+					left = strings.TrimSuffix(left, ".mp4")
 					return left
 				} else {
 					code = left

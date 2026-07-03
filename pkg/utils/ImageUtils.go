@@ -2,6 +2,8 @@ package utils
 
 import (
 	"encoding/base64"
+	"errors"
+	"fmt"
 	"image"
 	_ "image/jpeg"
 	"image/png"
@@ -67,33 +69,35 @@ func ImageToPng(src string) error {
 			return err
 		}
 	case "png":
-		switch srcImage.(type) {
-		case *image.NRGBA:
-			img, ok := srcImage.(*image.NRGBA)
-			if !ok {
-				InfoFormat("ImageToPng: png NRGBA 类型断言失败")
-				return nil
-			}
-			subImg, ok := img.SubImage(image.Rect(left, 0, width, height)).(*image.NRGBA)
-			if !ok {
-				return nil
-			}
-			return png.Encode(fout, subImg)
-		case *image.RGBA:
-			img, ok := srcImage.(*image.RGBA)
-			if !ok {
-				InfoFormat("ImageToPng: png RGBA 类型断言失败")
-				return nil
-			}
-			subImg, ok := img.SubImage(image.Rect(left, 0, width, height)).(*image.RGBA)
-			if !ok {
-				return nil
-			}
-			return png.Encode(fout, subImg)
-		}
+	 switch srcImage.(type) {
+	 case *image.NRGBA:
+	  img, ok := srcImage.(*image.NRGBA)
+	  if !ok {
+	   InfoFormat("ImageToPng: png NRGBA 类型断言失败")
+	   return nil
+	  }
+	  subImg, ok := img.SubImage(image.Rect(left, 0, width, height)).(*image.NRGBA)
+	  if !ok {
+	   return nil
+	  }
+	  return png.Encode(fout, subImg)
+	 case *image.RGBA:
+	  img, ok := srcImage.(*image.RGBA)
+	  if !ok {
+	   InfoFormat("ImageToPng: png RGBA 类型断言失败")
+	   return nil
+	  }
+	  subImg, ok := img.SubImage(image.Rect(left, 0, width, height)).(*image.RGBA)
+	  if !ok {
+	   return nil
+	  }
+	  return png.Encode(fout, subImg)
+	 }
+	default:
+	 errMsg := fmt.Sprintf("ImageToPng: 不支持的图片格式: %s", fm)
+	 InfoNormal(errMsg)
+	 return errors.New(errMsg)
 	}
 	return nil
 
 }
-
-

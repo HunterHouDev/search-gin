@@ -45,7 +45,12 @@ func GetTypeSize(c *gin.Context) {
 }
 
 func GetTagSize(c *gin.Context) {
-	res := mapToSlice(UseApp().search.GetTagMenu())
+	search := UseApp().search
+	if search.IsEmpty() {
+		c.JSON(http.StatusOK, utils.NewFailByMsg("未初始化"))
+		return
+	}
+	res := mapToSlice(search.GetTagMenu())
 	if len(res) > maxMapItems {
 		res = res[:maxMapItems]
 	}
@@ -53,10 +58,35 @@ func GetTagSize(c *gin.Context) {
 }
 
 func GetSeriesSize(c *gin.Context) {
+	search := UseApp().search
+	if search.IsEmpty() {
+		c.JSON(http.StatusOK, utils.NewFailByMsg("未初始化"))
+		return
+	}
 	res := mapToSlice(UseApp().search.GetSeriesCount())
 	if len(res) > maxMapItems {
 		res = res[:maxMapItems]
 	}
+	c.JSON(http.StatusOK, res)
+}
+
+func GetScanTime(c *gin.Context) {
+	search := UseApp().search
+	if search.IsEmpty() {
+		c.JSON(http.StatusOK, utils.NewFailByMsg("未初始化"))
+		return
+	}
+	res := make([]model.FileInfo, 0)
+	service.GetFolderTime().Range(func(_, value interface{}) bool {
+		if ms, ok := value.(model.FileInfo); ok {
+			res = append(res, ms)
+		}
+		return true
+	})
+
+	sort.Slice(res, func(i, j int) bool {
+		return res[i].Cnt > res[j].Cnt
+	})
 	c.JSON(http.StatusOK, res)
 }
 
@@ -122,21 +152,6 @@ func splitLines(s string) []string {
 		result = append(result, s[start:])
 	}
 	return result
-}
-
-func GetScanTime(c *gin.Context) {
-	res := make([]model.FileInfo, 0)
-	service.GetFolderTime().Range(func(_, value interface{}) bool {
-		if ms, ok := value.(model.FileInfo); ok {
-			res = append(res, ms)
-		}
-		return true
-	})
-
-	sort.Slice(res, func(i, j int) bool {
-		return res[i].Cnt > res[j].Cnt
-	})
-	c.JSON(http.StatusOK, res)
 }
 
 func GetHeartBeat(c *gin.Context) {

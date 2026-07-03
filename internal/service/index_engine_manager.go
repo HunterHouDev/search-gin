@@ -1,6 +1,8 @@
 package service
 
 import (
+	"fmt"
+	"search-gin/internal/env"
 	"search-gin/internal/model"
 	"search-gin/pkg/utils"
 	"sync"
@@ -97,6 +99,13 @@ func (se *searchEngineCore) loadIndex() *searchIndex {
 func (se *searchEngineCore) installIndex(index *searchIndex) {
 	se.syncIndex(index)
 	saveIndexToCache(index)
+	if !env.IsProd {
+		if issues := se.verifyIndexConsistency(index); len(issues) > 0 {
+			for _, iss := range issues {
+				utils.InfoFormat("[索引一致性] %s", iss)
+			}
+		}
+	}
 }
 
 // installIndexSkipDisk 原子替换索引 + 递增 epoch（跳过磁盘持久化，单文件操作用）
@@ -169,4 +178,20 @@ func (se *searchEngineCore) ClearCache() {
 	se.authorCountCache = nil
 	se.authorCacheMu.Unlock()
 	se.repeatsDirty.Store(true)
+}
+
+// verifyIndexConsistency 检查 idIndex ↔ FileLib 一致性，仅开发环境调用
+func (se *searchEngineCore) verifyIndexConsistency(index *searchIndex) []string {
+	var issues []string
+	for id, f := range index.idIndex {
+		bucket, ok := index.buckets[f.BaseDir]
+		if !ok {
+			issues = append(issues, fmt.Sprintf("idIndex[%s] 指向不存在的 bucket: %s", id, f.BaseDir))
+			continue
+		}
+		if _, exists := bucket.FileLib[id]; !exists {
+			issues = append(issues, fmt.Sprintf("idIndex[%s] 在 bucket %s 的 FileLib 中不存在", id, f.BaseDir))
+		}
+	}
+	return issues
 }

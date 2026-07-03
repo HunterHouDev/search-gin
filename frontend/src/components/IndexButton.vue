@@ -125,8 +125,10 @@ const statusColor = computed(() => {
 });
 
 const statusLabel = computed(() => {
-  if (view.scanProgress && view.scanProgress.phase === 'scanning') return '扫描中';
-  if (view.scanProgress && view.scanProgress.phase === 'building') return '索引中';
+  if (view.scanProgress && view.scanProgress.phase === 'scanning')
+    return `扫:${view.scanProgress.completedDirs}/${view.scanProgress.totalDirs}`;
+  if (view.scanProgress && view.scanProgress.phase === 'building')
+    return `索:${view.scanProgress.processedBuckets}/${view.scanProgress.totalBuckets}`;
   if (view.loading) return '扫描中';
   if (view.indexNumber > 0) return `S:${view.indexNumber}`;
   return '索~';

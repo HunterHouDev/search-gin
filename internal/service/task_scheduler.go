@@ -110,6 +110,10 @@ func (s *searchService) pollTasks() {
 	if PendingTaskCount.Load() == 0 {
 		return
 	}
+	if GetEngine().IsEmpty() {
+		LogMem.Add("pollTasks: 索引为空，跳过本轮调度")
+		return
+	}
 	maxSlot := s.settings.Get().TaskMaxConcurrent
 	if maxSlot <= 0 {
 		maxSlot = 4

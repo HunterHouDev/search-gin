@@ -47,7 +47,7 @@ cd frontend && yarn build && cp -R dist/spa/* ../dist/ && go build -tags=prod
 - `requireAdmin()` 检查 role 是否为 `AdminRole`，兼容旧 token（role 为空时放行）
 - **注意事项**：
   - WebSocket 连接使用 query token（`/api/ws?token=xxx`），skip path 已跳过 AuthMiddleware 故需手动调用 `ValidateTokenWithInfo`
-  - `:10082` 文件流端口使用 `StreamTokenAuth` 中间件（AES-256-GCM 加密 streamToken），定义在 `internal/router/build_router.go`，不依赖 session map，跨节点可互相解密
+  - `:10082` 文件流端口使用 `StreamTokenAuth` 中间件（AES-256-GCM 加密 streamToken），定义在 `internal/router/build_router.go`，不依赖 session map，每个节点独立密钥
 
 ## 文件流安全（`:10082` 端口）
 
@@ -56,7 +56,7 @@ cd frontend && yarn build && cp -R dist/spa/* ../dist/ && go build -tags=prod
 - 后端 `FillURLs()` 为每个文件生成加密 token（内含过期时间戳）
 - 图片预览 token 有效期 **5 分钟**，视频流 token 有效期 **4 小时**
 - `:10082` 端口的 `StreamTokenAuth` 中间件解密验证 token
-- 每个节点启动时随机生成独立密钥（`pkg/utils/stream_crypto.go`），不持久化到 setting.json
+- 每个节点启动时随机生成独立密钥（`pkg/utils/stream_crypto.go`），持久化到 setting.json 的 `streamSecret` 字段
 - `SignAuthMiddleware`（HMAC 签名）仍保留在代码中但不注册——签名对多节点集群不可用
 
 ## 多节点集群
