@@ -9,6 +9,24 @@ import (
 	"strings"
 )
 
+// renameAndNotify 执行文件重命名并通知变更（更新索引 + SSE 通知）
+func (s *searchService) renameAndNotify(movie model.FileItem, newFilePath, newName, action string) utils.Result {
+	updated, err := movie.RenameAll(newFilePath, newName)
+	if err != nil {
+		return utils.NewFailByMsg("重命名失败: " + err.Error())
+	}
+	s.engine.ReplaceFileOnIndex(movie, updated)
+	res := utils.NewSuccessByMsg("执行成功")
+	res.Data = updated
+	s.events.Broadcast(model.SSEFileChanged, map[string]interface{}{
+		"action": action,
+		"id":     updated.Id,
+		"old":    movie.Path,
+		"new":    updated.Path,
+	})
+	return res
+}
+
 // SetMovieType 设置电影类型
 func (s *searchService) SetMovieType(movie model.FileItem, movieType string) utils.Result {
 	newMovieType := "{{" + movieType + "}}"
@@ -23,12 +41,7 @@ func (s *searchService) SetMovieType(movie model.FileItem, movieType string) uti
 
 		newFilePath := filepath.Join(filepath.Dir(movie.Path), strings.Replace(filepath.Base(movie.Path), originVideoType, movieType, 1))
 		newName := strings.TrimSuffix(newFilePath, "."+utils.GetSuffix(movie.Path))
-
-		updated, err := movie.RenameAll(newFilePath, newName)
-		if err != nil {
-			return utils.NewFailByMsg("重命名失败: " + err.Error())
-		}
-		return s.notifyFileChanged(movie, updated, "type_change")
+		return s.renameAndNotify(movie, newFilePath, newName, "type_change")
 	}
 
 	suffix := "." + utils.GetSuffix(movie.Path)
@@ -39,12 +52,7 @@ func (s *searchService) SetMovieType(movie model.FileItem, movieType string) uti
 	}
 	newFilePath := movie.Path[:extIdx] + newSuffix
 	newName := strings.TrimSuffix(newFilePath, suffix)
-
-	updated, err := movie.RenameAll(newFilePath, newName)
-	if err != nil {
-		return utils.NewFailByMsg("重命名失败: " + err.Error())
-	}
-	return s.notifyFileChanged(movie, updated, "type_change")
+	return s.renameAndNotify(movie, newFilePath, newName, "type_change")
 }
 
 // AddTag 添加标签
@@ -54,7 +62,6 @@ func (s *searchService) AddTag(id string, tag string) utils.Result {
 
 	if len(movie.Tags) > 0 {
 		originTagStr := utils.GetTagStr(movie.Path)
-		// 检查每个新标签是否已存在，全部已存在则直接返回
 		allExist := true
 		for _, nt := range newTags {
 			if !slices.Contains(movie.Tags, nt) {
@@ -79,11 +86,7 @@ func (s *searchService) AddTag(id string, tag string) utils.Result {
 
 		newFilePath := strings.ReplaceAll(movie.Path, originTagStr, newTagStr)
 		newName := strings.TrimSuffix(newFilePath, "."+utils.GetSuffix(movie.Path))
-		updated, err := movie.RenameAll(newFilePath, newName)
-		if err != nil {
-			return utils.NewFailByMsg("重命名失败: " + err.Error())
-		}
-		return s.notifyFileChanged(movie, updated, "tag_change")
+		return s.renameAndNotify(movie, newFilePath, newName, "tag_change")
 	}
 
 	tag = strings.TrimSpace(tag)
@@ -101,12 +104,7 @@ func (s *searchService) AddTag(id string, tag string) utils.Result {
 	newFilePath := movie.Path[:extIdx] + "《" + tag + "》" + suffix
 	newFilePath = strings.Replace(newFilePath, "《》", "", 1)
 	newName := strings.TrimSuffix(newFilePath, suffix)
-
-	updated, err := movie.RenameAll(newFilePath, newName)
-	if err != nil {
-		return utils.NewFailByMsg("重命名失败: " + err.Error())
-	}
-	return s.notifyFileChanged(movie, updated, "tag_change")
+	return s.renameAndNotify(movie, newFilePath, newName, "tag_change")
 }
 
 // ClearTag 清除标签
@@ -118,7 +116,6 @@ func (s *searchService) ClearTag(id string, tag string) utils.Result {
 		return res
 	}
 
-	// 按逗号分割后精确匹配，避免子串误删（如清除 "comedy" 时误伤 "comedy-drama"）
 	originTagStr := utils.GetTagStr(movie.Path)
 	originalTags := strings.Split(originTagStr, ",")
 	var remaining []string
@@ -133,34 +130,27 @@ func (s *searchService) ClearTag(id string, tag string) utils.Result {
 		newTagStr = strings.Join(remaining, ",")
 	}
 
-	var path string
+	var newFilePath string
 	if newTagStr == "" {
 		suffix := "." + utils.GetSuffix(movie.Path)
-		path = strings.ReplaceAll(movie.Path, "《"+originTagStr+"》"+suffix, suffix)
+		newFilePath = strings.ReplaceAll(movie.Path, "《"+originTagStr+"》"+suffix, suffix)
 	} else {
-		path = strings.ReplaceAll(movie.Path, "《"+originTagStr+"》", "《"+newTagStr+"》")
+		newFilePath = strings.ReplaceAll(movie.Path, "《"+originTagStr+"》", "《"+newTagStr+"》")
 	}
 
-	newName := strings.TrimSuffix(path, "."+movie.FileType)
-	updated, err := movie.RenameAll(path, newName)
-	if err != nil {
-		return utils.NewFailByMsg("重命名失败" + path)
-	}
-	return s.notifyFileChanged(movie, updated, "tag_change")
+	newName := strings.TrimSuffix(newFilePath, "."+utils.GetSuffix(movie.Path))
+	return s.renameAndNotify(movie, newFilePath, newName, "tag_change")
 }
 
 // Rename 重命名文件
 func (s *searchService) Rename(movie model.FileEdit) utils.Result {
-	res := utils.NewSuccess()
 	movieLib := s.engine.FindById(movie.Id)
 	if movieLib.IsNull() {
-		res.FailByMsg("数据不存在")
-		return res
+		return utils.NewFailByMsg("数据不存在")
 	}
 	oldPath := movieLib.Path
 	if !utils.ExistsFiles(oldPath) {
-		res.FailByMsg("文件不存在")
-		return res
+		return utils.NewFailByMsg("文件不存在")
 	}
 
 	newPath := cleanPath(movieLib.DirPath)
@@ -192,55 +182,55 @@ func (s *searchService) Rename(movie model.FileEdit) utils.Result {
 			newDir += " " + cleanPath(newTitleStart)
 		}
 		if err := os.MkdirAll(newDir, 0755); err != nil {
-			res.FailByMsg("执行失败")
-			res.Data = err
-			return res
+			return utils.NewFailByMsg("执行失败")
 		}
 	}
 	newPath = newDir + utils.PathSeparator + movie.Name
 
-	// 重命名主文件 + 附属文件
 	newBaseName := strings.TrimSuffix(newPath, "."+utils.GetSuffix(newPath))
 	updated, err := movieLib.RenameAll(newPath, newBaseName)
 	if err != nil {
-		res.FailByMsg("执行失败")
-		res.Data = err
-		return res
+		return utils.NewFailByMsg("执行失败")
 	}
 
-	// 下载 JPG/PNG
 	if movie.Png != "" && strings.HasPrefix(movie.Png, "http") {
 		if movie.Jpg != "" && strings.HasPrefix(movie.Jpg, "http") {
-			res = DownJpgMakePng(newPath, movie.Jpg, false)
+			res := DownJpgMakePng(newPath, movie.Jpg, false)
 			if !res.IsSuccess() {
 				return res
 			}
 		}
-		res = DownJpgAsPng(newPath, movie.Png)
+		res := DownJpgAsPng(newPath, movie.Png)
 		if !res.IsSuccess() {
 			return res
 		}
 	} else if movie.Jpg != "" && strings.HasPrefix(movie.Jpg, "http") {
-		res = DownJpgMakePng(newPath, movie.Jpg, true)
+		res := DownJpgMakePng(newPath, movie.Jpg, true)
 		if !res.IsSuccess() {
 			return res
 		}
 	}
-	return s.notifyFileChanged(movieLib, updated, "rename")
+	s.engine.ReplaceFileOnIndex(movieLib, updated)
+	res := utils.NewSuccessByMsg("执行成功")
+	res.Data = updated
+	s.events.Broadcast(model.SSEFileChanged, map[string]interface{}{
+		"action": "rename",
+		"id":     updated.Id,
+		"old":    movieLib.Path,
+		"new":    updated.Path,
+	})
+	return res
 }
 
 // Move 移动文件到新目录
 func (s *searchService) Move(id string, newDir string, title string) utils.Result {
-	res := utils.NewSuccess()
 	movieLib := s.engine.FindById(id)
 	if movieLib.IsNull() {
-		res.FailByMsg("数据不存在")
-		return res
+		return utils.NewFailByMsg("数据不存在")
 	}
 	oldPath := movieLib.Path
 	if !utils.ExistsFiles(oldPath) {
-		res.FailByMsg("文件不存在")
-		return res
+		return utils.NewFailByMsg("文件不存在")
 	}
 	if !utils.ExistsFiles(newDir) {
 		if err := os.MkdirAll(newDir, 0755); err != nil {
@@ -249,13 +239,7 @@ func (s *searchService) Move(id string, newDir string, title string) utils.Resul
 	}
 	newPath := newDir + utils.PathSeparator + title + "." + movieLib.FileType
 	newBaseName := newDir + utils.PathSeparator + title
-	updated, err := movieLib.RenameAll(newPath, newBaseName)
-	if err != nil {
-		res.FailByMsg("执行失败")
-		res.Data = err
-		return res
-	}
-	return s.notifyFileChanged(movieLib, updated, "move")
+	return s.renameAndNotify(movieLib, newPath, newBaseName, "move")
 }
 
 // Delete 删除文件（物理删除 + 索引移除 + SSE 通知）
@@ -293,18 +277,4 @@ func choose2To1(cond bool, a, b string) string {
 		return a
 	}
 	return b
-}
-
-// notifyFileChanged 更新索引 + SSE 通知前端，返回 Result
-func (s *searchService) notifyFileChanged(oldFile, updated model.FileItem, action string) utils.Result {
-	s.engine.ReplaceFileOnIndex(oldFile, updated)
-	res := utils.NewSuccessByMsg("执行成功")
-	res.Data = updated
-	s.events.Broadcast(model.SSEFileChanged, map[string]interface{}{
-		"action": action,
-		"id":     updated.Id,
-		"old":    oldFile.Path,
-		"new":    updated.Path,
-	})
-	return res
 }

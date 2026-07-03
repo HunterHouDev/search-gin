@@ -654,48 +654,6 @@ func TestRename_MoveOutWithCode(t *testing.T) {
 	assert.True(t, res.IsSuccess())
 }
 
-// ── notifyFileChanged 测试 ──
-
-func TestNotifyFileChanged_UpdatesIndex(t *testing.T) {
-	tmpDir := t.TempDir()
-	origPath := filepath.Join(tmpDir, "old.mp4")
-	newPath := filepath.Join(tmpDir, "new.mp4")
-	os.WriteFile(origPath, []byte("test"), 0644)
-
-	engine := NewSearchEngine()
-	settings := DefaultSettings()
-	events := DefaultEventBus()
-	scanQueue := NewScanQueue(engine, settings)
-	app := NewSearchService(engine, settings, events, scanQueue)
-
-	oldFile := model.FileItem{
-		Id:       "notify-1",
-		Name:     "old.mp4",
-		Path:     origPath,
-		DirPath:  tmpDir,
-		FileType: "mp4",
-		Size:     100,
-		BaseDir:  tmpDir,
-	}
-	newFile := model.FileItem{
-		Id:       "notify-1",
-		Name:     "new.mp4",
-		Path:     newPath,
-		DirPath:  tmpDir,
-		FileType: "mp4",
-		Size:     100,
-		BaseDir:  tmpDir,
-	}
-
-	engine.installIndex(buildIndexFromBuckets(map[string]*bucketFile{
-		tmpDir: makeBucket(tmpDir, oldFile),
-	}))
-
-	res := app.notifyFileChanged(oldFile, newFile, "rename")
-	assert.True(t, res.IsSuccess())
-	assert.Equal(t, "new.mp4", res.Data.(model.FileItem).Name)
-}
-
 // ── Delete 带附属文件测试 ──
 
 func TestDelete_WithCompanionFiles(t *testing.T) {

@@ -168,7 +168,7 @@ main.go
 
 `ScanAll()` → `FullScanInProgress`（`atomic.Bool` CAS 防止并发）→ `ClearCache` → 并发 `ScanDirs(dirList, types)` 收集 `bucketFile` → `rebuildWithBuckets(buckets)` → `buildIndexFromBuckets` → `installIndex`（`syncIndex`→递增 epoch+清 LRU→`saveIndexToCache` gob 持久化）→ SSE broadcast `scan_start` / `scan_complete` / `index_health`
 
-单文件操作：`DeleteOnIndex`/`ReplaceFileOnIndex` → `installIndexSkipDisk`（只递增 epoch，不清 LRU，不写磁盘）→ `notifyFileChanged`（SSE 推送）
+单文件操作：`DeleteOnIndex`/`ReplaceFileOnIndex` → `installIndexSkipDisk`（只递增 epoch，不清 LRU，不写磁盘）
 
 ### Go 约定
 
@@ -177,7 +177,7 @@ main.go
 - 路径分隔符：`utils.PathSeparator`（非 `os.PathSeparator`）
 - 文件存在：`utils.ExistsFiles(path)`
 - 搜索缓存 epoch 机制：`cacheEpoch` 在 `installIndex` 时递增，缓存读写时校验
-- 文件操作后通过 `s.notifyFileChanged(oldFile, updated, action)` 统一更新索引 + SSE
+- 文件操作后通过 `s.engine.ReplaceFileOnIndex(movie, updated)` 统一更新索引 + SSE 通知前端
 - 消息码使用中文文本：`"執行成功"` / `"執行失败"`（`pkg/utils/MessageCode.go`）
 - 响应结构统一 `utils.Result`：`{"Code":200|400, "Message":"...", "Data":..., "EffectRows":0}`
 - 支持 `allow` 打包：`golang.org/x/tools` 的 `allow` 指令可用于升级依赖

@@ -135,30 +135,41 @@ func GetPageOfFiles(files []FileItem, pageNo int, pageSize int) ([]FileItem, int
 	return paged, volume
 }
 
-// RenameAll 重命名主文件 + 附属图片 + 字幕文件（jpg/png/gif/srt），含回滚
+// RenameAll 重命名主文件 + 当前文件夹中所有同名附属文件，含回滚
 // newMainPath: 主文件新路径
 // newBaseName: 附属文件不含后缀的新基本名（如 "/path/to/newfile"）
 // 返回改名后的新 FileItem（Id 不变），失败返回空 FileItem + error
 func (f FileItem) RenameAll(newMainPath, newBaseName string) (FileItem, error) {
-	originalPaths := []string{f.Path, f.Jpg, f.Png, f.Gif, f.Srt}
-	newPaths := make([]string, 5)
-	newPaths[0] = newMainPath
-	if f.Jpg != "" {
-		newPaths[1] = newBaseName + "." + utils.GetSuffix(f.Jpg)
-	}
-	if f.Png != "" {
-		newPaths[2] = newBaseName + "." + utils.GetSuffix(f.Png)
-	}
-	if f.Gif != "" {
-		newPaths[3] = newBaseName + "." + utils.GetSuffix(f.Gif)
-	}
-	if f.Srt != "" {
-		newPaths[4] = newBaseName + "." + utils.GetSuffix(f.Srt)
+	originalDir := filepath.Dir(f.Path)
+	originalBase := strings.TrimSuffix(filepath.Base(f.Path), "."+utils.GetSuffix(f.Path))
+
+	files, err := os.ReadDir(originalDir)
+	if err != nil {
+		return FileItem{}, err
 	}
 
-	successIndices := make([]int, 0, 5)
+	var originalPaths []string
+	var newPaths []string
+
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+		name := file.Name()
+		if strings.EqualFold(strings.TrimSuffix(name, filepath.Ext(name)), originalBase) {
+			originalPaths = append(originalPaths, filepath.Join(originalDir, name))
+			suffix := utils.GetSuffix(name)
+			newPaths = append(newPaths, newBaseName+"."+suffix)
+		}
+	}
+
+	if len(originalPaths) == 0 {
+		return FileItem{}, fmt.Errorf("no files found with base name %s", originalBase)
+	}
+
+	successIndices := make([]int, 0, len(originalPaths))
 	for i := range originalPaths {
-		if originalPaths[i] == "" || !utils.ExistsFiles(originalPaths[i]) {
+		if !utils.ExistsFiles(originalPaths[i]) {
 			continue
 		}
 		if err := os.Rename(originalPaths[i], newPaths[i]); err != nil {
