@@ -120,8 +120,10 @@ func (s *searchService) DeleteFilesOnDisk(dirName string, fileName string) {
 	}
 
 	deleted := false
+	fileBase := strings.TrimSuffix(fileName, filepath.Ext(fileName))
 	for _, f := range files {
-		if strings.EqualFold(f.Name(), fileName+filepath.Ext(f.Name())) {
+		fBase := strings.TrimSuffix(f.Name(), filepath.Ext(f.Name()))
+		if strings.EqualFold(fBase, fileBase) {
 			path := filepath.Join(dirName, f.Name())
 			if err := os.Remove(path); err != nil {
 				utils.InfoFormat("删除文件失败: %s, 错误: %v", path, err)
