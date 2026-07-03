@@ -79,10 +79,12 @@ func (se *searchEngineCore) rebuildWithBucketIncremental(baseDir string, newBuck
 		seriesCount: cloneMenuMap(old.seriesCount),
 	}
 
-	// 克隆旧 idIndex，后续 subtract/add 只修正当前 bucket 的条目，其他 bucket 的条目保持不变
+	// 克隆旧 idIndex，跳过已被移除 bucket 的条目
 	index.idIndex = make(map[string]*model.FileItem, len(old.idIndex))
 	for k, v := range old.idIndex {
-		index.idIndex[k] = v
+		if _, ok := newBuckets[v.BaseDir]; ok {
+			index.idIndex[k] = v
+		}
 	}
 
 	oldBucket := old.buckets[baseDir]

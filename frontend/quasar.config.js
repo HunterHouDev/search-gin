@@ -82,14 +82,18 @@ module.exports = configure(function (/* ctx */) {
       // vitePlugins: [
       //   [ 'package-name', { ..options.. } ]
       // ]
-      chainWebpack(chain) {
-        chain.resolve.alias
-          .set('@', path.resolve('src'))
-          .set('assets', path.resolve('src/assets'))
-          .set('statics', path.resolve('src/statics'))
-          .set('components', path.resolve('src/components'));
-        // 移除不必要的loader
-        chain.module.rules.delete('eslint');
+      extendViteConf(viteConf) {
+        Object.assign(viteConf.resolve.alias, {
+          '@': path.resolve('src'),
+          src: path.resolve('src'),
+          pages: path.resolve('src/pages'),
+          components: path.resolve('src/components'),
+          layouts: path.resolve('src/layouts'),
+          assets: path.resolve('src/assets'),
+          boot: path.resolve('src/boot'),
+          stores: path.resolve('src/stores'),
+          statics: path.resolve('src/statics'),
+        });
       },
     },
 
