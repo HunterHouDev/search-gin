@@ -215,10 +215,6 @@ export const useSystemProperty = defineStore('system', () => {
     if (SearchSuggestions.value.length > 100) {
       SearchSuggestions.value.pop();
     }
-    localStorage.setItem(
-      'SearchSuggestions',
-      JSON.stringify(SearchSuggestions.value)
-    );
   }
 
   function savePlayTime(id: string) {
