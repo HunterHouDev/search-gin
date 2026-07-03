@@ -112,8 +112,8 @@ const errorMsg = ref('');
 const $q = useQuasar();
 
 // 输入时自动过滤非英文字符（仅保留字母、数字、下划线、连字符）
-const onUsernameChange = (val: string) => {
-  username.value = val.replace(/[^a-zA-Z0-9_.-]/g, '');
+const onUsernameChange = (val: string | number | null) => {
+  username.value = (val ?? '').toString().replace(/[^a-zA-Z0-9_.-]/g, '');
 };
 
 // 同步主题到 body（登录页独立于 MainLayout）

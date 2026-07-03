@@ -15,11 +15,15 @@ module.exports = configure(function (/* ctx */) {
   return {
     eslint: {
       fix: true,
-      // include: [],
-      // exclude: [],
-      // rawOptions: {},
       warnings: true,
       errors: true,
+      rawOptions: {
+        overrideConfig: {
+          rules: {
+            '@typescript-eslint/no-explicit-any': 'off',
+          },
+        },
+      },
     },
 
     // https://v2.quasar.dev/quasar-cli-vite/prefetch-feature
