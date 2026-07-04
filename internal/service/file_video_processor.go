@@ -29,6 +29,11 @@ func TransferFormatter(task model.TransferTaskModel) utils.Result {
 
 // transferWithEncoder 通用转码函数（合并原来的 TransferFormatter264/265）
 func transferWithEncoder(task model.TransferTaskModel, encoder, crf string) utils.Result {
+	return transferWithEncoderRetry(task, encoder, crf, true)
+}
+
+// transferWithEncoderRetry transferWithEncoder 内部实现，allowFallback 控制是否允许硬件→软件回退
+func transferWithEncoderRetry(task model.TransferTaskModel, encoder, crf string, allowFallback bool) utils.Result {
 	from := task.Path
 	suffix := utils.GetSuffix(task.Path)
 
@@ -52,6 +57,24 @@ func transferWithEncoder(task model.TransferTaskModel, encoder, crf string) util
 	args = append(args, "-i", from, "-c:v", encoder, qualityParam, crf, dest)
 
 	res := ffmpegExec(args, task.ID)
+
+	// 硬件加速失败 → 自动回退到软件编码（首次失败时触发）
+	if !res.IsSuccess() && allowFallback && isHardwareEncoder(encoder) {
+		logPath := TaskLogPath(task.ID)
+		if logData, err := os.ReadFile(logPath); err == nil && isHwAccelFailure(string(logData)) {
+			utils.InfoFormat("硬件加速编码失败，回退到软件编码: encoder=%s, path=%s", encoder, task.Path)
+			ForceHwAccelDetect() // 下次转码重新检测（可能硬件已恢复）
+
+			softEncoder := "libx264"
+			softCrf := crf
+			if strings.Contains(encoder, "hevc") || strings.Contains(encoder, "h265") {
+				softEncoder = "libx265"
+			}
+			// 清除失败的任务日志，避免与回退日志混淆
+			os.Remove(TaskLogPath(task.ID))
+			return transferWithEncoderRetry(task, softEncoder, softCrf, false)
+		}
+	}
 
 	if res.IsSuccess() {
 		cleanupSourceIfNeeded(task.Path)
@@ -204,6 +227,31 @@ func ffmpegBinPath() string {
 	return name
 }
 
+// isHardwareEncoder 判断编码器是否为硬件加速编码器
+func isHardwareEncoder(encoder string) bool {
+	return encoder != "libx264" && encoder != "libx265"
+}
+
+// isHwAccelFailure 检查 ffmpeg 错误输出中是否包含硬件设备相关失败信息
+func isHwAccelFailure(log string) bool {
+	keywords := []string{
+		"Cannot load",
+		"Could not dynamically load",
+		"No device available",
+		"Hardware device setup failed",
+		"Device creation failed",
+		"nvcuda.dll",
+		"amfrt64.dll",
+		"libmfxhw64",
+	}
+	for _, kw := range keywords {
+		if strings.Contains(log, kw) {
+			return true
+		}
+	}
+	return false
+}
+
 // updateTaskStatus 集中管理任务状态变更
 func updateTaskStatus(key string, status string) {
 	TransferTaskMutex.Lock()
@@ -265,17 +313,17 @@ func ffmpegRunStream(ctx context.Context, args []string, taskKey string) error {
 	scanner := bufio.NewScanner(stderr)
 	scanner.Buffer(make([]byte, 64*1024), 256*1024)
 	for scanner.Scan() {
-	 line := scanner.Text()
-	 if _, err := writer.WriteString(line); err != nil {
-	  return fmt.Errorf("写入日志行失败: %w", err)
-	 }
-	 if _, err := writer.WriteString("\n"); err != nil {
-	  return fmt.Errorf("写入日志换行失败: %w", err)
-	 }
+		line := scanner.Text()
+		if _, err := writer.WriteString(line); err != nil {
+			return fmt.Errorf("写入日志行失败: %w", err)
+		}
+		if _, err := writer.WriteString("\n"); err != nil {
+			return fmt.Errorf("写入日志换行失败: %w", err)
+		}
 		lineCount++
 
 		// 每 10 行通知一次前端（防洪）
-		if lineCount%10 == 1 {
+		if lineCount%2 == 1 {
 			writer.Flush()
 			sse.BroadcastEvent(model.SSETaskLog, map[string]interface{}{
 				"taskKey": taskKey,
@@ -289,7 +337,7 @@ func ffmpegRunStream(ctx context.Context, args []string, taskKey string) error {
 	writer.Flush()
 
 	// 最终通知
-	sse.BroadcastEvent("task_log", map[string]interface{}{
+	sse.BroadcastEvent(model.SSETaskLog, map[string]interface{}{
 		"taskKey": taskKey,
 		"lines":   lineCount,
 	})

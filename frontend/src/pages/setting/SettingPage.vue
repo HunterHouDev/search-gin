@@ -160,12 +160,18 @@
             <div v-if="view.settingInfo.HardwareAcceleration" class="setting-item sub-item">
               <div class="item-info">
                 <div class="item-label">硬件加速模式</div>
-                <div class="item-hint">
-                  <span v-if="view.settingInfo.HardwareAccelMode" class="text-positive">
-                    当前: {{ view.settingInfo.HardwareAccelMode }}
-                  </span>
-                  <span v-else class="text-warning">首次转码时自动检测</span>
-                </div>
+                <div class="item-hint">选择优先使用的硬件加速方案，auto 为自动选择</div>
+              </div>
+              <div class="item-control">
+                <q-select
+                  v-model="view.settingInfo.HardwareAccelMode"
+                  :options="hwAccelModeOptions"
+                  outlined
+                  dense
+                  emit-value
+                  map-options
+                  style="min-width: 200px"
+                />
               </div>
             </div>
           </section>
@@ -923,6 +929,7 @@ const view = reactive({
     SystemPlayerWidth: '1280',
     HardwareAcceleration: false,
     HardwareAccelMode: '',
+    AvailableHwAccelModes: [] as string[],
     AdminPassword: '',
     ControllerHost: '',
     FileHost: ':10082',
@@ -936,6 +943,14 @@ const view = reactive({
   ipAddr: '',
 });
 const systemProperty = useSystemProperty();
+
+// 硬件加速模式下拉选项（来自后端扫描的可用方案）
+const hwAccelModeOptions = computed(() => {
+  return (view.settingInfo.AvailableHwAccelModes || []).map((m: string) => ({
+    label: m === 'auto' ? '自动选择' : m,
+    value: m,
+  }));
+});
 
 const submitForm = async () => {
   const oldControllerHost = view.settingInfo.ControllerHost;

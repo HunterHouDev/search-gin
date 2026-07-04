@@ -76,6 +76,7 @@ export interface SettingInfo {
   DiscoveryPeers: string[]
   HardwareAcceleration: boolean
   HardwareAccelMode: string
+  AvailableHwAccelModes: string[]
   EnableTimeScan: boolean
   SystemPlayer: string
   SystemPlayerVolumn: string

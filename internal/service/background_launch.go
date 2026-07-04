@@ -51,9 +51,11 @@ if dict.ControllerHost == "" {
 		dict.EnableLanDiscovery = newBool(true) // 默认启用
 	}
 
-	// 如果启用硬件加速，主动检测并同步模式名称
-	if dict.HardwareAcceleration {
-		detectHwAccel()
+	// 始终检测可用硬件加速方案（无论是否启用，前端需要展示选项列表）
+	InitHwAccelDetection()
+
+	// 如果启用硬件加速，当前模式名为空时同步
+	if dict.HardwareAcceleration && dict.HardwareAccelMode == "" {
 		dict.HardwareAccelMode = GetHwAccelModeName()
 	}
 

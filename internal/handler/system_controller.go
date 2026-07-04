@@ -16,11 +16,18 @@ func GetSettingInfo(c *gin.Context) {
 	setting := UseApp().config.Get()
 	safeSetting := setting
 	safeSetting.Users = nil
-	safeSetting.AdminPassword = ""     // 密码不返回前端
+	safeSetting.AdminPassword = "" // 密码不返回前端
 	if safeSetting.HardwareAcceleration && safeSetting.HardwareAccelMode == "" {
 		safeSetting.HardwareAccelMode = service.GetHwAccelModeName()
 	}
-	c.JSON(http.StatusOK, safeSetting)
+
+	// 序列化为 map 后添加可用硬件加速方案列表（该字段不存入 setting.json）
+	b, _ := json.Marshal(safeSetting)
+	var result map[string]any
+	json.Unmarshal(b, &result)
+	result["AvailableHwAccelModes"] = service.GetAvailableHwAccelModes()
+
+	c.JSON(http.StatusOK, result)
 }
 
 func PostSetting(c *gin.Context) {
@@ -85,6 +92,10 @@ func PostSetting(c *gin.Context) {
 	UseApp().config.Set(updated)
 	UseApp().config.Flush(service.SettingFileName)
 	if service.HwAccelSettingChanged() {
+		service.ForceHwAccelDetect()
+	}
+	// HardwareAccelMode 变更也触发重新检测
+	if service.HwAccelModeChanged() {
 		service.ForceHwAccelDetect()
 	}
 	c.JSON(http.StatusOK, utils.NewSuccess())

@@ -3,11 +3,9 @@
     :style="isMobile ? '' : 'min-width: 360px'">
     <div :style="isMobile ? '' : 'width: 80vw; max-width: 1100px; min-width: 600px; align-content: center;'">
       <q-layout container view="hHh Lpr lff"
-        :style="'background: #0F1117; border-radius: 8px; ' + (isMobile ? 'height: 100vh' : 'height: 88vh')">
+        :style="' border-radius: 8px; ' + (isMobile ? 'height: 100vh' : 'height: 88vh')">
         <q-header class="shadow-2">
-
-          <q-tabs v-model="dialogTab" class="bg-primary" active-color="white" indicator-color="grey-5"
-            narrow-indicator>
+          <q-tabs v-model="dialogTab" active-color="white" indicator-color="grey-5" narrow-indicator>
             <q-tab name="batch" label="批量编辑" style="min-width: 100px" />
             <q-tab name="tasks" label="任务列表" style="min-width: 100px">
               <q-badge v-if="taskRunningCount > 0" color="orange" floating>{{ taskRunningCount }}</q-badge>
@@ -15,19 +13,18 @@
             <q-space />
             <q-btn flat dense icon="close" @click="dialogHide" />
           </q-tabs>
-
         </q-header>
 
         <q-page-container>
-          <q-page class="q-pa-sm bg-grey-4">
+          <q-page class="q-pa-sm bg-grey-4 ">
             <!-- 批量操作 -->
             <template v-if="dialogTab === 'batch'">
               <div class="row q-gutter-xs q-mb-sm items-center">
-                <q-btn glossy color="primary" text-color="white"  @click="selectAll">
+                <q-btn glossy color="primary" text-color="white" @click="selectAll">
                   {{ state.selectAll ? '取消' : '全选' }}
                   <q-badge v-if="selectedCount > 0" color="red" floating>{{ selectedCount }}</q-badge>
                 </q-btn>
-                <q-btn-dropdown label="类型" glossy dense color="primary" >
+                <q-btn-dropdown label="类型" glossy color="primary">
                   <q-list dense>
                     <q-item v-for="mt in MovieTypeOptions" :key="mt.value" v-close-popup clickable
                       @click="setTypeBySelector(mt.value)">
@@ -35,7 +32,7 @@
                     </q-item>
                   </q-list>
                 </q-btn-dropdown>
-                <q-btn-dropdown v-permission="'op:tag'" label="标签" dense glossy color="primary" >
+                <q-btn-dropdown v-permission="'op:tag'" label="标签" glossy color="primary">
                   <div class="q-pa-sm" style="min-width: 220px">
                     <div class="row items-center q-mb-sm">
                       <q-radio v-model="state.chooseInput" :val="false" label="常用" dense />
@@ -53,7 +50,7 @@
                     </div>
                   </div>
                 </q-btn-dropdown>
-                <q-btn v-permission="'op:merge'" glossy color="orange" 
+                <q-btn v-permission="'op:merge'" glossy color="orange"
                   :disable="selectedCount === 0 || isBatchProcessing" @click="mergeFiles">合并</q-btn>
               </div>
               <div class="row q-gutter-sm q-mb-sm items-center">
@@ -78,16 +75,6 @@
                 <q-btn glossy color="black" icon="chevron_right" @click="nextPage(1)" />
               </div>
 
-              <div v-if="state.settingInfo.MovieTypes?.length" class="q-mb-sm q-gutter-xs row">
-                <q-chip v-for="mt in state.settingInfo.MovieTypes" :key="mt"
-                  :color="state.queryParam.MovieType === mt ? 'primary' : 'grey-6'" text-color="white" clickable
-                  @click="state.queryParam.MovieType = state.queryParam.MovieType === mt ? '' : mt; fetchSearch()">
-                  {{ mt }}
-                </q-chip>
-                <q-chip v-if="state.queryParam.MovieType" color="red" text-color="white" clickable icon="close"
-                  @click="state.queryParam.MovieType = ''; fetchSearch()">清除</q-chip>
-              </div>
-
               <div id="batchListRef" style="height: calc(82vh - 160px); overflow: auto">
                 <div v-if="!state.resultData.Data?.length" class="column items-center q-pa-xl">
                   <q-icon name="search_off" size="3rem" class="q-mb-md" />
@@ -97,13 +84,13 @@
                 <div v-for="item in state.resultData.Data" :key="item.Id" class="q-mb-xs batch-item"
                   style="border: 1px solid rgba(128,0,128,0.15); border-radius: 6px">
                   <div class="row items-center q-px-sm q-py-xs" style="gap: 4px">
-                    <q-checkbox v-model="state.selector" :val="item.Id" color="red" dense size="xs" class="q-mr-xs" />
-                    <q-img v-if="item.PngUrl" :src="item.PngUrl" style="width: 48px; height: 36px; border-radius: 4px"
+                    <q-checkbox v-model="state.selector" :val="item.Id" color="red" dense class="q-mr-xs" />
+                    <q-img v-if="item.PngUrl" :src="item.PngUrl" style="width: 96px; height: 72px; border-radius: 4px"
                       fit="cover" @click="checkThis(item)" />
                     <div class="col" style="min-width: 0; line-height: 1.3">
-                      <div class="row items-center" style="gap: 3px; flex-wrap: wrap">
+                      <div class="row items-center q-gutter-xs" style="gap: 3px; flex-wrap: wrap">
                         <span v-if="state.cutListIds.includes(item.Id)" style="color: red; font-size: 11px">剪切中</span>
-                        <q-btn v-permission="'op:movie:type'" flat dense icon="label" color="blue-6" 
+                        <q-btn v-permission="'op:movie:type'" flat dense icon="label" color="blue-6"
                           :label="item.MovieType">
                           <q-tooltip>修改类型</q-tooltip>
                           <q-menu>
@@ -116,18 +103,16 @@
                           </q-menu>
                         </q-btn>
                         <span class="dim" style="font-size: 12px">【{{ item.SizeStr }}】</span>
-                        <q-btn flat dense icon="open_in_new" 
-                          @click="commonExec(() => OpenFileFolder(item.Id))">
+                        <q-btn dense icon="open_in_new" @click="commonExec(() => OpenFileFolder(item.Id))">
                           <q-tooltip>打开文件夹</q-tooltip>
                         </q-btn>
-                        <q-btn flat dense icon="play_circle"  @click="playNewWindow(item)">
+                        <q-btn dense icon="play_circle" @click="playNewWindow(item)">
                           <q-tooltip>播放</q-tooltip>
                         </q-btn>
-                        <q-btn flat dense icon="content_copy" color="grey"  @click.stop="copyPath(item)">
+                        <q-btn dense icon="content_copy" color="grey" @click.stop="copyPath(item)">
                           <q-tooltip>复制路径</q-tooltip>
                         </q-btn>
-                        <q-btn-dropdown v-permission="'op:transcode'" flat dense icon="transform" color="teal"
-                          >
+                        <q-btn-dropdown v-permission="'op:transcode'" dense icon="transform" color="teal">
                           <q-tooltip>转码</q-tooltip>
                           <q-list dense>
                             <q-item v-close-popup clickable
@@ -138,20 +123,20 @@
                               @click="toVcode(item, 'h265')"><q-item-section>H265</q-item-section></q-item>
                           </q-list>
                         </q-btn-dropdown>
-                        <span class="text-weight-medium" style="
+                        <span class="text-weight-bold" style="
                           flex: 1; min-width: 60px; font-size: 13px;
                           display: -webkit-box; -webkit-box-orient: vertical; line-clamp: 1;
                           overflow: hidden; text-overflow: ellipsis;
-                        ">{{ item.Title }}</span>
-                        <span class="dim cursor-pointer" style="font-size: 10px"
-                          @click="searchCode(item)">{{
-                            item.Code?.substring(0, 10) }}</span>
+                        " :title="item.Title">{{ item.Title }}</span>
+                        <span class="dim">{{ item.FileType }}</span>
                       </div>
-                      <div class="row items-center" style="gap: 3px; flex-wrap: wrap">
-                        <span class="dim cursor-pointer" @click="state.queryParam.Keyword = item.Author; fetchSearch()">
+                      <div class="row items-center q-gutter-md  text-weight-medium" style="gap: 3px; flex-wrap: wrap">
+                        <span class="dim cursor-pointer" style="font-size: 10px" @click="searchCode(item)">{{
+                          item.Code?.substring(0, 10) }}</span>
+                        <span class="dim cursor-pointer  text-weight-bold" @click="state.queryParam.Keyword = item.Author; fetchSearch()">
                           {{ item.Author?.substring(0, 8) }}
                         </span>
-                        <span class="dim">{{ item.FileType }}</span>
+                        
                         <q-chip v-for="ta in (item.Tags || [])" :key="ta" dense color="orange-2" text-color="orange-9"
                           removable @remove="doCloseTag(item, ta)">
                           {{ ta }}
@@ -180,12 +165,12 @@
                     <q-badge color="grey" floating>{{ taskTotalCount[0] }}</q-badge>
                   </q-tab>
                 </q-tabs>
-                <q-toggle v-model="taskAutoRefresh" color="green"  label="自动" dense dark />
-                <q-btn v-if="taskTab === '完成'" flat dense  color="orange" icon="delete_sweep" label="清除已完成"
+                <q-toggle v-model="taskAutoRefresh" color="green" label="自动" dense dark />
+                <q-btn v-if="taskTab === '完成'" flat dense color="orange" icon="delete_sweep" label="清除已完成"
                   @click="clearCompleted" />
-                <q-btn v-if="taskTab === '失败'" flat dense  color="red" icon="delete_sweep" label="清除失败"
+                <q-btn v-if="taskTab === '失败'" flat dense color="red" icon="delete_sweep" label="清除失败"
                   @click="clearFailed" />
-                <q-btn v-if="taskTab === '全部'" flat dense  color="negative" icon="delete_sweep" label="清除所有"
+                <q-btn v-if="taskTab === '全部'" flat dense color="negative" icon="delete_sweep" label="清除所有"
                   @click="clearAll" />
               </div>
 
@@ -197,12 +182,11 @@
                   </q-item-section>
                   <q-item-section>
                     <q-item-label class="text-caption text-weight-medium" style="line-clamp: 1">{{ v.Name || v.Files
-                      }}</q-item-label>
+                    }}</q-item-label>
                     <q-item-label caption>{{ v.Type }} &middot; {{ taskFmtTime(v.CreateTime) }}</q-item-label>
                   </q-item-section>
                   <q-item-section side>
-                    <q-btn dense flat  icon="fullscreen" color="orange"
-                      @click="taskLogFullscreenRef?.open(v)" />
+                    <q-btn dense flat icon="fullscreen" color="orange" @click="taskLogFullscreenRef?.open(v)" />
                   </q-item-section>
                 </q-item>
               </q-list>
@@ -214,18 +198,17 @@
                   </q-item-section>
                   <q-item-section>
                     <q-item-label class="text-caption text-weight-medium" style="line-clamp: 1">{{ v.Name || v.Files
-                      }}</q-item-label>
+                    }}</q-item-label>
                     <q-item-label caption>
                       <span :class="'text-' + taskStatusColor(v.Status)">{{ v.Status === '执行失败' ? '失败' : v.Status
-                        }}</span>
+                      }}</span>
                       <span v-if="v.FinishTime"> &middot; {{ taskShowTimeUse(v.FinishTime, v.CreateTime) }}</span>
                       <span> &middot; {{ taskFmtTime(v.CreateTime) }}</span>
                     </q-item-label>
                   </q-item-section>
                   <q-item-section side>
-                    <q-btn  dense flat  icon="fullscreen" color="grey"
-                      @click="taskLogFullscreenRef?.open(v)" />
-                    <q-btn dense flat  icon="close" color="red" @click="taskRemove(v.ID)" />
+                    <q-btn dense flat icon="fullscreen" color="grey" @click="taskLogFullscreenRef?.open(v)" />
+                    <q-btn dense flat icon="close" color="red" @click="taskRemove(v.ID)" />
                   </q-item-section>
                 </q-item>
                 <q-item v-if="!taskList.length" class="text-center q-py-md">
@@ -240,7 +223,7 @@
         <q-footer v-if="dialogTab === 'batch'" class="text-white row items-center q-px-sm"
           style="min-height: 28px; border-radius: 0 0 8px 8px">
           <span>第 {{ state.queryParam.Page }} 页，{{ state.queryParam.PageSize }} 条/页，共 {{ state.resultData.TotalCnt || 0
-            }}
+          }}
             条</span>
           <q-space />
           <span v-if="isBatchProcessing" class="text-orange text-bold q-mr-sm">
@@ -499,16 +482,19 @@ defineExpose({ open, openTaskPanel });
 
 <style scoped>
 .q-page {
-  color: var(--q-text-primary);
-}
-.batch-item {
-  color: var(--q-text-primary);
-}
-.batch-item .dim {
   color: var(--q-text-muted);
 }
+
+.batch-item {
+  color: var(--q-text-secondary);
+}
+
+.batch-item .dim {
+  color: var(--q-text-secondary);
+}
+
 .q-item-label--caption {
-  color: var(--q-text-muted) !important;
+  color: var(--q-text-secondary) !important;
 }
 </style>
 <style>

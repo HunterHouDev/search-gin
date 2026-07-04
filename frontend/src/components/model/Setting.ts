@@ -18,6 +18,7 @@ export class SettingInfo {
   SystemPlayerWidth = '1280';
   HardwareAcceleration = false;
   HardwareAccelMode = '';
+  AvailableHwAccelModes: string[] = [];
 
   EnableLanDiscovery: boolean | null = null;
   NodeName: string | undefined;
