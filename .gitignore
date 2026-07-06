@@ -50,3 +50,5 @@ drop/
 data/
 coverage*.out
 .mimocode/
+**/package-lock.json
+**/yarn.lock
