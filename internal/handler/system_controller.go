@@ -3,7 +3,6 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
-	"os/exec"
 	"strings"
 
 	"search-gin/internal/service"
@@ -133,9 +132,45 @@ func GetShutdown(c *gin.Context) {
 	if !requireAdmin(c) {
 		return
 	}
-	err := exec.Command("cmd", "/C", "shutdown -s -t 0").Run()
-	if err != nil {
-		utils.InfoFormat("shutdown:%v", err)
-	}
+	service.ShutdownSystem()
 	c.JSON(http.StatusOK, utils.NewSuccess())
+}
+
+// PostShutdownSchedule 设置定时关机（秒）
+func PostShutdownSchedule(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+	var body struct {
+		Seconds int `json:"seconds"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数无效"))
+		return
+	}
+	if body.Seconds <= 0 {
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("秒数必须大于 0"))
+		return
+	}
+	service.ScheduleShutdown(body.Seconds)
+	c.JSON(http.StatusOK, utils.NewSuccess())
+}
+
+// PostShutdownCancel 取消定时关机
+func PostShutdownCancel(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+	service.CancelShutdown()
+	c.JSON(http.StatusOK, utils.NewSuccess())
+}
+
+// GetShutdownStatus 获取当前剩余秒数（供前端初始化时同步）
+func GetShutdownStatus(c *gin.Context) {
+	remaining := service.GetShutdownRemaining()
+	if remaining <= 0 {
+		c.JSON(http.StatusOK, gin.H{"remaining": 0})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"remaining": remaining})
 }

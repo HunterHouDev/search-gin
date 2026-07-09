@@ -32,7 +32,6 @@ export const useSystemProperty = defineStore('system', () => {
   const fileEditAutoRefresh = ref(true);
   const tagSizeMap = ref([] as any[]);
   const shutdownLeftSecond = ref<number | null>(null);
-  const shutdownTimer = ref<ReturnType<typeof setInterval> | null>(null);
   const videoOptions = reactive({
     autoPlay: true,
     volume: 0.6,
@@ -238,7 +237,7 @@ export const useSystemProperty = defineStore('system', () => {
     addPlayingTagGoNext, goAuthorNewWidow, goSearchNewWidow,
     submitTagFromData, submitMutiTag,
     fileEditAutoCode, fileEditAutoJpg, fileEditAutoNext, fileEditAutoRefresh,
-    tagSizeMap, shutdownLeftSecond, shutdownTimer,
+    tagSizeMap, shutdownLeftSecond,
     videoOptions,
     SearchWords, SearchRecords,
     playerMemory, playerRunning, playerReLocation,
@@ -267,7 +266,7 @@ export const useSystemProperty = defineStore('system', () => {
       'addPlayingTagGoNext', 'goAuthorNewWidow', 'goSearchNewWidow',
       'submitTagFromData', 'submitMutiTag',
       'fileEditAutoCode', 'fileEditAutoJpg', 'fileEditAutoNext', 'fileEditAutoRefresh',
-      'tagSizeMap', 'shutdownLeftSecond',
+      'tagSizeMap',
       'videoOptions', 'SearchWords', 'SearchRecords',
       'playerMemory', 'playerRunning', 'playerReLocation',
       'PlayingMovie', 'FileSearchParam', 'SettingInfo',

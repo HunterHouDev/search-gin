@@ -161,6 +161,9 @@ func BuildAPIRouter(sigChan chan os.Signal) *gin.Engine {
 	router.GET("/api/serverPort", handler.GetServerPort)
 	router.GET("/api/GetIpAddr", handler.GetIpAddr2)
 	router.GET("/api/shutDown", handler.GetShutdown)
+	router.POST("/api/shutdownSchedule", handler.PostShutdownSchedule)
+	router.POST("/api/shutdownCancel", handler.PostShutdownCancel)
+	router.GET("/api/shutdownStatus", handler.GetShutdownStatus)
 
 	router.GET("/api/users", handler.GetUsers)
 	router.POST("/api/user/add", handler.AddUser)

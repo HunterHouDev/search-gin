@@ -34,7 +34,7 @@
 </template>
 <script setup>
 import { reactive, ref } from 'vue';
-import { GetShutDown, AppShutDown } from '../components/api/settingAPI';
+import { GetShutDown, AppShutDown, ScheduleShutdown, CancelShutdown } from '../components/api/settingAPI';
 import { useSystemProperty } from '../stores/System';
 import { useQuasar } from 'quasar';
 
@@ -59,8 +59,14 @@ const close = () => {
   card.value = false;
 };
 
-const clearTime = () => {
-  systemProperty.shutdownLeftSecond = null;
+// 清除定时 → 调后端 API
+const clearTime = async () => {
+  try {
+    await CancelShutdown();
+    // SSE 会自动更新 shutdownLeftSecond
+  } catch (e) {
+    // ignore
+  }
 };
 
 const closePage = () => {
@@ -68,7 +74,6 @@ const closePage = () => {
 }
 
 const closeApp = async () => {
-
   const res = await AppShutDown();
   $q.notify({ message: `${res}`, position: 'center' });
   setTimeout(() => {
@@ -76,22 +81,22 @@ const closeApp = async () => {
   }, 200);
 };
 
-const submitBtn = () => {
-  clearTimeout(systemProperty.shutdownTimer);
+// 提交关机 → 调后端 API（不再用前端倒计时）
+const submitBtn = async () => {
   if (view.shutdownType === 'now') {
     GetShutDown();
   } else if (view.shutdownType === 'target') {
-    systemProperty.shutdownLeftSecond =
+    const totalSec =
       (view.shutdownHH || 0) * 3600 +
       (view.shutdownMM || 0) * 60 +
       (view.shutdownSS || 0);
-    systemProperty.shutdownTimer = setInterval(() => {
-      systemProperty.shutdownLeftSecond = systemProperty.shutdownLeftSecond - 1;
-      if (systemProperty.shutdownLeftSecond < 0) {
-        clearTimeout(systemProperty.shutdownTimer);
-        GetShutDown();
-      }
-    }, 1000);
+    if (totalSec <= 0) return;
+    try {
+      await ScheduleShutdown(totalSec);
+      // SSE 会自动更新 shutdownLeftSecond 并开始倒计时
+    } catch (e) {
+      // ignore
+    }
   }
 };
 

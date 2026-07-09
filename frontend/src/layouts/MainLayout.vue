@@ -94,7 +94,7 @@
 
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useSystemProperty } from 'stores/System';
@@ -105,6 +105,9 @@ import EssentialLink from 'components/EssentialLink.vue';
 import ShutdownComponent from 'components/ShutdownComponent.vue';
 import ChatRoom from 'components/ChatRoom.vue';
 import { useChatWs } from 'src/composables/useChatWs';
+import { useSSE } from 'src/composables/useSSE';
+import { GetShutdownStatus } from 'src/components/api/settingAPI';
+import type { SSEEvent } from 'src/composables/useSSE';
 
 const chatRoomRef = ref(null);
 
@@ -114,8 +117,17 @@ const $q = useQuasar();
 const router = useRouter();
 const bp = useBreakpoint();
 
-onMounted(() => {
+onMounted(async () => {
   permStore.loadFromSession();
+
+  // 初始化时同步后端定时关机状态（页面刷新后恢复）
+  try {
+    const status = await GetShutdownStatus();
+    const remaining = status?.remaining ?? 0;
+    systemProperty.shutdownLeftSecond = remaining > 0 ? remaining : null;
+  } catch {
+    // ignore
+  }
 });
 
 // 同步主题到 body，确保弹窗/对话框等 body 级组件也能继承自然模式样式
@@ -217,6 +229,18 @@ const wsOnlineCount = computed(() => wsOnlineUsers.value.length);
 const openChatRoom = () => {
   chatRoomRef.value.open();
 };
+
+// ── SSE 监听：定时关机倒计时 ──
+useSSE((event: SSEEvent) => {
+  if (event.Type === 'shutdown_status') {
+    const data = event.Data as { remaining: number };
+    if (data.remaining > 0) {
+      systemProperty.shutdownLeftSecond = data.remaining;
+    } else {
+      systemProperty.shutdownLeftSecond = null;
+    }
+  }
+});
 
 // 登录后自动连接 WebSocket
 if (sessionStorage.getItem('isAuthenticated')) {

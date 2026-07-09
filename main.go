@@ -95,7 +95,10 @@ func main() {
 	// ── 15. 启动后台任务 ──
 	service.StartBackgroundTasks()
 
-	// ── 16. 获取配置端口，启动两个 HTTP 服务 ──
+	// ── 16. 启动定时关机协程 ──
+	service.InitShutdownScheduler()
+
+	// ── 17. 获取配置端口，启动两个 HTTP 服务 ──
 	apiPort := server.ResolvePort(service.PortNo, service.GetOSSetting().ControllerHost)
 	apiSrv := server.CreateServer(apiPort, apiRouter)
 	filePort := server.ResolvePort(service.FilePortNo, service.GetOSSetting().FileHost)

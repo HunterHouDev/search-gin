@@ -81,6 +81,21 @@ export const GetShutDown = async () => {
   return res as unknown;
 };
 
+export const ScheduleShutdown = async (seconds: number) => {
+  const res = await commonAxios().post('/api/shutdownSchedule', { seconds });
+  return res && res.data;
+};
+
+export const CancelShutdown = async () => {
+  const res = await commonAxios().post('/api/shutdownCancel');
+  return res && res.data;
+};
+
+export const GetShutdownStatus = async () => {
+  const res = await commonAxios().get('/api/shutdownStatus');
+  return res && res.data;
+};
+
 export const AppShutDown = async () => {
   const res = await commonAxios().get('/api/close');
   return res && res.data;

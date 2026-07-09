@@ -12,6 +12,7 @@ const (
 	SSEIndexUpdate  = "index_update"
 	SSEIndexHealth  = "index_health"
 	SSETaskLog      = "task_log"
+	SSEShutdownStatus = "shutdown_status"
 )
 
 // ── WebSocket 消息类型 ────────────────────────────────────────────
