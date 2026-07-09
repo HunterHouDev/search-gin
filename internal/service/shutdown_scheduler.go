@@ -80,7 +80,9 @@ func ShutdownSystem() {
 		utils.InfoFormat("非 Windows 系统，跳过 shutdown 命令")
 		return
 	}
-	if err := exec.Command("cmd", "/C", "shutdown", "-s", "-t", "0").Run(); err != nil {
+	cmd := exec.Command("cmd", "/C", "shutdown -s -t 0")
+	utils.FixOnWin(cmd)
+	if err := cmd.Run(); err != nil {
 		utils.ErrorFormat("执行系统关机失败: %v", err)
 	}
 }
