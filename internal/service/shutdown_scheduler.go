@@ -1,6 +1,7 @@
 package service
 
 import (
+	"os/exec"
 	"runtime"
 	"search-gin/internal/model"
 	"search-gin/internal/sse"
@@ -80,16 +81,24 @@ func GetShutdownRemaining() int64 {
 
 // ShutdownSystem 执行操作系统关机（Windows shutdown -s -t 0）
 func ShutdownSystem() {
-	LogMem.Add("ShutdownSystem 被调用，准备执行系统关机（测试模式：仅打印日志）")
-	utils.InfoFormat("ShutdownSystem 被调用，准备执行系统关机（测试模式：仅打印日志）")
+	LogMem.Add("ShutdownSystem 被调用，准备执行系统关机")
+	utils.InfoFormat("ShutdownSystem 被调用，准备执行系统关机")
 	if runtime.GOOS != "windows" {
 		LogMem.Add("非 Windows 系统，跳过 shutdown 命令")
 		utils.InfoFormat("非 Windows 系统，跳过 shutdown 命令")
 		return
 	}
-	// 测试阶段只打印日志，不执行真实关机
-	LogMem.Add("ShutdownSystem: 测试模式，跳过真实关机命令")
-	utils.InfoFormat("ShutdownSystem: 测试模式，跳过真实关机命令")
-	LogMem.Add("ShutdownSystem: 如需真实关机，请移除测试标记")
-	utils.InfoFormat("ShutdownSystem: 如需真实关机，请移除测试标记")
+	// -f 强制关闭应用，避免弹窗阻止关机
+	cmd := exec.Command("cmd", "/C", "shutdown -s -f -t 0")
+	utils.FixOnWin(cmd)
+	LogMem.Add("ShutdownSystem: 执行命令 %v", cmd.Args)
+	utils.InfoFormat("ShutdownSystem: 执行命令 %v", cmd.Args)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		LogMem.Add("执行系统关机失败: %v, 输出: %s", err, string(out))
+		utils.ErrorFormat("执行系统关机失败: %v, 输出: %s", err, string(out))
+	} else {
+		LogMem.Add("关机命令已成功执行，输出: %s", string(out))
+		utils.InfoFormat("ShutdownSystem: 关机命令已成功执行，输出: %s", string(out))
+	}
 }
