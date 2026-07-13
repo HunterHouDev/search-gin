@@ -173,6 +173,14 @@
                 @click="clearLocalLog" />
               <q-btn dense flat icon="refresh" size="sm"
                 @click="logTab === 'memory' ? fetchMemoryLog() : fetchLocalLog()" />
+              <q-toggle
+                v-model="logAutoRefresh"
+                dense
+                size="sm"
+                icon="autorenew"
+                color="blue"
+                label="自动刷新"
+              />
             </div>
             <!-- 内存日志 -->
             <template v-if="logTab === 'memory'">
@@ -428,6 +436,7 @@ const fetchLogs = async () => {
   view.logs = Array.isArray(data) ? data.reverse() : [];
 };
 
+const logAutoRefresh = ref(true);
 let logIntervalId: ReturnType<typeof setInterval> | undefined;
 
 // ── 多节点集群 ──
@@ -583,18 +592,29 @@ const removePeer = async (peer: any) => {
   }
 };
 
-// tab 切换时同步到 URL query，日志 tab 开启定时刷新
+// tab 切换时同步到 URL query
 watch(tab, (val) => {
   router.replace({ query: { ...route.query, tab: val } });
-  if (val === 'log') {
+  restartLogAutoRefresh();
+});
+
+// logAutoRefresh 开关变化时启停定时器
+watch(logAutoRefresh, () => {
+  restartLogAutoRefresh();
+});
+
+function restartLogAutoRefresh() {
+  if (logIntervalId) {
+    clearInterval(logIntervalId);
+    logIntervalId = undefined;
+  }
+  if (tab.value === 'log' && logAutoRefresh.value) {
     logIntervalId = setInterval(() => {
       if (logTab.value === 'memory') fetchMemoryLog();
       else fetchLocalLog();
     }, 5000);
-  } else {
-    if (logIntervalId) { clearInterval(logIntervalId); logIntervalId = undefined; }
   }
-});
+}
 
 onMounted(() => {
   document.title = '系统信息';
@@ -603,13 +623,7 @@ onMounted(() => {
   fetchMemoryLog();
   fetchLocalLog();
   fetchPeers();
-  // 如果初始 tab 就是日志，启动定时轮询
-  if (tab.value === 'log') {
-    logIntervalId = setInterval(() => {
-      if (logTab.value === 'memory') fetchMemoryLog();
-      else fetchLocalLog();
-    }, 5000);
-  }
+  restartLogAutoRefresh();
 });
 
 onUnmounted(() => {

@@ -1,7 +1,6 @@
 package service
 
 import (
-	"os/exec"
 	"runtime"
 	"search-gin/internal/model"
 	"search-gin/internal/sse"
@@ -20,6 +19,7 @@ var shutdownScheduler = struct {
 func InitShutdownScheduler() {
 	go func() {
 		defer utils.RecoverPanic()
+		utils.InfoFormat("定时关机协程已启动")
 		for {
 			time.Sleep(1 * time.Second)
 
@@ -31,6 +31,7 @@ func InitShutdownScheduler() {
 				}
 				next := cur - 1
 				if shutdownScheduler.remaining.CompareAndSwap(cur, next) {
+					utils.InfoFormat("定时关机倒计时: %d -> %d", cur, next)
 					// SSE 广播到所有前端
 					sse.BroadcastEvent(model.SSEShutdownStatus, map[string]any{
 						"remaining": next,
@@ -38,7 +39,9 @@ func InitShutdownScheduler() {
 					// 归零 → 执行系统关机
 					if next <= 0 {
 						utils.InfoFormat("定时关机倒计时结束，执行系统关机")
-						go ShutdownSystem()
+						// 先广播 remaining:0 确保前端显示归零，再执行关机
+						// 因为关机命令会终止进程，之后的日志可能来不及写入
+						ShutdownSystem()
 					}
 					break
 				}
@@ -50,6 +53,7 @@ func InitShutdownScheduler() {
 
 // ScheduleShutdown 设置定时关机（秒数）
 func ScheduleShutdown(seconds int) {
+	utils.InfoFormat("ScheduleShutdown 被调用: %d 秒", seconds)
 	shutdownScheduler.remaining.Store(int64(seconds))
 	utils.InfoFormat("定时关机已设置: %d 秒后执行", seconds)
 
@@ -76,13 +80,16 @@ func GetShutdownRemaining() int64 {
 
 // ShutdownSystem 执行操作系统关机（Windows shutdown -s -t 0）
 func ShutdownSystem() {
+	LogMem.Add("ShutdownSystem 被调用，准备执行系统关机（测试模式：仅打印日志）")
+	utils.InfoFormat("ShutdownSystem 被调用，准备执行系统关机（测试模式：仅打印日志）")
 	if runtime.GOOS != "windows" {
+		LogMem.Add("非 Windows 系统，跳过 shutdown 命令")
 		utils.InfoFormat("非 Windows 系统，跳过 shutdown 命令")
 		return
 	}
-	cmd := exec.Command("cmd", "/C", "shutdown -s -t 0")
-	utils.FixOnWin(cmd)
-	if err := cmd.Run(); err != nil {
-		utils.ErrorFormat("执行系统关机失败: %v", err)
-	}
+	// 测试阶段只打印日志，不执行真实关机
+	LogMem.Add("ShutdownSystem: 测试模式，跳过真实关机命令")
+	utils.InfoFormat("ShutdownSystem: 测试模式，跳过真实关机命令")
+	LogMem.Add("ShutdownSystem: 如需真实关机，请移除测试标记")
+	utils.InfoFormat("ShutdownSystem: 如需真实关机，请移除测试标记")
 }

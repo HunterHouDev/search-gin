@@ -12,14 +12,24 @@
             <q-radio v-model="view.shutdownType" val="now" label="立即" />
             <q-radio v-model="view.shutdownType" val="target" label="定时" />
           </div>
-          <div v-if="view.shutdownType === 'target'" style="
-              display: flex;
-              flex-direction: row;
-              justify-content: space-between;
-            ">
-            <q-input class="timeSelect" v-model="view.shutdownHH"></q-input>
-            <q-input class="timeSelect" v-model="view.shutdownMM"></q-input>
-            <q-input class="timeSelect" v-model="view.shutdownSS"></q-input>
+          <div v-if="view.shutdownType === 'target'" class="row items-center q-gutter-sm">
+            <q-input
+              v-model.number="view.shutdownValue"
+              type="number"
+              min="1"
+              style="width: 100px"
+              outlined
+              dense
+            />
+            <q-select
+              v-model="view.shutdownUnit"
+              :options="shutdownUnitOptions"
+              outlined
+              dense
+              emit-value
+              map-options
+              style="min-width: 90px"
+            />
           </div>
         </q-card-section>
       </div>
@@ -43,12 +53,15 @@ const card = ref(false);
 
 const systemProperty = useSystemProperty();
 
+const shutdownUnitOptions = [
+  { label: '分钟', value: 'minute' },
+  { label: '小时', value: 'hour' },
+];
+
 const view = reactive({
-  shutdownHH: 0,
-  shutdownMM: 0,
-  shutdownSS: 0,
+  shutdownValue: 1,
+  shutdownUnit: 'minute',
   shutdownType: 'now',
-  shutdownTime: new Date(),
 });
 
 const open = () => {
@@ -63,7 +76,6 @@ const close = () => {
 const clearTime = async () => {
   try {
     await CancelShutdown();
-    // SSE 会自动更新 shutdownLeftSecond
   } catch (e) {
     // ignore
   }
@@ -81,19 +93,16 @@ const closeApp = async () => {
   }, 200);
 };
 
-// 提交关机 → 调后端 API（不再用前端倒计时）
+// 提交关机 → 调后端 API
 const submitBtn = async () => {
   if (view.shutdownType === 'now') {
     GetShutDown();
   } else if (view.shutdownType === 'target') {
-    const totalSec =
-      (view.shutdownHH || 0) * 3600 +
-      (view.shutdownMM || 0) * 60 +
-      (view.shutdownSS || 0);
+    const multiplier = view.shutdownUnit === 'hour' ? 3600 : 60;
+    const totalSec = (view.shutdownValue || 0) * multiplier;
     if (totalSec <= 0) return;
     try {
       await ScheduleShutdown(totalSec);
-      // SSE 会自动更新 shutdownLeftSecond 并开始倒计时
     } catch (e) {
       // ignore
     }
@@ -110,8 +119,5 @@ defineExpose({
   close,
 });
 </script>
-<style>
-.timeSelect {
-  width: 28px;
-}
+<style scoped>
 </style>

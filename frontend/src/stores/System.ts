@@ -1,9 +1,9 @@
 import { ref, reactive, computed } from 'vue';
 import { defineStore } from 'pinia';
-import { FileModel, FileQuery } from 'components/model/File';
-import type { SettingInfo } from 'components/model/Setting';
-import { defaultVideoOffset, defaultVideoWidth } from 'components/utils';
-import recordWrapper from 'components/model/RecordWrapper';
+import { FileModel, FileQuery } from 'src/components/model/File';
+import type { SettingInfo } from 'src/components/model/Setting';
+import { defaultVideoOffset, defaultVideoWidth } from 'src/components/utils';
+import recordWrapper from 'src/components/model/RecordWrapper';
 
 export const useSystemProperty = defineStore('system', () => {
   // ── state ──
