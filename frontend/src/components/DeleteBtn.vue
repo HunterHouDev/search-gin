@@ -99,7 +99,6 @@ const deleteMouseOut = () => {
   }, 3000);
 };
 
-const fetchToUpdateList = inject('fetchToUpdateList', () => undefined);
 
 const picDelete = async (n) => {
   const idToDelete = props.currentData.Id;
@@ -113,7 +112,6 @@ const picDelete = async (n) => {
     if (Code !== 200) {
       $q.notify({ message: `${Message}`, position: 'bottom-left' });
     }
-    fetchToUpdateList(props.currentData);
   }, 3000);
 };
 

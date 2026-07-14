@@ -12,7 +12,7 @@
         <!-- 用户行为偏好 -->
         <AppPreference />
         <!-- 重命名中指示 -->
-        <q-btn v-if="pendingRenames > 0" color="red" text-color="white" size="md" 
+        <q-btn v-if="pendingRenames > 0" color="red" text-color="white" size="md"
           icon="drive_file_rename_outline">
           {{ pendingRenames }}
           <q-tooltip>改名中 {{ pendingRenames }} 个文件</q-tooltip>
@@ -609,7 +609,7 @@
     <!-- 视频播放器 -->
 
     <InnerVideoPlayer ref="videoRef" @next-one="viewNextOne('play')" @prev-one="viewPrevOne('play')"
-      @refresh-disk="fetchToUpdateList" @choose-data="
+       @choose-data="
         (d) => {
           saveParam();
           view.currentDataInPlayer = d;
@@ -618,7 +618,7 @@
 
     <!-- 文件编辑对话框 -->
     <FileEdit ref="fileEditRef" @next-one="viewNextOne('info')" @prev-one="viewPrevOne('info')"
-      @success="fetchToUpdateList" @hide="view.currentDataInEditor = {}" />
+       @hide="view.currentDataInEditor = {}" />
     <!-- 文件信息对话框 -->
     <FileInfo ref="fileInfoRef" @next-one="viewNextOne('edit')" @prev-one="viewPrevOne('edit')"
       @hide="view.currentDataInEditor = {}" />
@@ -1242,7 +1242,7 @@ const confirmDelete = (item) => {
     persistent: true,
   }).onOk(() => {
     commonExec(() => DeleteFile(item.Id)).then(() => {
-      fetchToUpdateList(item);
+      $q.notify({ message: `已删除`, position: 'bottom-left' });
     });
   });
 };
@@ -1451,15 +1451,8 @@ const pictureRightClick = async (item, e) => {
 
 const refreshDebounceFn = async (item, delayMs = 1000) => {
   await indexButton.value.refreshIndex(item);
-  fetchToUpdateList(delayMs)
 };
 
-const fetchToUpdateList = async (delayMs = 1000) => {
-  const timer = setTimeout(async () => {
-    await fetchSearch();
-    clearTimeout(timer);
-  }, delayMs);
-};
 
 const searchKeyword = async (keyword) => {
   view.queryParam.Keyword = keyword;
@@ -1657,16 +1650,13 @@ const gotoPrevPage = () => {
   gotoPageNo(view.queryParam.Page - 1);
 };
 
-provide('fetchToUpdateList', fetchToUpdateList);
 provide('searchKeyword', searchKeyword);
 provide('gotoNextPage', gotoNextPage);
 provide('gotoPrevPage', gotoPrevPage);
 
 // 初始加载完成后，才响应 IndexButton 的 refreshDone 事件
-let skipIndexRefresh = true;
 const onIndexRefresh = () => {
-  if (skipIndexRefresh) return;
-  fetchSearch();
+  console.log('onIndexRefresh');
 };
 
 onMounted(async () => {
@@ -1730,10 +1720,7 @@ onMounted(async () => {
   }
   // 恢复高级过滤 UI 状态（从 localStorage/pinia 恢复的 queryParam 中同步）
   ensureFilterDefaults();
-  skipIndexRefresh = true;  // 初始化期间不响应 IndexButton 的 refreshDone
   fetchSearch(true);  // 异步执行
-  // fetchSearch 完成后允许 IndexButton 触发搜索
-  setTimeout(() => { skipIndexRefresh = false; }, 500);
 });
 
 onUnmounted(() => {

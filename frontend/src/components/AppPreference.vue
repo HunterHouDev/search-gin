@@ -1,5 +1,5 @@
 <template>
-  <q-btn-dropdown no-caps flat glossy dense class="app-prefer-dropdown">
+  <q-btn-dropdown  flat glossy dense class="app-prefer-dropdown">
     <template v-slot:label>
       <q-icon :name="themeIcon" size="14px" class="theme-icon" />
       {{ currentThemeLabel }}
@@ -9,14 +9,14 @@
       <!-- 主题 -->
       <div class="section-col column q-gutter-sm">
         <div class="text-caption text-weight-bold text-grey-7 q-mb-xs">主题</div>
-        <q-btn flat align="left" v-close-popup :color="systemProperty.theme === 'star' ? 'primary' : 'grey-7'"
+        <q-btn flat align="left"  :color="systemProperty.theme === 'star' ? 'primary' : 'grey-7'"
           @click="setTheme('star')" class="option-btn">
           <q-icon left name="star" class="q-mr-sm" />
           <span class="text-body2">星空主题</span>
           <q-space />
           <q-icon v-if="systemProperty.theme === 'star'" name="check" color="primary" />
         </q-btn>
-        <q-btn flat align="left" v-close-popup :color="systemProperty.theme === 'natural' ? 'primary' : 'grey-7'"
+        <q-btn flat align="left"  :color="systemProperty.theme === 'natural' ? 'primary' : 'grey-7'"
           @click="setTheme('natural')" class="option-btn">
           <q-icon left name="eco" class="q-mr-sm" />
           <span class="text-body2">自然主题</span>
@@ -76,7 +76,6 @@
         <q-item tag="label" dense>
           <q-item-section>
             <q-item-label class="text-body2">搜索自动加载</q-item-label>
-            <q-item-label caption>自动拉取数据</q-item-label>
           </q-item-section>
           <q-item-section side>
             <q-toggle v-model="systemProperty.searchPageAutoPullData" color="primary" size="sm" />
@@ -84,8 +83,7 @@
         </q-item>
         <q-item tag="label" dense>
           <q-item-section>
-            <q-item-label class="text-body2">种草多选</q-item-label>
-            <q-item-label caption>标签允许多选</q-item-label>
+            <q-item-label class="text-body2">标签允许多选</q-item-label>
           </q-item-section>
           <q-item-section side>
             <q-toggle v-model="systemProperty.submitMutiTag" color="primary" size="sm"
@@ -94,8 +92,7 @@
         </q-item>
         <q-item tag="label" dense>
           <q-item-section>
-            <q-item-label class="text-body2">图鉴点击</q-item-label>
-            <q-item-label caption>新窗口打开作者</q-item-label>
+            <q-item-label class="text-body2">图鉴新窗口</q-item-label>
           </q-item-section>
           <q-item-section side>
             <q-toggle v-model="systemProperty.goAuthorNewWidow" color="primary" size="sm" />
@@ -103,8 +100,7 @@
         </q-item>
         <q-item tag="label" dense>
           <q-item-section>
-            <q-item-label class="text-body2">Search 点击</q-item-label>
-            <q-item-label caption>新窗口打开结果</q-item-label>
+            <q-item-label class="text-body2">Search新窗口</q-item-label>
           </q-item-section>
           <q-item-section side>
             <q-toggle v-model="systemProperty.goSearchNewWidow" color="primary" size="sm" />
@@ -145,8 +141,10 @@ const setShowStyle = (style) => {
 }
 
 .section-col {
-  min-width: 140px;
+  min-width: 180px;
   flex: 1;
+
+
 }
 
 .section-col .option-btn {
@@ -155,6 +153,7 @@ const setShowStyle = (style) => {
   padding: 6px 10px;
   border-radius: 8px;
 }
+
 
 .section-col .q-item {
   padding: 6px 10px;

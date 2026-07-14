@@ -3,45 +3,19 @@
     <q-layout view="hHh Lpr lff" class="bg-dark">
       <q-header class="bg-primary text-white">
         <q-toolbar>
-          <span class="text-subtitle2 text-weight-bold">{{ view.authorName }}</span>
+          <span class="text-title text-weight-bold">{{ view.authorName }} </span>
+          <span class="q-ml-sm text-blue">({{ totalCount }})</span>
           <q-space />
           <div class="row items-center q-gutter-xs">
             <!-- 排序 -->
-            <q-select
-              v-model="sortValue"
-              :options="sortOptions"
-              dense
-              borderless
-              dark
-              options-dark
-              emit-value
-              map-options
-              class="sort-select"
-              @update:model-value="pageNo = 1; fetchMovieList()"
-            />
+            <q-select v-model="sortValue" :options="sortOptions" dense borderless dark options-dark emit-value
+              map-options class="sort-select" @update:model-value="pageNo = 1; fetchMovieList()" />
             <!-- 每页数量 -->
-            <q-select
-              v-model="pageSize"
-              :options="[12, 24, 50, 100]"
-              dense
-              borderless
-              dark
-              options-dark
-              style="min-width: 60px"
-              @update:model-value="pageNo = 1; fetchMovieList()"
-            />
+            <q-select v-model="pageSize" :options="[12, 24, 50, 100]" dense borderless dark options-dark
+              style="min-width: 60px" @update:model-value="pageNo = 1; fetchMovieList()" />
             <!-- 分页 -->
-            <q-pagination
-              v-if="totalPages > 1"
-              v-model="pageNo"
-              :max="totalPages"
-              size="sm"
-              color="white"
-              input
-              boundary-links
-              direction-links
-              @update:model-value="fetchMovieList()"
-            />
+            <q-pagination v-if="totalPages > 1" v-model="pageNo" :max="totalPages" size="sm" color="white" input
+              boundary-links direction-links @update:model-value="fetchMovieList()" />
             <q-btn dense flat icon="close" @click="onDialogClose">
               <q-tooltip>关闭</q-tooltip>
             </q-btn>
@@ -66,23 +40,11 @@
 
         <!-- 影片卡片网格 -->
         <div v-else class="movie-grid q-pa-sm">
-          <div
-            v-for="item in movieList"
-            :key="item.Id"
-            class="movie-card-wrapper"
-            @mouseenter="hoverId = item.Id"
-            @mouseleave="hoverId = null"
-            @contextmenu.prevent="playMovie(item)"
-          >
+          <div v-for="item in movieList" :key="item.Id" class="movie-card-wrapper" @mouseenter="hoverId = item.Id"
+            @mouseleave="hoverId = null" @contextmenu.prevent="playMovie(item)">
             <q-card class="movie-card">
               <div class="card-img-wrap">
-                <q-img
-                  fit="fill"
-                  :lazy="true"
-                  class="card-img"
-                  :src="item.JpgUrl"
-                  style="width: 100%; height: 232px"
-                >
+                <q-img fit="fill" :lazy="true" class="card-img" :src="item.JpgUrl" style="width: 100%; height: 232px">
                   <template v-slot:loading>
                     <q-spinner-ios color="white" size="2em" />
                   </template>
@@ -97,16 +59,16 @@
                 <div v-if="hoverId === item.Id" class="card-hover-overlay">
                   <!-- 上半部分：按钮 -->
                   <div class="hover-top">
-                    <q-btn flat round icon="play_circle_filled" color="white" size="lg"
-                      @click.stop="playMovie(item)" class="hover-btn">
+                    <q-btn flat round icon="play_circle_filled" color="white" size="lg" @click.stop="playMovie(item)"
+                      class="hover-btn">
                       <q-tooltip>播放</q-tooltip>
                     </q-btn>
-                    <q-btn flat round icon="delete" color="negative" size="md"
-                      @click.stop="confirmDelete(item)" class="hover-btn">
+                    <q-btn flat round icon="delete" color="negative" size="md" @click.stop="confirmDelete(item)"
+                      class="hover-btn">
                       <q-tooltip>删除</q-tooltip>
                     </q-btn>
-                    <q-btn flat round icon="open_in_new" color="white" size="md"
-                      @click.stop="jumpToList(item)" class="hover-btn">
+                    <q-btn flat round icon="open_in_new" color="white" size="md" @click.stop="jumpToList(item)"
+                      class="hover-btn">
                       <q-tooltip>跳转列表</q-tooltip>
                     </q-btn>
                   </div>
@@ -121,8 +83,10 @@
                 <div class="absolute-top-left q-ma-xs top-row">
                   <span v-if="item.SizeStr" class="chip-tag overlay-chip size-chip">{{ item.SizeStr }}</span>
                   <span v-if="item.MTime" class="chip-tag overlay-chip time-chip">{{ timeAgo(item.MTime) }}</span>
-                  <span v-for="tag in (item.Tags || []).slice(0, 10)" :key="tag" class="chip-tag overlay-chip">#{{ tag }}</span>
-                  <span v-if="item.Tags && item.Tags.length > 10" class="chip-tag overlay-chip">+{{ item.Tags.length - 10 }}</span>
+                  <span v-for="tag in (item.Tags || []).slice(0, 10)" :key="tag" class="chip-tag overlay-chip">#{{ tag
+                    }}</span>
+                  <span v-if="item.Tags && item.Tags.length > 10" class="chip-tag overlay-chip">+{{ item.Tags.length -
+                    10 }}</span>
                 </div>
               </div>
 
@@ -132,10 +96,7 @@
       </q-page-container>
 
       <!-- 浮动画中画播放器 -->
-      <VideoPlayerInPicture ref="videoPlayerRef" minimal
-        @prev-one="prevOne"
-        @next-one="nextOne"
-      />
+      <VideoPlayerInPicture ref="videoPlayerRef" minimal @prev-one="prevOne" @next-one="nextOne" />
     </q-layout>
   </q-dialog>
 </template>
@@ -165,6 +126,7 @@ const loading = ref(false);
 const pageNo = ref(1);
 const pageSize = ref(24);
 const totalPages = ref(1);
+const totalCount = ref(1);
 const hoverId = ref(null);
 const currentPlayingId = ref(null);
 
@@ -247,6 +209,7 @@ const fetchMovieList = async () => {
     const data = await SearchAPI(params);
     movieList.value = data.Data || [];
     totalPages.value = data.TotalPage || 1;
+    totalCount.value = data.TotalCnt || 0;
   } catch (e) {
     console.error('获取影片列表失败', e);
     movieList.value = [];
@@ -312,8 +275,8 @@ defineExpose({ open });
 
 .movie-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
   justify-items: center;
 }
 
@@ -392,6 +355,7 @@ defineExpose({ open });
 
 .hover-btn {
   transition: transform 0.15s ease;
+
   &:hover {
     transform: scale(1.2);
   }
@@ -462,12 +426,20 @@ defineExpose({ open });
 
 
 @media (max-width: 1400px) {
-  .movie-grid { grid-template-columns: repeat(4, 1fr); }
+  .movie-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
+
 @media (max-width: 1100px) {
-  .movie-grid { grid-template-columns: repeat(3, 1fr); }
+  .movie-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
+
 @media (max-width: 800px) {
-  .movie-grid { grid-template-columns: repeat(2, 1fr); }
+  .movie-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 </style>

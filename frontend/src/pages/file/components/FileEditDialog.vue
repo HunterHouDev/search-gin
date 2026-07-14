@@ -106,13 +106,12 @@
 
 <script setup>
 import { useDialogPluginComponent, useQuasar } from 'quasar';
-import { onMounted, reactive, ref, watch } from 'vue';
+import { reactive, ref, watch } from 'vue';
 
 import { FileRename } from 'components/api/searchAPI';
 import { formatTitle } from 'components/utils';
 import { FileModel } from 'src/components/model/File';
 import { useSystemProperty } from 'stores/System';
-import { GetSettingInfo } from 'components/api/settingAPI';
 import { useBreakpoint } from 'src/composables/useBreakpoint';
 const systemProperty = useSystemProperty();
 
@@ -125,13 +124,7 @@ const view = reactive({
 });
 
 const showBus = ref(false);
-const settingInfo = ref({ BaseUrl: '' });
 const busUrl = ref('');
-
-const fetchSetting = async () => {
-  const res = await GetSettingInfo();
-  settingInfo.value = res.data;
-};
 
 const toggleJavBus = () => {
   if (!systemProperty.fileEditAutoCode) {
@@ -152,8 +145,8 @@ const toggleJavBus = () => {
       vcode = vcode.substring(0, vcode.indexOf('@'));
     }
     view.item.Code = vcode;
-    if (vcode && settingInfo.value.BaseUrl) {
-      busUrl.value = settingInfo.value.BaseUrl + vcode;
+    if (vcode && systemProperty.SettingInfo.BaseUrl) {
+      busUrl.value = systemProperty.SettingInfo.BaseUrl + vcode;
     }
     showBus.value = true;
   } else {
@@ -356,10 +349,6 @@ const { dialogRef, onDialogHide, onDialogOK, onDialogCancel } =
   useDialogPluginComponent();
 // dialogRef      - 用在 QDialog 上的 Vue ref 模板引用
 // onDialogHide   - 处理 QDialog 上 @hide 事件的函数
-onMounted(() => {
-  fetchSetting();
-});
-
 defineExpose({
   open,
 });

@@ -126,7 +126,6 @@ const view = reactive({
   submitMutiTag: [],
 });
 
-const fetchToUpdateList = inject('fetchToUpdateList', () => undefined);
 
 const emmits = defineEmits(['nextOne', 'prevOne']);
 
@@ -189,7 +188,6 @@ const addPlayingTag = async (id, tag) => {
     if (res?.Data) {
       Object.assign(props.currentData, res.Data);
     }
-    fetchToUpdateList(props.currentData);
   }, 1000);
 };
 
@@ -205,7 +203,6 @@ const removePlayingTag = async (id, tag) => {
     if (res?.Data) {
       Object.assign(props.currentData, res.Data);
     }
-    fetchToUpdateList(props.currentData);
   }, 1000);
 };
 

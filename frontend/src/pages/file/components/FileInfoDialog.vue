@@ -100,10 +100,9 @@
 import VideoPlayer from 'src/components/VideoPlayer.vue';
 import { useQuasar } from 'quasar';
 import { useDialogPluginComponent } from 'quasar';
-import { onMounted, reactive, ref } from 'vue';
+import { reactive, ref } from 'vue';
 
 import { formatTitle } from 'components/utils';
-import { GetSettingInfo } from 'components/api/settingAPI';
 import {
   QueryDirImages,
   OpenFileFolder,
@@ -111,7 +110,10 @@ import {
   FindFileInfo,
 } from 'components/api/searchAPI';
 import { useBreakpoint } from 'src/composables/useBreakpoint';
+import { useSystemProperty } from 'stores/System';
 const { dialogRef, onDialogHide } = useDialogPluginComponent();
+
+const systemProperty = useSystemProperty();
 
 const $q = useQuasar();
 const { isMobile } = useBreakpoint();
@@ -128,7 +130,6 @@ const isDialogOpen = ref(false);
 
 const view = reactive({
   item: {},
-  settingInfo: {},
   prewiewImages: [],
   playList: [],
   menuDrawer: false,
@@ -210,11 +211,6 @@ const deleteTemp = async (path) => {
   loadImage(view.item);
 };
 
-const fetchSetting = async () => {
-  const res = await GetSettingInfo();
-  view.settingInfo = res.data;
-};
-
 const searchCode = (item) => {
   let itemCode = item.Code;
   if (itemCode.indexOf('-C') > 0) {
@@ -223,7 +219,7 @@ const searchCode = (item) => {
   if (itemCode.indexOf('-') === 0) {
     itemCode = itemCode.substring(1);
   }
-  const url = `${view.settingInfo.BaseUrl}/${itemCode}`;
+  const url = `${systemProperty.SettingInfo.BaseUrl}/${itemCode}`;
   if ($q.platform.is.electron) {
     window.electron.createWindow({
       router: url,
@@ -257,10 +253,6 @@ const onDialogClose = () => {
 // 带参数的版本: onDialogOK({ ... })
 // ...会自动关闭对话框
 // }
-
-onMounted(() => {
-  fetchSetting();
-});
 
 defineExpose({
   open,

@@ -309,10 +309,18 @@ func pickLocalIP(clientIP string) string {
 				}
 			}
 		}
+		// 优先选私有 IP（192.168/10.x/172.16-31），跳过 APIPA（169.254）和回环
 		for i := range localIPv4Nets {
-			if !localIPv4Nets[i].IP.IsLoopback() {
-				localFirstIP = localIPv4Nets[i].IP.String()
+			ip := localIPv4Nets[i].IP
+			if ip.IsLoopback() {
+				continue
+			}
+			if isPrivateIPv4(ip) {
+				localFirstIP = ip.String()
 				break
+			}
+			if localFirstIP == "" && !isAPIPA(ip) {
+				localFirstIP = ip.String()
 			}
 		}
 	})
@@ -339,6 +347,24 @@ func pickLocalIP(clientIP string) string {
 	}
 	pickLocalIPCache.Store(clientIP, result)
 	return result
+}
+
+// isPrivateIPv4 判断是否为 RFC 1918 私有地址（192.168/10./172.16-31）
+func isPrivateIPv4(ip net.IP) bool {
+	if ip4 := ip.To4(); ip4 != nil {
+		return ip4[0] == 10 ||
+			(ip4[0] == 172 && ip4[1] >= 16 && ip4[1] <= 31) ||
+			(ip4[0] == 192 && ip4[1] == 168)
+	}
+	return false
+}
+
+// isAPIPA 判断是否为 link-local 自动配置地址（169.254.x.x）
+func isAPIPA(ip net.IP) bool {
+	if ip4 := ip.To4(); ip4 != nil {
+		return ip4[0] == 169 && ip4[1] == 254
+	}
+	return false
 }
 
 // PaginateMovies 对合并后的结果进行分页
