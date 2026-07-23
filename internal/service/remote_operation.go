@@ -5,22 +5,24 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"search-gin/internal/model"
 	"search-gin/pkg/utils"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
-// HandleRemote 判断 movie 是否属远程节点，若是则转发请求
-// 返回 true 表示已转发并写了响应，调用方应 return
-// 返回 false 表示是本机文件，继续原逻辑
-func HandleRemote(c *gin.Context, movie model.FileItem, action string) bool {
-	if movie.NodeHost == "" || movie.NodeHost == LocalNodeHost {
+// HandleRemote 判断 host 是否属远程节点，若是则转发请求
+// host 为文件归属节点地址（host:port），空或本机地址（LocalNodeHost）表示本机文件。
+// 返回 true 表示已转发并写了响应，调用方应 return；
+// 返回 false 表示是本机文件，继续原逻辑。
+// 转发时沿用原始请求方法（POST）与请求体，目标节点用 body 内的 Host 自行判定归属，
+// 因此无需本机索引中存在该文件即可正确转发。
+func HandleRemote(c *gin.Context, host string, action string) bool {
+	if host == "" || host == LocalNodeHost {
 		return false
 	}
 
-	peerIP := ResolvePeerIP(movie.NodeHost)
+	peerIP := ResolvePeerIP(host)
 	if peerIP == "" {
 		c.JSON(http.StatusBadGateway, utils.NewFailByMsg("远程节点离线"))
 		return true
@@ -45,18 +47,6 @@ func HandleRemote(c *gin.Context, movie model.FileItem, action string) bool {
 	}
 	c.Data(resp.StatusCode, resp.Header.Get("Content-Type"), body)
 	return true
-}
-
-// HandleRemoteByID 根据 id 查找 Movie，若远程则转发
-func HandleRemoteByID(c *gin.Context, id string, action string) bool {
-	movie := GetEngine().FindById(id)
-	return HandleRemote(c, movie, action)
-}
-
-// HandleRemoteByMovieEdit 从 MovieEdit 提取 id 查找 Movie，若远程则转发
-func HandleRemoteByMovieEdit(c *gin.Context, edit model.FileEdit, action string) bool {
-	movie := GetEngine().FindById(edit.Id)
-	return HandleRemote(c, movie, action)
 }
 
 // forwardRequest 转发 HTTP 请求到目标节点

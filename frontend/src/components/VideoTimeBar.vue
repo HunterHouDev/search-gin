@@ -103,7 +103,7 @@ const forwardTime = (time) => {
 
 const previewPng = async () => {
   setTimeout(async () => {
-    await CutImage(systemProperty.PlayingMovie.Id, 'Png', props.currentTime, false);
+    await CutImage(systemProperty.PlayingMovie, 'Png', props.currentTime, false);
     $q.notify({ message: '已执行', position: 'bottom-left' });
   }, 1);
 };
@@ -185,7 +185,7 @@ const confirmDelete = () => {
     }
 
     const time1 = setTimeout(async () => {
-      const { Code, Message } = (await DeleteFile(item.Id)) || {};
+      const { Code, Message } = (await DeleteFile(item)) || {};
       if (Code !== 200) {
         $q.notify({ message: `${Message}`, position: 'bottom-left' });
       }

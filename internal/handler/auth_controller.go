@@ -19,10 +19,13 @@ type LoginRequest struct {
 // PostInitSetup 初始化设置管理员密码（仅首次可调用）
 // 已初始化时由 InitCheckMiddleware 返回 403
 func PostInitSetup(c *gin.Context) {
-	var req struct {
+	req, err := BindJSON[struct {
 		Password string `json:"password"`
+	}](c, "密码不能为空")
+	if err != nil {
+		return
 	}
-	if err := c.ShouldBindJSON(&req); err != nil || req.Password == "" {
+	if req.Password == "" {
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("密码不能为空"))
 		return
 	}
@@ -42,9 +45,8 @@ func PostInitSetup(c *gin.Context) {
 }
 
 func Login(c *gin.Context) {
-	var req LoginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("无效的请求"))
+	req, err := BindJSON[LoginRequest](c, "无效的请求")
+	if err != nil {
 		return
 	}
 

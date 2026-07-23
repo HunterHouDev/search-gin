@@ -47,9 +47,8 @@ func AddUser(c *gin.Context) {
 		ExpireDate string `json:"expireDate"`
 	}
 
-	var req AddUserRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("无效的请求"))
+	req, err := BindJSON[AddUserRequest](c, "无效的请求")
+	if err != nil {
 		return
 	}
 
@@ -119,9 +118,8 @@ func AddUser(c *gin.Context) {
 		Username string `json:"username"`
 	}
 
-	var req DeleteUserRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("无效的请求"))
+	req, err := BindJSON[DeleteUserRequest](c, "无效的请求")
+	if err != nil {
 		return
 	}
 

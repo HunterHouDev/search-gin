@@ -9,6 +9,23 @@ export const SearchAPI = async (params: object, signal?: AbortSignal) => {
   return data;
 };
 
+// 文件归属所需字段：Id 用于索引更新，Path 用于源节点直接操作磁盘，Host(NodeHost) 用于判定本机/远程转发
+type FileItemLike = { Id: string; Path?: string; NodeHost?: string };
+
+// 调用方可传：完整 item 对象（含 NodeHost 触发远程转发）/ 普通对象 / 字符串 id（按本机处理）
+type OpItem = FileItemLike | Record<string, unknown> | string;
+
+// 构造统一文件操作请求体 { id, path, host, ...extra }
+const opBody = (data: OpItem, extra: Record<string, unknown> = {}) => {
+  const item = (typeof data === 'string' ? { Id: data } : (data as FileItemLike));
+  return {
+    id: item.Id,
+    path: item.Path || '',
+    host: item.NodeHost || '',
+    ...extra,
+  };
+};
+
 export const RefreshAPI = async (BaseDir: string) => {
   if (BaseDir && BaseDir.length > 0) {
     const params = encodeURI(BaseDir);
@@ -23,8 +40,8 @@ export const RefreshTargetAPI = async (params: string) => {
   return res && res.data;
 };
 
-export const FindFileInfo = async (data: string | RouteParamValue[]) => {
-  const res = await commonAxios().get(`/api/info/${data}`);
+export const FindFileInfo = async (data: OpItem) => {
+  const res = await commonAxios().post(`/api/info`, opBody(data));
   return res && res.data;
 };
 
@@ -45,13 +62,13 @@ export const PlayMovie = async (data: string) => {
   return res && res.data;
 };
 
-export const OpenFileFolder = async (data: string) => {
-  const res = await commonAxios().get(`/api/openFolder/${data}`);
+export const OpenFileFolder = async (data: OpItem) => {
+  const res = await commonAxios().post(`/api/openFolder`, opBody(data));
   return res && res.data;
 };
 
-export const DeleteFile = async (data: string) => {
-  const res = await commonAxios().delete(`/api/delete/${data}`);
+export const DeleteFile = async (data: OpItem) => {
+  const res = await commonAxios().post(`/api/delete`, opBody(data));
   return res && res.data;
 };
 
@@ -85,13 +102,13 @@ export const ClearAllTasks = async () => {
   return res && res.data;
 };
 
-export const TansferFileVcode = async (data: string, vcode: string) => {
-  const res = await commonAxios().get(`/api/tranferToMp4/${data}/${vcode}`);
+export const TansferFileVcode = async (data: OpItem, vcode: string) => {
+  const res = await commonAxios().post(`/api/tranferToMp4`, opBody(data, { xcode: vcode }));
   return res && res.data;
 };
 
-export const CutFile = async (id: string, start: string, end: string) => {
-  const res = await commonAxios().get(`/api/cutMovie/${id}/${start}/${end}`);
+export const CutFile = async (data: OpItem, start: string, end: string) => {
+  const res = await commonAxios().post(`/api/cutMovie`, opBody(data, { start, end }));
   return res && res.data;
 };
 
@@ -110,13 +127,13 @@ export const IndexHealthQuery = async () => {
   return res && res.data;
 };
 
-export const AddTag = async (clickId: string, title: string) => {
-  const res = await commonAxios().post(`/api/addFileTag/${clickId}/${title}`);
+export const AddTag = async (data: OpItem, title: string) => {
+  const res = await commonAxios().post(`/api/addFileTag`, opBody(data, { tag: title }));
   return res && res.data;
 };
 
-export const CloseTag = async (id: string, title: string) => {
-  const res = await commonAxios().post(`/api/clearFileTag/${id}/${title}`);
+export const CloseTag = async (data: OpItem, title: string) => {
+  const res = await commonAxios().post(`/api/clearFileTag`, opBody(data, { tag: title }));
   return res && res.data;
 };
 
@@ -146,13 +163,14 @@ export const GetTaskLogAPI = async (taskID: string) => {
 };
 
 export const CutImage = async (
-  id: string,
+  data: OpItem,
   type: string,
   start: string,
   downFlag: boolean
 ) => {
-  const res = await commonAxios().get(
-    `/api/cutImage/${id}/${type}/${downFlag}/${start}`
+  const res = await commonAxios().post(
+    `/api/cutImage`,
+    opBody(data, { typeImage: type, start, downFlag: String(downFlag) })
   );
   return res && res.data;
 };

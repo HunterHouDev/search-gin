@@ -126,52 +126,55 @@ func GetDelTransferTask(c *gin.Context) {
 	c.JSON(http.StatusOK, utils.NewSuccess())
 }
 
-func GetTransferToMp4(c *gin.Context) {
+func PostTransferToMp4(c *gin.Context) {
 	if !requirePermission(c, "op:transcode") {
 		return
 	}
-	id := c.Param("id")
-	if service.HandleRemoteByID(c, id, "transferToMp4") {
+	req, err := BindJSON[model.FileOpRequest](c)
+	if err != nil {
+		return
+	}
+	if service.HandleRemote(c, req.Host, "transferToMp4") {
 		return
 	}
 
-	xcode := c.Param("xcode")
-	utils.InfoFormat("GetTransferToMp4 newFile [%v][%v]", id, xcode)
-	c.JSON(http.StatusOK, service.CreateTransferTask(id, xcode))
+	utils.InfoFormat("PostTransferToMp4 newFile [%v][%v]", req.Id, req.Xcode)
+	c.JSON(http.StatusOK, service.CreateTransferTask(req.Id, req.Xcode))
 }
 
-func GetCutImage(c *gin.Context) {
-	idInt := c.Param("id")
-	typeImage := c.Param("typeImage")
-	start := c.Param("start")
-
-	if service.HandleRemoteByID(c, idInt, "cutImage") {
+func PostCutImage(c *gin.Context) {
+	req, err := BindJSON[model.FileOpRequest](c)
+	if err != nil {
+		return
+	}
+	if service.HandleRemote(c, req.Host, "cutImage") {
 		return
 	}
 
-	movieFile := UseApp().search.FindById(idInt)
+	movieFile := UseApp().search.FindById(req.Id)
 	if movieFile.IsNull() {
 		r := utils.Fail()
 		r.Message = "文件不存在"
 		c.JSON(http.StatusOK, r)
 		return
 	}
-	c.JSON(http.StatusOK, service.CutImage(movieFile.Path, typeImage, start))
+	c.JSON(http.StatusOK, service.CutImage(movieFile.Path, req.TypeImage, req.Start))
 }
 
-func GetCutMovie(c *gin.Context) {
+func PostCutMovie(c *gin.Context) {
 	if !requirePermission(c, "op:cut") {
 		return
 	}
-	id := c.Param("id")
-	if service.HandleRemoteByID(c, id, "cutMovie") {
+	req, err := BindJSON[model.FileOpRequest](c)
+	if err != nil {
+		return
+	}
+	if service.HandleRemote(c, req.Host, "cutMovie") {
 		return
 	}
 
-	start := c.Param("start")
-	end := c.Param("end")
-	utils.InfoFormat("GetCutMovie [%v][%v][%v]", id, start, end)
-	c.JSON(http.StatusOK, service.CreateCutTask(id, start, end))
+	utils.InfoFormat("PostCutMovie [%v][%v][%v]", req.Id, req.Start, req.End)
+	c.JSON(http.StatusOK, service.CreateCutTask(req.Id, req.Start, req.End))
 }
 
 // PostClearCompletedTasks 清除所有已完成任务

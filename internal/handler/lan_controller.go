@@ -29,14 +29,13 @@ func AddLanPeer(c *gin.Context) {
 	if !requirePermission(c, "op:network") {
 		return
 	}
-	var req struct {
+	req, err := BindJSON[struct {
 		Addr     string `json:"addr"`     // "ip:port"（兼容旧格式）
 		IP       string `json:"ip"`       // IP 地址
 		Port     string `json:"port"`     // API 端口
 		FilePort string `json:"filePort"` // 文件流端口
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数错误"))
+	}](c, "参数错误")
+	if err != nil {
 		return
 	}
 
@@ -71,11 +70,10 @@ func RemoveLanPeer(c *gin.Context) {
 	if !requirePermission(c, "op:network") {
 		return
 	}
-	var req struct {
+	req, err := BindJSON[struct {
 		ID string `json:"id"` // "ip:port"
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数错误"))
+	}](c, "参数错误")
+	if err != nil {
 		return
 	}
 	if service.RemovePeer(req.ID) {
@@ -90,12 +88,11 @@ func TogglePeer(c *gin.Context) {
 	if !requirePermission(c, "op:network") {
 		return
 	}
-	var req struct {
+	req, err := BindJSON[struct {
 		ID       string `json:"id"`
 		Disabled bool   `json:"disabled"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数错误"))
+	}](c, "参数错误")
+	if err != nil {
 		return
 	}
 	if service.TogglePeerDisabled(req.ID, req.Disabled) {
@@ -126,12 +123,11 @@ func DiscoverLanPeers(c *gin.Context) {
 	if !requirePermission(c, "op:network") {
 		return
 	}
-	var req struct {
+	req, err := BindJSON[struct {
 	 Subnet string `json:"subnet"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-	 c.JSON(http.StatusBadRequest, utils.NewFailByMsg("请求参数格式错误"))
-	 return
+	}](c, "请求参数格式错误")
+	if err != nil {
+		return
 	}
 
 	peers, localPrefix := service.DiscoverLanPeers(req.Subnet)

@@ -159,7 +159,7 @@ const open = async (item) => {
   view.item = item;
   // 获取最新 token 刷新 URL，防止搜索时的 token 过期
   try {
-    const fresh = await FindFileInfo(item.Id);
+    const fresh = await FindFileInfo(item);
     if (fresh?.StreamUrl) {
       view.item.StreamUrl = fresh.StreamUrl;
       view.item.JpgUrl = fresh.JpgUrl;
@@ -383,7 +383,7 @@ const scalePng = () => {
 const previewPicture = async () => {
   if (view.startTime) {
     if (tab.value == 'png') {
-      const { Data } = await CutImage(view.item.Id, 'Png', view.startTime, false);
+      const { Data } = await CutImage(view.item, 'Png', view.startTime, false);
       view.uPng = `data:image/png;base64,${Data}`;
       const img = new Image(); // 创建一个新的图片对象
       img.crossOrigin = 'anonymous'; // 处理跨域问题
@@ -394,10 +394,10 @@ const previewPicture = async () => {
         drawImage();
       };
     } else if (tab.value == 'jpg') {
-      const { Data } = await CutImage(view.item.Id, 'Jpg', view.startTime, false);
+      const { Data } = await CutImage(view.item, 'Jpg', view.startTime, false);
       view.uImage = `data:image/jpeg;base64,${Data}`;
     } else if (tab.value == 'cut') {
-      await CutImage(view.item.Id, 'shot', view.startTime, false);
+      await CutImage(view.item, 'shot', view.startTime, false);
       loadImage(view.item);
     }
     $q.notify({ message: '已执行', position: 'bottom-left' });

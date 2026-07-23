@@ -70,12 +70,15 @@ func GetPlay(c *gin.Context) {
 	}
 }
 
-func GetInfo(c *gin.Context) {
-	id := c.Param("id")
-	if service.HandleRemoteByID(c, id, "info") {
+func PostInfo(c *gin.Context) {
+	req, err := BindJSON[model.FileOpRequest](c)
+	if err != nil {
 		return
 	}
-	file := UseApp().search.FindById(id)
+	if service.HandleRemote(c, req.Host, "info") {
+		return
+	}
+	file := UseApp().search.FindById(req.Id)
 	if file.IsNull() {
 		c.JSON(http.StatusNotFound, utils.NewFailByMsg("文件不存在"))
 		return

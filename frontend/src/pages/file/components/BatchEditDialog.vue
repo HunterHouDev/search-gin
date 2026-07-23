@@ -103,7 +103,7 @@
                           </q-menu>
                         </q-btn>
                         <span class="dim" style="font-size: 12px">【{{ item.SizeStr }}】</span>
-                        <q-btn dense icon="open_in_new" @click="commonExec(() => OpenFileFolder(item.Id))">
+                        <q-btn dense icon="open_in_new" @click="commonExec(() => OpenFileFolder(item))">
                           <q-tooltip>打开文件夹</q-tooltip>
                         </q-btn>
                         <q-btn dense icon="play_circle" @click="playNewWindow(item)">
@@ -389,7 +389,7 @@ const addTagBySelector = async (value) => {
   if (!state.selector.length) return;
   for (const id of state.selector) {
     const item = state.resultData.Data?.find((f) => f.Id === id);
-    const updated = await commonExec(() => AddTag(id, value));
+    const updated = await commonExec(() => AddTag(item, value));
     if (item && updated) Object.assign(item, updated);
   }
   resetSelector();
@@ -413,16 +413,16 @@ const doSetMovieType = async (item, type) => {
   if (u) Object.assign(item, u);
 };
 const doCloseTag = async (item, tag) => {
-  const u = await commonExec(() => CloseTag(item.Id, tag));
+  const u = await commonExec(() => CloseTag(item, tag));
   if (u) Object.assign(item, u);
 };
 const toMp4 = (item) => {
   if (!state.cutListIds.includes(item.Id)) state.cutListIds.push(item.Id);
-  commonExec(() => TansferFileVcode(item.Id, 'copy'));
+  commonExec(() => TansferFileVcode(item, 'copy'));
 };
 const toVcode = (item, vcode) => {
   if (!state.cutListIds.includes(item.Id)) state.cutListIds.push(item.Id);
-  commonExec(() => TansferFileVcode(item.Id, vcode));
+  commonExec(() => TansferFileVcode(item, vcode));
 };
 const playNewWindow = (item) => {
   const w = systemProperty.singleWindow;

@@ -283,7 +283,7 @@ const openVideo = async (item) => {
   let streamUrl = item.StreamUrl;
   let jpgUrl = item.JpgUrl;
   try {
-    const fresh = await FindFileInfo(item.Id);
+    const fresh = await FindFileInfo(item);
     if (fresh?.StreamUrl) {
       streamUrl = fresh.StreamUrl;
       jpgUrl = fresh.JpgUrl;
@@ -327,7 +327,7 @@ const openVideo = async (item) => {
 
 const curImage = async () => {
   showDrawerFn();
-  await CutImage(view.currentData.Id, 'shot', view.currentTime, false);
+  await CutImage(view.currentData, 'shot', view.currentTime, false);
   searchPanelRef.value?.fetchSearch();
 };
 
@@ -346,7 +346,7 @@ const onSearchPanelEdit = (item) => {
 };
 
 const onSearchPanelDelete = async (item) => {
-  await DeleteFile(item.Id);
+  await DeleteFile(item);
   searchPanelRef.value?.fetchSearch();
 };
 

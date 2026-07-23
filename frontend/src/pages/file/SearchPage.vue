@@ -1220,7 +1220,7 @@ const openFolder = (item) => {
   if ($q.platform.is.electron) {
     window.electron.showInFolder(item.Path);
   } else {
-    commonExec(() => OpenFileFolder(item.Id));
+    commonExec(() => OpenFileFolder(item));
   }
 };
 
@@ -1241,7 +1241,7 @@ const confirmDelete = (item) => {
     cancel: true,
     persistent: true,
   }).onOk(() => {
-    commonExec(() => DeleteFile(item.Id)).then(() => {
+    commonExec(() => DeleteFile(item)).then(() => {
       $q.notify({ message: `已删除`, position: 'bottom-left' });
     });
   });
@@ -1590,6 +1590,7 @@ const moveThis = async () => {
       Id: moveView.targetId,
       Path: moveView.targetPath,
       Title: moveView.targetName,
+      Host: view.resultData.Data?.find((f) => f.Id === moveView.targetId)?.NodeHost || '',
     })
   );
   if (updated) {

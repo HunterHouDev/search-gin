@@ -35,9 +35,8 @@ func PostSetting(c *gin.Context) {
 	}
 
 	// 先用 map 接收，只覆盖请求中存在的字段（不丢失现有配置）
-	var body map[string]any
-	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数绑定失败"))
+	body, err := BindJSON[map[string]any](c)
+	if err != nil {
 		return
 	}
 
@@ -141,11 +140,10 @@ func PostShutdownSchedule(c *gin.Context) {
 	if !requireAdmin(c) {
 		return
 	}
-	var body struct {
+	body, err := BindJSON[struct {
 		Seconds int `json:"seconds"`
-	}
-	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数无效"))
+	}](c, "参数无效")
+	if err != nil {
 		return
 	}
 	if body.Seconds <= 0 {

@@ -173,7 +173,7 @@ const loadTagSize = async () => {
 const emmits = defineEmits(['doBefore', 'updateTag']);
 
 const doCloseTag = async (tag) => {
-  const updated = await commonExec(() => CloseTag(props.currentData.Id, tag));
+  const updated = await commonExec(() => CloseTag(props.currentData, tag));
   if (updated) {
     Object.assign(props.currentData, updated);
     emmits('updateTag', updated.Tags);
@@ -181,7 +181,7 @@ const doCloseTag = async (tag) => {
 };
 
 const doAddTag = async (tag) => {
-  const updated = await commonExec(() => AddTag(props.currentData.Id, tag));
+  const updated = await commonExec(() => AddTag(props.currentData, tag));
   if (updated) {
     Object.assign(props.currentData, updated);
     emmits('updateTag', updated.Tags);
@@ -191,7 +191,7 @@ const doAddTag = async (tag) => {
 const addPlayingMutiTag = async () => {
   if (view.submitMutiTag.length > 0) {
     const tags = view.submitMutiTag.join(',');
-    const updated = await commonExec(() => AddTag(props.currentData.Id, tags));
+    const updated = await commonExec(() => AddTag(props.currentData, tags));
     if (updated) {
       Object.assign(props.currentData, updated);
       emmits('updateTag', updated.Tags);
@@ -211,7 +211,7 @@ const chooseInput = () => {
 
 const submitInput = async () => {
   if (view.input) {
-    const updated = await commonExec(() => AddTag(props.currentData.Id, view.input));
+    const updated = await commonExec(() => AddTag(props.currentData, view.input));
     if (updated) {
       Object.assign(props.currentData, updated);
       emmits('updateTag', updated.Tags);

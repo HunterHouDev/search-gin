@@ -59,7 +59,7 @@ func PostRename(c *gin.Context) {
 	}
 
 	c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-	if service.HandleRemoteByMovieEdit(c, currentFile, "rename") {
+	if service.HandleRemote(c, currentFile.Host, "rename") {
 		return
 	}
 
@@ -93,7 +93,7 @@ func PostMove(c *gin.Context) {
 	}
 
 	c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-	if service.HandleRemoteByMovieEdit(c, currentFile, "move") {
+	if service.HandleRemote(c, currentFile.Host, "move") {
 		return
 	}
 
@@ -102,44 +102,38 @@ func PostMove(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 
-func GetAddTag(c *gin.Context) {
+func PostAddTag(c *gin.Context) {
 	if !requirePermission(c, "op:tag") {
 		return
 	}
-	id := c.Param("id")
-	tag := c.Param("tag")
-
-	file := UseApp().search.FindById(id)
-	if file.IsNull() {
-		if service.HandleRemote(c, file, "addTag") {
-			return
-		}
-		c.JSON(http.StatusNotFound, utils.NewFailByMsg("文件不存在"))
+	req, err := BindJSON[model.FileOpRequest](c)
+	if err != nil {
 		return
 	}
 
-	utils.InfoFormat("GetAddTag [%v] [%v]", id, tag)
-	res := UseApp().files.AddTag(id, tag)
+	if service.HandleRemote(c, req.Host, "addTag") {
+		return
+	}
+
+	utils.InfoFormat("PostAddTag [%v] [%v]", req.Id, req.Tag)
+	res := UseApp().files.AddTag(req.Id, req.Tag)
 	c.JSON(http.StatusOK, res)
 }
 
-func GetClearTag(c *gin.Context) {
+func PostClearTag(c *gin.Context) {
 	if !requirePermission(c, "op:tag") {
 		return
 	}
-	id := c.Param("id")
-	tag := c.Param("tag")
-
-	file := UseApp().search.FindById(id)
-	if file.IsNull() {
-		if service.HandleRemote(c, file, "clearTag") {
-			return
-		}
-		c.JSON(http.StatusNotFound, utils.NewFailByMsg("文件不存在"))
+	req, err := BindJSON[model.FileOpRequest](c)
+	if err != nil {
 		return
 	}
 
-	res := UseApp().files.ClearTag(id, tag)
+	if service.HandleRemote(c, req.Host, "clearTag") {
+		return
+	}
+
+	res := UseApp().files.ClearTag(req.Id, req.Tag)
 	c.JSON(http.StatusOK, res)
 }
 
@@ -155,17 +149,20 @@ func GetDirInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, files)
 }
 
-func GetDelete(c *gin.Context) {
+func PostDelete(c *gin.Context) {
 	if !requirePermission(c, "op:edit") {
 		return
 	}
-	id := c.Param("id")
-
-	if service.HandleRemoteByID(c, id, "delete") {
+	req, err := BindJSON[model.FileOpRequest](c)
+	if err != nil {
 		return
 	}
 
-	result := UseApp().files.Delete(id)
+	if service.HandleRemote(c, req.Host, "delete") {
+		return
+	}
+
+	result := UseApp().files.Delete(req.Id)
 	if !result.IsSuccess() {
 		c.JSON(http.StatusNotFound, result)
 		return

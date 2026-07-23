@@ -17,9 +17,8 @@ func PostAddMagnet(c *gin.Context) {
 	if !requirePermission(c, "op:torrent") {
 		return
 	}
-	var req MagnetRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("请提供有效的磁力链"))
+	req, err := BindJSON[MagnetRequest](c, "请提供有效的磁力链")
+	if err != nil {
 		return
 	}
 
@@ -48,9 +47,8 @@ func PostStartDownload(c *gin.Context) {
 	if !requirePermission(c, "op:torrent") {
 		return
 	}
-	var req StartDownloadRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("请提供有效的参数"))
+	req, err := BindJSON[StartDownloadRequest](c, "请提供有效的参数")
+	if err != nil {
 		return
 	}
 

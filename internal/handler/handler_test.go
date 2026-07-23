@@ -59,7 +59,6 @@ func (m *mockFileService) Delete(id string) utils.Result                        
 func (m *mockFileService) ScanAll() int                                                      { return 0 }
 func (m *mockFileService) ScanTarget(baseDir string)                                         {}
 func (m *mockFileService) Walk(dir string, types []string, withSub bool) []model.FileItem    { return nil }
-func (m *mockFileService) DeleteFilesOnDisk(dirName string, fileName string)                 {}
 func (m *mockFileService) DownDeleteDir(dirname string)                                      {}
 
 type mockSettings struct {
@@ -754,17 +753,11 @@ func TestAddUser_DuplicateAdminUsername(t *testing.T) {
 
 // ============== Dir Controller Tests ==============
 
-func TestGetOpenFolder_NotFound(t *testing.T) {
+func TestPostOpenFolder_BindFail(t *testing.T) {
 	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{})
 
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-	c.Params = []gin.Param{{Key: "id", Value: "nonexistent"}}
-	GetOpenFolder(c)
-
-	assert.Equal(t, http.StatusNotFound, w.Code)
-	assert.Contains(t, w.Body.String(), "文件不存在")
+	w := performPost(t, PostOpenFolder, `{invalid`)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestPostOpenFolderByPath_InvalidBody(t *testing.T) {

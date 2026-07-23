@@ -232,7 +232,7 @@ const forwardTime = (time) => {
 
 const CutFromTo = async () => {
   const { Code, Message } = await CutFile(
-    getCurrentId(),
+    props.currentData,
     view.startTime,
     view.endTime
   );
@@ -248,7 +248,7 @@ const CutFromTo = async () => {
 
 const curImage = async () => {
   await CutImage(
-    getCurrentId(),
+    props.currentData,
     'shot',
     props.currentTime,
     false
@@ -257,7 +257,7 @@ const curImage = async () => {
 
 const previewImg = async () => {
   await CutImage(
-    getCurrentId(),
+    props.currentData,
     'Jpg',
     props.currentTime,
     false
@@ -266,7 +266,7 @@ const previewImg = async () => {
 
 const previewPng = async () => {
   await CutImage(
-    getCurrentId(),
+    props.currentData,
     'Png',
     props.currentTime,
     false
@@ -274,8 +274,7 @@ const previewPng = async () => {
 };
 
 const toVcode = async (vcode) => {
-  const Id = getCurrentId();
-  const res = await TansferFileVcode(Id, vcode);
+  const res = await TansferFileVcode(props.currentData, vcode);
   if (res.Code !== 200) {
     $q.notify({ message: `${res.Message}`, position: 'bottom-left' });
   } else {

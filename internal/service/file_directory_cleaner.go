@@ -107,44 +107,6 @@ type stackItem struct {
 	visited    bool
 }
 
-// DeleteFilesOnDisk 删除指定文件夹下的指定文件名的文件
-func (s *searchService) DeleteFilesOnDisk(dirName string, fileName string) {
-	if len(fileName) == 0 {
-		return
-	}
-
-	files, err := os.ReadDir(dirName)
-	if err != nil {
-		utils.InfoFormat("读取目录失败: %s, 错误: %v", dirName, err)
-		return
-	}
-
-	deleted := false
-	fileBase := strings.TrimSuffix(fileName, filepath.Ext(fileName))
-	for _, f := range files {
-		fBase := strings.TrimSuffix(f.Name(), filepath.Ext(f.Name()))
-		if strings.EqualFold(fBase, fileBase) {
-			path := filepath.Join(dirName, f.Name())
-			if err := os.Remove(path); err != nil {
-				utils.InfoFormat("删除文件失败: %s, 错误: %v", path, err)
-			} else {
-				deleted = true
-			}
-		}
-	}
-
-	if deleted {
-		filesThen, err := os.ReadDir(dirName)
-		if err != nil {
-			utils.InfoFormat("读取目录失败: %s, 错误: %v", dirName, err)
-			return
-		}
-		if len(filesThen) == 0 {
-			s.UpDirClear(dirName)
-		}
-	}
-}
-
 // DownDeleteDir 迭代方式删除文件夹及其内容
 func (s *searchService) DownDeleteDir(dirname string) {
 	postOrderStack := []stackItem{{path: dirname, visited: false}}

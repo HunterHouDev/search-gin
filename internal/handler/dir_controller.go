@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"search-gin/internal/model"
 	"search-gin/internal/service"
 	"search-gin/pkg/utils"
 	"strings"
@@ -11,22 +12,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GetOpenFolder 本地打开文件夹
-func GetOpenFolder(c *gin.Context) {
-	id := c.Param("id")
-	file := UseApp().search.FindById(id)
-
-	if file.IsNull() {
-		res := utils.NewFailByMsg("文件不存在")
-		c.JSON(http.StatusNotFound, res)
+// PostOpenFolder 本地打开文件夹
+func PostOpenFolder(c *gin.Context) {
+	req, err := BindJSON[model.FileOpRequest](c)
+	if err != nil {
 		return
 	}
 
-	if service.HandleRemote(c, file, "openFolder") {
+	if service.HandleRemote(c, req.Host, "openFolder") {
 		return
 	}
 
-	validatedPath, ok := validatePathOrRespond(c, file.DirPath, "路径不在允许范围内")
+	validatedPath, ok := validatePathOrRespond(c, req.Path, "路径不在允许范围内")
 	if !ok {
 		return
 	}
@@ -40,10 +37,8 @@ func GetOpenFolder(c *gin.Context) {
 // PostOpenFolderByPath 通过路径打开文件夹
 func PostOpenFolderByPath(c *gin.Context) {
 
-	forms := make(map[string]string)
-	err := c.ShouldBindJSON(&forms)
+	forms, err := BindJSON[map[string]string](c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数绑定失败"))
 		return
 	}
 	dirpath := forms["dirpath"]
@@ -60,10 +55,8 @@ func PostOpenFolderByPath(c *gin.Context) {
 // PostDeleteFolderByPath 通过路径删除文件夹
 func PostDeleteFolderByPath(c *gin.Context) {
 
-	forms := make(map[string]string)
-	err := c.ShouldBindJSON(&forms)
+	forms, err := BindJSON[map[string]string](c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("参数绑定失败"))
 		return
 	}
 	dirpath := forms["dirpath"]

@@ -51,6 +51,23 @@ type FileEdit struct {
 	FileItem
 	MoveOut   bool
 	NoRefresh bool
+	Host      string `json:"host"` // 归属节点 host:port，空=本机
+}
+
+// FileOpRequest 统一文件操作请求体（删除/转码/截图/截片段/信息/打开文件夹/标签）
+// Id/Path/Host 为核心字段；操作特有参数（Tag/Start/End/Xcode/TypeImage/DownFlag）按需使用。
+// Host 为文件归属节点地址（host:port），空或本机地址表示本机文件，用于后端转发判断，
+// 不再回查本机索引猜归属（远程节点文件不在本机索引，旧逻辑会误判为本机导致 404）。
+type FileOpRequest struct {
+	Id        string `json:"id"`
+	Path      string `json:"path"`
+	Host      string `json:"host"`
+	Tag       string `json:"tag,omitempty"`
+	Start     string `json:"start,omitempty"`
+	End       string `json:"end,omitempty"`
+	Xcode     string `json:"xcode,omitempty"`
+	TypeImage string `json:"typeImage,omitempty"`
+	DownFlag  string `json:"downFlag,omitempty"`
 }
 
 // EasyFile 快速创建文件条目（无指定类型，自动推断）
@@ -203,4 +220,84 @@ func (f FileItem) RenameAll(newMainPath, newBaseName string) (FileItem, error) {
 func (f *FileItem) SetNodeInfo(nodeHost, nodeName string) {
 	f.NodeHost = nodeHost
 	f.NodeName = nodeName
+}
+
+// Delete 删除该文件（基于 Path 完整路径）。
+// 内部将 Path 拆解为 目录(dir) / 文件名(无扩展名) / 扩展名 三部分：
+// 1) 用完整路径精确删除主文件（最可靠，不受基础名含点号影响）；
+// 2) 按基础名（不区分大小写）删除同目录下同名 sidecar（字幕/封面等）；
+// 3) 目录变空时向上清理空目录。
+// 仅依赖 f.Path，不再依赖 DirPath/Title，修复原实现用 Title 二次拆解导致
+// 基础名含点号（如 "Movie.2024.1080p"）时匹配错位、静默不删的问题。
+func (f FileItem) Delete() {
+	path := f.Path
+	if path == "" {
+		return
+	}
+	dirName := filepath.Dir(path)
+	base := filepath.Base(path)
+	if base == "" || base == "." {
+		return
+	}
+	ext := filepath.Ext(base)
+	fileName := strings.TrimSuffix(base, ext)
+
+	removed := false
+
+	// 主文件：用完整路径精确删除（最可靠，不受基础名含点号影响）
+	if err := os.Remove(path); err != nil {
+		if !os.IsNotExist(err) {
+			utils.ErrorFormat("删除主文件失败: %s, 错误: %v", path, err)
+		}
+	} else {
+		removed = true
+	}
+
+	// 同目录下同名 sidecar（字幕/封面等），按基础名（不区分大小写）匹配
+	entries, err := os.ReadDir(dirName)
+	if err != nil {
+		utils.InfoFormat("读取目录失败: %s, 错误: %v", dirName, err)
+		return
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		fBase := strings.TrimSuffix(e.Name(), filepath.Ext(e.Name()))
+		if strings.EqualFold(fBase, fileName) {
+			p := filepath.Join(dirName, e.Name())
+			if err := os.Remove(p); err != nil {
+				if !os.IsNotExist(err) {
+					utils.ErrorFormat("删除配套文件失败: %s, 错误: %v", p, err)
+				}
+			} else {
+				removed = true
+			}
+		}
+	}
+
+	// 目录变空则向上清理空目录
+	if removed {
+		clearEmptyParentDirs(dirName)
+	}
+}
+
+// clearEmptyParentDirs 从 startDir 起向上删除空目录，直到遇到非空目录或根目录。
+func clearEmptyParentDirs(startDir string) {
+	current := startDir
+	for {
+		parent := filepath.Dir(current)
+		if parent == current {
+			break
+		}
+		entries, err := os.ReadDir(current)
+		if err != nil || len(entries) > 0 {
+			break
+		}
+		if err := os.Remove(current); err != nil {
+			utils.InfoFormat("删除空目录失败: %s, 错误: %v", current, err)
+			break
+		}
+		current = parent
+	}
 }

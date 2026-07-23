@@ -108,7 +108,7 @@ const picDelete = async (n) => {
     emmits('prevOne');
   }
   setTimeout(async () => {
-    const { Code, Message } = await DeleteFile(idToDelete);
+    const { Code, Message } = await DeleteFile(props.currentData);
     if (Code !== 200) {
       $q.notify({ message: `${Message}`, position: 'bottom-left' });
     }

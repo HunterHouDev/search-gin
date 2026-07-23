@@ -249,7 +249,7 @@ func (s *searchService) Delete(id string) utils.Result {
 	if file.IsNull() {
 		return utils.NewFailByMsg("文件不存在")
 	}
-	s.DeleteFilesOnDisk(file.DirPath, file.Title)
+	file.Delete()
 	s.engine.DeleteOnIndex(file) // 入队索引删除，由 flushLoop 批量应用
 	s.events.Broadcast(model.SSEFileChanged, map[string]interface{}{
 		"action": "delete",

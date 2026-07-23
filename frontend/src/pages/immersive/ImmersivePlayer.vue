@@ -721,7 +721,7 @@ async function executeWithNextItem(item, action) {
 // ── 删除视频 ────────────────────────────────────────────────────────────────
 async function deleteVideo(item) {
   await executeWithNextItem(item, async () => {
-    const res = await DeleteFile(item.Id);
+    const res = await DeleteFile(item);
     if (!res || res.Code !== 200) {
       $q.notify({ message: res?.Message || '删除失败', position: 'bottom-left' });
     }
@@ -730,7 +730,7 @@ async function deleteVideo(item) {
 
 // ── 截图 ────────────────────────────────────────────────────────────────────
 async function curImage(type) {
-  const res = await CutImage(currentData.value.Id, type || 'shot', currentTime.value, false);
+  const res = await CutImage(currentData.value, type || 'shot', currentTime.value, false);
   if (res?.Code !== 200) {
     $q.notify({ message: res?.Message || '截图失败', position: 'bottom-left' });
   } else {

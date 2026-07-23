@@ -25,9 +25,9 @@
     <div class="row w100">
       <div class="col-12">
         <q-btn flat dense> 转码任务 </q-btn>
-        <q-btn @click="toVcode(props.currentData.Id, 'copy')">MP4</q-btn>
-        <q-btn @click="toVcode(props.currentData.Id, 'h264')">H264</q-btn>
-        <q-btn @click="toVcode(props.currentData.Id, 'h265')">H265</q-btn>
+        <q-btn @click="toVcode(props.currentData, 'copy')">MP4</q-btn>
+        <q-btn @click="toVcode(props.currentData, 'h264')">H264</q-btn>
+        <q-btn @click="toVcode(props.currentData, 'h265')">H265</q-btn>
       </div>
     </div>
     <div
@@ -46,7 +46,7 @@
         :key="tag"
         :label="tag"
         :val="tag"
-        @click="removePlayingTag(props.currentData.Id, tag)"
+        @click="removePlayingTag(props.currentData, tag)"
       />
     </div>
     <div
@@ -67,7 +67,7 @@
         :label="tag.Name"
         :val="tag.Name"
         v-close-popup
-        @click="addPlayingTag(props.currentData.Id, tag.Name)"
+        @click="addPlayingTag(props.currentData, tag.Name)"
         :disable="props.currentData?.Tags?.indexOf(tag.Name) >= 0"
       />
     </div>
@@ -76,7 +76,7 @@
         color="orange"
         class="glossy w100"
         v-close-popup
-        @click="addPlayingMutiTag(props.currentData.Id)"
+        @click="addPlayingMutiTag(props.currentData)"
         v-if="systemProperty.submitMutiTag"
         label="提交"
       ></q-btn>
@@ -168,15 +168,15 @@ const loadTagData = async () => {
   }
 };
 
-const addPlayingMutiTag = async (id) => {
+const addPlayingMutiTag = async (item) => {
   if (view.submitMutiTag.length > 0) {
     const tags = view.submitMutiTag.join(',');
-    await addPlayingTag(id, tags);
+    await addPlayingTag(item, tags);
     view.submitMutiTag = [];
   }
 };
 
-const addPlayingTag = async (id, tag) => {
+const addPlayingTag = async (item, tag) => {
   if (systemProperty.addPlayingTagGoNext) {
     emmits('nextOne');
   } else {
@@ -184,14 +184,14 @@ const addPlayingTag = async (id, tag) => {
   }
 
   setTimeout(async () => {
-    const res = await AddTag(id, tag);
+    const res = await AddTag(item, tag);
     if (res?.Data) {
       Object.assign(props.currentData, res.Data);
     }
   }, 1000);
 };
 
-const removePlayingTag = async (id, tag) => {
+const removePlayingTag = async (item, tag) => {
   if (systemProperty.addPlayingTagGoNext) {
     emmits('nextOne');
   } else {
@@ -199,7 +199,7 @@ const removePlayingTag = async (id, tag) => {
   }
 
   setTimeout(async () => {
-    const res = await CloseTag(id, tag);
+    const res = await CloseTag(item, tag);
     if (res?.Data) {
       Object.assign(props.currentData, res.Data);
     }

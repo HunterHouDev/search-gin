@@ -492,7 +492,7 @@ const onSearchPanelEdit = (item) => {
 };
 
 const onSearchPanelDelete = async (item) => {
-  await DeleteFile(item.Id);
+  await DeleteFile(item);
   searchPanelRef.value?.fetchSearch();
 };
 
@@ -593,7 +593,7 @@ const openVideo = async (params) => {
   // 获取最新 token 刷新 URL，防止搜索时的 token 过期
   let streamUrl = item.StreamUrl;
   try {
-    const fresh = await FindFileInfo(item.Id);
+    const fresh = await FindFileInfo(item);
     if (fresh?.StreamUrl) {
       streamUrl = fresh.StreamUrl;
       item.JpgUrl = fresh.JpgUrl;

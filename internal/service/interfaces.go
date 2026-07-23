@@ -36,7 +36,6 @@ type FileService interface {
 	ScanAll() int
 	ScanTarget(baseDir string)
 	Walk(dir string, types []string, withSub bool) []model.FileItem
-	DeleteFilesOnDisk(dirName string, fileName string)
 	DownDeleteDir(dirname string)
 }
 

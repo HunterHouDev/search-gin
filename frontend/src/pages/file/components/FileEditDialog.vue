@@ -120,6 +120,7 @@ const $q = useQuasar();
 const { isMobile } = useBreakpoint();
 const view = reactive({
   item: null,
+  nodeHost: '',
   preview: false,
 });
 
@@ -250,6 +251,7 @@ const pasteFromClipboard = async (field) => {
 const open = (item) => {
   showBus.value = false;
   view.item = new FileModel().fromObject(item);
+  view.nodeHost = item.NodeHost || '';
   view.item.Jpg = null;
   view.item.Png = null;
   view.item.MovieType = item.MovieType;
@@ -306,6 +308,7 @@ const editItemSubmit = async (MoveOut = false) => {
     Jpg,
     Png,
     NoRefresh: true,
+    Host: view.nodeHost,
   };
   if (systemProperty.fileEditAutoNext) {
     await emits('next-one');

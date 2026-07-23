@@ -47,9 +47,8 @@ func UpdateUserPermissions(c *gin.Context) {
 		Permissions []string `json:"permissions"`
 	}
 
-	var req UpdatePermsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("无效的请求"))
+	req, err := BindJSON[UpdatePermsRequest](c, "无效的请求")
+	if err != nil {
 		return
 	}
 	if req.Username == "" {
@@ -113,9 +112,8 @@ func CreateRole(c *gin.Context) {
 	if !requireAdmin(c) {
 		return
 	}
-	var req model.Role
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("无效的请求"))
+	req, err := BindJSON[model.Role](c, "无效的请求")
+	if err != nil {
 		return
 	}
 	if req.Name == "" {
@@ -153,9 +151,8 @@ func UpdateRole(c *gin.Context) {
 		return
 	}
 
-	var req model.Role
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("无效的请求"))
+	req, err := BindJSON[model.Role](c, "无效的请求")
+	if err != nil {
 		return
 	}
 
@@ -205,9 +202,8 @@ func UpdateUserRole(c *gin.Context) {
 		Username string `json:"username"`
 		Role     string `json:"role"`
 	}
-	var req UpdateUserRoleReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("无效的请求"))
+	req, err := BindJSON[UpdateUserRoleReq](c, "无效的请求")
+	if err != nil {
 		return
 	}
 	if req.Username == "" {

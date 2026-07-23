@@ -65,7 +65,7 @@
           </div>
           <div class="row q-pt-sm" :class="{ column: isMobile }">
             <span align="left" ripple class="full-width outline">
-              <a style="color: grey" class="cursor-pointer" @click="OpenFileFolder(view.item.Id)"> {{ view.item.Path }}
+              <a style="color: grey" class="cursor-pointer" @click="OpenFileFolder(view.item)"> {{ view.item.Path }}
               </a>
             </span>
           </div>
@@ -183,7 +183,7 @@ const open = async (data) => {
   isDialogOpen.value = true;
   // 获取最新 token 刷新 URL，防止搜索时的 token 过期
   try {
-    const fresh = await FindFileInfo(item.Id);
+    const fresh = await FindFileInfo(item);
     if (fresh?.StreamUrl) {
       view.item.StreamUrl = fresh.StreamUrl;
       view.item.JpgUrl = fresh.JpgUrl;
