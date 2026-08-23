@@ -668,7 +668,7 @@ const { isSmall, isMedium, isLarge } = fromStyle(() => systemProperty.showStyle)
 import {
   DeleteFile,
   MoveFile,
-  OpenFileFolder,
+  OpenFolderByPath,
   PlayMovie,
   ResetMovieType,
   SearchAPI,
@@ -1220,7 +1220,7 @@ const openFolder = (item) => {
   if ($q.platform.is.electron) {
     window.electron.showInFolder(item.Path);
   } else {
-    commonExec(() => OpenFileFolder(item));
+    commonExec(() => OpenFolderByPath(item.Path));
   }
 };
 
