@@ -375,8 +375,7 @@ const scalePng = () => {
       document.body.removeChild(a); // 移除链接
       URL.revokeObjectURL(a.href); // 释放URL对象
     });
-    OpenFolderByPath(view.item.DirPath);
-    // OpenFolerByPath({ dirpath: 'downloads' });
+    OpenFolderByPath({ dirpath: view.item.DirPath });
   }
 };
 

@@ -1220,7 +1220,8 @@ const openFolder = (item) => {
   if ($q.platform.is.electron) {
     window.electron.showInFolder(item.Path);
   } else {
-    commonExec(() => OpenFolderByPath(item.Path));
+    // 后端只读取 dirpath 字段，不能传整个 item（Code 等字段可能是数字，导致 JSON 绑定失败）
+    commonExec(() => OpenFolderByPath({ dirpath: item.Path }));
   }
 };
 

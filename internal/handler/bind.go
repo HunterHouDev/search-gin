@@ -29,6 +29,11 @@ func BindJSON[T any](c *gin.Context, msg ...string) (T, error) {
 		if len(msg) > 0 && msg[0] != "" {
 			m = msg[0]
 		}
+		// 空 body 是最常见原因，补充明确提示，避免用户困惑
+		if len(bytes.TrimSpace(bodyBytes)) == 0 {
+			m = m + "（请求体为空）"
+		}
+		utils.InfoFormat("BindJSON 失败: %v, body=%s", err, string(bodyBytes))
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg(m))
 		return req, err
 	}
