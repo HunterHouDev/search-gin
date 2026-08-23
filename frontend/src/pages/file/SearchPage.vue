@@ -1221,7 +1221,7 @@ const openFolder = (item) => {
     window.electron.showInFolder(item.Path);
   } else {
     // 后端只读取 dirpath 字段，不能传整个 item（Code 等字段可能是数字，导致 JSON 绑定失败）
-    commonExec(() => OpenFolderByPath({ dirpath: item.Path }));
+    commonExec(() => OpenFolderByPath({ dirpath: item.DirPath }));
   }
 };
 
