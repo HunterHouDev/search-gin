@@ -715,11 +715,15 @@ import { useSSE } from 'src/composables/useSSE';
 
 // SSE 实时更新
 let sseDebounceTimer = null
+const pendingRenames = ref(0);
+
 const debouncedFetchSearch = () => {
   clearTimeout(sseDebounceTimer)
+  // keep-alive 下切到 /data 等页时组件未销毁、SSE 仍会回调；仅在停留在搜索页时才刷新，
+  // 避免在后台发起搜索请求、覆盖 document.title
+  if (!onSearchRoute()) return;
   sseDebounceTimer = setTimeout(() => fetchSearch(), 2000)
 }
-const pendingRenames = ref(0);
 
 const handleSSEEvent = (event) => {
   if (event.Type === SSEEventType.RenameStart) {
@@ -1109,6 +1113,8 @@ const sortedSearchRecords = computed(() => {
 const themeStyle = computed(() => systemProperty.themeStyle);
 
 onKeyStroke(['Enter'], () => {
+  // 不在搜索页时全局键盘监听仍生效，需忽略以免误触发跳转
+  if (!onSearchRoute()) return;
   fetchSearch();
 });
 
@@ -1610,6 +1616,8 @@ const setMovieType = async (Id, Type) => {
 
 const thisRoute = useRoute();
 const { resolve, push } = useRouter();
+// 是否停留在搜索页（/、/search）：keep-alive 缓存下路由切走后组件仍存在，需以当前路由判断可见性
+const onSearchRoute = () => thisRoute.path === '/search' || thisRoute.path === '/';
 
 const saveParam = (skipPush = false) => {
   systemProperty.syncSearchParam(view.queryParam);
@@ -1618,6 +1626,8 @@ const saveParam = (skipPush = false) => {
   sessionStorage.setItem('isAuthenticated', 'true');
   // 避免频繁 push 导致组件重创建，仅在需要时更新 URL
   if (skipPush) return;
+  // 兜底：只有仍停留在搜索页时才同步 URL，防止其它页面被自动拉回 /search
+  if (!onSearchRoute()) return;
   const { Page, PageSize, MovieType, SortField, SortType, Keyword, SearchNode } =
     view.queryParam;
   const currentQuery = thisRoute.query;
@@ -1763,7 +1773,7 @@ onUnmounted(() => {
   align-items: baseline;
   max-height: 200px;
   width: auto;
-  z-index: 2;
+  z-index: 1;
 }
 
 .card-top-type {
@@ -1845,6 +1855,7 @@ onUnmounted(() => {
 
 .float-btn {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  z-index: 9;
 
   .btn-row {
     display: flex;
