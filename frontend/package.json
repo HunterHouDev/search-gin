@@ -29,6 +29,7 @@
     "@quasar/extras": "^1.18.0",
     "@vueuse/core": "^14.3.0",
     "axios": "^1.16.0",
+    "hls.js": "^1.7.2",
     "pinia": "^3.0.4",
     "pinia-plugin-persistedstate": "^4.7.1",
     "qrcode": "^1.5.4",

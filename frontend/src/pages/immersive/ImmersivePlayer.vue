@@ -317,19 +317,85 @@
       </div>
     </transition>
 
-    <!-- 磁力链输入区 -->
+    <!-- 外部链接输入区（磁力链 / 视频链接 / 分片链接） -->
     <transition name="slide-up">
       <div v-if="!videoLoaded && !torrentLoading" class="magnet-input-area">
-        <div class="magnet-input-wrapper" :class="{ 'magnet-focused': magnetFocused }">
-          <q-icon name="link" color="indigo-4" size="20px" class="magnet-icon" />
-          <q-input v-model="magnetURI" placeholder="粘贴磁力链 magnet:?xt=urn:btih:..." dark dense borderless
-            class="magnet-input" @keyup.enter="submitMagnet" @focus="magnetFocused = true"
-            @blur="magnetFocused = false" />
-          <q-btn flat round dense color="indigo-4" icon="play_circle_filled" size="md" @click="submitMagnet"
-            :disable="!magnetURI.trim()" class="magnet-submit-btn">
-            <q-tooltip class="bg-dark text-white">播放磁力链</q-tooltip>
+        <!-- 链接类型 Tab -->
+        <div class="link-tabs">
+          <button v-for="tab in linkTabs" :key="tab.value" type="button" class="link-tab"
+            :class="{ 'link-tab-active': linkTab === tab.value }" @click="switchLinkTab(tab.value)">
+            <q-icon :name="tab.icon" size="15px" />
+            <span>{{ tab.label }}</span>
+          </button>
+        </div>
+        <!-- 链接输入框 -->
+        <div class="magnet-input-wrapper" :class="{ 'magnet-focused': linkFocused }">
+          <q-icon :name="activeLinkTab.icon" color="indigo-4" size="20px" class="magnet-icon" />
+          <q-input v-model="activeLinkValue" :placeholder="activeLinkTab.placeholder" dark dense borderless
+            class="magnet-input" @keyup.enter="submitLink" @focus="linkFocused = true" @blur="linkFocused = false" />
+          <q-btn flat dense no-caps color="indigo-4" :icon="linkActionIcon" :label="linkActionLabel" size="sm"
+            @click="submitLink" :disable="!canSubmitLink" :loading="linkActionLoading" class="magnet-submit-btn">
+            <q-tooltip class="bg-dark text-white">{{ linkActionTooltip }}</q-tooltip>
           </q-btn>
         </div>
+
+        <!-- 分片列表：解析后可删除分片（如广告）再播放剩余部分 -->
+        <transition name="fade">
+          <div v-if="linkTab === 'hls' && hlsParsed" class="hls-segment-panel">
+            <div class="hls-segment-header">
+              <q-icon name="playlist_play" size="16px" color="indigo-4" />
+              <span class="hls-segment-summary">
+                保留 {{ hlsKeptCount }}/{{ hlsTotalCount }} 个分片 · {{ hlsKeptDuration }}
+                <template v-if="hlsRemovedCount">（已删除 {{ hlsRemovedCount }}）</template>
+              </span>
+              <q-space />
+              <q-btn flat dense no-caps size="sm" color="indigo-4" icon="restart_alt" label="恢复"
+                :disable="!hlsRemovedCount || hlsDownloading" @click="restoreHlsSegments">
+                <q-tooltip class="bg-dark text-white">恢复全部已删除分片</q-tooltip>
+              </q-btn>
+              <q-btn flat dense no-caps size="sm" color="indigo-4" icon="link" label="复制链接"
+                :disable="!hlsKeptCount" @click="copyAllSegmentUrls">
+                <q-tooltip class="bg-dark text-white">复制保留的 {{ hlsKeptCount }} 个分片链接（每行一个）</q-tooltip>
+              </q-btn>
+              <template v-if="hlsDownloading">
+                <q-spinner size="14px" color="indigo-4" />
+                <span class="hls-download-progress">{{ hlsDownloadProgress }}%</span>
+                <q-btn flat dense no-caps size="sm" color="red-4" icon="close" label="取消" @click="cancelHlsDownload">
+                  <q-tooltip class="bg-dark text-white">取消下载</q-tooltip>
+                </q-btn>
+              </template>
+              <q-btn v-else flat dense no-caps size="sm" color="indigo-4" icon="download" label="下载"
+                :disable="!hlsKeptCount" @click="downloadHls">
+                <q-tooltip class="bg-dark text-white">下载保留的 {{ hlsKeptCount }} 个分片并另存为</q-tooltip>
+              </q-btn>
+              <q-btn unelevated dense no-caps size="sm" color="indigo-6" icon="play_arrow" label="播放"
+                class="hls-play-btn" :loading="hlsLoading" :disable="!hlsKeptCount || hlsDownloading"
+                @click="playHlsRemaining">
+                <q-tooltip class="bg-dark text-white">播放剩余 {{ hlsKeptCount }} 个分片</q-tooltip>
+              </q-btn>
+            </div>
+            <div class="hls-segment-list">
+              <div v-for="seg in hlsSegments" :key="seg.id" class="hls-segment-item">
+                <span class="hls-segment-index">#{{ seg.index }}</span>
+                <span class="hls-segment-duration">{{ seg.duration ? seg.duration.toFixed(1) + 's' : '--' }}</span>
+                <span class="hls-segment-url" :title="seg.url" @click="copySegmentUrl(seg)">{{ seg.url }}</span>
+                <q-btn flat round dense size="sm" color="indigo-4" icon="content_copy" @click="copySegmentUrl(seg)">
+                  <q-tooltip class="bg-dark text-white">复制该分片链接</q-tooltip>
+                </q-btn>
+                <q-btn flat round dense size="sm" color="deep-orange-4" icon="delete_sweep"
+                  :disable="hlsDownloading" @click="removeHlsSimilarSegments(seg.id)">
+                  <q-tooltip class="bg-dark text-white">
+                    删除同类分片（最后一节不同、前面都相同的全部删除）
+                  </q-tooltip>
+                </q-btn>
+                <q-btn flat round dense size="sm" color="red-4" icon="delete_outline"
+                  :disable="hlsDownloading" @click="removeHlsSegment(seg.id)">
+                  <q-tooltip class="bg-dark text-white">删除该分片</q-tooltip>
+                </q-btn>
+              </div>
+            </div>
+          </div>
+        </transition>
       </div>
     </transition>
 
@@ -470,6 +536,7 @@ import {
 } from 'vue';
 import { format, useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
+import { useClipboard } from '@vueuse/core';
 import { SearchAPI, DeleteFile, RefreshAPI, ResetMovieType, CutImage } from 'components/api/searchAPI';
 
 import {
@@ -487,12 +554,17 @@ import EditVideoTag from 'components/EditVideoTag.vue';
 import IndexButton from 'components/IndexButton.vue';
 import FileEdit from '../file/components/FileEditDialog.vue';
 import { useTorrentDownload } from 'src/composables/useTorrentDownload';
+import { useLinkPlayback } from 'src/composables/useLinkPlayback';
 import { useBreakpoint } from 'src/composables/useBreakpoint';
 
 
 const $q = useQuasar();
 const router = useRouter();
 const { humanStorageSize } = format;
+
+// 剪贴板：legacy 兜底——非安全上下文（http 局域网访问）下 navigator.clipboard 不存在，
+// 必须开启 execCommand 回退，否则复制会静默失败
+const { copy: copyText } = useClipboard({ legacy: true });
 
 // ── System Store ───────────────────────────────────────────────────────────────
 const systemProperty = useSystemProperty();
@@ -541,13 +613,31 @@ const isDragOver = ref(false);
 
 // ── 磁力链 / BT 下载（组合式函数） ──────────────────────────────────────────────
 const {
-  magnetURI, magnetFocused, torrentLoading, torrentName, torrentProgress,
+  magnetURI, torrentLoading, torrentName, torrentProgress,
   torrentState, torrentPeers, currentInfoHash, torrentFiles, showTorrentFiles,
   selectedTorrentFile, showDownloadManager, activeDownloads,
   submitMagnet, selectTorrentFile, playSelectedTorrentFile,
   cancelTorrent, playDownloadTask, openDownloadFolder, removeDownloadTask,
   cleanup: torrentCleanup,
 } = useTorrentDownload($q, (src, name) => loadVideo(src, name));
+
+// ── 外部链接播放（磁力链 / 视频链接 / 分片链接） ─────────────────────────────────
+const {
+  linkTab, linkTabs, linkFocused, activeLinkTab, activeLinkValue, canSubmitLink,
+  hlsLoading, linkActionLabel, linkActionIcon, linkActionTooltip, linkActionLoading,
+  hlsParsed, hlsSegments, hlsTotalCount, hlsKeptCount, hlsRemovedCount, hlsKeptDuration,
+  hlsDownloading, hlsDownloadProgress,
+  switchLinkTab, submitLink, playHlsRemaining, removeHlsSegment,
+  removeHlsSimilarSegments, restoreHlsSegments,
+  downloadHls, cancelHlsDownload, destroyHls,
+  cleanup: linkPlaybackCleanup,
+} = useLinkPlayback($q, {
+  magnetURI,
+  submitMagnet,
+  getVideoEl: () => videoRef.value,
+  getVolume: () => volume.value,
+  onPlay: (src, name, isHls) => loadVideo(src, name, '', {}, isHls),
+});
 
 // ── 播放列表 ──────────────────────────────────────────────────────────────────
 const playlist = ref([]);
@@ -761,7 +851,7 @@ async function fetchSearch() {
   searchAbortController = new AbortController();
   searchLoading.value = true;
   try {
-    const data = await SearchAPI(searchParams, { signal: searchAbortController.signal });
+    const data = await SearchAPI(searchParams, searchAbortController.signal);
     if (data) {
       playlist.value = [...(data.Data || [])];
       searchResults.Data = data.Data || [];
@@ -772,6 +862,8 @@ async function fetchSearch() {
       systemProperty.syncSearchParam(searchParams);
     }
   } catch (e) {
+    // 主动取消（有新请求发出）不算失败，静默丢弃
+    if (e?.name === 'CanceledError' || e?.name === 'AbortError') return;
     console.error('搜索请求异常:', e);
     $q.notify({
       type: 'negative',
@@ -780,7 +872,8 @@ async function fetchSearch() {
       timeout: 2000,
     });
   } finally {
-    searchLoading.value = false;
+    // 仅当本次请求仍是最新的（未被后续请求取消）时才清除 loading
+    if (!searchAbortController.signal.aborted) searchLoading.value = false;
   }
 }
 
@@ -797,6 +890,8 @@ function handleDrop(e) {
 }
 
 function loadVideo(src, name, poster, item = {}) {
+  // 切换资源前先销毁上一个 HLS 实例（分片播放时它接管着 video.src）
+  destroyHls();
   currentVideoSrc.value = src;
   currentVideoName.value = name || '未知视频';
   currentPoster.value = poster || '';
@@ -833,7 +928,8 @@ function getFileIcon(fileName) {
 
 // ── 播放控制 ──────────────────────────────────────────────────────────────────
 function togglePlay() {
-  if (!videoRef.value || !currentVideoSrc.value) {
+  // 分片/HLS 播放时 currentVideoSrc 为空（src 由 hls.js 接管），必须用 videoLoaded 判断
+  if (!videoRef.value || !videoLoaded.value) {
     // 当前没有播放资源时，打开搜索弹窗
     searchDialog.value = !searchDialog.value;
     return;
@@ -855,11 +951,56 @@ function togglePlay() {
 
 function stopPlay() {
   if (!videoRef.value || !videoLoaded.value) return;
+  const el = videoRef.value;
+  // 分片/HLS 播放时 video.src 由 hls.js 接管，只清空 currentVideoSrc 不会影响它，
+  // 必须先销毁实例，否则 MediaSource 仍在喂数据、音频继续播放
+  destroyHls();
+  try {
+    el.pause();
+  } catch {
+    /* 忽略暂停异常 */
+  }
+  // 清空 src 并重新加载，释放 MSE 与底层网络连接
+  el.removeAttribute('src');
+  el.load();
   currentVideoSrc.value = '';
   currentVideoName.value = '暂无视频';
   currentPoster.value = '';
   videoLoaded.value = false;
   isPlaying.value = false;
+  isBuffering.value = false;
+  currentTime.value = '00:00:00';
+  currentTimeSeconds.value = 0;
+  bufferedSeconds.value = 0;
+  duration.value = '00:00:00';
+  durationSeconds.value = 0;
+}
+
+// ── 分片链接复制 ──────────────────────────────────────────────────────────────
+async function copySegmentUrl(seg) {
+  if (!seg?.url) return;
+  await copyText(seg.url);
+  $q.notify({
+    type: 'positive',
+    message: `已复制第 ${seg.index} 个分片链接`,
+    position: 'top',
+    timeout: 1200,
+  });
+}
+
+async function copyAllSegmentUrls() {
+  const urls = hlsSegments.value.map((seg) => seg.url);
+  if (urls.length === 0) {
+    $q.notify({ type: 'warning', message: '没有可复制的分片链接', position: 'top' });
+    return;
+  }
+  await copyText(urls.join('\n'));
+  $q.notify({
+    type: 'positive',
+    message: `已复制 ${urls.length} 个分片链接`,
+    position: 'top',
+    timeout: 1500,
+  });
 }
 
 function onPlay() {
@@ -1230,6 +1371,7 @@ onUnmounted(() => {
   endSeek();
   if (audioContext) audioContext.close();
   torrentCleanup();
+  linkPlaybackCleanup();
   document.removeEventListener('fullscreenchange', onFullscreenChange);
   document.removeEventListener('keydown', handleKeydown);
   document.removeEventListener('contextmenu', onContextMenu);
@@ -1590,7 +1732,7 @@ onUnmounted(() => {
   margin: 0;
 }
 
-/* ── 磁力链输入 ──────────────────────────────────────────────────────────── */
+/* ── 外部链接输入（磁力链 / 视频链接 / 分片链接） ─────────────────────────── */
 .magnet-input-area {
   position: absolute;
   top: 88px;
@@ -1600,6 +1742,42 @@ onUnmounted(() => {
   width: 64vw;
   max-width: 680px;
   min-width: 280px;
+}
+
+.link-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.link-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 14px;
+  font-family: inherit;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  color: rgba(196, 181, 253, 0.7);
+  background: rgba(12, 12, 24, 0.6);
+  border: 1px solid rgba(99, 102, 241, 0.22);
+  border-radius: 20px;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+
+.link-tab:hover {
+  color: #e0e7ff;
+  background: rgba(99, 102, 241, 0.16);
+  border-color: rgba(99, 102, 241, 0.45);
+}
+
+.link-tab-active {
+  color: #fff;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.5), rgba(139, 92, 246, 0.45));
+  border-color: rgba(139, 92, 246, 0.7);
+  box-shadow: 0 0 14px rgba(99, 102, 241, 0.35);
 }
 
 .magnet-input-wrapper {
@@ -1645,6 +1823,9 @@ onUnmounted(() => {
 }
 
 .magnet-submit-btn {
+  flex-shrink: 0;
+  padding: 0 14px;
+  border-radius: 24px;
   background: rgba(99, 102, 241, 0.2);
   border: 1px solid rgba(99, 102, 241, 0.4);
   transition: background 0.2s, box-shadow 0.2s;
@@ -1653,6 +1834,99 @@ onUnmounted(() => {
 .magnet-submit-btn:hover:not([disabled]) {
   background: rgba(99, 102, 241, 0.4);
   box-shadow: 0 0 16px rgba(99, 102, 241, 0.4);
+}
+
+/* ── 分片列表（解析后可删除广告分片） ─────────────────────────────────────── */
+.hls-segment-panel {
+  margin-top: 10px;
+  background: rgba(12, 12, 24, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.hls-segment-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(99, 102, 241, 0.18);
+}
+
+.hls-play-btn {
+  flex-shrink: 0;
+  min-height: 24px;
+  padding: 0 10px;
+  font-size: 0.74rem;
+}
+
+.hls-segment-summary {
+  font-size: 0.76rem;
+  color: rgba(196, 181, 253, 0.85);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hls-download-progress {
+  min-width: 30px;
+  font-size: 0.74rem;
+  color: rgba(196, 181, 253, 0.85);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.hls-segment-list {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.hls-segment-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 10px;
+  font-size: 0.74rem;
+  color: rgba(196, 181, 253, 0.75);
+  transition: background 0.15s;
+}
+
+.hls-segment-item:hover {
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.hls-segment-index {
+  flex-shrink: 0;
+  width: 42px;
+  color: rgba(129, 140, 248, 0.7);
+  font-variant-numeric: tabular-nums;
+}
+
+.hls-segment-duration {
+  flex-shrink: 0;
+  width: 52px;
+  color: rgba(165, 148, 249, 0.8);
+  font-variant-numeric: tabular-nums;
+}
+
+.hls-segment-url {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.hls-segment-url:hover {
+  color: rgba(165, 180, 252, 1);
+  text-decoration: underline;
 }
 
 /* ── 磁力链文件选择 ───────────────────────────────────────────────────────── */
@@ -2445,6 +2719,23 @@ onUnmounted(() => {
   .magnet-input-area {
     width: 88vw;
     bottom: 78px;
+  }
+
+  .hls-segment-list {
+    max-height: 150px;
+  }
+
+  .hls-segment-url {
+    display: none;
+  }
+
+  .link-tabs {
+    gap: 4px;
+  }
+
+  .link-tab {
+    padding: 4px 10px;
+    font-size: 0.72rem;
   }
 
   .search-panel {
