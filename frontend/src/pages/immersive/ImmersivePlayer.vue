@@ -406,7 +406,7 @@
           <div class="torrent-files-header">
             <q-icon name="folder_open" size="24px" color="indigo-4" />
             <span class="torrent-files-title">{{ torrentName }}</span>
-            <span class="torrent-files-hint">选择要播放的文件</span>
+            <span class="torrent-files-hint">选择要播放或下载的文件</span>
           </div>
           <div class="torrent-files-list">
             <div v-for="(file, index) in torrentFiles" :key="index" class="torrent-file-item" :class="{
@@ -424,6 +424,8 @@
           </div>
           <div class="torrent-files-actions">
             <q-btn flat color="grey-5" label="取消" @click="cancelTorrent" />
+            <q-btn flat color="indigo-4" label="仅下载" icon="download" :disable="!selectedTorrentFile"
+              @click="downloadSelectedTorrentFile" />
             <q-btn unelevated color="indigo-6" label="播放选中文件" icon="play_arrow" :disable="!selectedTorrentFile"
               @click="playSelectedTorrentFile" />
           </div>
@@ -440,8 +442,8 @@
           </div>
           <p class="torrent-name">{{ torrentName }}</p>
           <div class="torrent-progress-wrap">
-            <q-linear-progress :value="torrentProgress / 100" color="indigo-5" track-color="grey-9" size="6px" rounded
-              class="q-mb-sm" />
+            <q-linear-progress :indeterminate="torrentProgress === 0" :value="torrentProgress / 100" color="indigo-5"
+              track-color="grey-9" size="6px" rounded class="q-mb-sm" />
             <div class="torrent-stats">
               <span class="torrent-percent">{{ torrentProgress.toFixed(1) }}%</span>
               <span class="torrent-state">{{ torrentState }}</span>
@@ -616,7 +618,7 @@ const {
   magnetURI, torrentLoading, torrentName, torrentProgress,
   torrentState, torrentPeers, currentInfoHash, torrentFiles, showTorrentFiles,
   selectedTorrentFile, showDownloadManager, activeDownloads,
-  submitMagnet, selectTorrentFile, playSelectedTorrentFile,
+  submitMagnet, selectTorrentFile, playSelectedTorrentFile, downloadSelectedTorrentFile,
   cancelTorrent, playDownloadTask, openDownloadFolder, removeDownloadTask,
   cleanup: torrentCleanup,
 } = useTorrentDownload($q, (src, name) => loadVideo(src, name));

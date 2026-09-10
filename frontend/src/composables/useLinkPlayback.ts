@@ -22,7 +22,7 @@ export const LINK_TABS: LinkTabItem[] = [
     label: '磁力链',
     icon: 'link',
     placeholder: '粘贴磁力链 magnet:?xt=urn:btih:...',
-    tooltip: '播放磁力链',
+    tooltip: '解析磁力链并选择文件',
   },
   {
     value: 'video',
@@ -537,18 +537,23 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
   const canSubmitLink = computed(() => activeLinkValue.value.trim().length > 0);
 
   /** 分片 tab 的输入框按钮只负责解析（播放按钮位于分片列表头部） */
+  // 磁力链按钮只负责「解析」，之后在弹窗里选文件再决定播放还是下载；
+  // 视频直链是直接播放；分片链按钮负责解析播放列表
   const linkActionLabel = computed(() => {
-    if (linkTab.value !== 'hls') return '播放';
+    if (linkTab.value === 'magnet') return '解析';
+    if (linkTab.value === 'video') return '播放';
     return hlsParsed.value ? '重新解析' : '解析';
   });
 
   const linkActionIcon = computed(() => {
-    if (linkTab.value !== 'hls') return 'play_circle_filled';
+    if (linkTab.value === 'magnet') return 'troubleshoot';
+    if (linkTab.value === 'video') return 'play_circle_filled';
     return hlsParsed.value ? 'refresh' : 'troubleshoot';
   });
 
   const linkActionTooltip = computed(() => {
-    if (linkTab.value !== 'hls') return activeLinkTab.value.tooltip;
+    if (linkTab.value === 'magnet') return '解析磁力链并选择要播放或下载的文件';
+    if (linkTab.value === 'video') return activeLinkTab.value.tooltip;
     if (!hlsParsed.value) return '解析分片列表';
     return `重新拉取并解析播放列表（当前保留 ${hlsKeptCount.value} 个分片）`;
   });

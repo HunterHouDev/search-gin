@@ -8,7 +8,8 @@ import type { QVueGlobals } from 'quasar'
 export interface TorrentFile {
   path: string
   name: string
-  size: number
+  /** 后端字段名为 length（字节） */
+  length: number
 }
 
 export interface DownloadTask {
@@ -41,6 +42,10 @@ export function useTorrentDownload(
   const activeDownloads = ref<DownloadTask[]>([])
   let torrentPollTimer: ReturnType<typeof setInterval> | null = null
 
+  // 解析请求序号：取消或重新提交后，旧请求的响应直接丢弃，
+  // 避免迟到的响应把弹窗意外打开
+  let magnetSeq = 0
+
   // 提交磁力链
   async function submitMagnet() {
     const uri = magnetURI.value.trim()
@@ -48,12 +53,16 @@ export function useTorrentDownload(
       $q.notify({ type: 'negative', message: '请输入有效的磁力链', position: 'top' })
       return
     }
+    const seq = ++magnetSeq
     torrentLoading.value = true
     torrentProgress.value = 0
-    torrentState.value = '正在解析磁力链...'
+    torrentState.value = '正在解析磁力链，等待 DHT 网络返回种子信息（最长 60 秒）'
     torrentName.value = '获取种子信息中...'
     try {
-      const res = await api.post('/api/torrent/add', { magnetURI: uri })
+      // 后端要等 DHT 网络返回 metadata，最长 60s；axios 默认 30s 会先断开，
+      // 表现为「解析结果出不来」，这里单独放宽到 90s
+      const res = await api.post('/api/torrent/add', { magnetURI: uri }, { timeout: 90000 })
+      if (seq !== magnetSeq) return
       const code = res.data?.code ?? res.data?.Code
       const data = res.data?.data ?? res.data?.Data
       if (code === 200 && data) {
@@ -76,6 +85,7 @@ export function useTorrentDownload(
         torrentLoading.value = false
       }
     } catch (err: unknown) {
+      if (seq !== magnetSeq) return
       const axiosErr = err as { response?: { data?: { message?: string; Message?: string } }; message?: string }
       $q.notify({
         type: 'negative',
@@ -90,34 +100,55 @@ export function useTorrentDownload(
     selectedTorrentFile.value = file.path
   }
 
-  async function playSelectedTorrentFile() {
-    if (!selectedTorrentFile.value || !currentInfoHash.value) return
-    torrentLoading.value = true
+  /**
+   * 启动选中文件的下载。
+   * play=true：加入下载列表并立即起播（边下边播）；play=false：只下载，不动播放器。
+   */
+  async function startSelectedTorrentFile(play: boolean) {
+    const infoHash = currentInfoHash.value
+    const filePath = selectedTorrentFile.value
+    if (!filePath || !infoHash) return
+    const fileName = torrentFiles.value.find((f) => f.path === filePath)?.name || '未知文件'
+
     showTorrentFiles.value = false
-    torrentState.value = '正在开始下载...'
-    torrentProgress.value = 0
-    const fileName = torrentFiles.value.find((f) => f.path === selectedTorrentFile.value)?.name || '未知文件'
+    if (play) {
+      torrentLoading.value = true
+      torrentState.value = '正在开始下载...'
+      torrentProgress.value = 0
+    }
+
     try {
       const response = await api.post('/api/torrent/startDownload', {
-        infoHash: currentInfoHash.value,
-        filePath: selectedTorrentFile.value,
+        infoHash,
+        filePath,
       })
       const result = response.data?.data ?? response.data?.Data
       const newTask: DownloadTask = {
-        infoHash: currentInfoHash.value,
+        infoHash,
         name: torrentName.value,
         fileName,
-        filePath: selectedTorrentFile.value,
+        filePath,
         progress: result?.skipped ? 100 : 0,
         state: result?.skipped ? '已下载' : '准备下载',
         peers: 0,
       }
       activeDownloads.value.push(newTask)
-      if (!result?.skipped) startPolling(currentInfoHash.value, newTask, selectedTorrentFile.value)
-      const streamUrl = `/api/torrent/stream/${currentInfoHash.value}?file=${encodeURIComponent(selectedTorrentFile.value)}`
-      onVideoReady(streamUrl, fileName)
-      if (result?.skipped) {
-        $q.notify({ type: 'positive', message: '文件已存在，无需下载', position: 'top', timeout: 2000 })
+      if (!result?.skipped) startPolling(infoHash, newTask, filePath, play)
+
+      if (play) {
+        // 立即用流地址起播，后台继续下载
+        const streamUrl = `/api/torrent/stream/${infoHash}?file=${encodeURIComponent(filePath)}`
+        onVideoReady(streamUrl, fileName)
+        if (result?.skipped) {
+          $q.notify({ type: 'positive', message: '文件已存在，无需下载', position: 'top', timeout: 2000 })
+        }
+      } else {
+        $q.notify({
+          type: 'positive',
+          message: result?.skipped ? '文件已存在，已加入下载列表' : `已开始下载：${fileName}`,
+          position: 'top',
+          timeout: 2000,
+        })
       }
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { message?: string; Message?: string } }; message?: string }
@@ -126,12 +157,23 @@ export function useTorrentDownload(
         message: '启动下载失败: ' + ((axiosErr.response?.data?.message ?? axiosErr.response?.data?.Message) || axiosErr.message),
         position: 'top',
       })
+      // 请求失败时还原选择弹窗，避免用户以为已经在下
+      showTorrentFiles.value = true
     }
     torrentLoading.value = false
     selectedTorrentFile.value = null
   }
 
-  function startPolling(infoHash: string, task: DownloadTask, filePath: string) {
+  function playSelectedTorrentFile() {
+    return startSelectedTorrentFile(true)
+  }
+
+  function downloadSelectedTorrentFile() {
+    return startSelectedTorrentFile(false)
+  }
+
+  /** autoPlay=false 时只跟踪进度，不触发播放 */
+  function startPolling(infoHash: string, task: DownloadTask, filePath: string, autoPlay = true) {
     stopPolling()
     const pollStart = Date.now()
     torrentPollTimer = setInterval(async () => {
@@ -149,11 +191,17 @@ export function useTorrentDownload(
           torrentState.value = d.state
           torrentPeers.value = d.peers
           if (task) { task.progress = d.progress; task.state = d.state; task.peers = d.peers }
-          if (d.progress >= 3) {
+          if (autoPlay && d.progress >= 3) {
             torrentState.value = '缓冲就绪，开始播放'
             const streamUrl = `/api/torrent/stream/${infoHash}?file=${encodeURIComponent(filePath)}`
             onVideoReady(streamUrl, d.videoFile || d.name)
             stopPolling()
+            return
+          }
+          if (!autoPlay && d.progress >= 100) {
+            task.state = '已下载'
+            stopPolling()
+            $q.notify({ type: 'positive', message: `下载完成：${task.fileName}`, position: 'top' })
           }
         }
       } catch { /* poll errors are non-critical */ }
@@ -165,6 +213,8 @@ export function useTorrentDownload(
   }
 
   async function cancelTorrent() {
+    // 使在途的解析请求作废，避免响应回来后又被弹出文件选择框
+    magnetSeq++
     stopPolling()
     if (currentInfoHash.value) {
       try { await api.delete(`/api/torrent/${currentInfoHash.value}`) } catch { /* ignore */ }
@@ -212,7 +262,7 @@ export function useTorrentDownload(
     torrentState, torrentPeers, currentInfoHash, torrentFiles, showTorrentFiles,
     selectedTorrentFile, showDownloadManager, activeDownloads,
     // actions
-    submitMagnet, selectTorrentFile, playSelectedTorrentFile,
+    submitMagnet, selectTorrentFile, playSelectedTorrentFile, downloadSelectedTorrentFile,
     cancelTorrent, playDownloadTask, openDownloadFolder, removeDownloadTask,
     cleanup,
   }
