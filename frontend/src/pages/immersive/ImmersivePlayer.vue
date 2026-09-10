@@ -392,6 +392,9 @@
                   <q-tooltip class="bg-dark text-white">取消下载</q-tooltip>
                 </q-btn>
               </template>
+              <q-btn v-else-if="hlsDownloaded" flat dense no-caps size="sm" color="grey-5" icon="task_alt" label="已下载" disable>
+                <q-tooltip class="bg-dark text-white">已下载，重新解析后可再次下载</q-tooltip>
+              </q-btn>
               <q-btn v-else flat dense no-caps size="sm" color="indigo-4" icon="download" label="下载"
                 class="hls-download-btn" :disable="!hlsKeptCount" @click="downloadHls">
                 <q-tooltip class="bg-dark text-white">下载保留的 {{ hlsKeptCount }} 个分片并另存为</q-tooltip>
@@ -651,7 +654,7 @@ const {
   linkTab, linkTabs, linkFocused, activeLinkTab, activeLinkValue, canSubmitLink,
   hlsLoading, linkActionLabel, linkActionIcon, linkActionTooltip, linkActionLoading,
   hlsParsed, hlsSegments, hlsTotalCount, hlsKeptCount, hlsRemovedCount, hlsKeptDuration,
-  hlsDownloading, hlsDownloadProgress, hlsDownloadName, hlsDefaultDownloadName,
+  hlsDownloading, hlsDownloadProgress, hlsDownloaded, hlsDownloadName, hlsDefaultDownloadName,
   hlsDownloadDir, fsDirSupported,
   switchLinkTab, submitLink, playHlsRemaining, removeHlsSegment,
   removeHlsSimilarSegments, restoreHlsSegments,

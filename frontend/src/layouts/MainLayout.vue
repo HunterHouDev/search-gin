@@ -362,22 +362,22 @@ const essentialLinks = computed(() => {
 }
 
 // 自然模式下抽屉 item 文字色
-.drawer-natural ::deep(.q-item) {
+.drawer-natural :deep(.q-item) {
   color: #FFFFFF !important;
 }
 
 // 自然模式下抽屉中按钮颜色覆盖
-.drawer-natural ::deep(.q-btn) {
+.drawer-natural :deep(.q-btn) {
   color: #FFFFFF !important;
 }
 
 // 自然模式下 header 中 EssentialLink 按钮文字颜色
-.theme-natural .q-header ::deep(.q-btn) {
+.theme-natural .q-header :deep(.q-btn) {
   color: #FFFFFF !important;
 }
 
 // 自然模式下 header 中当前页面的 EssentialLink 按钮保持红色
-.theme-natural .q-header ::deep(.q-btn.text-red) {
+.theme-natural .q-header :deep(.q-btn.text-red) {
   color: #EF4444 !important;
 }
 </style>

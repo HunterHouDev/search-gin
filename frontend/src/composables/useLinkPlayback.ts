@@ -546,6 +546,8 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
   // ── 下载（另存为）状态 ───────────────────────────────────────────────────────
   const hlsDownloading = ref(false);
   const hlsDownloadProgress = ref(0);
+  /** 本次解析结果是否已下载成功：成功后下载按钮转为「已下载」只读，重新解析才放开 */
+  const hlsDownloaded = ref(false);
   let downloadAborted = false;
   let activeSink: DownloadSink | null = null;
 
@@ -703,6 +705,8 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     hlsSegments.value = [];
     // 地址变化后旧的下载文件名不再适用，回到默认名
     hlsDownloadName.value = '';
+    // 解析结果已失效，下载按钮恢复可用
+    hlsDownloaded.value = false;
   }
 
   function removeHlsSegment(id: number) {
@@ -759,6 +763,8 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
       hlsParsedUrl.value = url;
       hlsAllSegments.value = parsed.segments;
       hlsSegments.value = [...parsed.segments];
+      // 重新解析得到新的分片清单，下载按钮重新开放
+      hlsDownloaded.value = false;
       $q.notify({
         type: 'positive',
         message: `解析完成，共 ${parsed.segments.length} 个分片`,
@@ -989,6 +995,8 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
 
       if (downloadAborted) throw new Error('已取消下载');
       await sink.close();
+      // 落盘成功：标记已下载，按钮转为只读，避免重复下载同一个文件
+      hlsDownloaded.value = true;
       $q.notify({
         type: 'positive',
         message: `已保存 ${written} 个分片 · ${hlsKeptDuration.value}`,
@@ -1084,6 +1092,7 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     // 下载（另存为）
     hlsDownloading,
     hlsDownloadProgress,
+    hlsDownloaded,
     hlsDownloadName,
     hlsDefaultDownloadName,
     hlsDownloadDir,
