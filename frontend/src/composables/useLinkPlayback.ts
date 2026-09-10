@@ -40,6 +40,22 @@ export const LINK_TABS: LinkTabItem[] = [
   },
 ];
 
+/** 链接类型 Tab 的本地存储 key（刷新后保留上次选择） */
+const LINK_TAB_STORAGE_KEY = 'immersive.linkTab';
+
+const LINK_TAB_VALUES: string[] = LINK_TABS.map((t) => t.value);
+
+/** 读取上次选择的 tab；脏数据或已下线的 tab 回退到默认「磁力链」 */
+function readStoredLinkTab(): LinkTab {
+  try {
+    const saved = localStorage.getItem(LINK_TAB_STORAGE_KEY);
+    if (saved && LINK_TAB_VALUES.includes(saved)) return saved as LinkTab;
+  } catch {
+    // 隐私模式 / 存储被禁用时忽略
+  }
+  return 'magnet';
+}
+
 /** 解析出的单个 HLS 分片 */
 export interface HlsSegment {
   /** 稳定 id（等于原始序号） */
@@ -456,8 +472,18 @@ async function decryptAes128(
 export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
   const { magnetURI, submitMagnet, getVideoEl, getVolume, onPlay } = opts;
 
-  const linkTab = ref<LinkTab>('magnet');
+  const linkTab = ref<LinkTab>(readStoredLinkTab());
   const linkFocused = ref(false);
+
+  // 记住用户选择的链接类型，刷新页面后不再回到默认 tab
+  watch(linkTab, (val) => {
+    try {
+      localStorage.setItem(LINK_TAB_STORAGE_KEY, val);
+    } catch {
+      // 写入失败（隐私模式）时忽略，不影响功能
+    }
+  });
+
   const videoURL = ref('');
   const hlsURL = ref('');
   const hlsLoading = ref(false);
