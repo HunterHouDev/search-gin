@@ -357,6 +357,34 @@
                 :disable="!hlsKeptCount" @click="copyAllSegmentUrls">
                 <q-tooltip class="bg-dark text-white">复制保留的 {{ hlsKeptCount }} 个分片链接（每行一个）</q-tooltip>
               </q-btn>
+              <q-btn unelevated dense no-caps size="sm" color="indigo-6" icon="play_arrow" label="播放"
+                class="hls-play-btn" :loading="hlsLoading" :disable="!hlsKeptCount || hlsDownloading"
+                @click="playHlsRemaining">
+                <q-tooltip class="bg-dark text-white">播放剩余 {{ hlsKeptCount }} 个分片</q-tooltip>
+              </q-btn>
+            </div>
+            <!-- 下载设置：文件名 + 目录 + 下载按钮，撑满一行（文件名自适应剩余宽度） -->
+            <div class="hls-download-row">
+              <q-input v-model="hlsDownloadName" dark dense borderless class="hls-filename-input"
+                :placeholder="hlsDefaultDownloadName" :disable="!hlsKeptCount || hlsDownloading" maxlength="120"
+                @keyup.enter="downloadHls">
+                <template #prepend>
+                  <q-icon name="edit_note" size="16px" color="indigo-4" />
+                </template>
+                <q-tooltip class="bg-dark text-white">
+                  自定义保存文件名，留空则用默认名 {{ hlsDefaultDownloadName }}
+                </q-tooltip>
+              </q-input>
+              <q-btn v-if="fsDirSupported" flat dense no-caps size="sm" class="hls-dir-btn"
+                :color="hlsDownloadDir ? 'green-4' : 'indigo-4'"
+                :icon="hlsDownloadDir ? 'folder_special' : 'create_new_folder'"
+                :label="hlsDownloadDir || '下载目录'" :disable="hlsDownloading" @click="pickHlsDownloadDir">
+                <q-tooltip class="bg-dark text-white">
+                  {{ hlsDownloadDir
+                    ? `下载直接存入「${hlsDownloadDir}」，不再逐次选目录；点击可更换`
+                    : '选择一个下载目录并记住，之后下载无需重复选目录' }}
+                </q-tooltip>
+              </q-btn>
               <template v-if="hlsDownloading">
                 <q-spinner size="14px" color="indigo-4" />
                 <span class="hls-download-progress">{{ hlsDownloadProgress }}%</span>
@@ -365,13 +393,8 @@
                 </q-btn>
               </template>
               <q-btn v-else flat dense no-caps size="sm" color="indigo-4" icon="download" label="下载"
-                :disable="!hlsKeptCount" @click="downloadHls">
+                class="hls-download-btn" :disable="!hlsKeptCount" @click="downloadHls">
                 <q-tooltip class="bg-dark text-white">下载保留的 {{ hlsKeptCount }} 个分片并另存为</q-tooltip>
-              </q-btn>
-              <q-btn unelevated dense no-caps size="sm" color="indigo-6" icon="play_arrow" label="播放"
-                class="hls-play-btn" :loading="hlsLoading" :disable="!hlsKeptCount || hlsDownloading"
-                @click="playHlsRemaining">
-                <q-tooltip class="bg-dark text-white">播放剩余 {{ hlsKeptCount }} 个分片</q-tooltip>
               </q-btn>
             </div>
             <div class="hls-segment-list">
@@ -628,10 +651,11 @@ const {
   linkTab, linkTabs, linkFocused, activeLinkTab, activeLinkValue, canSubmitLink,
   hlsLoading, linkActionLabel, linkActionIcon, linkActionTooltip, linkActionLoading,
   hlsParsed, hlsSegments, hlsTotalCount, hlsKeptCount, hlsRemovedCount, hlsKeptDuration,
-  hlsDownloading, hlsDownloadProgress,
+  hlsDownloading, hlsDownloadProgress, hlsDownloadName, hlsDefaultDownloadName,
+  hlsDownloadDir, fsDirSupported,
   switchLinkTab, submitLink, playHlsRemaining, removeHlsSegment,
   removeHlsSimilarSegments, restoreHlsSegments,
-  downloadHls, cancelHlsDownload, destroyHls,
+  downloadHls, cancelHlsDownload, pickHlsDownloadDir, destroyHls,
   cleanup: linkPlaybackCleanup,
 } = useLinkPlayback($q, {
   magnetURI,
@@ -1857,6 +1881,17 @@ onUnmounted(() => {
   border-bottom: 1px solid rgba(99, 102, 241, 0.18);
 }
 
+/* 下载设置行（文件名 + 目录 + 下载按钮）：独立一行，文件名自适应剩余宽度以撑满整行 */
+.hls-download-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(99, 102, 241, 0.18);
+  background: rgba(99, 102, 241, 0.05);
+}
+
 .hls-play-btn {
   flex-shrink: 0;
   min-height: 24px;
@@ -1870,6 +1905,57 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 自定义下载文件名输入框：独占剩余宽度，把同行按钮顶到右边 */
+.hls-filename-input {
+  flex: 1 1 auto;
+  min-width: 120px;
+}
+
+/* 下载按钮：固定宽度不参与压缩，保证与目录/文件名同排 */
+.hls-download-btn {
+  flex-shrink: 0;
+  min-height: 24px;
+  padding: 0 10px;
+  font-size: 0.74rem;
+}
+
+/* 「下载目录」按钮：目录名可能较长，超出省略 */
+.hls-dir-btn {
+  flex-shrink: 0;
+  min-height: 24px;
+  max-width: 150px;
+  padding: 0 8px;
+  font-size: 0.74rem;
+}
+
+.hls-dir-btn :deep(.q-btn__content) {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.hls-filename-input :deep(.q-field__control) {
+  height: 26px;
+  min-height: 26px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.hls-filename-input :deep(.q-field__native) {
+  font-size: 0.74rem;
+  color: rgba(224, 231, 255, 0.95);
+  padding: 0;
+}
+
+.hls-filename-input :deep(.q-field__native::placeholder) {
+  color: rgba(165, 148, 249, 0.45);
+}
+
+.hls-filename-input :deep(.q-field__prepend) {
+  padding-right: 4px;
 }
 
 .hls-download-progress {

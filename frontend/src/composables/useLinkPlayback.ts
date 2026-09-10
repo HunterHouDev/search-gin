@@ -1,6 +1,16 @@
 import { computed, ref, watch, type Ref } from 'vue';
 import type { QVueGlobals } from 'quasar';
 import type HlsJs from 'hls.js';
+import {
+  ensureDirWritable,
+  forgetDir,
+  fsDirSupported,
+  fsSaveSupported,
+  loadSavedDir,
+  openWritableInDir,
+  pickDir,
+  pickSaveFile,
+} from 'src/utils/downloadDir';
 
 // 外部链接播放逻辑（磁力链 / 视频链接 / 分片链接）
 // 磁力链复用 useTorrentDownload，视频直链与 HLS 分片链在此处理。
@@ -99,13 +109,8 @@ interface DownloadSink {
   write: (chunk: Bytes) => Promise<void>;
   close: () => Promise<void>;
   abort: () => Promise<void>;
-}
-
-/** File System Access API 的最小声明（非安全上下文下不存在） */
-interface SavePickerWindow {
-  showSaveFilePicker?: (options: {
-    suggestedName?: string;
-  }) => Promise<FileSystemFileHandle>;
+  /** 落盘位置的补充说明，用于下载完成提示 */
+  target: string;
 }
 
 export interface LinkPlaybackOptions {
@@ -276,6 +281,34 @@ function buildDownloadName(source: string, ext: string): string {
   return `${stem}.${ext}`;
 }
 
+/** 文件名中不允许出现的字符（按 Windows 规则处理，跨平台都安全） */
+const INVALID_FILENAME_CHARS = /[\\/:*?"<>|]/g;
+
+/** 已自带扩展名（如 .mp4 / .ts / .m4s）时不再追加容器后缀 */
+const HAS_EXTENSION_RE = /\.[A-Za-z0-9]{1,8}$/;
+
+/** 文件名长度上限，避免超出文件系统限制 */
+const MAX_FILENAME_LENGTH = 120;
+
+/**
+ * 把用户在输入框里填的名字整理成可用的下载文件名：
+ * 清洗非法字符与首尾空白/点，留空时回退到默认名，未写扩展名时补上容器后缀。
+ */
+function resolveDownloadName(
+  raw: string,
+  fallback: string,
+  ext: string,
+): string {
+  const cleaned = raw
+    .replace(INVALID_FILENAME_CHARS, '_')
+    .replace(/\s+/g, ' ')
+    .replace(/^[.\s]+/, '')
+    .replace(/[.\s]+$/, '')
+    .slice(0, MAX_FILENAME_LENGTH);
+  if (!cleaned) return fallback;
+  return HAS_EXTENSION_RE.test(cleaned) ? cleaned : `${cleaned}.${ext}`;
+}
+
 /**
  * 分片的「类」：忽略 query/hash 后，取最后一个 / 之前的前缀。
  * 前缀相同即同类——典型场景是正片与广告分属不同目录，只有最后一节文件名不同。
@@ -402,34 +435,52 @@ function triggerBrowserDownload(blob: Blob, fileName: string) {
 }
 
 /**
- * 创建下载落地目标：
- * 优先用 File System Access API（真正的「另存为」对话框，边下边写，不吃内存）；
- * 非安全上下文（如 http://局域网IP）不支持时退化为内存 Blob + 浏览器下载。
+ * 创建下载落地目标，按以下顺序择优：
+ * 1. 记住的下载目录且仍有写权限 → 直接落盘，全程无对话框（「不用重复选目录」）；
+ * 2. 「另存为」对话框，默认定位到记住的目录，点一下保存即可；
+ * 3. 环境不支持（非安全上下文 / 非 Chromium）→ 内存 Blob + 浏览器下载。
  * 返回 null 表示用户取消了保存对话框。
  */
 async function createDownloadSink(
   fileName: string,
 ): Promise<DownloadSink | null> {
-  const picker = (window as unknown as SavePickerWindow).showSaveFilePicker;
-  if (typeof picker === 'function') {
-    let handle: FileSystemFileHandle | null = null;
+  const savedDir = await loadSavedDir();
+
+  // 1. 记忆中的目录：有权限就直接写文件
+  if (savedDir && (await ensureDirWritable(savedDir))) {
     try {
-      handle = await picker.call(window, { suggestedName: fileName });
-    } catch (e) {
-      // 用户取消选择文件
-      if ((e as DOMException)?.name === 'AbortError') return null;
-      // 环境未实现该 API 时退回浏览器下载
-    }
-    if (handle) {
-      const stream = await handle.createWritable();
+      const { stream, fileName: actual } = await openWritableInDir(
+        savedDir,
+        fileName,
+      );
       return {
         write: (chunk) => stream.write(chunk),
         close: () => stream.close(),
         abort: () => stream.abort(),
+        target: `已存入 ${savedDir.name}/${actual}`,
+      };
+    } catch {
+      // 目录被删除或改名，记忆已失效；清掉后继续走对话框
+      await forgetDir();
+    }
+  }
+
+  // 2. 「另存为」对话框：id 让浏览器记住上次目录，startIn 直接定位
+  if (fsSaveSupported) {
+    const picked = await pickSaveFile(fileName, savedDir ?? 'downloads');
+    if (picked.status === 'cancelled') return null;
+    if (picked.status === 'ok') {
+      const stream = await picked.handle.createWritable();
+      return {
+        write: (chunk) => stream.write(chunk),
+        close: () => stream.close(),
+        abort: () => stream.abort(),
+        target: `已保存为 ${picked.handle.name}`,
       };
     }
   }
 
+  // 3. 非安全上下文 / 不支持该 API：内存 Blob + 浏览器下载
   const chunks: Bytes[] = [];
   return {
     async write(chunk) {
@@ -445,6 +496,7 @@ async function createDownloadSink(
     async abort() {
       chunks.length = 0;
     },
+    target: `已交给浏览器下载 ${fileName}`,
   };
 }
 
@@ -516,6 +568,60 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
       hlsSegments.value.reduce((sum, seg) => sum + seg.duration, 0),
     ),
   );
+
+  // ── 下载文件名（留空则用默认名） ─────────────────────────────────────────────
+  /** 用户自定义的保存文件名，空串表示使用默认名 */
+  const hlsDownloadName = ref('');
+
+  /** 下载容器后缀：带 #EXT-X-MAP 初始化段的播放列表实际是 fMP4 */
+  const hlsDownloadExt = computed(() =>
+    parsedPlaylist.value?.header.some((item) => item.startsWith('#EXT-X-MAP'))
+      ? 'mp4'
+      : 'ts',
+  );
+
+  /** 默认下载文件名（输入框留空时使用），随解析到的地址变化 */
+  const hlsDefaultDownloadName = computed(() =>
+    buildDownloadName(
+      fileNameFromUrl(hlsParsedUrl.value || hlsURL.value),
+      hlsDownloadExt.value,
+    ),
+  );
+
+  // ── 记住的下载目录（设置后下载直接落盘，不再弹「另存为」） ─────────────────────
+  /** 已记住的目录名，空串表示尚未设置 */
+  const hlsDownloadDir = ref('');
+
+  /** 读取已保存的目录名（初始化时调用一次） */
+  async function refreshDownloadDir() {
+    const dir = await loadSavedDir();
+    hlsDownloadDir.value = dir?.name ?? '';
+  }
+
+  /** 选择 / 更换下载目录，之后下载不再需要逐次选目录 */
+  async function pickHlsDownloadDir() {
+    try {
+      const dir = await pickDir();
+      if (!dir) {
+        notifyNegative('当前浏览器不支持选择目录，将沿用另存为对话框');
+        return;
+      }
+      hlsDownloadDir.value = dir.name;
+      $q.notify({
+        type: 'positive',
+        message: `已记住下载目录：${dir.name}`,
+        caption: '之后的下载会直接保存到该目录，不再询问',
+        position: 'top',
+      });
+    } catch (e) {
+      // 用户取消目录选择，静默处理
+      if ((e as DOMException)?.name !== 'AbortError') {
+        notifyNegative('选择目录失败：' + (e as Error).message);
+      }
+    }
+  }
+
+  void refreshDownloadDir();
 
   const activeLinkTab = computed<LinkTabItem>(
     () => LINK_TABS.find((t) => t.value === linkTab.value) ?? LINK_TABS[0],
@@ -595,6 +701,8 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     hlsParsedUrl.value = '';
     hlsAllSegments.value = [];
     hlsSegments.value = [];
+    // 地址变化后旧的下载文件名不再适用，回到默认名
+    hlsDownloadName.value = '';
   }
 
   function removeHlsSegment(id: number) {
@@ -835,12 +943,11 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
       return;
     }
 
-    const isFragmented = parsed.header.some((item) =>
-      item.startsWith('#EXT-X-MAP'),
-    );
-    const fileName = buildDownloadName(
-      fileNameFromUrl(hlsParsedUrl.value || hlsURL.value),
-      isFragmented ? 'mp4' : 'ts',
+    // 用户填了名字就用它（自动补扩展名），留空则回退到默认名
+    const fileName = resolveDownloadName(
+      hlsDownloadName.value,
+      hlsDefaultDownloadName.value,
+      hlsDownloadExt.value,
     );
     const sequenceBase = parseMediaSequence(parsed.header);
     const keyCache = new Map<string, Bytes>();
@@ -885,6 +992,7 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
       $q.notify({
         type: 'positive',
         message: `已保存 ${written} 个分片 · ${hlsKeptDuration.value}`,
+        caption: sink.target,
         position: 'top',
       });
     } catch (e) {
@@ -976,6 +1084,10 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     // 下载（另存为）
     hlsDownloading,
     hlsDownloadProgress,
+    hlsDownloadName,
+    hlsDefaultDownloadName,
+    hlsDownloadDir,
+    fsDirSupported,
     // actions
     switchLinkTab,
     submitLink,
@@ -986,6 +1098,7 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     restoreHlsSegments,
     downloadHls,
     cancelHlsDownload,
+    pickHlsDownloadDir,
     destroyHls,
     cleanup,
   };

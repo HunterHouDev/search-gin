@@ -157,7 +157,7 @@ func GetAuthor(fileName string) string {
 	rights := strings.Split(fileName, "[")
 	if len(rights) <= 1 {
 		// 按 rune 截取，避免中文字符被按字节切断产生乱码
-		return TruncateRunes(GetTitle(fileName), 20)
+		return TruncateRunes(GetTitle(fileName), 10)
 	}
 	for index, value := range rights {
 		if index == 0 {
