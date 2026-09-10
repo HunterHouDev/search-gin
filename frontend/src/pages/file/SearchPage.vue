@@ -410,38 +410,33 @@
                         fileCutImageRef.open(item);
                       }
                     " icon="ti-cut" title="截图" />
-                    <!-- 删除按钮 -->
-                    <q-btn round ripple glossy :size="btnSize('footer')" color="negative" icon="delete" title="删除"
-                      @click="confirmDelete(item)" />
-                    <!-- 扫码按钮 -->
-                    <q-btn round ripple glossy :size="btnSize('footer')" color="teal" icon="qr_code_scanner" title="扫码"
-                      v-if="!isSmall" @click="openQrDownload(item)" />
                     <!-- 更多按钮 -->
                     <q-btn round ripple glossy :size="btnSize('footer')" color="grey-7" icon="more_vert" title="更多">
                       <q-menu anchor="top left" self="bottom left" transition-show="jump-down"
                         transition-hide="jump-up">
                         <q-list style="min-width: 120px">
-                          <q-item clickable v-close-popup @click="
-                            view.currentDataInEditor = item;
-                          fileEditRef.open(item);
-                          ">
-                            <q-item-section avatar><q-icon name="edit" color="grey-8" /></q-item-section>
-                            <q-item-section>编辑</q-item-section>
-                          </q-item>
-                          <q-item clickable v-close-popup @click="openFolder(item)" v-if="!isSmall">
-                            <q-item-section avatar><q-icon name="open_in_new" color="primary" /></q-item-section>
-                            <q-item-section>文件夹</q-item-section>
-                          </q-item>
-                          <q-item clickable v-close-popup @click="searchCode(item)">
-                            <q-item-section avatar><q-icon name="ti-search" color="brown-5" /></q-item-section>
-                            <q-item-section>网搜</q-item-section>
-                          </q-item>
-                          <q-item clickable v-close-popup @click="
-                            view.currentDataInEditor = item;
-                          fileCutImageRef.open(item);
-                          ">
-                            <q-item-section avatar><q-icon name="ti-cut" color="black" /></q-item-section>
-                            <q-item-section>截图</q-item-section>
+                          <!-- 只放按钮栏没有的操作，转码为二级菜单 -->
+                          <q-item clickable v-permission="'op:transcode'">
+                            <q-item-section avatar><q-icon name="transform" color="teal" /></q-item-section>
+                            <q-item-section>转码</q-item-section>
+                            <q-item-section side><q-icon name="keyboard_arrow_right" color="grey" /></q-item-section>
+                            <q-menu anchor="top end" self="top start" transition-show="jump-right"
+                              transition-hide="jump-left">
+                              <q-list style="min-width: 110px">
+                                <q-item clickable v-close-popup @click="toMp4(item)">
+                                  <q-item-section avatar><q-icon name="movie" color="teal" /></q-item-section>
+                                  <q-item-section>MP4</q-item-section>
+                                </q-item>
+                                <q-item clickable v-close-popup @click="toVcode(item, 'h264')">
+                                  <q-item-section avatar><q-icon name="videocam" color="blue" /></q-item-section>
+                                  <q-item-section>H264</q-item-section>
+                                </q-item>
+                                <q-item clickable v-close-popup @click="toVcode(item, 'h265')">
+                                  <q-item-section avatar><q-icon name="videocam" color="indigo" /></q-item-section>
+                                  <q-item-section>H265</q-item-section>
+                                </q-item>
+                              </q-list>
+                            </q-menu>
                           </q-item>
                           <q-item clickable v-close-popup @click="confirmDelete(item)">
                             <q-item-section avatar><q-icon name="delete" color="negative" /></q-item-section>
@@ -449,7 +444,7 @@
                           </q-item>
                           <q-item clickable v-close-popup @click="openQrDownload(item)" v-if="!isSmall">
                             <q-item-section avatar><q-icon name="qr_code_scanner" color="teal" /></q-item-section>
-                            <q-item-section>扫码</q-item-section>
+                            <q-item-section>扫码下载</q-item-section>
                           </q-item>
                         </q-list>
                       </q-menu>
@@ -672,6 +667,7 @@ import {
   PlayMovie,
   ResetMovieType,
   SearchAPI,
+  TansferFileVcode,
 } from 'components/api/searchAPI';
 import { computed, onMounted, onUnmounted, provide, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -1260,6 +1256,18 @@ const qrDownloadItem = ref(null);
 const openQrDownload = (item) => {
   qrDownloadItem.value = item;
   qrDownloadVisible.value = true;
+};
+
+// ── 转码 ──────────────────────────────────────────────────────────
+// 转码是后台任务，接口只负责入队，结果由后端任务列表跟踪
+const { exec: transcodeExec } = useCommonExec({ notifyOnSuccess: true });
+
+const toMp4 = (item) => {
+  transcodeExec(() => TansferFileVcode(item, 'copy'));
+};
+
+const toVcode = (item, vcode) => {
+  transcodeExec(() => TansferFileVcode(item, vcode));
 };
 
 const fetchGetSettingInfo = async () => {

@@ -1,11 +1,11 @@
 <template>
-  <q-btn-dropdown  flat glossy dense class="app-prefer-dropdown">
+  <q-btn-dropdown flat glossy dense class="app-prefer-dropdown" content-class="app-prefer-menu">
     <template v-slot:label>
       <q-icon :name="themeIcon" size="14px" class="theme-icon" />
-      {{ currentThemeLabel }}
+      <span class="theme-label-text q-ml-xs">{{ currentThemeLabel }}</span>
     </template>
 
-    <div class="theme-panel row q-gutter-md q-pa-md">
+    <div class="theme-panel row q-pa-md">
       <!-- 主题 -->
       <div class="section-col column q-gutter-sm">
         <div class="text-caption text-weight-bold text-grey-7 q-mb-xs">主题</div>
@@ -71,7 +71,7 @@
       </div>
 
       <!-- 行为 -->
-      <div class="section-col column q-gutter-xs">
+      <div class="section-col section-wide column q-gutter-xs">
         <div class="text-caption text-weight-bold text-grey-7 q-mb-xs">行为</div>
         <q-item tag="label" dense>
           <q-item-section>
@@ -136,15 +136,48 @@ const setShowStyle = (style) => {
 </script>
 
 <style scoped>
+/* 菜单根节点定宽：放在面板上会被 q-menu 的收缩宽度裁掉 */
+/* q-menu 根节点不继承 scoped 属性，且会内联写 max-width，故用 :global + !important 覆盖 */
+:global(.app-prefer-menu) {
+  width: 680px !important;
+  max-width: calc(100vw - 16px) !important;
+}
+
 .theme-panel {
-  min-width: 680px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
 }
 
 .section-col {
   min-width: 180px;
-  flex: 1;
+  flex: 1 1 180px;
+}
 
+/* 窄屏：菜单占满视口宽度，分区折成两列，行为分区独占一行；按钮只留图标 */
+@media (max-width: 599px) {
+  :global(.app-prefer-menu) {
+    width: calc(100vw - 12px) !important;
+    max-width: calc(100vw - 12px) !important;
+  }
 
+  .theme-panel {
+    padding: 8px;
+    gap: 12px;
+  }
+
+  .section-col {
+    flex: 1 1 140px;
+    min-width: 0;
+  }
+
+  .section-col.section-wide {
+    flex-basis: 100%;
+  }
+
+  .theme-label-text {
+    display: none;
+  }
 }
 
 .section-col .option-btn {
