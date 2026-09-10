@@ -376,10 +376,8 @@ func ffmpegExec(args []string, taskKey string) utils.Result {
 
 		// 捕获错误日志到任务内存
 		if logData, err := os.ReadFile(TaskLogPath(taskKey)); err == nil {
-			content := string(logData)
-			if len(content) > 2000 {
-				content = content[len(content)-2000:]
-			}
+			// 截取末尾用于展示，按 UTF-8 字符边界回退，避免日志中的中文路径被切断产生乱码
+			content := utils.TailBytes(string(logData), 2000)
 			TransferTaskMutex.Lock()
 			if t, ok := TransferTask[taskKey]; ok {
 				t.Log = content

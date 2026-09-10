@@ -3,7 +3,9 @@ package utils
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -97,8 +99,47 @@ func TestGetAuthor_NoBracketsShort(t *testing.T) {
 	assert.Equal(t, "short", author)
 }
 
+func TestGetAuthor_NoBracketsLongChinese(t *testing.T) {
+	// 30 个汉字，超出 20 个字符，应按 rune 截断且不产生乱码
+	author := GetAuthor("这是一个非常非常长的中文标题一共三十个汉字用来测试截断.mp4")
+	assert.Equal(t, 20, utf8.RuneCountInString(author))
+	assert.True(t, utf8.ValidString(author))
+	assert.Equal(t, "这是一个非常非常长的中文标题一共三十个汉", author)
+}
+
 func TestGetAuthor_Empty(t *testing.T) {
 	assert.Empty(t, GetAuthor(""))
+}
+
+// ── TruncateRunes / TailBytes ──
+
+func TestTruncateRunes_RuneBoundary(t *testing.T) {
+	assert.Equal(t, "这是一个非常非常长的中文标题一共三十个汉", TruncateRunes("这是一个非常非常长的中文标题一共三十个汉字用来测试截断", 20))
+	assert.Equal(t, "abc", TruncateRunes("abc", 20))
+	assert.Equal(t, "ab", TruncateRunes("abcdef", 2))
+	assert.Empty(t, TruncateRunes("abc", 0))
+	assert.Empty(t, TruncateRunes("abc", -1))
+}
+
+func TestTruncateRunes_ValidUTF8(t *testing.T) {
+	out := TruncateRunes("中文标题很长很长很长很长很长很长", 5)
+	assert.Equal(t, "中文标题很", out)
+	assert.True(t, utf8.ValidString(out))
+}
+
+func TestTailBytes_NoMojibake(t *testing.T) {
+	// 末尾 10 字节切在汉字中间时，应向前回退到合法字符边界
+	s := "日志路径: 中文测试目录"
+	out := TailBytes(s, 10)
+	assert.True(t, utf8.ValidString(out))
+	assert.True(t, strings.HasSuffix(s, out))
+	assert.LessOrEqual(t, len(out), 10)
+}
+
+func TestTailBytes_ShortAndEmpty(t *testing.T) {
+	assert.Equal(t, "abc", TailBytes("abc", 10))
+	assert.Empty(t, TailBytes("abc", 0))
+	assert.Equal(t, "日志", TailBytes("日志", 6))
 }
 
 // ── GetTags ──

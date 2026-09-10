@@ -175,10 +175,8 @@ func (s *searchService) Rename(movie model.FileEdit) utils.Result {
 			newDir += choose2To1(!strings.Contains(movie.Title, newCode),
 				choose2To1(newCode != "", " "+newCode, ""), "")
 			newTitle := strings.Split(movie.Title, "{{")
-			newTitleStart := newTitle[0]
-			if len(newTitleStart) > 10 {
-				newTitleStart = newTitleStart[:10]
-			}
+			// 按 rune 截取，避免中文标题被按字节切断产生乱码
+			newTitleStart := utils.TruncateRunes(newTitle[0], 10)
 			newDir += " " + cleanPath(newTitleStart)
 		}
 		if err := os.MkdirAll(newDir, 0755); err != nil {
