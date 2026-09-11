@@ -6,7 +6,6 @@ import { usePermissionStore } from 'src/stores/permission'
 export const vPermission: Directive<HTMLElement, string | string[]> = {
   mounted(el, binding) {
     const store = usePermissionStore()
-    store.loadFromSession()
 
     const update = () => {
       const perms = Array.isArray(binding.value) ? binding.value : [binding.value]

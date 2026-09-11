@@ -1,11 +1,18 @@
 import { defineStore } from 'pinia'
 import { SUPER_ADMIN_ROLE, ALL_PERMISSION_KEYS } from 'src/types/permission'
+import {
+  getAuthPermissions,
+  getAuthRole,
+  getAuthUsername,
+  saveAuthSession,
+} from 'src/utils/authStorage'
 
 export const usePermissionStore = defineStore('permission', {
+  // 直接以本窗口 sessionStorage 为数据源，消费方无需再显式恢复
   state: () => ({
-    permissions: [] as string[],
-    role: '',
-    username: '',
+    permissions: getAuthPermissions(),
+    role: getAuthRole(),
+    username: getAuthUsername(),
   }),
 
   getters: {
@@ -29,33 +36,18 @@ export const usePermissionStore = defineStore('permission', {
   },
 
   actions: {
-    loadFromSession() {
-      this.role = sessionStorage.getItem('userRole') || ''
-      this.username = sessionStorage.getItem('username') || ''
-      try {
-        const stored = sessionStorage.getItem('userPermissions')
-        this.permissions = stored ? JSON.parse(stored) : []
-      } catch {
-        this.permissions = []
-      }
-    },
-
-    setFromLogin(role: string, username: string, permissions: string[]) {
+    setFromLogin(
+      role: string,
+      username: string,
+      permissions: string[],
+      token: string,
+      expireIn?: number
+    ) {
       this.role = role
       this.username = username
       this.permissions = this.isSuperAdmin ? [...ALL_PERMISSION_KEYS] : permissions
-      sessionStorage.setItem('userRole', role)
-      sessionStorage.setItem('username', username)
-      sessionStorage.setItem('userPermissions', JSON.stringify(this.permissions))
-    },
-
-    clear() {
-      this.role = ''
-      this.username = ''
-      this.permissions = []
-      sessionStorage.removeItem('userRole')
-      sessionStorage.removeItem('username')
-      sessionStorage.removeItem('userPermissions')
+      // 由 authStorage 统一写入本窗口 sessionStorage
+      saveAuthSession({ token, role, username, permissions: this.permissions, expireIn })
     },
   },
 })

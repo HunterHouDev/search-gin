@@ -260,23 +260,20 @@ import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRoute, useRouter } from 'vue-router';
 import { GetSettingInfo, GetIpAddr, GeMemeryLog, GetLocalLog, ClearMemoryLog, ClearLocalLog, GetLanPeers, PostSettingInfo, AddLanPeer, RemoveLanPeer, TogglePeer, DiscoverLanPeers } from '../../components/api/settingAPI';
+import { SettingInfo } from '../../components/model/Setting';
 import { useSystemProperty } from '../../stores/System';
 
 const systemProperty = useSystemProperty();
 const $q = useQuasar();
 
-const themeStyle = computed(() => ({
-  color: 'var(--q-text-primary)',
-  backgroundColor: 'var(--q-bg-dark)',
-}));
 const route = useRoute();
 const router = useRouter();
 const tab = ref((route.query.tab as string) || 'info');
 
 const view = reactive({
-  settingInfo: {} as any,
+  settingInfo: new SettingInfo(),
   ipAddr: '',
-  logs: [] as any[],
+  logs: [] as LogItem[],
 });
 
 // ── 日志 ──
@@ -361,13 +358,13 @@ function daysAgoYMD(n: number) {
 const memoryFiltered = computed(() => {
   let list = [...allMemoryLogs.value];
   const kw = logKeyword.value?.trim().toLowerCase();
-  if (kw) list = list.filter((item: any) => item.msg?.toLowerCase().includes(kw) || item.time?.includes(kw));
-  if (logTypeFilter.value) list = list.filter((item: any) => logExtractType(item.msg) === logTypeFilter.value);
+  if (kw) list = list.filter((item) => item.msg?.toLowerCase().includes(kw) || item.time?.includes(kw));
+  if (logTypeFilter.value) list = list.filter((item) => logExtractType(item.msg) === logTypeFilter.value);
   if (logTimeFilter.value) {
     const today = todayYMD();
     const yesterday = daysAgoYMD(1);
     const threeDaysAgo = daysAgoYMD(3);
-    list = list.filter((item: any) => {
+    list = list.filter((item) => {
       const d = getDateYMD(item.time);
       if (!d) return false;
       switch (logTimeFilter.value) {
@@ -378,7 +375,7 @@ const memoryFiltered = computed(() => {
       }
     });
   }
-  list.sort((a: any, b: any) => logSortAsc.value ? a.time.localeCompare(b.time) : b.time.localeCompare(a.time));
+  list.sort((a, b) => logSortAsc.value ? a.time.localeCompare(b.time) : b.time.localeCompare(a.time));
   return list;
 });
 
@@ -431,22 +428,40 @@ const queryIpAddr = async () => {
   }
 };
 
-const fetchLogs = async () => {
-  const { data } = await GeMemeryLog();
-  view.logs = Array.isArray(data) ? data.reverse() : [];
-};
-
 const logAutoRefresh = ref(true);
 let logIntervalId: ReturnType<typeof setInterval> | undefined;
 
 // ── 多节点集群 ──
+/** 集群节点（/api/lanPeers 返回，附加前端探测状态） */
+interface ClusterPeer {
+  id: string;
+  name: string;
+  ip: string;
+  port: string;
+  filePort?: string;
+  lastSeen?: number;
+  disabled?: boolean;
+  _alive: boolean | null;
+  _checking: boolean;
+}
+
+/** 子网扫描发现到的候选节点 */
+interface DiscoveredPeer {
+  ip: string;
+  port: string;
+  filePort?: string;
+  nodeName?: string;
+  _adding?: boolean;
+  _existing?: boolean;
+}
+
 const cluster = reactive({
   localNodeHost: '',
   localNodeName: '',
-  peers: [],
+  peers: [] as ClusterPeer[],
   loading: false,
   discovering: false,
-  discovered: [] as { ip: string; port: string; filePort?: string; nodeName?: string; _adding?: boolean; _existing?: boolean }[],
+  discovered: [] as DiscoveredPeer[],
   discoverInput: '',
   clusterEnabled: true,
 });
@@ -459,9 +474,9 @@ const peerColumns = [
   { name: 'ip', label: 'IP 地址', field: 'ip', align: 'left' as const, sortable: true },
   { name: 'port', label: 'API 端口', field: 'port', align: 'left' as const, sortable: true },
   { name: 'filePort', label: '文件端口', field: 'filePort', align: 'left' as const, sortable: true,
-    format: (v: any) => v || '10082' },
+    format: (v: unknown) => String(v || '10082') },
   { name: 'lastSeen', label: '最后心跳', field: 'lastSeen', align: 'left' as const, sortable: true,
-    format: (v: any) => v ? new Date(v * 1000).toLocaleString() : '-' },
+    format: (v: unknown) => v ? new Date(Number(v) * 1000).toLocaleString() : '-' },
 ];
 
 const fetchPeers = async () => {
@@ -472,7 +487,7 @@ const fetchPeers = async () => {
       const data = res.Data || res;
       cluster.localNodeHost = data.localNodeHost || '';
       cluster.localNodeName = data.localNodeName || '';
-      cluster.peers = (data.peers || []).map((p: any) => ({ ...p, _alive: null, _checking: false }));
+      cluster.peers = (data.peers || []).map((p: ClusterPeer) => ({ ...p, _alive: null, _checking: false }));
       if (data.localSubnet && !cluster.discoverInput) {
         cluster.discoverInput = data.localSubnet;
       }
@@ -484,7 +499,7 @@ const fetchPeers = async () => {
   }
 };
 
-const checkPeer = async (peer: any) => {
+const checkPeer = async (peer: ClusterPeer) => {
   peer._checking = true;
   peer._alive = false;
   try {
@@ -510,21 +525,21 @@ const discoverPeers = async () => {
     const data = res.Data || res;
     const peersList = data.peers || [];
     if ((res.Code === 200 || res.success) && Array.isArray(peersList)) {
-      const existingIds = new Set(cluster.peers.map((p: any) => p.id));
-      cluster.discovered = peersList.map((d: any) => ({
+      const existingIds = new Set(cluster.peers.map((p) => p.id));
+      cluster.discovered = peersList.map((d: DiscoveredPeer) => ({
         ...d,
         _adding: false,
         _existing: existingIds.has(`${d.ip}:${d.port}`),
       }));
     }
-  } catch (e) {
+  } catch {
     $q.notify({ message: '发现节点失败', color: 'negative', position: 'top', timeout: 2000 });
   } finally {
     cluster.discovering = false;
   }
 };
 
-const addDiscoveredPeer = async (d: any) => {
+const addDiscoveredPeer = async (d: DiscoveredPeer) => {
   d._adding = true;
   try {
     const res = await AddLanPeer(d.ip, d.port, d.filePort || '10082');
@@ -559,7 +574,7 @@ const toggleCluster = async (val: boolean) => {
   }
 };
 
-const togglePeer = async (peer: any) => {
+const togglePeer = async (peer: ClusterPeer) => {
   const newDisabled = !peer.disabled;
   try {
     const res = await TogglePeer(peer.id, newDisabled);
@@ -577,7 +592,7 @@ const togglePeer = async (peer: any) => {
   }
 };
 
-const removePeer = async (peer: any) => {
+const removePeer = async (peer: ClusterPeer) => {
   try {
     const res = await RemoveLanPeer(peer.id);
     if (res?.Code === 200 || res?.success) {

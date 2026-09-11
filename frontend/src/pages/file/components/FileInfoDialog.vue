@@ -98,7 +98,6 @@
 </template>
 <script setup>
 import VideoPlayer from 'src/components/VideoPlayer.vue';
-import { useQuasar } from 'quasar';
 import { useDialogPluginComponent } from 'quasar';
 import { reactive, ref } from 'vue';
 
@@ -111,11 +110,11 @@ import {
 } from 'components/api/searchAPI';
 import { useBreakpoint } from 'src/composables/useBreakpoint';
 import { useSystemProperty } from 'stores/System';
+import { openExternalWindow } from 'src/utils/appWindow';
 const { dialogRef, onDialogHide } = useDialogPluginComponent();
 
 const systemProperty = useSystemProperty();
 
-const $q = useQuasar();
 const { isMobile } = useBreakpoint();
 
 const ClickButtons = [
@@ -219,17 +218,13 @@ const searchCode = (item) => {
   if (itemCode.indexOf('-') === 0) {
     itemCode = itemCode.substring(1);
   }
+  // 外部搜索引擎：走外部开窗，绝不携带登录态
   const url = `${systemProperty.SettingInfo.BaseUrl}/${itemCode}`;
-  if ($q.platform.is.electron) {
-    window.electron.createWindow({
-      router: url,
-      width: 1280,
-      height: 1000,
-      titleBarStyle: '',
-    });
-  } else {
-    window.open(url);
-  }
+  openExternalWindow(url, {
+    width: 1280,
+    height: 1000,
+    titleBarStyle: '',
+  });
 };
 
 const onDialogClose = () => {

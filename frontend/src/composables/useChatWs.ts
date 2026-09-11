@@ -1,5 +1,6 @@
 import { ref } from 'vue';
 import { commonAxios, api } from 'src/boot/axios';
+import { getAuthToken, logout } from 'src/utils/authStorage';
 import { WSMessageType } from 'src/types';
 
 export interface ChatMessage {
@@ -13,6 +14,8 @@ export interface ChatMessage {
   time: string;
   ip?: string;
   onlineUsers?: { Username: string; Role: string; IP: string }[];
+  /** 发送方标签页标识，用于同账号多设备区分（视频会议信令） */
+  fromSession?: string;
 }
 
 const WS_RECONNECT_BASE = 2000;
@@ -36,16 +39,11 @@ let reconnectAttempt = 0;
 let connectTimer: ReturnType<typeof setTimeout> | null = null;
 
 function redirectToLogin() {
-  sessionStorage.removeItem('authToken');
-  sessionStorage.removeItem('isAuthenticated');
-  sessionStorage.removeItem('userRole');
-  sessionStorage.removeItem('username');
-  sessionStorage.removeItem('userPermissions');
-  window.location.href = '/#/login';
+  logout();
 }
 
 function getWsUrl(): string {
-  const token = sessionStorage.getItem('authToken');
+  const token = getAuthToken();
   const apiUrl = api.defaults.baseURL || `http://${location.host}`;
   const apiHost = apiUrl.replace(/^https?:\/\//, '');
   const isSecure = apiUrl.startsWith('https:');
@@ -58,7 +56,7 @@ function scheduleReconnect() {
   reconnectAttempt++;
   if (reconnectAttempt > WS_MAX_RETRY) {
     connectionFailed.value = true;
-    const token = sessionStorage.getItem('authToken');
+    const token = getAuthToken();
     if (token) {
       commonAxios().get('/api/heartBeat').catch((err) => {
         if (err?.response?.status === 401) {

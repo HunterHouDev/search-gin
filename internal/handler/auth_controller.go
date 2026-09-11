@@ -67,28 +67,23 @@ func Login(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 
+// Logout 登出：立即吊销当前请求携带的 token，使其后续无法再通过认证。
+// 已过期或已吊销的 token 会在中间件层被拦下，此处只处理有效 token。
+func Logout(c *gin.Context) {
+	service.RevokeToken(c.GetString("token"))
+	c.JSON(http.StatusOK, utils.NewSuccessByMsg("已退出登录"))
+}
+
+// requireAdmin 校验管理员身份。
+// 旧 token 兼容（role 为空但 username 为 admin）由 RequireAdminWithName 统一覆盖，
+// 非管理员与信息不全的 token 同样落到这里被拒绝。
 func requireAdmin(c *gin.Context) bool {
 	roleVal, _ := c.Get("role")
 	usernameVal, _ := c.Get("username")
 	r, _ := roleVal.(string)
 	u, _ := usernameVal.(string)
-	utils.InfoFormat("requireAdmin 检查: role=%q(username=%q), RequireAdminWithName=%v", r, u, service.RequireAdminWithName(r, u))
-
-	// 兼容旧 token：仅 admin 用户在中间件未设 role 时放行
-	// （ValidateTokenWithInfo 会自动补全 admin 用户的 role，旧 token 首次校验后即不再进入此分支）
-	if r == "" && u == service.AdminUsername {
-		utils.InfoFormat("requireAdmin: 旧 token 兼容放行(admin)")
-		return true
-	}
-	// role 和 username 均为空 → 拒绝（非 admin 用户必须带完整 token 信息）
-	if r == "" && u == "" {
-		utils.InfoFormat("requireAdmin: 拒绝无 role/username 的旧 token")
-		c.JSON(http.StatusForbidden, utils.NewFailByMsg("无权限执行此操作"))
-		return false
-	}
 
 	if !service.RequireAdminWithName(r, u) {
-		utils.InfoFormat("requireAdmin 拒绝: 中间件设置的 role=%v, username=%v", r, u)
 		c.JSON(http.StatusForbidden, utils.NewFailByMsg("无权限执行此操作"))
 		return false
 	}

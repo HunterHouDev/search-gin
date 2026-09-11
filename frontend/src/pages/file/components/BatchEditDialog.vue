@@ -257,6 +257,7 @@ import { useQuasar } from 'quasar';
 import { reactive, ref, computed, watch } from 'vue';
 import { useSystemProperty } from 'stores/System';
 import { useCommonExec } from 'src/composables/useCommonExec';
+import { openExternalWindow } from 'src/utils/appWindow';
 import { useBreakpoint } from 'src/composables/useBreakpoint';
 import { useDialogShell } from 'src/composables/useDialogShell';
 import { MovieTypeOptions, parseTimeZH } from 'components/utils';
@@ -395,20 +396,27 @@ const nextPage = (n) => {
 const searchCode = (item) => {
   let c = item.Code;
   if (c.indexOf('-C') > 1) c = c.substring(0, c.indexOf('-C'));
-  window.open(`${state.settingInfo.BaseUrl}${c}`, '_blank');
+  // 外部搜索引擎：走外部开窗，绝不携带登录态
+  openExternalWindow(`${state.settingInfo.BaseUrl}${c}`);
 };
 
 // ── 选择 ──────────────────────────────────────────────────────────
 const checkThis = (item) => {
   const idx = state.selector.indexOf(item.Id);
-  idx < 0 ? state.selector.push(item.Id) : state.selector.splice(idx, 1);
+  if (idx < 0) {
+    state.selector.push(item.Id);
+  } else {
+    state.selector.splice(idx, 1);
+  }
 };
 const resetSelector = () => { state.selector = []; state.selectAll = false; };
 const selectAll = () => {
   state.selectAll = !state.selectAll;
-  state.selectAll
-    ? (state.selector = state.resultData.Data.map((f) => f.Id))
-    : resetSelector();
+  if (state.selectAll) {
+    state.selector = state.resultData.Data.map((f) => f.Id);
+  } else {
+    resetSelector();
+  }
 };
 
 // ── 批量操作 ──────────────────────────────────────────────────────
@@ -461,8 +469,12 @@ const toVcode = (item, vcode) => {
   commonExec(() => TansferFileVcode(item, vcode));
 };
 const playNewWindow = (item) => {
+  // 本地文件 / 流地址：外部开窗，不携带登录态
   const w = systemProperty.singleWindow;
-  window.open(item.Path, 'player', `width=${w.width},height=${w.height},titleBarStyle=`);
+  openExternalWindow(item.Path, {
+    target: 'player',
+    features: `width=${w.width},height=${w.height},titleBarStyle=`,
+  });
 };
 const copyPath = async (item) => {
   try {

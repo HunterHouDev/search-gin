@@ -203,11 +203,6 @@ const containerStyle = computed(() => {
   };
 });
 
-// 获取当前视频ID - 优先使用 props.currentData
-const getCurrentId = () => {
-  return props.currentData?.Id || systemProperty.PlayingMovie?.Id;
-};
-
 const prevOneVideo = () => {
   emmits('prevOneVideo');
 };

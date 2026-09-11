@@ -1,6 +1,7 @@
 import { ref, reactive, onUnmounted } from 'vue';
 import { useChatWs } from './useChatWs';
 import type { ChatMessage } from './useChatWs';
+import { getAuthUsername } from 'src/utils/authStorage';
 import { WSMessageType, SignalAction } from 'src/types';
 
 const ICE_SERVERS = {
@@ -23,7 +24,7 @@ export function useVideoConference() {
   const camEnabled = ref(true);
   const error = ref<string | null>(null);
 
-  const currentUser = sessionStorage.getItem('username') || '';
+  const currentUser = getAuthUsername();
 
   // 存储所有 PeerConnection，key = 对方用户名
   const peers: Record<string, RTCPeerConnection> = {};
@@ -102,7 +103,7 @@ export function useVideoConference() {
   }
 
   // 处理收到的 Offer
-  async function handleOffer(from: string, data: any) {
+  async function handleOffer(from: string, data: RTCSessionDescriptionInit) {
     const pc = createPeerConnection(from);
     try {
       await pc.setRemoteDescription(new RTCSessionDescription(data));
@@ -120,7 +121,7 @@ export function useVideoConference() {
   }
 
   // 处理收到的 Answer
-  async function handleAnswer(from: string, data: any) {
+  async function handleAnswer(from: string, data: RTCSessionDescriptionInit) {
     const pc = peers[from];
     if (!pc) return;
     try {
@@ -131,7 +132,7 @@ export function useVideoConference() {
   }
 
   // 处理 ICE Candidate
-  async function handleIce(from: string, data: any) {
+  async function handleIce(from: string, data: RTCIceCandidateInit) {
     const pc = peers[from];
     if (!pc) return;
     try {
@@ -155,7 +156,7 @@ export function useVideoConference() {
     if (!msg.from || !msg.action) return;
 
     // 跳过自己发出去的消息（防止同账号多个设备互相干扰）
-    if ((msg as any).fromSession === sessionId) return;
+    if (msg.fromSession === sessionId) return;
 
     switch (msg.action) {
       case SignalAction.Join:
@@ -164,13 +165,13 @@ export function useVideoConference() {
         }
         break;
       case SignalAction.Offer:
-        if (msg.data) handleOffer(msg.from, msg.data);
+        if (msg.data) handleOffer(msg.from, msg.data as RTCSessionDescriptionInit);
         break;
       case SignalAction.Answer:
-        if (msg.data) handleAnswer(msg.from, msg.data);
+        if (msg.data) handleAnswer(msg.from, msg.data as RTCSessionDescriptionInit);
         break;
       case SignalAction.Ice:
-        if (msg.data) handleIce(msg.from, msg.data);
+        if (msg.data) handleIce(msg.from, msg.data as RTCIceCandidateInit);
         break;
       case SignalAction.Leave:
         handleLeave(msg.from);
@@ -195,9 +196,9 @@ export function useVideoConference() {
         action: SignalAction.Join,
         fromSession: sessionId,
       });
-    } catch (e: any) {
-      error.value = e.message || '无法获取摄像头/麦克风';
-      console.error('加入视频会议失败:', e);
+    } catch (err: unknown) {
+      error.value = err instanceof Error && err.message ? err.message : '无法获取摄像头/麦克风';
+      console.error('加入视频会议失败:', err);
     }
   }
 

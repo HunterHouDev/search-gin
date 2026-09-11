@@ -704,6 +704,8 @@ import QrDownloadDialog from 'components/QrDownloadDialog.vue';
 
 import { onKeyStroke, useClipboard, useDebounceFn } from '@vueuse/core';
 import { getTimeAgoShort as getTimeAgo } from 'src/utils/date';
+import { refreshAuthActivity } from 'src/utils/authStorage';
+import { openAppWindow, openExternalWindow } from 'src/utils/appWindow';
 import { useSortOptions } from 'src/composables/useSortOptions';
 import { useCommonExec } from 'src/composables/useCommonExec';
 import { useBreakpoint } from 'src/composables/useBreakpoint';
@@ -1170,14 +1172,13 @@ const openBatchEdit = () => {
 
 const playByPage = (item) => {
   systemProperty.savePlayTime(item.Id);
+  // 应用内播放页：带上登录态，新窗口免登录（Electron 下沿用主进程默认窗口尺寸）
   const url = `#/playing/${item.Id}?a=refresh`;
   view.playBy = 'fullscreen';
-  if ($q.platform.is.electron) {
-    window.electron.createWindow({ router: url });
-  } else {
-    const opts = `width=${systemProperty.singleWindow.width},height=${systemProperty.singleWindow.height},titleBarStyle=`;
-    window.open(url, 'player', opts);
-  }
+  openAppWindow(url, {
+    target: 'player',
+    features: `width=${systemProperty.singleWindow.width},height=${systemProperty.singleWindow.height},titleBarStyle=`,
+  });
 };
 
 const searchCode = (item) => {
@@ -1201,21 +1202,16 @@ const searchCode = (item) => {
   if (itemCode.indexOf('@') >= 0) {
     itemCode = itemCode.substring(0, itemCode.indexOf('@'));
   }
+  // 外部搜索引擎：走外部开窗，绝不携带登录态
   const url = `${view.settingInfo.BaseUrl}${itemCode}`;
-  if ($q.platform.is.electron) {
-    window.electron.createWindow({
-      router: url,
-      width: 1280,
-      height: 1000,
-      titleBarStyle: '',
-    });
-  } else {
-    if (systemProperty.goSearchNewWidow) {
-      window.open(url, '', 'width=1080,height=800,titleBarStyle=');
-    } else {
-      window.open(url);
-    }
-  }
+  const openInNewWindow = systemProperty.goSearchNewWidow;
+  openExternalWindow(url, {
+    target: openInNewWindow ? '' : '_blank',
+    features: openInNewWindow ? 'width=1080,height=800,titleBarStyle=' : '',
+    width: 1280,
+    height: 1000,
+    titleBarStyle: '',
+  });
 };
 
 const openFolder = (item) => {
@@ -1306,7 +1302,8 @@ const goAuthor = (Author) => {
         Keyword: Author,
       },
     });
-    window.open(routeData.href, '_blank');
+    // 应用内 /search 页面：带上登录态，新窗口免登录
+    openAppWindow(routeData.href, { target: '_blank' });
   }
 };
 
@@ -1464,7 +1461,7 @@ const pictureRightClick = async (item, e) => {
   }
 };
 
-const refreshDebounceFn = async (item, delayMs = 1000) => {
+const refreshDebounceFn = async (item) => {
   await indexButton.value.refreshIndex(item);
 };
 
@@ -1629,9 +1626,8 @@ const onSearchRoute = () => thisRoute.path === '/search' || thisRoute.path === '
 
 const saveParam = (skipPush = false) => {
   systemProperty.syncSearchParam(view.queryParam);
-  systemProperty.expireTime = new Date().getTime() + 1000 * 60 * 60 * 2;
   localStorage.setItem('queryParam', JSON.stringify(view.queryParam));
-  sessionStorage.setItem('isAuthenticated', 'true');
+  refreshAuthActivity();
   // 避免频繁 push 导致组件重创建，仅在需要时更新 URL
   if (skipPush) return;
   // 兜底：只有仍停留在搜索页时才同步 URL，防止其它页面被自动拉回 /search

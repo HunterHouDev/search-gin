@@ -157,6 +157,8 @@ func AuthMiddleware() gin.HandlerFunc {
 		c.Set("username", tokenInfo.Username)
 		c.Set("role", tokenInfo.Role)
 		c.Set("permissions", tokenInfo.Permissions)
+		// 原始 token 一并存入，供登录态吊销（/api/logout）取用
+		c.Set("token", token)
 		c.Next()
 	}
 }

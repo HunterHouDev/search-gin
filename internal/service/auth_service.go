@@ -93,6 +93,23 @@ func SetToken(token string, expireTime time.Time, username string, role string, 
 	}
 }
 
+// RevokeToken 立即吊销 token（登出用）。
+// token 不存在时静默返回，保证登出幂等——重复登出、已过期 token 都不算错误。
+func RevokeToken(token string) {
+	if token == "" {
+		return
+	}
+	tokenMu.Lock()
+	info, exists := tokenStore[token]
+	delete(tokenStore, token)
+	tokenMu.Unlock()
+
+	// 只记录用户名，不记录 token 本身
+	if exists {
+		utils.InfoFormat("用户登出，token 已吊销: %s", info.Username)
+	}
+}
+
 // ValidateTokenWithInfo 验证 token 并返回 TokenInfo
 //
 // ⚠️ 必须使用 Lock（而非 RLock）：函数内部包含 tokenStore 的写操作

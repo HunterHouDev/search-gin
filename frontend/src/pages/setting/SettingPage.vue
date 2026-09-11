@@ -660,6 +660,12 @@ onMounted(() => {
 });
 
 // ── 用户/角色状态 ──────────────────────────────────────────────────
+/** 提取 axios 错误中的后端消息（后端存在 message / Message 两种字段风格） */
+const errorMessage = (e: unknown, fallback: string): string => {
+  const data = (e as { response?: { data?: { message?: string; Message?: string } } })?.response?.data
+  return data?.message || data?.Message || fallback
+}
+
 const permView = reactive({
   users: [] as { username: string; role: string; permissions: string[]; expireDate?: string }[],
   allPerms: [] as { key: string; name: string; group: string; description: string }[],
@@ -743,8 +749,8 @@ const saveRoleDialog = async () => {
     } else {
       $q.notify({ type: 'negative', message: res?.Message || '操作失败', position: 'top' })
     }
-  } catch (e: any) {
-    $q.notify({ type: 'negative', message: e?.response?.data?.message || '操作失败', position: 'top' })
+  } catch (e: unknown) {
+    $q.notify({ type: 'negative', message: errorMessage(e, '操作失败'), position: 'top' })
   } finally {
     d.saving = false
   }
@@ -766,8 +772,8 @@ const confirmDeleteRole = (role: { name: string; label: string }, _idx: number) 
       } else {
         $q.notify({ type: 'negative', message: res?.Message || '删除失败', position: 'top' })
       }
-    } catch (e: any) {
-      $q.notify({ type: 'negative', message: e?.response?.data?.message || '删除失败', position: 'top' })
+    } catch (e: unknown) {
+      $q.notify({ type: 'negative', message: errorMessage(e, '删除失败'), position: 'top' })
     }
   })
 }
@@ -822,8 +828,8 @@ const saveUser = async () => {
     permView.showUserDialog = false
     resetUserForm()
     await fetchUsers()
-  } catch (e: any) {
-    $q.notify({ type: 'negative', message: e?.response?.data?.message || '操作失败', position: 'top' })
+  } catch (e: unknown) {
+    $q.notify({ type: 'negative', message: errorMessage(e, '操作失败'), position: 'top' })
   }
 }
 
@@ -842,8 +848,8 @@ const deleteUser = async (username: string) => {
       } else {
         $q.notify({ type: 'negative', message: res?.Message || res?.message || '删除失败', position: 'top' })
       }
-    } catch (e: any) {
-      $q.notify({ type: 'negative', message: e?.response?.data?.message || '删除失败', position: 'top' })
+    } catch (e: unknown) {
+      $q.notify({ type: 'negative', message: errorMessage(e, '删除失败'), position: 'top' })
     }
   })
 }
@@ -854,7 +860,7 @@ const fetchRoles = async () => {
     const data = res?.Data || res?.data
     if (Array.isArray(data)) {
       rolesView.list = data
-      permView.roleOptions = data.map((r: any) => ({ name: r.name, label: r.label || r.name }))
+      permView.roleOptions = data.map((r: { name: string; label?: string }) => ({ name: r.name, label: r.label || r.name }))
     }
   } catch { /* ignore */ }
 }
@@ -864,7 +870,7 @@ const fetchUsers = async () => {
     const res = await GetUsers()
     const data = res?.Data || res?.data
     if (Array.isArray(data)) {
-      permView.users = data.filter((u: any) => u.username !== 'admin')
+      permView.users = data.filter((u: { username: string }) => u.username !== 'admin')
     }
   } catch { /* ignore */ }
 }
@@ -892,7 +898,7 @@ const openTagStatsDialog = async () => {
   try {
     const res = await TagSizeMap();
     const data = Array.isArray(res) ? res : (res?.Data || res?.data || []);
-    tagDialog.allTags = data.map((t: any) => t.Name || t.name || '').filter(Boolean).sort();
+    tagDialog.allTags = data.map((t: { Name?: string; name?: string }) => t.Name || t.name || '').filter(Boolean).sort();
     tagDialog.checked = [];
     tagDialog.show = true;
   } catch {

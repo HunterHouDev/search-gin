@@ -77,6 +77,25 @@ func TestCacheAdminPasswordHash(t *testing.T) {
 	}
 }
 
+func TestRevokeToken(t *testing.T) {
+	SetToken("tok_revoke", time.Now().Add(1*time.Hour), "testuser", "admin", nil)
+	if _, ok := ValidateTokenWithInfo("tok_revoke"); !ok {
+		t.Fatal("吊销前 token 应有效")
+	}
+
+	RevokeToken("tok_revoke")
+	if _, ok := ValidateTokenWithInfo("tok_revoke"); ok {
+		t.Error("吊销后 token 应立即失效")
+	}
+}
+
+func TestRevokeToken_Idempotent(t *testing.T) {
+	// 重复吊销与空 token 都不应 panic
+	RevokeToken("tok_not_exist")
+	RevokeToken("")
+	RevokeToken("tok_not_exist")
+}
+
 func TestRequireAdminWithName(t *testing.T) {
 	if !RequireAdminWithName(AdminRole, AdminUsername) {
 		t.Error("RequireAdminWithName should return true for admin/super_admin")

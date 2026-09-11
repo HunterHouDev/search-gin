@@ -30,7 +30,7 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick } from 'vue';
+import { ref, watch } from 'vue';
 import { GetTaskLogAPI } from 'components/api/searchAPI';
 import { logVersion } from 'src/stores/taskLog';
 

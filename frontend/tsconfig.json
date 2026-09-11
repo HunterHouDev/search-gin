@@ -14,7 +14,21 @@
     "isolatedModules": true,
     "esModuleInterop": true,
     "lib": ["ESNext", "DOM"],
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    // 与 quasar.config.js 的 build.extendViteConf 别名保持一致。
+    // Vite 只在打包/运行时解析别名，TypeScript 需在此重复声明，
+    // 否则 IDE 与 vue-tsc 会报 TS2307「找不到模块」。
+    "paths": {
+      "@/*": ["src/*"],
+      "src/*": ["src/*"],
+      "pages/*": ["src/pages/*"],
+      "components/*": ["src/components/*"],
+      "layouts/*": ["src/layouts/*"],
+      "assets/*": ["src/assets/*"],
+      "boot/*": ["src/boot/*"],
+      "stores/*": ["src/stores/*"],
+      "statics/*": ["src/statics/*"]
+    }
   },
   "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue", "src/store/System.js", "src/boot/platform.js"],
   "exclude": ["dist", "node_modules"]

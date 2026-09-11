@@ -153,7 +153,7 @@ const searchFiles = (name) => {
   push({ path: '/search', query: { Keyword: name, from: 'index' } });
 };
 
-const currentPageChange = (e) => {
+const currentPageChange = () => {
   fetchSearch();
 };
 

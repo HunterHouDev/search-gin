@@ -1060,7 +1060,7 @@ const searchParams = reactive({
 const pageOptions = ref([10, 20, 40, 60]);
 const gotoPage = ref(1);
 
-const pageNoGoto = (e) => {
+const pageNoGoto = () => {
   const page = Number(gotoPage.value);
   if (page && page >= 1 && page <= searchResults.TotalPage) {
     searchParams.Page = page;

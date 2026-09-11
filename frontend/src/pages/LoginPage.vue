@@ -151,14 +151,15 @@ const login = async () => {
     const result = response.data;
 
     if (result.Code === 200) {
-      systemProperty.expireTime = new Date().getTime() + 1000 * 60 * 60 * 2;
-      sessionStorage.setItem('isAuthenticated', 'true');
-      sessionStorage.setItem('authToken', result.Data.token);
-      sessionStorage.setItem('userRole', result.Data.role);
-      sessionStorage.setItem('username', result.Data.username);
-
+      // 登录态（含有效期）写入本窗口 sessionStorage；新窗口经 URL 桥接继承（utils/authStorage.ts）
       const permStore = usePermissionStore();
-      permStore.setFromLogin(result.Data.role, result.Data.username, result.Data.permissions || []);
+      permStore.setFromLogin(
+        result.Data.role,
+        result.Data.username,
+        result.Data.permissions || [],
+        result.Data.token,
+        result.Data.expireIn
+      );
 
       $q.notify({
         type: 'positive',
@@ -170,8 +171,10 @@ const login = async () => {
     } else {
       errorMsg.value = result.Message || result.message || '用户名或密码错误';
     }
-  } catch (error: any) {
-    errorMsg.value = error?.response?.data?.message || '登录失败，请稍后重试';
+  } catch (error: unknown) {
+    const data = (error as { response?: { data?: { message?: string; Message?: string } } }).response
+      ?.data;
+    errorMsg.value = data?.message || data?.Message || '登录失败，请稍后重试';
   } finally {
     loading.value = false;
   }

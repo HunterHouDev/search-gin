@@ -63,7 +63,7 @@
   </q-btn>
 </template>
 <script setup>
-import { inject, onUnmounted, reactive } from 'vue';
+import { onUnmounted, reactive } from 'vue';
 import { useQuasar } from 'quasar';
 import { DeleteFile } from 'components/api/searchAPI';
 const $q = useQuasar();
@@ -101,7 +101,6 @@ const deleteMouseOut = () => {
 
 
 const picDelete = async (n) => {
-  const idToDelete = props.currentData.Id;
   if (n && n > 0) {
     emmits('nextOne');
   } else {

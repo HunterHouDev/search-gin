@@ -2,6 +2,7 @@ import { boot } from 'quasar/wrappers';
 import axios, { AxiosInstance } from 'axios';
 import { useQuasar } from 'quasar';
 import { isElectron } from './platform';
+import { consumeSessionFromUrl, getAuthToken, logout } from 'src/utils/authStorage';
 
 declare module '@vue/runtime-core' {
   interface ComponentCustomProperties {
@@ -16,10 +17,10 @@ const api = axios.create({
   timeout: 30000,
 });
 
-// 请求拦截器：自动添加 token
+// 请求拦截器：自动添加 token（新窗口经 URL 桥接把登录态写入本窗口 sessionStorage）
 api.interceptors.request.use(
   (config) => {
-    const token = sessionStorage.getItem('authToken');
+    const token = getAuthToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -35,6 +36,9 @@ let $q: ReturnType<typeof useQuasar>;
 
 export default boot(({ app, router }) => {
   $q = useQuasar();
+
+  // 新窗口 / 新标签页：从 URL 继承登录态，并立即抹掉地址栏里的凭据
+  consumeSessionFromUrl();
 
   // 响应拦截器：统一错误处理 + Token 过期跳转
   api.interceptors.response.use(
@@ -53,15 +57,8 @@ export default boot(({ app, router }) => {
       }
 
       if (status === 401) {
-        // Token 过期 → 静默清理并跳转登录
-        sessionStorage.removeItem('authToken');
-        sessionStorage.removeItem('isAuthenticated');
-        sessionStorage.removeItem('userRole');
-        sessionStorage.removeItem('username');
-        sessionStorage.removeItem('userPermissions');
-        if (router) {
-          router.push('/login');
-        }
+        // Token 过期：静默清理本窗口登录态并跳转登录页
+        logout(router);
         return Promise.reject(error);
       }
 

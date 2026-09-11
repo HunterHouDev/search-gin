@@ -109,7 +109,7 @@ import {
   CloseTag,
   TansferFileVcode,
 } from './api/searchAPI';
-import { onMounted, reactive, inject, computed } from 'vue';
+import { onMounted, reactive, computed } from 'vue';
 import { useCommonExec } from 'src/composables/useCommonExec';
 
 const systemProperty = useSystemProperty();

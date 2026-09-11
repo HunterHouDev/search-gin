@@ -45,13 +45,11 @@
 <script setup>
 import { reactive, ref } from 'vue';
 import { GetShutDown, AppShutDown, ScheduleShutdown, CancelShutdown } from '../components/api/settingAPI';
-import { useSystemProperty } from '../stores/System';
+import { logout } from '../utils/authStorage';
 import { useQuasar } from 'quasar';
 
 const $q = useQuasar();
 const card = ref(false);
-
-const systemProperty = useSystemProperty();
 
 const shutdownUnitOptions = [
   { label: '分钟', value: 'minute' },
@@ -76,7 +74,7 @@ const close = () => {
 const clearTime = async () => {
   try {
     await CancelShutdown();
-  } catch (e) {
+  } catch {
     // ignore
   }
 };
@@ -103,15 +101,10 @@ const submitBtn = async () => {
     if (totalSec <= 0) return;
     try {
       await ScheduleShutdown(totalSec);
-    } catch (e) {
+    } catch {
       // ignore
     }
   }
-};
-
-const logout = () => {
-  sessionStorage.removeItem('isAuthenticated');
-  window.location.href = '/';
 };
 
 defineExpose({

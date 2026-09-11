@@ -1,5 +1,4 @@
 import { commonAxios } from '../../boot/axios';
-import { RouteParamValue } from 'vue-router';
 import type { AxiosRequestConfig } from 'axios';
 
 export const SearchAPI = async (params: object, signal?: AbortSignal) => {

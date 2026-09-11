@@ -6,6 +6,7 @@ import {
   createWebHistory,
 } from 'vue-router';
 import { usePermissionStore } from 'src/stores/permission';
+import { clearAuthSession, isLoggedIn } from 'src/utils/authStorage';
 
 import routes from './routes';
 
@@ -42,18 +43,14 @@ export default route(function (/* { store, ssrContext } */) {
     }
 
     if (to.path === '/login') {
-      sessionStorage.removeItem('authToken');
-      sessionStorage.removeItem('isAuthenticated');
-      sessionStorage.removeItem('userRole');
-      sessionStorage.removeItem('username');
+      // 登录态按窗口隔离，进入登录页只清理本窗口副本
+      clearAuthSession();
       next();
       return;
     }
 
-    const isAuthenticated = sessionStorage.getItem('isAuthenticated');
-    const token = sessionStorage.getItem('authToken');
-
-    if (!isAuthenticated || !token) {
+    // 登录态按窗口隔离：新窗口由 URL 桥接继承，未继承到则回登录页
+    if (!isLoggedIn()) {
       next('/login');
       return;
     }
@@ -65,7 +62,6 @@ export default route(function (/* { store, ssrContext } */) {
     const requiredPerm = permRoutes[to.path];
     if (requiredPerm) {
       const permStore = usePermissionStore()
-      permStore.loadFromSession()
       if (!permStore.hasPermission(requiredPerm)) {
         next('/');
         return;

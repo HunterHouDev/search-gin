@@ -236,7 +236,7 @@ const confirmDelete = (item) => {
       await DeleteFileByPathUseEncode(item.Path);
       $q.notify({ type: 'positive', message: '删除成功' });
       fetchMovieList();
-    } catch (e) {
+    } catch {
       $q.notify({ type: 'negative', message: '删除失败' });
     }
   });

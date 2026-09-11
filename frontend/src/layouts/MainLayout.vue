@@ -14,7 +14,12 @@
       <q-toolbar class="q-electron-drag">
         <q-btn flat @click="drawerLeft = !drawerLeft" round dense icon="menu" />
         <q-toolbar-title style="-webkit-app-region: drag">
-          <a href="/#/search" custom color="red" v-show="!isWideScreen">
+          <a
+            :href="searchHref"
+            v-show="!isWideScreen"
+            @pointerenter="refreshSearchHref"
+            @click="navigateSearch"
+          >
             <q-btn flat color="white" dense size="lg" align="left">搜 索</q-btn>
           </a>
         </q-toolbar-title>
@@ -53,7 +58,7 @@
           icon="ti-close"
           @click="closeWindow"
         />
-        <q-btn dense flat color="red" v-if="timeLogout < 60 * 30"
+        <q-btn dense flat color="red" v-if="timeLogout > 0 && timeLogout < 60 * 30"
           >时长:{{ timeLogoutShow }}
         </q-btn>
         <q-btn dense flat icon="chat" @click="openChatRoom" class="q-ml-xs">
@@ -101,11 +106,13 @@ import { useSystemProperty } from 'stores/System';
 import { usePermissionStore } from 'src/stores/permission';
 import { useQuasar } from 'quasar';
 import { useBreakpoint } from 'src/composables/useBreakpoint';
+import { useSessionLink } from 'src/composables/useSessionLink';
 import EssentialLink from 'components/EssentialLink.vue';
 import ShutdownComponent from 'components/ShutdownComponent.vue';
 import ChatRoom from 'components/ChatRoom.vue';
 import { useChatWs } from 'src/composables/useChatWs';
 import { useSSE } from 'src/composables/useSSE';
+import { getAuthExpireAt, isLoggedIn, logout } from 'src/utils/authStorage';
 import { GetShutdownStatus } from 'src/components/api/settingAPI';
 import type { SSEEvent } from 'src/composables/useSSE';
 
@@ -117,9 +124,14 @@ const $q = useQuasar();
 const router = useRouter();
 const bp = useBreakpoint();
 
-onMounted(async () => {
-  permStore.loadFromSession();
+// 顶部"搜 索"链接（窄屏）：href 挂登录态快照，浏览器原生"在新窗口中打开"才不会丢登录态
+const {
+  href: searchHref,
+  refresh: refreshSearchHref,
+  navigate: navigateSearch,
+} = useSessionLink('/search');
 
+onMounted(async () => {
   // 初始化时同步后端定时关机状态（页面刷新后恢复）
   try {
     const status = await GetShutdownStatus();
@@ -158,17 +170,17 @@ const drawerStyle = computed(() => {
 // 响应式抽屉宽度 — 使用 composable
 const drawerWidth = computed(() => bp.drawerWidth.value);
 
-const timeLogout = ref('');
+const timeLogout = ref(0);
 const timeLogoutShow = ref('');
 
-let logoutTimer = null;
+let logoutTimer: ReturnType<typeof setInterval> | null = null;
 
-// 仅在用户已认证时启动定时器
-if (sessionStorage.getItem('isAuthenticated')) {
+// 仅在用户已认证时启动定时器；剩余时长以本窗口登录态为唯一数据源
+if (isLoggedIn()) {
   logoutTimer = setInterval(() => {
-    const time = parseInt(
-      (systemProperty.expireTime - new Date().getTime()) / 1000
-    );
+    const expireAt = getAuthExpireAt();
+    if (!expireAt) return; // 无到期信息时不做前端踢人，交给接口 401 兜底
+    const time = Math.floor((expireAt - Date.now()) / 1000);
     timeLogout.value = time;
     if (time > 3600) {
       timeLogoutShow.value = `${Math.round(time / 3600)}小时`;
@@ -177,12 +189,9 @@ if (sessionStorage.getItem('isAuthenticated')) {
     } else {
       timeLogoutShow.value = `${time}秒`;
     }
-    if (time < 60) {
-
-    }
-    if (!systemProperty.expireTime || time < 0) {
-      sessionStorage.removeItem('isAuthenticated');
-      router.push('/');
+    if (time <= 0) {
+      // 前端倒计时到期：清空本窗口登录态并回到登录页
+      logout(router);
     }
   }, 3000);
 }
@@ -243,7 +252,7 @@ useSSE((event: SSEEvent) => {
 });
 
 // 登录后自动连接 WebSocket
-if (sessionStorage.getItem('isAuthenticated')) {
+if (isLoggedIn()) {
   wsConnect();
 }
 

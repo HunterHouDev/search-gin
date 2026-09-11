@@ -113,6 +113,7 @@ func BuildAPIRouter(sigChan chan os.Signal) *gin.Engine {
 	router.GET("/", handler.Index)
 
 	router.POST("/api/login", handler.Login)
+	router.POST("/api/logout", handler.Logout)
 	router.POST("/api/init/setup", handler.PostInitSetup)
 	router.POST("/api/movieList", handler.PostMovies)
 

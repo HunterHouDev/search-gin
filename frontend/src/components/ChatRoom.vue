@@ -188,6 +188,7 @@
 import { ref, watch, nextTick, computed, type ComponentPublicInstance } from 'vue';
 import { useChatWs } from 'src/composables/useChatWs';
 import { useVideoConference } from 'src/composables/useVideoConference';
+import { getAuthUsername } from 'src/utils/authStorage';
 import { useQuasar } from 'quasar';
 
 const $q = useQuasar();
@@ -196,7 +197,7 @@ const $q = useQuasar();
 const visible = ref(false);
 const inputText = ref('');
 const messageContainer = ref<HTMLElement | null>(null);
-const currentUser = sessionStorage.getItem('username') || '';
+const currentUser = getAuthUsername();
 const currentIP = ref('');
 const activeTab = ref('chat');
 

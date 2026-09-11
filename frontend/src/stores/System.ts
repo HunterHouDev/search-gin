@@ -11,7 +11,6 @@ export const useSystemProperty = defineStore('system', () => {
   const showStyle = ref('lg'); // lg md sm
   const showImage = ref('poster'); // post cover
   const theme = ref('natural');
-  const expireTime = ref<number | null>(null);
   const lastAuthor = ref('');
   const lastAuthores = ref([] as string[]);
   const searchPageAutoPullData = ref(false);
@@ -30,7 +29,7 @@ export const useSystemProperty = defineStore('system', () => {
   const fileEditAutoJpg = ref(true);
   const fileEditAutoNext = ref(true);
   const fileEditAutoRefresh = ref(true);
-  const tagSizeMap = ref([] as any[]);
+  const tagSizeMap = ref<{ Name: string; Size?: number }[]>([]);
   const shutdownLeftSecond = ref<number | null>(null);
   const videoOptions = reactive({
     autoPlay: true,
@@ -230,7 +229,7 @@ export const useSystemProperty = defineStore('system', () => {
   return {
     // state
     singleWindow, showStyle, showImage, theme,
-    expireTime, lastAuthor, lastAuthores, searchPageAutoPullData,
+    lastAuthor, lastAuthores, searchPageAutoPullData,
     pictureInPictureVideoOffset, pictureInPictureVideoOffsetFullBefore,
     pictureInPictureVideoWidth, pictureInPictureVideoWidthFullBefore,
     isFullscreen, isElectron,
@@ -258,7 +257,7 @@ export const useSystemProperty = defineStore('system', () => {
     storage: localStorage,
     pick: [
       'singleWindow', 'showStyle', 'showImage', 'theme',
-      'expireTime', 'lastAuthor', 'lastAuthores',
+      'lastAuthor', 'lastAuthores',
       'searchPageAutoPullData',
       'pictureInPictureVideoOffset', 'pictureInPictureVideoOffsetFullBefore',
       'pictureInPictureVideoWidth', 'pictureInPictureVideoWidthFullBefore',

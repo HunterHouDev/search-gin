@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { ref } from 'vue'
+import type { QVueGlobals } from 'quasar'
 
 // Mock src/boot/axios — useTorrentDownload imports { api } from this module
 const mockApi = {
@@ -16,7 +16,7 @@ describe('useTorrentDownload', () => {
   // 模拟 $q notify
   const mockNotify = vi.fn()
   const mockOnVideoReady = vi.fn()
-  const $q = { notify: mockNotify } as any
+  const $q = { notify: mockNotify } as unknown as QVueGlobals
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -84,7 +84,7 @@ describe('useTorrentDownload', () => {
       const { useTorrentDownload } = await import('./useTorrentDownload')
       const { selectTorrentFile, selectedTorrentFile } = useTorrentDownload($q, mockOnVideoReady)
 
-      const file = { path: '/test.mp4', name: 'test.mp4', size: 1024 }
+      const file = { path: '/test.mp4', name: 'test.mp4', length: 1024 }
       selectTorrentFile(file)
 
       expect(selectedTorrentFile.value).toBe('/test.mp4')
@@ -109,7 +109,7 @@ describe('useTorrentDownload', () => {
       torrentProgress.value = 50
       torrentState.value = 'downloading'
       torrentName.value = 'test'
-      torrentFiles.value = [{ path: '/file', name: 'file', size: 100 }]
+      torrentFiles.value = [{ path: '/file', name: 'file', length: 100 }]
 
       mockApi.delete.mockResolvedValue({})
 
