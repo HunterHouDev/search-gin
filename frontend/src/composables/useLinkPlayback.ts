@@ -54,13 +54,15 @@ export const LINK_TABS: LinkTabItem[] = [
 /** 链接类型 Tab 的本地存储 key（刷新后保留上次选择） */
 const LINK_TAB_STORAGE_KEY = 'immersive.linkTab';
 
-const LINK_TAB_VALUES: string[] = LINK_TABS.map((t) => t.value);
+/** 全部链接类型值，宿主可按需筛选展示（如弹窗只保留视频 / 分片链接） */
+export const LINK_TAB_VALUES: LinkTab[] = LINK_TABS.map((item) => item.value);
 
 /** 读取上次选择的 tab；脏数据或已下线的 tab 回退到默认「磁力链」 */
 function readStoredLinkTab(): LinkTab {
   try {
     const saved = localStorage.getItem(LINK_TAB_STORAGE_KEY);
-    if (saved && LINK_TAB_VALUES.includes(saved)) return saved as LinkTab;
+    if (saved && LINK_TAB_VALUES.includes(saved as LinkTab))
+      return saved as LinkTab;
   } catch {
     // 隐私模式 / 存储被禁用时忽略
   }

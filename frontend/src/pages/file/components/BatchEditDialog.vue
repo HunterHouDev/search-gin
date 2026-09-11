@@ -10,6 +10,7 @@
             <q-tab name="tasks" label="任务列表" style="min-width: 100px">
               <q-badge v-if="taskRunningCount > 0" color="orange" floating>{{ taskRunningCount }}</q-badge>
             </q-tab>
+            <q-tab name="links" label="视频/分片链接" style="min-width: 100px" />
             <q-space />
             <q-btn flat dense icon="close" @click="dialogHide" />
           </q-tabs>
@@ -149,7 +150,7 @@
             </template>
 
             <!-- 任务列表 -->
-            <template v-else>
+            <template v-else-if="dialogTab === 'tasks'">
               <div class="row items-center no-wrap" style="gap: 4px">
                 <q-tabs v-model="taskTab" class="col" active-color="primary" indicator-color="primary">
                   <q-tab name="等待" label="等待">
@@ -216,6 +217,14 @@
                 </q-item>
               </q-list>
             </template>
+
+            <!-- 视频 / 分片链接：面板常驻（v-show），切 tab 不会丢解析结果与下载任务 -->
+            <div
+              v-show="dialogTab === 'links'"
+              style="height: calc(82vh - 160px); overflow: auto"
+            >
+              <LinkSourcePanel ref="linkPanelRef" embedded />
+            </div>
           </q-page>
         </q-page-container>
 
@@ -253,6 +262,7 @@ import {
 import { date } from 'quasar';
 import Sortable from 'sortablejs';
 import TaskLogFullscreen from './TaskLogFullscreen.vue';
+import LinkSourcePanel from 'src/components/LinkSourcePanel.vue';
 
 const $q = useQuasar();
 const systemProperty = useSystemProperty();
@@ -273,6 +283,7 @@ const { show, dialogRef, dialogHide, beforeShow } = useDialogShell(() => {
 // ── Tab ──────────────────────────────────────────────────────────
 const dialogTab = ref('batch');
 const taskTab = ref('等待');
+const linkPanelRef = ref(null);
 
 watch(dialogTab, (tab) => {
   if (tab === 'tasks') {
@@ -284,6 +295,11 @@ watch(dialogTab, (tab) => {
   } else {
     clearInterval(taskTimer);
   }
+});
+
+// 链接面板常驻（v-show），关闭弹窗时手动停播，避免关掉后还在后台播放
+watch(show, (val) => {
+  if (!val) linkPanelRef.value?.stopPlayback();
 });
 
 // ── 批量状态 ──────────────────────────────────────────────────────
