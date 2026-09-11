@@ -132,6 +132,10 @@ func BuildAPIRouter(sigChan chan os.Signal) *gin.Engine {
 	router.POST("/api/clearCompletedTasks", handler.PostClearCompletedTasks)
 	router.POST("/api/clearFailedTasks", handler.PostClearFailedTasks)
 	router.POST("/api/clearAllTasks", handler.PostClearAllTasks)
+
+	// HLS 分片下载：任务在服务端执行，前端只提交与查询进度
+	router.POST("/api/hlsDownload", handler.PostHlsDownload)
+	router.POST("/api/hlsCancel/:taskID", handler.PostHlsCancel)
 	router.POST("/api/authorList", handler.PostAuthor)
 	router.GET("/api/authorImage/:name", handler.GetAuthorImage)
 

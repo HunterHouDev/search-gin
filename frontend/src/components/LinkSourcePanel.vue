@@ -142,8 +142,7 @@
                 {{ hlsDefaultDownloadName }}
               </q-tooltip>
             </q-input>
-            <q-btn
-              v-if="fsDirSupported"
+            <q-btn-dropdown
               flat
               dense
               no-caps
@@ -152,17 +151,39 @@
               :color="hlsDownloadDir ? 'green-4' : 'indigo-4'"
               :icon="hlsDownloadDir ? 'folder_special' : 'create_new_folder'"
               :label="hlsDownloadDir || '下载目录'"
-              @click="pickHlsDownloadDir"
             >
+              <q-list dense class="hls-dir-menu">
+                <q-item clickable v-close-popup @click="chooseHlsDownloadDir('')">
+                  <q-item-section>
+                    <q-item-label>默认目录</q-item-label>
+                    <q-item-label caption
+                      >服务端默认保存位置（第一个媒体目录）</q-item-label
+                    >
+                  </q-item-section>
+                </q-item>
+                <q-item
+                  v-for="dir in hlsDownloadDirOptions"
+                  :key="dir"
+                  clickable
+                  v-close-popup
+                  @click="chooseHlsDownloadDir(dir)"
+                >
+                  <q-item-section>
+                    <q-item-label class="hls-dir-menu-label">{{
+                      dir
+                    }}</q-item-label>
+                  </q-item-section>
+                </q-item>
+              </q-list>
               <q-tooltip class="bg-dark text-white">
                 {{
                   hlsDownloadDir
-                    ? `下载直接存入「${hlsDownloadDir}」，不再逐次选目录；点击可更换`
-                    : '选择一个下载目录并记住，之后下载无需重复选目录'
+                    ? `下载由服务端存入「${hlsDownloadDir}」；点击可更换`
+                    : '选择服务端保存目录，下载由服务端执行'
                 }}
               </q-tooltip>
-            </q-btn>
-            <!-- 点下载后任务进入下方下载列表，这里保持可用以便继续下载 -->
+            </q-btn-dropdown>
+            <!-- 点下载后任务交给服务端，这里保持可用以便继续提交下载 -->
             <q-btn
               flat
               dense
@@ -176,7 +197,8 @@
               @click="downloadHls"
             >
               <q-tooltip class="bg-dark text-white"
-                >下载保留的 {{ hlsKeptCount }} 个分片并另存为</q-tooltip
+                >由服务端下载 {{ hlsKeptCount }} 个分片并合并保存，关闭窗口 /
+                刷新页面都不会中断</q-tooltip
               >
             </q-btn>
           </div>
@@ -254,7 +276,7 @@
               @click="clearHlsDownloads"
             >
               <q-tooltip class="bg-dark text-white"
-                >清空列表记录，不会删除本地文件</q-tooltip
+                >删除服务端的下载任务记录，不会删除已下载的文件</q-tooltip
               >
             </q-btn>
           </div>
@@ -304,8 +326,8 @@
                 <q-tooltip class="bg-dark text-white">
                   {{
                     item.status === 'downloading'
-                      ? '取消下载'
-                      : '从列表移除（不删除本地文件）'
+                      ? '取消服务端下载任务'
+                      : '移除该任务（不删除已下载的文件）'
                   }}
                 </q-tooltip>
               </q-btn>
@@ -323,10 +345,10 @@
                 <q-tooltip class="bg-dark text-white">
                   {{
                     item.status !== 'done'
-                      ? '下载完成后可播放'
+                      ? '服务端下载完成后可播放'
                       : item.playable
-                        ? '播放该本地视频'
-                        : '该文件无法在页面内回放，请到下载目录打开'
+                        ? '播放已下载的视频'
+                        : '该文件不在媒体目录内，无法在页面内回放'
                   }}
                 </q-tooltip>
               </q-btn>
@@ -363,7 +385,7 @@ import {
   type HlsSegment,
   type LinkTab,
 } from 'src/composables/useLinkPlayback';
-import { fsDirSupported } from 'src/utils/downloadDir';
+import { useSystemProperty } from 'src/stores/System';
 
 // 外部链接面板（视频直链 / HLS 分片链，磁力链可选）
 // 业务逻辑全部来自 useLinkPlayback，本组件只负责 UI 与「播放落到哪里」：
@@ -399,6 +421,7 @@ const emit = defineEmits<{
 }>();
 
 const $q = useQuasar();
+const systemProperty = useSystemProperty();
 // 剪贴板：legacy 兜底——非安全上下文（http 局域网访问）下 navigator.clipboard 不存在
 const { copy: copyText } = useClipboard({ legacy: true });
 
@@ -462,6 +485,7 @@ const {
   hlsDownloadName,
   hlsDefaultDownloadName,
   hlsDownloadDir,
+  hlsDownloadDirOptions,
   hlsDownloadList,
   hlsPlayingDownloadId,
   hlsDownloadMeta,
@@ -473,7 +497,7 @@ const {
   restoreHlsSegments,
   downloadHls,
   cancelHlsDownload,
-  pickHlsDownloadDir,
+  chooseHlsDownloadDir,
   playHlsDownload,
   clearHlsDownloads,
   destroyHls,
@@ -484,6 +508,8 @@ const {
   getVideoEl,
   getVolume,
   onPlay: handlePlay,
+  // 服务端可选保存目录：来自系统设置里的媒体目录
+  getDownloadDirs: () => systemProperty.getSettingInfo?.Dirs ?? [],
 });
 
 // ── 可见的链接类型 ────────────────────────────────────────────────────────────
@@ -780,6 +806,18 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+/* 下载目录下拉菜单：路径可能较长，限制宽度并允许折行 */
+.hls-dir-menu {
+  max-width: 320px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.hls-dir-menu-label {
+  word-break: break-all;
+  font-size: 0.76rem;
 }
 
 .hls-filename-input :deep(.q-field__control) {

@@ -89,8 +89,9 @@ func ClearAllTasks() utils.Result {
 	return utils.NewSuccessByMsg(fmt.Sprintf("已清除 %d 个任务", count))
 }
 
-// DeleteTaskLog 删除单任务日志文件
+// DeleteTaskLog 删除单任务日志文件，并释放该任务的运行时资源
 func DeleteTaskLog(taskID string) {
+	dropHlsRuntime(taskID)
 	if err := os.Remove(TaskLogPath(taskID)); err != nil && !os.IsNotExist(err) {
 		utils.InfoFormat("删除任务日志文件失败: %s, 错误: %v", taskID, err)
 	}

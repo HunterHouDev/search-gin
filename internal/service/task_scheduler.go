@@ -110,10 +110,6 @@ func (s *searchService) pollTasks() {
 	if PendingTaskCount.Load() == 0 {
 		return
 	}
-	if GetEngine().IsEmpty() {
-		LogMem.Add("pollTasks: 索引为空，跳过本轮调度")
-		return
-	}
 	maxSlot := s.settings.Get().TaskMaxConcurrent
 	if maxSlot <= 0 {
 		maxSlot = 4
@@ -121,6 +117,10 @@ func (s *searchService) pollTasks() {
 	if taskSlots == nil {
 		InitTaskSlots(maxSlot)
 	}
+
+	// 索引为空时，依赖索引的任务（分切/合并/转码）不调度；
+	// 分片下载不依赖索引，仍可正常执行
+	engineEmpty := GetEngine().IsEmpty()
 
 	var toStart []model.TransferTaskModel
 
@@ -134,14 +134,18 @@ func (s *searchService) pollTasks() {
 		canStart := false
 
 		switch {
-		case strings.EqualFold(task.Type, model.TaskTypeCut):
+		case strings.EqualFold(task.Type, model.TaskTypeHls):
+			// 分片下载：纯网络 I/O，不依赖索引
 			canStart = acquireTaskSlot(maxSlot)
+
+		case strings.EqualFold(task.Type, model.TaskTypeCut):
+			canStart = !engineEmpty && acquireTaskSlot(maxSlot)
 
 		case strings.EqualFold(task.Type, model.TaskTypeMerge):
-			canStart = acquireTaskSlot(maxSlot)
+			canStart = !engineEmpty && acquireTaskSlot(maxSlot)
 
 		case strings.EqualFold(task.Type, model.TaskTypeTrans):
-			canStart = transcodeCount.Load() == 0 && acquireTaskSlot(maxSlot)
+			canStart = !engineEmpty && transcodeCount.Load() == 0 && acquireTaskSlot(maxSlot)
 		}
 
 		if !canStart {
@@ -175,6 +179,8 @@ func (s *searchService) pollTasks() {
 				CutFormatter(t)
 			case strings.EqualFold(t.Type, model.TaskTypeMerge):
 				MergeFiles(t)
+			case strings.EqualFold(t.Type, model.TaskTypeHls):
+				HlsDownloader(t)
 			}
 		}()
 	}

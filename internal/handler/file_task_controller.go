@@ -8,6 +8,7 @@ import (
 	"search-gin/internal/service"
 	"search-gin/pkg/utils"
 	"sort"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -112,7 +113,8 @@ func GetDelTransferTask(c *gin.Context) {
 		c.JSON(http.StatusOK, utils.NewFailByMsg("任务不存在"))
 		return
 	}
-	if task.Status == model.StatusExecuting {
+	// 分片下载任务在服务端执行，允许直接删除（删除即取消下载）
+	if task.Status == model.StatusExecuting && !strings.EqualFold(task.Type, model.TaskTypeHls) {
 		service.TransferTaskMutex.Unlock()
 		r := utils.Fail()
 		r.Message = "执行中无法删除"
@@ -121,6 +123,7 @@ func GetDelTransferTask(c *gin.Context) {
 	}
 	delete(service.TransferTask, taskID)
 	service.TransferTaskMutex.Unlock()
+	// DeleteTaskLog 内部会释放运行时资源并取消仍在下载的分片任务
 	service.DeleteTaskLog(taskID)
 	service.CleanupExpiredTaskLogs(7)
 	c.JSON(http.StatusOK, utils.NewSuccess())

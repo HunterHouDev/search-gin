@@ -2,20 +2,17 @@ import { computed, ref, watch, type Ref } from 'vue';
 import type { QVueGlobals } from 'quasar';
 import type HlsJs from 'hls.js';
 import {
-  ensureDirWritable,
-  forgetDir,
-  fsDirSupported,
-  fsSaveSupported,
-  loadSavedDir,
-  openWritableInDir,
-  pickDir,
-  pickSaveFile,
-  type PermissionAwareHandle,
-} from 'src/utils/downloadDir';
+  DelTransferTasksInfo,
+  HlsCancelAPI,
+  HlsDownloadAPI,
+  TransferTasksInfo,
+} from 'src/components/api/searchAPI';
 
 // 外部链接播放逻辑（磁力链 / 视频链接 / 分片链接）
 // 磁力链复用 useTorrentDownload，视频直链与 HLS 分片链在此处理。
 // 分片链支持：解析 m3u8 → 列出分片 → 删除指定分片（如广告）→ 播放剩余分片。
+// 下载：交由服务端异步任务执行（/api/hlsDownload），前端只提交与同步进度，
+//       因此关闭弹窗、刷新页面、甚至关掉浏览器都不会中断下载。
 
 export type LinkTab = 'magnet' | 'video' | 'hls';
 
@@ -69,6 +66,15 @@ function readStoredLinkTab(): LinkTab {
   return 'magnet';
 }
 
+/** 读取上次选择的服务端下载目录；空串表示使用服务端默认目录 */
+function readStoredDownloadDir(): string {
+  try {
+    return localStorage.getItem(DOWNLOAD_DIR_STORAGE_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
 /** 解析出的单个 HLS 分片 */
 export interface HlsSegment {
   /** 稳定 id（等于原始序号） */
@@ -107,41 +113,53 @@ interface SegmentKey {
   iv: Bytes | null;
 }
 
-/** 下载完成后可用于页面内回放的本地来源 */
-interface PlaybackSource {
-  /** File System Access API 写出的文件句柄，可再次读回 */
-  handle: FileSystemFileHandle | null;
-  /** 内存中的完整文件（浏览器下载兜底时使用） */
-  blob: Blob | null;
-}
-
-/** 下载落地目标：优先文件系统访问 API，退化到内存 Blob */
-interface DownloadSink {
-  write: (chunk: Bytes) => Promise<void>;
-  close: () => Promise<void>;
-  abort: () => Promise<void>;
-  /** 落盘位置的补充说明，用于下载完成提示 */
-  target: string;
-  /** 实际写入的文件名（同名冲突时可能带序号） */
-  fileName: string;
-  /** 下载完成后取回可回放的本地来源；null 表示无法在页面内回放 */
-  getPlaybackSource: () => PlaybackSource | null;
-}
-
 /** 下载任务状态：下载中 / 已完成 / 已取消 / 失败 */
 export type HlsDownloadStatus = 'downloading' | 'done' | 'canceled' | 'failed';
 
-/** 下载列表中的一条记录：点「下载」即入列表，完成后可在页面内回放 */
+/** 服务端返回的传输任务（此处只用到分片下载相关字段） */
+interface HlsServerTask {
+  ID: string;
+  Type: string;
+  Name: string;
+  /** 服务端保存的完整路径 */
+  Path: string;
+  URL: string;
+  Segments: number;
+  TotalSegments: number;
+  Progress: number;
+  /** 已写入字节数 */
+  Size: number;
+  Duration: string;
+  Status: string;
+  Log: string;
+  CreateTime: string;
+  FinishTime?: string;
+}
+
+/** 服务端分片下载任务的 Type 值，与后端 TaskTypeHls 保持一致 */
+const HLS_TASK_TYPE = '分片下载';
+
+/** 服务端任务状态 → 下载列表状态 */
+function mapTaskStatus(status: string): HlsDownloadStatus {
+  if (status === '执行中' || status === '等待') return 'downloading';
+  if (status === '完成') return 'done';
+  if (status === '取消') return 'canceled';
+  return 'failed';
+}
+
+/** 下载列表中的一条记录：来自服务端任务列表，关闭弹窗 / 刷新页面后依旧存在 */
 export interface HlsDownloadItem {
-  /** 列表项 id（页面内唯一） */
+  /** 服务端任务 ID */
   id: string;
   /** 保存到本地的文件名 */
   name: string;
+  /** 服务端保存的完整路径（用于页面内回放） */
+  path: string;
   /** 已写入的分片数（下载中实时增长，完成即分片总数） */
   segmentCount: number;
   /** 本次下载的分片总数 */
   totalCount: number;
-  /** 进度百分比（0~100），仅下载中有意义 */
+  /** 进度百分比（0~100） */
   progress: number;
   /** 任务状态 */
   status: HlsDownloadStatus;
@@ -149,28 +167,14 @@ export interface HlsDownloadItem {
   duration: string;
   /** 写入字节数的人类可读文本，未完成时为空串 */
   sizeText: string;
-  /** 落地位置说明（目录名 / 浏览器下载 / 取消原因） */
+  /** 落地位置 / 失败原因说明 */
   target: string;
   /** 创建时间戳 */
   createdAt: number;
-  /** 是否可在页面内回放（已完成且有本地句柄或内存 Blob） */
+  /** 是否可在页面内回放（已完成且路径可访问） */
   playable: boolean;
-  /** 本地文件句柄（落盘下载时存在） */
-  handle: FileSystemFileHandle | null;
-  /** 内存文件（浏览器下载兜底时存在） */
-  blob: Blob | null;
   /** 来源播放列表地址，便于区分不同链接的下载 */
   sourceUrl: string;
-}
-
-/** 一次下载任务的运行时状态：不放进响应式数据，避免代理包装原生写入流 */
-interface DownloadTask {
-  /** 对应列表项 id */
-  id: string;
-  /** 用户点了取消后置 true，下载循环检查到即中止 */
-  aborted: boolean;
-  /** 已创建的落盘目标，取消 / 清空 / 卸载时用于中止写入流 */
-  sink: DownloadSink | null;
 }
 
 export interface LinkPlaybackOptions {
@@ -184,13 +188,17 @@ export interface LinkPlaybackOptions {
   getVolume: () => number;
   /** 通知页面开始播放：src 为空表示由 HLS 实例接管 */
   onPlay: (src: string, name: string, isHls: boolean) => void;
+  /** 可选：服务端可选的下载目录列表（来自系统设置里的媒体目录） */
+  getDownloadDirs?: () => string[];
 }
 
 const HTTP_URL_RE = /^https?:\/\//i;
 const HLS_URL_RE = /\.m3u8(\?|#|$)/i;
 const M3U8_MIME = 'application/vnd.apple.mpegurl';
-/** 下载并发数：分批并发拉取、按序写出，兼顾速度与内存占用 */
-const DOWNLOAD_BATCH_SIZE = 4;
+/** 记住用户选择的服务端下载目录 */
+const DOWNLOAD_DIR_STORAGE_KEY = 'immersive.serverDownloadDir';
+/** 下载中任务的轮询间隔（毫秒） */
+const DOWNLOAD_POLL_INTERVAL = 2000;
 
 /** 媒体播放列表的全局标签：重建播放列表时原样保留在文件头 */
 const GLOBAL_TAGS = [
@@ -288,24 +296,6 @@ function hexToBytes(hex: string): Bytes | null {
     bytes[i] = Number.parseInt(clean.slice(i * 2, i * 2 + 2), 16);
   }
   return bytes;
-}
-
-/** 分片序号转 128 位大端 IV（#EXT-X-KEY 未显式给 IV 时的默认值） */
-function sequenceToIv(sequence: number): Bytes {
-  const iv = new Uint8Array(16);
-  let value = Math.max(0, Math.trunc(sequence));
-  for (let i = 15; i >= 0 && value > 0; i--) {
-    iv[i] = value % 256;
-    value = Math.floor(value / 256);
-  }
-  return iv;
-}
-
-function parseMediaSequence(header: string[]): number {
-  const line = header.find((item) => item.startsWith('#EXT-X-MEDIA-SEQUENCE'));
-  if (!line) return 0;
-  const value = Number(line.split(':')[1]);
-  return Number.isFinite(value) ? value : 0;
 }
 
 function parseKeyTag(line: string): SegmentKey | null {
@@ -496,115 +486,6 @@ function formatSize(bytes: number): string {
   return `${unit === 0 || value >= 100 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
 }
 
-function triggerBrowserDownload(blob: Blob, fileName: string) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  // 立即 revoke 会让部分浏览器拿不到文件，延迟释放
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
-}
-
-/**
- * 创建下载落地目标，按以下顺序择优：
- * 1. 记住的下载目录且仍有写权限 → 直接落盘，全程无对话框（「不用重复选目录」）；
- * 2. 「另存为」对话框，默认定位到记住的目录，点一下保存即可；
- * 3. 环境不支持（非安全上下文 / 非 Chromium）→ 内存 Blob + 浏览器下载。
- * 返回 null 表示用户取消了保存对话框。
- */
-async function createDownloadSink(
-  fileName: string,
-): Promise<DownloadSink | null> {
-  const savedDir = await loadSavedDir();
-
-  // 1. 记忆中的目录：有权限就直接写文件
-  if (savedDir && (await ensureDirWritable(savedDir))) {
-    try {
-      const {
-        stream,
-        fileName: actual,
-        handle,
-      } = await openWritableInDir(savedDir, fileName);
-      return {
-        write: (chunk) => stream.write(chunk),
-        close: () => stream.close(),
-        abort: () => stream.abort(),
-        target: `已存入 ${savedDir.name}/${actual}`,
-        fileName: actual,
-        getPlaybackSource: () => ({ handle, blob: null }),
-      };
-    } catch {
-      // 目录被删除或改名，记忆已失效；清掉后继续走对话框
-      await forgetDir();
-    }
-  }
-
-  // 2. 「另存为」对话框：id 让浏览器记住上次目录，startIn 直接定位
-  if (fsSaveSupported) {
-    const picked = await pickSaveFile(fileName, savedDir ?? 'downloads');
-    if (picked.status === 'cancelled') return null;
-    if (picked.status === 'ok') {
-      const handle = picked.handle;
-      const stream = await handle.createWritable();
-      return {
-        write: (chunk) => stream.write(chunk),
-        close: () => stream.close(),
-        abort: () => stream.abort(),
-        target: `已保存为 ${handle.name}`,
-        fileName: handle.name,
-        getPlaybackSource: () => ({ handle, blob: null }),
-      };
-    }
-  }
-
-  // 3. 非安全上下文 / 不支持该 API：内存 Blob + 浏览器下载
-  const chunks: Bytes[] = [];
-  let finalBlob: Blob | null = null;
-  return {
-    async write(chunk) {
-      chunks.push(chunk);
-    },
-    async close() {
-      finalBlob = new Blob(chunks, { type: 'application/octet-stream' });
-      triggerBrowserDownload(finalBlob, fileName);
-      chunks.length = 0;
-    },
-    async abort() {
-      chunks.length = 0;
-      finalBlob = null;
-    },
-    target: `已交给浏览器下载 ${fileName}`,
-    fileName,
-    // 落盘位置不受页面控制，但内存里的 Blob 仍可在页面内回放
-    getPlaybackSource: () =>
-      finalBlob ? { handle: null, blob: finalBlob } : null,
-  };
-}
-
-/** AES-128 分片解密（WebCrypto 只在 https / localhost 等安全上下文可用） */
-async function decryptAes128(
-  data: Bytes,
-  keyBytes: Bytes,
-  iv: Bytes,
-): Promise<Bytes> {
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw',
-    keyBytes,
-    { name: 'AES-CBC' },
-    false,
-    ['decrypt'],
-  );
-  const plain = await crypto.subtle.decrypt(
-    { name: 'AES-CBC', iv },
-    cryptoKey,
-    data,
-  );
-  return new Uint8Array(plain);
-}
-
 export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
   const { magnetURI, submitMagnet, getVideoEl, getVolume, onPlay } = opts;
 
@@ -627,22 +508,19 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
   let hlsInstance: HlsJs | null = null;
   let blobUrl: string | null = null;
 
-  // ── 下载（另存为）状态 ───────────────────────────────────────────────────────
+  // ── 下载列表（服务端任务镜像） ───────────────────────────────────────────────
   /**
-   * 运行中的下载任务（id → 任务）。任务一创建就进下载列表、面板状态随即重置，
-   * 因此这里不需要响应式状态，进度直接写在列表项上。
+   * 分片下载任务数据源为服务端任务列表，因此关闭弹窗、刷新页面后依旧存在。
+   * 本组件只负责提交任务与同步进度。
    */
-  const downloadTasks = new Map<string, DownloadTask>();
-
-  // ── 下载列表（已完成的分片视频，独立于解析结果） ───────────────────────────────
-  /** 已下载条目：重新添加 / 解析链接不会清空，随时可回放 */
   const hlsDownloadList = ref<HlsDownloadItem[]>([]);
   /** 正在页面内回放的下载项 id，用于列表高亮 */
   const hlsPlayingDownloadId = ref('');
-  /** 下载项回放用的 blob 地址，切换回放 / 卸载时释放 */
-  let downloadPlaybackUrl: string | null = null;
-  /** 下载项 id 自增序号 */
-  let downloadSeq = 0;
+  /** 是否存在进行中的下载（决定是否轮询服务端进度） */
+  const hlsDownloadActive = computed(() =>
+    hlsDownloadList.value.some((item) => item.status === 'downloading'),
+  );
+  let downloadPollTimer: ReturnType<typeof setInterval> | null = null;
 
   // ── 分片解析状态 ────────────────────────────────────────────────────────────
   const parsedPlaylist = ref<ParsedPlaylist | null>(null);
@@ -683,40 +561,26 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     ),
   );
 
-  // ── 记住的下载目录（设置后下载直接落盘，不再弹「另存为」） ─────────────────────
-  /** 已记住的目录名，空串表示尚未设置 */
-  const hlsDownloadDir = ref('');
+  // ── 服务端下载目录（留空则用服务端默认目录） ─────────────────────────────────
+  /** 已选择的服务端保存目录，空串表示使用服务端默认目录 */
+  const hlsDownloadDir = ref(readStoredDownloadDir());
+  /** 可选的服务端目录（来自系统设置里的媒体目录） */
+  const hlsDownloadDirOptions = computed(() => opts.getDownloadDirs?.() ?? []);
 
-  /** 读取已保存的目录名（初始化时调用一次） */
-  async function refreshDownloadDir() {
-    const dir = await loadSavedDir();
-    hlsDownloadDir.value = dir?.name ?? '';
-  }
-
-  /** 选择 / 更换下载目录，之后下载不再需要逐次选目录 */
-  async function pickHlsDownloadDir() {
+  // 记住用户的目录选择，刷新后继续沿用
+  watch(hlsDownloadDir, (val) => {
     try {
-      const dir = await pickDir();
-      if (!dir) {
-        notifyNegative('当前浏览器不支持选择目录，将沿用另存为对话框');
-        return;
-      }
-      hlsDownloadDir.value = dir.name;
-      $q.notify({
-        type: 'positive',
-        message: `已记住下载目录：${dir.name}`,
-        caption: '之后的下载会直接保存到该目录，不再询问',
-        position: 'top',
-      });
-    } catch (e) {
-      // 用户取消目录选择，静默处理
-      if ((e as DOMException)?.name !== 'AbortError') {
-        notifyNegative('选择目录失败：' + (e as Error).message);
-      }
+      if (val) localStorage.setItem(DOWNLOAD_DIR_STORAGE_KEY, val);
+      else localStorage.removeItem(DOWNLOAD_DIR_STORAGE_KEY);
+    } catch {
+      // 隐私模式写入失败时忽略
     }
-  }
+  });
 
-  void refreshDownloadDir();
+  /** 选择下载目录 */
+  function chooseHlsDownloadDir(dir: string) {
+    hlsDownloadDir.value = dir;
+  }
 
   const activeLinkTab = computed<LinkTabItem>(
     () => LINK_TABS.find((t) => t.value === linkTab.value) ?? LINK_TABS[0],
@@ -791,12 +655,8 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     }
   }
 
-  /** 释放下载项回放地址并清掉列表高亮（切换回放源 / 移除条目 / 卸载时调用） */
+  /** 清掉下载项的列表高亮（切换回放源 / 移除条目 / 卸载时调用） */
   function releaseDownloadPlaybackUrl() {
-    if (downloadPlaybackUrl) {
-      URL.revokeObjectURL(downloadPlaybackUrl);
-      downloadPlaybackUrl = null;
-    }
     hlsPlayingDownloadId.value = '';
   }
 
@@ -971,57 +831,63 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     await startHlsPlayback(source, name);
   }
 
-  /** 拉取单个分片并按需解密 */
-  async function fetchSegmentChunk(
-    segment: HlsSegment,
-    key: SegmentKey | null,
-    sequence: number,
-    keyCache: Map<string, Bytes>,
-  ): Promise<Bytes> {
-    const headers: Record<string, string> = {};
-    if (segment.byteRange) {
-      const { offset, length } = segment.byteRange;
-      headers.Range = `bytes=${offset}-${offset + length - 1}`;
-    }
-    const res = await fetch(segment.url, { credentials: 'omit', headers });
-    if (!res.ok) {
-      throw new Error(`分片 #${segment.index} 下载失败 HTTP ${res.status}`);
-    }
-    const bytes = new Uint8Array(await res.arrayBuffer());
-    if (!key || key.method !== 'AES-128' || !key.url) return bytes;
-
-    let keyBytes = keyCache.get(key.url);
-    if (!keyBytes) {
-      const keyRes = await fetch(key.url, { credentials: 'omit' });
-      if (!keyRes.ok) {
-        throw new Error(`解密密钥获取失败 HTTP ${keyRes.status}`);
-      }
-      keyBytes = new Uint8Array(await keyRes.arrayBuffer());
-      keyCache.set(key.url, keyBytes);
-    }
-    return await decryptAes128(
-      bytes,
-      keyBytes,
-      key.iv ?? sequenceToIv(sequence),
-    );
+  /** 服务端任务 → 下载列表条目 */
+  function toDownloadItem(task: HlsServerTask): HlsDownloadItem {
+    const status = mapTaskStatus(task.Status);
+    const total = task.TotalSegments || 0;
+    const done = task.Segments || 0;
+    return {
+      id: task.ID,
+      name: task.Name || '未命名',
+      path: task.Path || '',
+      segmentCount: done,
+      totalCount: total,
+      progress: status === 'done' ? 100 : task.Progress || 0,
+      status,
+      duration: task.Duration || '',
+      sizeText: task.Size ? formatSize(task.Size) : '',
+      target:
+        status === 'done'
+          ? task.Path || task.Log
+          : status === 'failed'
+            ? task.Log || '下载失败'
+            : status === 'canceled'
+              ? '已取消'
+              : '正在服务端下载…',
+      createdAt: new Date(task.CreateTime).getTime() || Date.now(),
+      playable: status === 'done' && Boolean(task.Path),
+      sourceUrl: task.URL || '',
+    };
   }
 
-  /** fMP4 的初始化段（#EXT-X-MAP）需要拼在最前面才能播放 */
-  async function fetchInitSegment(
-    parsed: ParsedPlaylist,
-  ): Promise<Bytes | null> {
-    const line = parsed.header.find((item) => item.startsWith('#EXT-X-MAP'));
-    if (!line) return null;
-    const attrs = tagAttributes(line);
-    if (!attrs.URI) return null;
-    const headers: Record<string, string> = {};
-    const range = parseByteRangeValue(attrs.BYTERANGE, 0);
-    if (range) {
-      headers.Range = `bytes=${range.offset}-${range.offset + range.length - 1}`;
+  /** 同步服务端分片下载任务到下载列表 */
+  async function refreshHlsDownloads() {
+    try {
+      const res = await TransferTasksInfo();
+      const tasks: HlsServerTask[] = res?.Data?.tasks ?? [];
+      hlsDownloadList.value = tasks
+        .filter((task) => task.Type === HLS_TASK_TYPE)
+        .map(toDownloadItem);
+      syncDownloadPolling();
+    } catch {
+      // 拉取失败时保留上次结果，等待下次轮询
     }
-    const res = await fetch(attrs.URI, { credentials: 'omit', headers });
-    if (!res.ok) throw new Error(`初始化段下载失败 HTTP ${res.status}`);
-    return new Uint8Array(await res.arrayBuffer());
+  }
+
+  /** 有进行中的任务时才轮询，避免空闲时无谓请求 */
+  function syncDownloadPolling() {
+    if (hlsDownloadActive.value) {
+      if (!downloadPollTimer) {
+        downloadPollTimer = setInterval(() => {
+          void refreshHlsDownloads();
+        }, DOWNLOAD_POLL_INTERVAL);
+      }
+      return;
+    }
+    if (downloadPollTimer) {
+      clearInterval(downloadPollTimer);
+      downloadPollTimer = null;
+    }
   }
 
   /** 下载列表项的副标题：按任务状态展示进度或结果 */
@@ -1032,108 +898,84 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     if (item.status === 'done') {
       const parts = [`${item.segmentCount} 个分片`, item.duration];
       if (item.sizeText) parts.push(item.sizeText);
-      return parts.join(' · ');
+      return parts.filter(Boolean).join(' · ');
     }
     const label = item.status === 'canceled' ? '已取消' : '下载失败';
     return `${label} · 已写入 ${item.segmentCount}/${item.totalCount} 个分片`;
   }
 
-  /** 任务收尾：写回条目最终状态与回放来源，并从任务表移除 */
-  function finishDownload(
-    item: HlsDownloadItem,
-    task: DownloadTask,
-    status: Exclude<HlsDownloadStatus, 'downloading'>,
-    target: string,
-  ) {
-    const playback =
-      status === 'done' && task.sink ? task.sink.getPlaybackSource() : null;
-    item.status = status;
-    item.target = target;
-    if (status === 'done') item.progress = 100;
-    item.playable = playback !== null;
-    item.handle = playback?.handle ?? null;
-    item.blob = playback?.blob ?? null;
-    downloadTasks.delete(item.id);
-  }
-
-  /** 从下载列表移除一条记录；仍在下载中则一并中止（只移除记录，不删除本地文件） */
-  function removeHlsDownload(id: string) {
-    abortDownloadTask(id);
-    downloadTasks.delete(id);
+  /** 从下载列表移除一条记录：一并删除服务端任务；下载中会先取消 */
+  async function removeHlsDownload(id: string) {
+    if (hlsPlayingDownloadId.value === id) releaseDownloadPlaybackUrl();
     hlsDownloadList.value = hlsDownloadList.value.filter(
       (item) => item.id !== id,
     );
-    if (hlsPlayingDownloadId.value === id) releaseDownloadPlaybackUrl();
+    try {
+      await DelTransferTasksInfo(id);
+    } catch {
+      // 忽略删除失败，下面仍会刷新一次列表
+    }
+    void refreshHlsDownloads();
   }
 
-  /** 中止指定任务（若还在运行），条目的收尾由下载循环负责 */
-  function abortDownloadTask(id: string) {
-    const task = downloadTasks.get(id);
-    if (!task) return;
-    task.aborted = true;
-    void task.sink?.abort().catch(() => {
-      /* 忽略中止异常 */
-    });
+  /** 列表项按钮：下载中 → 先请求取消再删除；已结束 → 直接移除记录 */
+  async function cancelHlsDownload(id: string) {
+    const item = hlsDownloadList.value.find((it) => it.id === id);
+    if (item?.status === 'downloading') {
+      try {
+        await HlsCancelAPI(id);
+      } catch {
+        // 取消失败也继续尝试删除
+      }
+      // 给服务端协程一点收尾时间，避免边写边删
+      setTimeout(() => void removeHlsDownload(id), 600);
+      return;
+    }
+    await removeHlsDownload(id);
   }
 
-  /** 列表项按钮：下载中 → 取消该任务；已结束 → 移除这条记录（不删除本地文件） */
-  function cancelHlsDownload(id: string) {
-    if (downloadTasks.has(id)) abortDownloadTask(id);
-    else removeHlsDownload(id);
-  }
-
-  /** 清空下载列表：先中止未完成的任务，再清记录（不删除本地文件） */
-  function clearHlsDownloads() {
-    for (const id of [...downloadTasks.keys()]) abortDownloadTask(id);
-    downloadTasks.clear();
+  /** 清空下载列表：删除所有分片下载任务（不删除已下载到服务端的文件） */
+  async function clearHlsDownloads() {
+    const ids = hlsDownloadList.value.map((item) => item.id);
     hlsDownloadList.value = [];
     releaseDownloadPlaybackUrl();
+    for (const id of ids) {
+      try {
+        await HlsCancelAPI(id);
+      } catch {
+        /* 已完成的任务取消失败可忽略 */
+      }
+      try {
+        await DelTransferTasksInfo(id);
+      } catch {
+        /* 忽略删除失败 */
+      }
+    }
+    void refreshHlsDownloads();
   }
 
   /**
-   * 播放下载列表里的本地视频：
-   * 优先读回落盘文件（需要一次读权限），否则用内存 Blob；两者都没有时提示改用下载目录打开。
+   * 播放下载列表里的视频：文件已在服务端，直接走流式接口回放。
+   * 注意：保存目录需位于系统设置里的媒体目录内，否则会被路径校验拦截。
    */
   async function playHlsDownload(item: HlsDownloadItem) {
-    let file: Blob | null = item.blob;
-    try {
-      if (!file && item.handle) {
-        const handle = item.handle as FileSystemFileHandle &
-          Partial<PermissionAwareHandle>;
-        if (typeof handle.queryPermission === 'function') {
-          let state = await handle.queryPermission({ mode: 'read' });
-          if (
-            state === 'prompt' &&
-            typeof handle.requestPermission === 'function'
-          ) {
-            state = await handle.requestPermission({ mode: 'read' });
-          }
-          if (state !== 'granted') {
-            notifyNegative('没有读取本地文件的权限，无法在页面内播放');
-            return;
-          }
-        }
-        file = await item.handle.getFile();
-      }
-      if (!file) {
-        notifyNegative('该下载方式无法在页面内回放，请到下载目录打开文件');
-        return;
-      }
-      // 切换回放源前释放上一个地址与 HLS 播放列表地址
-      releaseDownloadPlaybackUrl();
-      revokeBlobUrl();
-      downloadPlaybackUrl = URL.createObjectURL(file);
-      hlsPlayingDownloadId.value = item.id;
-      onPlay(downloadPlaybackUrl, item.name, false);
-    } catch (e) {
-      notifyNegative('播放本地视频失败：' + (e as Error).message);
+    if (!item.path) {
+      notifyNegative('找不到文件路径，无法在页面内回放');
+      return;
     }
+    releaseDownloadPlaybackUrl();
+    revokeBlobUrl();
+    hlsPlayingDownloadId.value = item.id;
+    onPlay(
+      `/api/stream/GetFileByPathUseEncode/${encodeURIComponent(item.path)}`,
+      item.name,
+      false,
+    );
   }
 
   /**
-   * 把保留下来的分片按序合并，另存为本地文件。
-   * 点击后条目立即进入下载列表（状态「下载中」，进度写在条目上），面板状态随即重置，
-   * 可继续下载 / 编辑分片；取消与播放都在列表项上操作。
+   * 提交分片下载任务：由服务端拉取并合并分片。
+   * 面板不再持有下载状态，因此关闭弹窗 / 刷新页面都不会中断下载。
    */
   async function downloadHls() {
     const parsed = parsedPlaylist.value;
@@ -1148,13 +990,6 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
       notifyNegative('该视频使用 SAMPLE-AES 加密，暂不支持下载');
       return;
     }
-    const encrypted = segments.some(
-      (seg) => keys[seg.id - 1]?.method === 'AES-128',
-    );
-    if (encrypted && !globalThis.crypto?.subtle) {
-      notifyNegative('当前环境无法解密分片（需 https 或 localhost 访问）');
-      return;
-    }
 
     // 用户填了名字就用它（自动补扩展名），留空则回退到默认名
     const fileName = resolveDownloadName(
@@ -1162,120 +997,36 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
       hlsDefaultDownloadName.value,
       hlsDownloadExt.value,
     );
-    // 下载所需数据先快照：条目入列表后分片列表 / 地址仍可自由改动
-    const sequenceBase = parseMediaSequence(parsed.header);
-    const keyCache = new Map<string, Bytes>();
-    const duration = hlsKeptDuration.value;
     const sourceUrl = hlsParsedUrl.value || hlsURL.value.trim();
+    // 重建播放列表（含分片删除结果），交给服务端按序拉取
+    const playlist = buildPlaylistText(parsed, segments);
+    const total = segments.length;
 
-    // 1. 条目先入列表（下载中 0%），面板随即不再持有下载状态
-    hlsDownloadList.value.unshift({
-      id: `hls-dl-${++downloadSeq}`,
-      name: fileName,
-      segmentCount: 0,
-      totalCount: segments.length,
-      progress: 0,
-      status: 'downloading',
-      duration,
-      sizeText: '',
-      target: '正在下载…',
-      createdAt: Date.now(),
-      playable: false,
-      handle: null,
-      blob: null,
-      sourceUrl,
-    });
-    // 取回响应式代理：后续对字段的写入才能触发列表刷新
-    const item = hlsDownloadList.value[0];
-    const task: DownloadTask = { id: item.id, aborted: false, sink: null };
-    downloadTasks.set(task.id, task);
-
-    // 2. 保存对话框必须在用户手势内弹出，故先建 sink 再拉数据
-    let sink: DownloadSink | null;
+    hlsLoading.value = true;
     try {
-      sink = await createDownloadSink(fileName);
-    } catch (e) {
-      finishDownload(item, task, 'failed', '创建保存位置失败');
-      notifyNegative('下载失败：' + (e as Error).message);
-      return;
-    }
-    if (!sink) {
-      finishDownload(item, task, 'canceled', '已取消（未选择保存位置）');
-      return;
-    }
-    if (task.aborted) {
-      // 选位置期间用户已点取消，收掉刚建好的写入流
-      try {
-        await sink.abort();
-      } catch {
-        /* 忽略中止异常 */
+      const res = await HlsDownloadAPI({
+        playlist,
+        sourceUrl,
+        fileName,
+        dir: hlsDownloadDir.value,
+      });
+      if (res?.Code !== 200) {
+        notifyNegative(res?.Message || '创建下载任务失败');
+        return;
       }
-      finishDownload(item, task, 'canceled', '已取消');
-      return;
-    }
-    task.sink = sink;
-    item.name = sink.fileName;
-
-    try {
-      let written = 0;
-      let writtenBytes = 0;
-      const initChunk = await fetchInitSegment(parsed);
-      if (initChunk) {
-        await sink.write(initChunk);
-        writtenBytes += initChunk.byteLength;
-      }
-
-      for (let i = 0; i < segments.length; i += DOWNLOAD_BATCH_SIZE) {
-        if (task.aborted) throw new Error('已取消下载');
-        const batch = segments.slice(i, i + DOWNLOAD_BATCH_SIZE);
-        const chunks = await Promise.all(
-          batch.map((seg) =>
-            fetchSegmentChunk(
-              seg,
-              keys[seg.id - 1],
-              sequenceBase + seg.id - 1,
-              keyCache,
-            ),
-          ),
-        );
-        for (const chunk of chunks) {
-          await sink.write(chunk);
-          writtenBytes += chunk.byteLength;
-          written++;
-        }
-        // 进度写回列表项（面板不再显示进度）
-        item.segmentCount = written;
-        item.progress = Math.round((written / segments.length) * 100);
-      }
-
-      if (task.aborted) throw new Error('已取消下载');
-      await sink.close();
-      item.sizeText = formatSize(writtenBytes);
-      finishDownload(item, task, 'done', sink.target);
       $q.notify({
         type: 'positive',
-        message: `已保存 ${written} 个分片 · ${duration}`,
-        caption: sink.target,
+        message: `已提交服务端下载 · ${total} 个分片`,
+        caption: '关闭弹窗或刷新页面都不会中断下载',
         position: 'top',
       });
+      // 提交后立刻同步一次，让新任务出现在列表里
+      await refreshHlsDownloads();
+      syncDownloadPolling();
     } catch (e) {
-      try {
-        await sink.abort();
-      } catch {
-        /* 忽略中止异常 */
-      }
-      // 用户主动取消不算失败
-      if (task.aborted) {
-        finishDownload(item, task, 'canceled', '已取消');
-      } else {
-        finishDownload(
-          item,
-          task,
-          'failed',
-          '下载失败：' + (e as Error).message,
-        );
-        notifyNegative('下载失败：' + (e as Error).message);
-      }
+      notifyNegative('创建下载任务失败：' + (e as Error).message);
+    } finally {
+      hlsLoading.value = false;
     }
   }
 
@@ -1316,10 +1067,15 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     }
   });
 
+  // 首次进入时同步一次服务端下载任务：重开弹窗即可看到进行中的下载
+  void refreshHlsDownloads();
+
   function cleanup() {
-    // 中止所有未完成的下载任务
-    for (const id of [...downloadTasks.keys()]) abortDownloadTask(id);
-    downloadTasks.clear();
+    // 只释放与播放相关的本地资源；服务端下载任务照常继续
+    if (downloadPollTimer) {
+      clearInterval(downloadPollTimer);
+      downloadPollTimer = null;
+    }
     destroyHls();
     revokeBlobUrl();
     releaseDownloadPlaybackUrl();
@@ -1347,12 +1103,13 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     hlsKeptCount,
     hlsRemovedCount,
     hlsKeptDuration,
-    // 下载（另存为）
+    // 下载（服务端任务）
     hlsDownloadName,
     hlsDefaultDownloadName,
     hlsDownloadDir,
-    fsDirSupported,
-    // 下载列表（点下载即入列表，含进度 / 状态 / 回放）
+    hlsDownloadDirOptions,
+    hlsDownloadActive,
+    // 下载列表（服务端任务镜像，含进度 / 状态 / 回放）
     hlsDownloadList,
     hlsPlayingDownloadId,
     hlsDownloadMeta,
@@ -1366,7 +1123,8 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     restoreHlsSegments,
     downloadHls,
     cancelHlsDownload,
-    pickHlsDownloadDir,
+    chooseHlsDownloadDir,
+    refreshHlsDownloads,
     playHlsDownload,
     clearHlsDownloads,
     destroyHls,

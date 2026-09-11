@@ -87,6 +87,26 @@ export const DelTransferTasksInfo = async (taskID: string) => {
   return res && res.data;
 };
 
+/**
+ * 创建服务端 HLS 分片下载任务。
+ * 下载在服务端执行，前端关闭弹窗 / 刷新页面都不会中断。
+ */
+export const HlsDownloadAPI = async (data: {
+  playlist: string;
+  sourceUrl?: string;
+  fileName?: string;
+  dir?: string;
+}) => {
+  const res = await commonAxios().post('/api/hlsDownload', data);
+  return res && res.data;
+};
+
+/** 取消进行中的分片下载任务 */
+export const HlsCancelAPI = async (taskID: string) => {
+  const res = await commonAxios().post(`/api/hlsCancel/${taskID}`);
+  return res && res.data;
+};
+
 export const ClearCompletedTasks = async () => {
   const res = await commonAxios().post('/api/clearCompletedTasks');
   return res && res.data;

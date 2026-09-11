@@ -31,6 +31,7 @@ const (
 	PermOpMerge     = "op:merge"
 	PermOpCut       = "op:cut"
 	PermOpTorrent   = "op:torrent"
+	PermOpDownload  = "op:download"
 	PermOpScan      = "op:scan"
 	PermOpChat      = "op:chat"
 	PermOpNetwork   = "op:network"
@@ -52,6 +53,7 @@ func AllPermissions() []PermissionDef {
 		{Key: PermOpMerge, Name: "合并", Group: "操作", Description: "文件合并操作"},
 		{Key: PermOpCut, Name: "剪辑", Group: "操作", Description: "视频剪辑操作"},
 		{Key: PermOpTorrent, Name: "磁力下载", Group: "操作", Description: "磁力链接下载管理"},
+		{Key: PermOpDownload, Name: "分片下载", Group: "操作", Description: "HLS 分片链接下载"},
 		{Key: PermOpScan, Name: "扫描索引", Group: "操作", Description: "触发文件索引扫描"},
 		{Key: PermOpChat, Name: "AI 聊天", Group: "操作", Description: "使用 AI 聊天功能"},
 		{Key: PermOpNetwork, Name: "网络管理", Group: "操作", Description: "节点发现和网络设置"},
@@ -76,6 +78,7 @@ func DefaultUserPermissions() []string {
 		PermMenuPicture,
 		PermMenuImmersive,
 		PermOpTorrent,
+		PermOpDownload,
 		PermOpChat,
 	}
 }

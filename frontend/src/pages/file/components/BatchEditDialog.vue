@@ -184,7 +184,13 @@
                   <q-item-section>
                     <q-item-label class="text-caption text-weight-medium" style="line-clamp: 1">{{ v.Name || v.Files
                     }}</q-item-label>
-                    <q-item-label caption>{{ v.Type }} &middot; {{ taskFmtTime(v.CreateTime) }}</q-item-label>
+                    <q-item-label caption>
+                      {{ v.Type }} &middot; {{ taskFmtTime(v.CreateTime) }}
+                      <template v-if="isHlsTask(v)"> &middot; {{ taskSegmentText(v) }}</template>
+                    </q-item-label>
+                    <!-- 分片下载任务：进度条实时反映服务端已下载分片比例 -->
+                    <q-linear-progress v-if="isHlsTask(v)" :value="taskProgressValue(v)" size="3px" color="orange"
+                      track-color="rgba(255,152,0,0.2)" class="q-mt-xs rounded-borders" />
                   </q-item-section>
                   <q-item-section side>
                     <q-btn dense flat icon="fullscreen" color="orange" @click="taskLogFullscreenRef?.open(v)" />
@@ -205,6 +211,7 @@
                       }}</span>
                       <span v-if="v.FinishTime"> &middot; {{ taskShowTimeUse(v.FinishTime, v.CreateTime) }}</span>
                       <span> &middot; {{ taskFmtTime(v.CreateTime) }}</span>
+                      <span v-if="isHlsTask(v)"> &middot; {{ taskSegmentText(v) }}</span>
                     </q-item-label>
                   </q-item-section>
                   <q-item-section side>
@@ -336,6 +343,19 @@ const taskFilteredList = computed(() => {
 
 const taskStatusColor = (s) => s === '完成' ? 'green' : s === '失败' ? 'red' : s === '执行中' ? 'orange' : 'black';
 const taskFmtTime = (t) => date.formatDate(new Date(t), 'MM/DD HH:mm');
+
+// 分片下载任务（后端 TaskTypeHls）：服务端任务列表会实时回传分片进度
+const HLS_TASK_TYPE = '分片下载';
+const isHlsTask = (t) => t?.Type === HLS_TASK_TYPE;
+/** 分片进度文案：已完成/总分片数 + 百分比 */
+const taskSegmentText = (t) => {
+  const total = t.TotalSegments || 0;
+  const done = t.Segments || 0;
+  const percent = typeof t.Progress === 'number' ? t.Progress : (total ? Math.round((done * 100) / total) : 0);
+  return total ? `${done}/${total} 分片 · ${percent}%` : `${percent}%`;
+};
+/** 进度条取值：统一裁剪到 0~1，避免异常数据导致渲染越界 */
+const taskProgressValue = (t) => Math.min(1, Math.max(0, (t.Progress || 0) / 100));
 const taskShowTimeUse = (end, start) => {
   const sec = ((new Date(end).getFullYear() > 1000 ? new Date(end).getTime() : Date.now()) - new Date(start).getTime()) / 1000;
   return parseTimeZH(Number(sec.toFixed(0)));

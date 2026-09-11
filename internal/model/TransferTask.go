@@ -8,6 +8,7 @@ const (
 	TaskTypeCut   = types.TaskTypeCut
 	TaskTypeMerge = types.TaskTypeMerge
 	TaskTypeTrans = types.TaskTypeTrans
+	TaskTypeHls   = types.TaskTypeHls
 )
 
 const (
@@ -23,3 +24,4 @@ const UndefinedStr = types.UndefinedStr
 var NewMergeTask = types.NewMergeTask
 var NewTask = types.NewTask
 var NewCutTask = types.NewCutTask
+var NewHlsTask = types.NewHlsTask
