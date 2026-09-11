@@ -24,7 +24,7 @@ interface FsAccessWindow {
 }
 
 /** 句柄权限的查询与申请（lib.dom 尚未声明） */
-interface PermissionAwareHandle {
+export interface PermissionAwareHandle {
   queryPermission: (desc: {
     mode: 'read' | 'readwrite';
   }) => Promise<PermissionState>;
@@ -227,6 +227,8 @@ export interface DirWritable {
   stream: FileSystemWritableFileStream;
   /** 实际落盘的文件名（同名冲突时带序号） */
   fileName: string;
+  /** 落盘文件句柄：写入完成后可据此读回文件（页面内回放） */
+  handle: FileSystemFileHandle;
 }
 
 /** 在已授权目录里开一个可写文件流 */
@@ -237,7 +239,7 @@ export async function openWritableInDir(
   const actual = await findAvailableName(dir, fileName);
   const handle = await dir.getFileHandle(actual, { create: true });
   const stream = await handle.createWritable();
-  return { stream, fileName: actual };
+  return { stream, fileName: actual, handle };
 }
 
 export type SavePickResult =
@@ -264,7 +266,8 @@ export async function pickSaveFile(
     });
     return { status: 'ok', handle };
   } catch (e) {
-    if ((e as DOMException)?.name === 'AbortError') return { status: 'cancelled' };
+    if ((e as DOMException)?.name === 'AbortError')
+      return { status: 'cancelled' };
     if (!startIn) return { status: 'failed' };
   }
 
