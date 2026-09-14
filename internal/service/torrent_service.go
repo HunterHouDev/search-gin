@@ -238,6 +238,54 @@ func (ts *TorrentService) GetFileByPath(infoHash, filePath string) (*torrent.Fil
 	return nil, fmt.Errorf("未找到文件: %s", filePath)
 }
 
+// GetDownloadDir 返回磁力链文件在磁盘上的下载目录（默认打开整个种子目录，
+// 传入 filePath 时打开该文件所在子目录）。路径经规范化并限制在 dataDir 之内，防止穿越。
+func (ts *TorrentService) GetDownloadDir(infoHash, filePath string) (string, error) {
+	t, err := ts.GetTorrent(infoHash)
+	if err != nil {
+		return "", err
+	}
+
+	base := filepath.Join(ts.dataDir, t.Name())
+	if filePath != "" {
+		base = filepath.Join(base, filepath.Dir(filePath))
+	}
+
+	absBase, err := filepath.Abs(base)
+	if err != nil {
+		return "", err
+	}
+	absData, err := filepath.Abs(ts.dataDir)
+	if err != nil {
+		return "", err
+	}
+	if rel, err := filepath.Rel(absData, absBase); err != nil || strings.HasPrefix(rel, "..") {
+		return "", fmt.Errorf("非法的下载目录路径")
+	}
+	return absBase, nil
+}
+
+// videoMimeTypes 视频文件扩展名到 MIME 类型的映射，用于流式响应正确的 Content-Type
+var videoMimeTypes = map[string]string{
+	".mp4":  "video/mp4",
+	".mkv":  "video/x-matroska",
+	".avi":  "video/x-msvideo",
+	".wmv":  "video/x-ms-wmv",
+	".flv":  "video/x-flv",
+	".mov":  "video/quicktime",
+	".webm": "video/webm",
+	".ts":   "video/mp2t",
+	".m4v":  "video/x-m4v",
+}
+
+// contentTypeForFile 根据文件扩展名返回合适的视频 MIME 类型，未知扩展名回退为 video/mp4
+func contentTypeForFile(path string) string {
+	if ct, ok := videoMimeTypes[strings.ToLower(filepath.Ext(path))]; ok {
+		return ct
+	}
+	return "video/mp4"
+}
+
 func (ts *TorrentService) StreamVideo(infoHash string, w http.ResponseWriter, r *http.Request) error {
 	filePath := r.URL.Query().Get("file")
 	var videoFile *torrent.File
@@ -259,7 +307,7 @@ func (ts *TorrentService) StreamVideo(infoHash string, w http.ResponseWriter, r 
 	rangeHeader := r.Header.Get("Range")
 
 	if rangeHeader == "" {
-		w.Header().Set("Content-Type", "video/mp4")
+		w.Header().Set("Content-Type", contentTypeForFile(videoFile.Path()))
 		w.Header().Set("Content-Length", strconv.FormatInt(fileSize, 10))
 		w.Header().Set("Accept-Ranges", "bytes")
 		w.WriteHeader(http.StatusOK)
@@ -282,7 +330,7 @@ func (ts *TorrentService) StreamVideo(infoHash string, w http.ResponseWriter, r 
 
 	contentLength := end - start + 1
 
-	w.Header().Set("Content-Type", "video/mp4")
+	w.Header().Set("Content-Type", contentTypeForFile(videoFile.Path()))
 	w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, fileSize))
 	w.Header().Set("Content-Length", strconv.FormatInt(contentLength, 10))
 	w.Header().Set("Accept-Ranges", "bytes")

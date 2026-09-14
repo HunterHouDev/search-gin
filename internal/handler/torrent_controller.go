@@ -157,3 +157,35 @@ func GetTorrentFiles(c *gin.Context) {
 	res.Data = files
 	c.JSON(http.StatusOK, res)
 }
+
+// OpenTorrentFolderRequest 打开磁力链下载目录请求
+type OpenTorrentFolderRequest struct {
+	InfoHash string `json:"infoHash" binding:"required"`
+	FilePath string `json:"filePath"`
+}
+
+// PostOpenTorrentFolder 打开磁力链文件在磁盘上的下载目录
+func PostOpenTorrentFolder(c *gin.Context) {
+	if !requirePermission(c, "op:torrent") {
+		return
+	}
+	req, err := BindJSON[OpenTorrentFolderRequest](c, "请提供有效的参数")
+	if err != nil {
+		return
+	}
+
+	if service.TorrentApp == nil {
+		c.JSON(http.StatusServiceUnavailable, utils.NewFailByMsg("Torrent 服务未启动"))
+		return
+	}
+
+	dirPath, err := service.TorrentApp.GetDownloadDir(req.InfoHash, req.FilePath)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg(err.Error()))
+		return
+	}
+
+	utils.InfoFormat("open torrent folder:[%v]", dirPath)
+	utils.ExecCmdStart(dirPath)
+	c.JSON(http.StatusOK, utils.NewSuccessByMsg("打开成功"))
+}

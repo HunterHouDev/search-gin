@@ -77,9 +77,9 @@ function readStoredDownloadDir(): string {
 
 /** 解析出的单个 HLS 分片 */
 export interface HlsSegment {
-  /** 稳定 id（等于原始序号） */
+  /** 稳定 id（跨源全局唯一，用于删除 / 恢复） */
   id: number;
-  /** 原始序号，从 1 开始 */
+  /** 在所属源内的序号，从 1 开始 */
   index: number;
   /** #EXTINF 时长（秒），无则为 0 */
   duration: number;
@@ -91,12 +91,80 @@ export interface HlsSegment {
   extinf: string | null;
   /** #EXT-X-BYTERANGE 解析结果，null 表示整个资源就是一个分片 */
   byteRange: { length: number; offset: number } | null;
+  /** 所属源 id（多源合并时用于分组展示与重建） */
+  sourceId: string;
 }
 
 interface ParsedPlaylist {
   header: string[];
   segments: HlsSegment[];
   hasEndList: boolean;
+  /** #EXT-X-MEDIA-SEQUENCE，缺省 IV（AES-128）的推导基准 */
+  mediaSeq: number;
+  /** #EXT-X-VERSION，合并多个源时取最大值 */
+  version: number;
+}
+
+/**
+ * 一个 m3u8 源。支持添加多个源并按顺序合并：
+ * 播放时拼成一条带 #EXT-X-DISCONTINUITY 的播放列表，下载时由服务端按序拼接成一个文件。
+ */
+export interface HlsSource {
+  /** 稳定 id（同一地址重复解析时复用） */
+  id: string;
+  /** 源地址 */
+  url: string;
+  /** 该源的解析结果（文件头 + 全量分片） */
+  parsed: ParsedPlaylist;
+  /** 全量分片，与 parsed.segments 指向同一批对象 */
+  allSegments: HlsSegment[];
+  /** 该源分片的总时长（秒） */
+  totalSeconds: number;
+}
+
+/** 分片 id 自增序号：跨源全局唯一，源重排 / 删除后仍然稳定 */
+let hlsSegmentIdSeq = 0;
+
+/** 源 id 自增序号 */
+let hlsSourceIdSeq = 0;
+
+/** 分片链接输入行：每行一个地址，带稳定 id（避免拆行 / 删行时输入框被重建导致光标丢失） */
+export interface HlsUrlRow {
+  id: number;
+  value: string;
+}
+
+let hlsUrlRowIdSeq = 0;
+
+function createHlsUrlRow(value = ''): HlsUrlRow {
+  return { id: ++hlsUrlRowIdSeq, value };
+}
+
+/**
+ * 归一化输入行：丢弃空行（序号不留空档），并保证末尾始终有一个空行——
+ * 用户在最后一行输入后会自动出现下一行。
+ * keepEmptyId 指定的行即使为空也保留（正在清空重填的那一行，避免焦点丢失）。
+ */
+function normalizeHlsUrlRows(
+  rows: HlsUrlRow[],
+  keepEmptyId?: number,
+): HlsUrlRow[] {
+  const kept = rows.filter(
+    (row) => row.value.trim().length > 0 || row.id === keepEmptyId,
+  );
+  const last = kept[kept.length - 1];
+  if (!last || last.value.trim().length > 0) kept.push(createHlsUrlRow());
+  return kept;
+}
+
+/** 文本 → 输入行（空格 / 换行分隔，每行一个地址） */
+function toHlsUrlRows(text: string): HlsUrlRow[] {
+  return normalizeHlsUrlRows(
+    text
+      .split(/\s+/)
+      .filter((item) => item.length > 0)
+      .map((item) => createHlsUrlRow(item)),
+  );
 }
 
 /** #EXT-X-KEY 的加密方式 */
@@ -298,6 +366,21 @@ function hexToBytes(hex: string): Bytes | null {
   return bytes;
 }
 
+function bytesToHex(bytes: Bytes): string {
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** 按分片序号推导 IV（#EXT-X-KEY 未显式给出 IV 时的规范做法） */
+function sequenceIV(sequence: number): Bytes {
+  const iv = new Uint8Array(16);
+  let value = Math.max(0, Math.trunc(sequence));
+  for (let i = 15; i >= 0 && value > 0; i--) {
+    iv[i] = value % 256;
+    value = Math.floor(value / 256);
+  }
+  return iv;
+}
+
 function parseKeyTag(line: string): SegmentKey | null {
   const attrs = tagAttributes(line);
   const rawMethod = (attrs.METHOD || 'NONE').toUpperCase();
@@ -370,7 +453,11 @@ function segmentClassKey(url: string): string {
 }
 
 /** 解析 m3u8：分离全局头、分片（含段级标签），并把所有地址绝对化 */
-function parsePlaylist(text: string, baseUrl: string): ParsedPlaylist {
+function parsePlaylist(
+  text: string,
+  baseUrl: string,
+  sourceId: string,
+): ParsedPlaylist {
   const lines = text
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -382,6 +469,8 @@ function parsePlaylist(text: string, baseUrl: string): ParsedPlaylist {
   let pendingExtinf: string | null = null;
   let pendingByteRange: string | null = null;
   let hasEndList = false;
+  let mediaSeq = 0;
+  let version = 0;
   // 记录上一个子区间的结束位置：同一资源内 #EXT-X-BYTERANGE 省略偏移时接着往下切
   let lastRangeEnd = 0;
   let lastRangeUrl = '';
@@ -408,6 +497,15 @@ function parsePlaylist(text: string, baseUrl: string): ParsedPlaylist {
         else pendingTags.push(absolutizeTagUris(line, baseUrl));
         continue;
       }
+      // 合并多个源时要用到的两个头：分片序号（缺省 IV 推导）与协议版本
+      if (line.startsWith('#EXT-X-MEDIA-SEQUENCE')) {
+        const seq = Number(line.slice(line.indexOf(':') + 1).trim());
+        if (Number.isFinite(seq)) mediaSeq = seq;
+      }
+      if (line.startsWith('#EXT-X-VERSION')) {
+        const ver = Number(line.slice(line.indexOf(':') + 1).trim());
+        if (Number.isFinite(ver)) version = ver;
+      }
       if (GLOBAL_TAGS.some((tag) => line.startsWith(tag))) {
         header.push(absolutizeTagUris(line, baseUrl));
         continue;
@@ -432,24 +530,25 @@ function parsePlaylist(text: string, baseUrl: string): ParsedPlaylist {
     }
 
     segments.push({
-      id: segments.length + 1,
+      id: ++hlsSegmentIdSeq,
       index: segments.length + 1,
       duration: parseExtinfDuration(pendingExtinf),
       url,
       tags: pendingTags,
       extinf: pendingExtinf,
       byteRange,
+      sourceId,
     });
     pendingTags = [];
     pendingExtinf = null;
     pendingByteRange = null;
   }
 
-  return { header, segments, hasEndList };
+  return { header, segments, hasEndList, mediaSeq, version };
 }
 
-/** 用保留下来的分片重建播放列表文本 */
-function buildPlaylistText(
+/** 单源：保留该源的原始文件头，只按保留的分片重建（与既有行为一致） */
+function buildSingleSourceText(
   parsed: ParsedPlaylist,
   segments: HlsSegment[],
 ): string {
@@ -460,6 +559,89 @@ function buildPlaylistText(
     out.push(segment.url);
   }
   if (parsed.hasEndList) out.push('#EXT-X-ENDLIST');
+  return out.join('\n') + '\n';
+}
+
+/**
+ * 生成分片的密钥行。缺省 IV 时必须显式写出：多个源合并后分片序号整体位移，
+ * 播放器 / 服务端按序号推导出的 IV 会与源站加解密时的序号对不上。
+ */
+function renderSegmentKey(key: SegmentKey | null, sequence: number): string {
+  if (!key) return '#EXT-X-KEY:METHOD=NONE';
+  const iv = key.iv ?? sequenceIV(sequence);
+  return `#EXT-X-KEY:METHOD=${key.method},URI="${key.url}",IV=0x${bytesToHex(iv)}`;
+}
+
+/**
+ * 重建播放列表文本。
+ * - 单源：原样保留文件头（与既往行为一致）；
+ * - 多源：按顺序拼接，源之间插入 #EXT-X-DISCONTINUITY，并在每个源的首个分片前
+ *   声明该源自己的初始化段（#EXT-X-MAP）与密钥（带显式 IV），
+ *   播放器据此在段边界重建解码器，服务端据此按序切换初始化段。
+ */
+function buildPlaylistText(
+  sources: HlsSource[],
+  segments: HlsSegment[],
+): string {
+  const first = sources[0];
+  if (!first) return '';
+  if (sources.length === 1)
+    return buildSingleSourceText(first.parsed, segments);
+
+  const out: string[] = ['#EXTM3U'];
+  out.push(
+    `#EXT-X-VERSION:${Math.max(
+      3,
+      ...sources.map((source) => source.parsed.version),
+    )}`,
+  );
+  // 目标时长为合并后的最大分片时长，避免播放器按旧值预加载
+  const longest = segments.reduce((max, seg) => Math.max(max, seg.duration), 0);
+  out.push(`#EXT-X-TARGETDURATION:${Math.max(1, Math.ceil(longest))}`);
+  out.push('#EXT-X-MEDIA-SEQUENCE:0');
+  if (
+    sources.some((source) =>
+      source.parsed.header.some((line) =>
+        line.startsWith('#EXT-X-INDEPENDENT-SEGMENTS'),
+      ),
+    )
+  ) {
+    out.push('#EXT-X-INDEPENDENT-SEGMENTS');
+  }
+
+  let emitted = 0;
+  // 初始值取 NONE：源开头本身没有密钥时，不必输出多余的 METHOD=NONE；
+  // 该状态必须跨源延续——上一个源加密、下一个源不加密时必须补 METHOD=NONE
+  let currentKeyLine = '#EXT-X-KEY:METHOD=NONE';
+  for (const source of sources) {
+    const kept = segments.filter((seg) => seg.sourceId === source.id);
+    if (kept.length === 0) continue;
+    // 段与段之间必须标记不连续，播放器才会重建解码器
+    if (emitted > 0) out.push('#EXT-X-DISCONTINUITY');
+    // 初始化段（fMP4）：排在该源第一个分片之前，且在 DISCONTINUITY 之后
+    const mapLine = source.parsed.header.find((line) =>
+      line.startsWith('#EXT-X-MAP'),
+    );
+    if (mapLine) out.push(mapLine);
+
+    const keys = resolveSegmentKeys(source.parsed);
+    for (const seg of kept) {
+      const keyLine = renderSegmentKey(
+        keys[seg.index - 1] ?? null,
+        source.parsed.mediaSeq + seg.index - 1,
+      );
+      if (keyLine !== currentKeyLine) {
+        out.push(keyLine);
+        currentKeyLine = keyLine;
+      }
+      // 密钥行已由上面按显式 IV 统一输出，过滤掉原始标签里的 KEY 行
+      out.push(...seg.tags.filter((tag) => !tag.startsWith('#EXT-X-KEY')));
+      if (seg.extinf) out.push(seg.extinf);
+      out.push(seg.url);
+      emitted++;
+    }
+  }
+  out.push('#EXT-X-ENDLIST');
   return out.join('\n') + '\n';
 }
 
@@ -502,7 +684,19 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
   });
 
   const videoURL = ref('');
-  const hlsURL = ref('');
+  /** 分片链接输入行：每行一个 m3u8 地址，末尾自动保留一个空行 */
+  const hlsUrlRows = ref<HlsUrlRow[]>([createHlsUrlRow()]);
+  /** 分片链接文本（非空行拼接；输入框已改为多行，这里是它的读写视图） */
+  const hlsURL = computed<string>({
+    get: () =>
+      hlsUrlRows.value
+        .map((row) => row.value.trim())
+        .filter((item) => item.length > 0)
+        .join('\n'),
+    set: (val: string) => {
+      hlsUrlRows.value = toHlsUrlRows(val);
+    },
+  });
   const hlsLoading = ref(false);
   const hlsParsing = ref(false);
   let hlsInstance: HlsJs | null = null;
@@ -522,15 +716,45 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
   );
   let downloadPollTimer: ReturnType<typeof setInterval> | null = null;
 
-  // ── 分片解析状态 ────────────────────────────────────────────────────────────
-  const parsedPlaylist = ref<ParsedPlaylist | null>(null);
-  const hlsParsedUrl = ref('');
-  /** 解析出的全量分片（用于「恢复」） */
+  // ── 分片解析状态（支持多个 m3u8 源按顺序合并） ────────────────────────────────
+  /** 已添加的源，数组顺序即合并顺序 */
+  const hlsSources = ref<HlsSource[]>([]);
+  /** 全部源的全量分片（按源顺序扁平化，用于「恢复」） */
   const hlsAllSegments = ref<HlsSegment[]>([]);
   /** 当前保留的分片（删除后即时减少） */
   const hlsSegments = ref<HlsSegment[]>([]);
 
-  const hlsParsed = computed(() => parsedPlaylist.value !== null);
+  const hlsParsed = computed(() => hlsSources.value.length > 0);
+  const hlsSourceCount = computed(() => hlsSources.value.length);
+  /** 首个源地址：默认文件名、Referer 等以它为准 */
+  const hlsPrimaryUrl = computed(() => hlsSources.value[0]?.url ?? '');
+
+  /** 源列表（含保留分片数与时长），供 UI 展示 */
+  const hlsSourceList = computed(() =>
+    hlsSources.value.map((source) => {
+      const kept = hlsSegments.value.filter(
+        (seg) => seg.sourceId === source.id,
+      );
+      return {
+        source,
+        keptCount: kept.length,
+        totalCount: source.allSegments.length,
+        duration: formatSeconds(
+          kept.reduce((sum, seg) => sum + seg.duration, 0),
+        ),
+      };
+    }),
+  );
+
+  /** 分片按源分组，供分片列表渲染 */
+  const hlsSegmentGroups = computed(() =>
+    hlsSources.value.map((source) => ({
+      sourceId: source.id,
+      url: source.url,
+      segments: hlsSegments.value.filter((seg) => seg.sourceId === source.id),
+    })),
+  );
+
   const hlsTotalCount = computed(() => hlsAllSegments.value.length);
   const hlsKeptCount = computed(() => hlsSegments.value.length);
   const hlsRemovedCount = computed(
@@ -546,17 +770,19 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
   /** 用户自定义的保存文件名，空串表示使用默认名 */
   const hlsDownloadName = ref('');
 
-  /** 下载容器后缀：带 #EXT-X-MAP 初始化段的播放列表实际是 fMP4 */
+  /** 下载容器后缀：任一源带 #EXT-X-MAP 初始化段，合并结果即为 fMP4 */
   const hlsDownloadExt = computed(() =>
-    parsedPlaylist.value?.header.some((item) => item.startsWith('#EXT-X-MAP'))
+    hlsSources.value.some((source) =>
+      source.parsed.header.some((item) => item.startsWith('#EXT-X-MAP')),
+    )
       ? 'mp4'
       : 'ts',
   );
 
-  /** 默认下载文件名（输入框留空时使用），随解析到的地址变化 */
+  /** 默认下载文件名（输入框留空时使用），以首个源地址为准 */
   const hlsDefaultDownloadName = computed(() =>
     buildDownloadName(
-      fileNameFromUrl(hlsParsedUrl.value || hlsURL.value),
+      fileNameFromUrl(hlsPrimaryUrl.value || hlsURL.value),
       hlsDownloadExt.value,
     ),
   );
@@ -601,26 +827,27 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
 
   const canSubmitLink = computed(() => activeLinkValue.value.trim().length > 0);
 
-  /** 分片 tab 的输入框按钮只负责解析（播放按钮位于分片列表头部） */
+  /** 分片 tab 的输入框按钮只负责解析 / 追加（播放按钮位于分片列表头部） */
   // 磁力链按钮只负责「解析」，之后在弹窗里选文件再决定播放还是下载；
-  // 视频直链是直接播放；分片链按钮负责解析播放列表
+  // 视频直链是直接播放；分片链按钮负责解析播放列表，已解析时追加为新的源
   const linkActionLabel = computed(() => {
     if (linkTab.value === 'magnet') return '解析';
     if (linkTab.value === 'video') return '播放';
-    return hlsParsed.value ? '重新解析' : '解析';
+    return hlsParsed.value ? '添加' : '解析';
   });
 
   const linkActionIcon = computed(() => {
     if (linkTab.value === 'magnet') return 'troubleshoot';
     if (linkTab.value === 'video') return 'play_circle_filled';
-    return hlsParsed.value ? 'refresh' : 'troubleshoot';
+    return hlsParsed.value ? 'add' : 'troubleshoot';
   });
 
   const linkActionTooltip = computed(() => {
     if (linkTab.value === 'magnet') return '解析磁力链并选择要播放或下载的文件';
     if (linkTab.value === 'video') return activeLinkTab.value.tooltip;
-    if (!hlsParsed.value) return '解析分片列表';
-    return `重新拉取并解析播放列表（当前保留 ${hlsKeptCount.value} 个分片）`;
+    if (!hlsParsed.value)
+      return '解析分片列表，可一次粘贴多个 m3u8 地址（空格 / 换行分隔）';
+    return `继续添加 m3u8 作为后续片段（当前 ${hlsSourceCount.value} 个源、保留 ${hlsKeptCount.value} 个分片）；同一地址会重新解析`;
   });
 
   const linkActionLoading = computed(
@@ -665,12 +892,92 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
    * 重新添加 / 解析视频链接后列表必须保留，仍可回放。
    */
   function resetHlsParse() {
-    parsedPlaylist.value = null;
-    hlsParsedUrl.value = '';
+    hlsSources.value = [];
     hlsAllSegments.value = [];
     hlsSegments.value = [];
     // 地址变化后旧的下载文件名不再适用，回到默认名
     hlsDownloadName.value = '';
+  }
+
+  /** 添加 / 刷新一个源：同地址视为重新解析，原位替换且顺序不变 */
+  function upsertHlsSource(
+    url: string,
+    sourceId: string,
+    parsed: ParsedPlaylist,
+  ) {
+    const index = hlsSources.value.findIndex((item) => item.url === url);
+    const source: HlsSource = {
+      id: sourceId,
+      url,
+      parsed,
+      allSegments: parsed.segments,
+      totalSeconds: parsed.segments.reduce((sum, seg) => sum + seg.duration, 0),
+    };
+    const next = [...hlsSources.value];
+    if (index >= 0) next[index] = source;
+    else next.push(source);
+    hlsSources.value = next;
+
+    const keptIds = new Set(hlsSegments.value.map((seg) => seg.id));
+    hlsAllSegments.value = next.flatMap((item) => item.allSegments);
+    // 新解析 / 刷新的源默认全部保留，其它源沿用已有删除结果
+    hlsSegments.value = hlsAllSegments.value.filter(
+      (seg) => seg.sourceId === source.id || keptIds.has(seg.id),
+    );
+  }
+
+  /** 移除一个源及其分片 */
+  function removeHlsSource(sourceId: string) {
+    hlsSources.value = hlsSources.value.filter((item) => item.id !== sourceId);
+    hlsAllSegments.value = hlsAllSegments.value.filter(
+      (seg) => seg.sourceId !== sourceId,
+    );
+    hlsSegments.value = hlsSegments.value.filter(
+      (seg) => seg.sourceId !== sourceId,
+    );
+  }
+
+  /** 调整源的合并顺序（delta：-1 上移 / +1 下移） */
+  function moveHlsSource(sourceId: string, delta: number) {
+    const list = [...hlsSources.value];
+    const index = list.findIndex((item) => item.id === sourceId);
+    const target = index + delta;
+    if (index < 0 || target < 0 || target >= list.length) return;
+    [list[index], list[target]] = [list[target], list[index]];
+    hlsSources.value = list;
+    // 分片顺序跟随源顺序，已有的删除结果按 id 保留
+    const keptIds = new Set(hlsSegments.value.map((seg) => seg.id));
+    hlsAllSegments.value = list.flatMap((item) => item.allSegments);
+    hlsSegments.value = hlsAllSegments.value.filter((seg) =>
+      keptIds.has(seg.id),
+    );
+  }
+
+  /**
+   * 更新某一行分片链接。一行里粘贴多个地址（空格 / 换行分隔）会自动拆成多行，
+   * 且在最后一行输入后自动补出下一行空行——无需手动回车换行。
+   */
+  function updateHlsUrlRow(rowId: number, value: string) {
+    const rows = [...hlsUrlRows.value];
+    const index = rows.findIndex((row) => row.id === rowId);
+    if (index < 0) return;
+
+    const urls = value.split(/\s+/).filter((item) => item.length > 0);
+    // 第一个地址沿用原行 id：正在输入的那一行不会被重建，光标不丢；
+    // 清空时同样保留该行（值为空），由用户决定重新填写还是继续往下写
+    const replacement: HlsUrlRow[] =
+      urls.length > 0
+        ? urls.map((url, i) =>
+            i === 0 ? { ...rows[index], value: url } : createHlsUrlRow(url),
+          )
+        : [{ ...rows[index], value: '' }];
+    rows.splice(index, 1, ...replacement);
+    hlsUrlRows.value = normalizeHlsUrlRows(rows, rowId);
+  }
+
+  /** 清空全部输入行 */
+  function clearHlsUrlRows() {
+    hlsUrlRows.value = [createHlsUrlRow()];
   }
 
   function removeHlsSegment(id: number) {
@@ -706,37 +1013,66 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     return await res.text();
   }
 
-  /** 解析分片链接，把分片列表列出来 */
+  /**
+   * 解析分片链接。输入框支持一次粘贴多个地址（空格 / 换行分隔）：
+   * 已存在的地址原位刷新，新地址追加为后续片段——多个源按顺序合并播放 / 下载。
+   */
   async function parseHls() {
-    const url = hlsURL.value.trim();
-    if (!isHttpUrl(url)) {
+    const raw = hlsURL.value.trim();
+    if (!raw) {
+      notifyNegative('请输入分片链接');
+      return;
+    }
+    const urls = raw.split(/\s+/).filter((item) => item.length > 0);
+    const invalid = urls.find((item) => !isHttpUrl(item));
+    if (invalid) {
       notifyNegative('请输入有效的分片链接（http/https）');
       return;
     }
+
     hlsParsing.value = true;
+    const failures: string[] = [];
+    let added = 0;
+    let addedSegments = 0;
     try {
-      const text = await fetchPlaylistText(url);
-      if (!text.includes('#EXTM3U')) {
-        throw new Error('内容不是有效的 m3u8 播放列表');
+      for (const url of urls) {
+        try {
+          const text = await fetchPlaylistText(url);
+          if (!text.includes('#EXTM3U')) {
+            throw new Error('内容不是有效的 m3u8 播放列表');
+          }
+          // 已有地址沿用原源 id，保证刷新后删除结果之外的顺序与分组不变
+          const existed = hlsSources.value.find((item) => item.url === url);
+          const sourceId = existed?.id ?? `src-${++hlsSourceIdSeq}`;
+          const parsed = parsePlaylist(text, url, sourceId);
+          if (parsed.segments.length === 0) {
+            throw new Error('播放列表中没有可用分片');
+          }
+          upsertHlsSource(url, sourceId, parsed);
+          added++;
+          addedSegments += parsed.segments.length;
+        } catch (e) {
+          failures.push(`${url}：${(e as Error).message}`);
+        }
       }
-      const parsed = parsePlaylist(text, url);
-      if (parsed.segments.length === 0) {
-        throw new Error('播放列表中没有可用分片');
-      }
-      parsedPlaylist.value = parsed;
-      hlsParsedUrl.value = url;
-      hlsAllSegments.value = parsed.segments;
-      hlsSegments.value = [...parsed.segments];
-      $q.notify({
-        type: 'positive',
-        message: `解析完成，共 ${parsed.segments.length} 个分片`,
-        position: 'top',
-      });
-    } catch (e) {
-      resetHlsParse();
-      notifyNegative('解析失败：' + (e as Error).message);
     } finally {
       hlsParsing.value = false;
+    }
+
+    if (added > 0) {
+      // 解析成功即清空输入框，便于继续粘贴下一个地址
+      hlsURL.value = '';
+      $q.notify({
+        type: 'positive',
+        message:
+          hlsSourceCount.value > 1
+            ? `已添加 ${added} 个播放列表 / ${addedSegments} 个分片，当前共 ${hlsSourceCount.value} 个源将顺序合并`
+            : `解析完成，共 ${addedSegments} 个分片`,
+        position: 'top',
+      });
+    }
+    if (failures.length > 0) {
+      notifyNegative(`解析失败：${failures.join('；')}`);
     }
   }
 
@@ -801,18 +1137,27 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     }
   }
 
-  /** 播放剩余分片：有删除时用重建后的播放列表，否则直接播原始地址 */
+  /** 播放剩余分片：有删除或多个源时用重建后的播放列表，否则直接播原始地址 */
   async function playHlsRemaining() {
-    const parsed = parsedPlaylist.value;
-    if (!parsed || hlsSegments.value.length === 0) {
+    const sources = hlsSources.value;
+    const segments = hlsSegments.value;
+    if (sources.length === 0 || segments.length === 0) {
       notifyNegative('没有可播放的分片');
       return;
     }
     const removed = hlsRemovedCount.value;
-    if (removed > 0 && !parsed.hasEndList) {
+    const multi = sources.length > 1;
+    if (removed > 0 && !sources.every((item) => item.parsed.hasEndList)) {
       $q.notify({
         type: 'warning',
         message: '该播放列表疑似直播流，删除分片可能导致时间轴异常',
+        position: 'top',
+      });
+    }
+    if (multi) {
+      $q.notify({
+        type: 'info',
+        message: `按顺序合并播放 ${sources.length} 个播放列表`,
         position: 'top',
       });
     }
@@ -821,10 +1166,11 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     revokeBlobUrl();
     releaseDownloadPlaybackUrl();
 
-    const name = fileNameFromUrl(hlsParsedUrl.value || hlsURL.value);
-    let source = hlsParsedUrl.value || hlsURL.value.trim();
-    if (removed > 0) {
-      const text = buildPlaylistText(parsed, hlsSegments.value);
+    const name = fileNameFromUrl(hlsPrimaryUrl.value || hlsURL.value);
+    let source = hlsPrimaryUrl.value || hlsURL.value.trim();
+    // 多源合并或删过分片时，分片序号 / 密钥行与原始播放列表已对不上，必须重建
+    if (removed > 0 || multi) {
+      const text = buildPlaylistText(sources, segments);
       blobUrl = URL.createObjectURL(new Blob([text], { type: M3U8_MIME }));
       source = blobUrl;
     }
@@ -978,15 +1324,23 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
    * 面板不再持有下载状态，因此关闭弹窗 / 刷新页面都不会中断下载。
    */
   async function downloadHls() {
-    const parsed = parsedPlaylist.value;
+    const sources = hlsSources.value;
     const segments = hlsSegments.value;
-    if (!parsed || segments.length === 0) {
+    if (sources.length === 0 || segments.length === 0) {
       notifyNegative('没有可下载的分片');
       return;
     }
 
-    const keys = resolveSegmentKeys(parsed);
-    if (segments.some((seg) => keys[seg.id - 1]?.method === 'SAMPLE-AES')) {
+    // SAMPLE-AES 无法在服务端解密：按源分别解出每个分片生效的密钥再校验
+    const keysBySource = new Map(
+      sources.map((item) => [item.id, resolveSegmentKeys(item.parsed)]),
+    );
+    const unsupported = segments.some(
+      (seg) =>
+        keysBySource.get(seg.sourceId)?.[seg.index - 1]?.method ===
+        'SAMPLE-AES',
+    );
+    if (unsupported) {
       notifyNegative('该视频使用 SAMPLE-AES 加密，暂不支持下载');
       return;
     }
@@ -997,9 +1351,9 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
       hlsDefaultDownloadName.value,
       hlsDownloadExt.value,
     );
-    const sourceUrl = hlsParsedUrl.value || hlsURL.value.trim();
-    // 重建播放列表（含分片删除结果），交给服务端按序拉取
-    const playlist = buildPlaylistText(parsed, segments);
+    const sourceUrl = hlsPrimaryUrl.value || hlsURL.value.trim();
+    // 重建播放列表（含分片删除结果与多源合并），交给服务端按序拉取
+    const playlist = buildPlaylistText(sources, segments);
     const total = segments.length;
 
     hlsLoading.value = true;
@@ -1017,9 +1371,13 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
       $q.notify({
         type: 'positive',
         message: `已提交服务端下载 · ${total} 个分片`,
-        caption: '关闭弹窗或刷新页面都不会中断下载',
+        caption: '下载在服务端继续，分片列表已清空',
         position: 'top',
       });
+      // 任务已交给服务端，本地这批解析结果随之作废：清空分片列表与输入框里的链接列表，
+      // 方便直接粘贴下一组地址。下载列表保留——它是服务端任务的镜像，与本地状态无关。
+      resetHlsParse();
+      clearHlsUrlRows();
       // 提交后立刻同步一次，让新任务出现在列表里
       await refreshHlsDownloads();
       syncDownloadPolling();
@@ -1060,13 +1418,6 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     await parseHls();
   }
 
-  // 输入地址变化后，之前的解析结果失效
-  watch(hlsURL, () => {
-    if (hlsParsed.value && hlsURL.value.trim() !== hlsParsedUrl.value) {
-      resetHlsParse();
-    }
-  });
-
   // 首次进入时同步一次服务端下载任务：重开弹窗即可看到进行中的下载
   void refreshHlsDownloads();
 
@@ -1090,15 +1441,22 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     activeLinkTab,
     activeLinkValue,
     canSubmitLink,
+    // 分片链接多行输入（每行一个地址，带排序号，自动续行）
+    hlsUrlRows,
+    updateHlsUrlRow,
+    clearHlsUrlRows,
     hlsLoading,
     hlsParsing,
     linkActionLabel,
     linkActionIcon,
     linkActionTooltip,
     linkActionLoading,
-    // 分片列表
+    // 分片列表（支持多个 m3u8 源按顺序合并）
     hlsParsed,
     hlsSegments,
+    hlsSegmentGroups,
+    hlsSourceList,
+    hlsSourceCount,
     hlsTotalCount,
     hlsKeptCount,
     hlsRemovedCount,
@@ -1121,6 +1479,8 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     removeHlsSegment,
     removeHlsSimilarSegments,
     restoreHlsSegments,
+    removeHlsSource,
+    moveHlsSource,
     downloadHls,
     cancelHlsDownload,
     chooseHlsDownloadDir,

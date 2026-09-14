@@ -92,6 +92,19 @@ module.exports = configure(function (/* ctx */) {
           stores: path.resolve('src/stores'),
           statics: path.resolve('src/statics'),
         });
+
+        // 依赖预构建：显式声明只在懒加载路由/组件里才用到的第三方包。
+        // 否则 Vite 要等首次访问该路由时才发现新依赖并重新预构建，
+        // 页面里已缓存的 ?v=<hash> 立刻过期，报 504 Outdated Optimize Dep。
+        viteConf.optimizeDeps = viteConf.optimizeDeps || {};
+        viteConf.optimizeDeps.include = [
+          ...(viteConf.optimizeDeps.include || []),
+          '@vueuse/core', // 播放器 / 搜索页等懒加载组件
+          'axios', // boot/axios
+          'hls.js', // useLinkPlayback 分片播放
+          'qrcode', // QrDownloadDialog
+          'sortablejs', // VideoListSide 拖拽排序
+        ];
       },
     },
 

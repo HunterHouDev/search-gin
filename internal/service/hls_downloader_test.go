@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -86,6 +87,62 @@ func TestRunHlsDownloadRetriesSegment(t *testing.T) {
 	got, err := os.ReadFile(out.Name())
 	assert.NoError(t, err)
 	assert.Equal(t, "/seg1", string(got))
+}
+
+// TestRunHlsDownloadWritesInitSegmentPerPart 校验多个播放列表合并后的文本：
+// 每个源自己的初始化段（#EXT-X-MAP）必须写在该源分片之前，且同一初始化段只拉取一次。
+func TestRunHlsDownloadWritesInitSegmentPerPart(t *testing.T) {
+	var mu sync.Mutex
+	requests := map[string]int{}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		requests[r.URL.Path]++
+		mu.Unlock()
+
+		name := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/"), ".mp4")
+		fmt.Fprintf(w, "%s|", name)
+	}))
+	defer srv.Close()
+
+	text := strings.Join([]string{
+		"#EXTM3U",
+		"#EXT-X-TARGETDURATION:4",
+		fmt.Sprintf(`#EXT-X-MAP:URI="%s/initA.mp4"`, srv.URL),
+		"#EXTINF:4.0,",
+		srv.URL + "/a1",
+		"#EXTINF:4.0,",
+		srv.URL + "/a2",
+		"#EXT-X-DISCONTINUITY",
+		fmt.Sprintf(`#EXT-X-MAP:URI="%s/initB.mp4"`, srv.URL),
+		"#EXTINF:4.0,",
+		srv.URL + "/b1",
+		"#EXTINF:4.0,",
+		srv.URL + "/b2",
+	}, "\n")
+
+	pl, err := parseHlsPlaylistText(text, srv.URL+"/index.m3u8")
+	assert.NoError(t, err)
+	// 首个初始化段用于判定输出容器，初始化段总数用于提示多段合并
+	assert.Equal(t, srv.URL+"/initA.mp4", pl.initMap)
+	assert.Equal(t, 2, hlsInitMapCount(pl))
+
+	out, err := os.Create(filepath.Join(t.TempDir(), "video.mp4"))
+	assert.NoError(t, err)
+	defer out.Close()
+
+	_, err = runHlsDownload(context.Background(), "test-init", pl, out, "")
+	assert.NoError(t, err)
+
+	got, err := os.ReadFile(out.Name())
+	assert.NoError(t, err)
+	assert.Equal(t, "initA|a1|a2|initB|b1|b2|", string(got))
+
+	// 同一初始化段被两个分片共用，只应拉取一次
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Equal(t, 1, requests["/initA.mp4"])
+	assert.Equal(t, 1, requests["/initB.mp4"])
 }
 
 // TestRunHlsDownloadCanceled 校验取消后立即返回取消错误，而不是等待全部完成

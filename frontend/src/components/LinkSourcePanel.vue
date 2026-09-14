@@ -18,7 +18,10 @@
     <!-- 链接输入框 -->
     <div
       class="magnet-input-wrapper"
-      :class="{ 'magnet-focused': linkFocused }"
+      :class="{
+        'magnet-focused': linkFocused,
+        'magnet-input-multi': linkTab === 'hls',
+      }"
     >
       <q-icon
         :name="activeLinkTab.icon"
@@ -26,7 +29,37 @@
         size="20px"
         class="magnet-icon"
       />
+      <!-- 分片链接：多行输入，每行一个地址（带排序号，输入后自动生成下一行） -->
+      <div v-if="linkTab === 'hls'" class="hls-url-rows">
+        <div
+          v-for="(row, index) in hlsUrlRows"
+          :key="row.id"
+          class="hls-url-row"
+        >
+          <span class="hls-url-order">{{ index + 1 }}</span>
+          <q-input
+            :model-value="row.value"
+            :placeholder="
+              index === 0
+                ? activeLinkTab.placeholder
+                : '继续输入或粘贴 m3u8 地址（可一次粘贴多个）'
+            "
+            dark
+            dense
+            borderless
+            class="hls-url-field"
+            :disable="hlsParsing"
+            @update:model-value="
+              (val) => updateHlsUrlRow(row.id, String(val ?? ''))
+            "
+            @keyup.enter="submitLink"
+            @focus="linkFocused = true"
+            @blur="linkFocused = false"
+          />
+        </div>
+      </div>
       <q-input
+        v-else
         v-model="activeLinkValue"
         :placeholder="activeLinkTab.placeholder"
         dark
@@ -37,6 +70,20 @@
         @focus="linkFocused = true"
         @blur="linkFocused = false"
       />
+      <q-btn
+        v-if="linkTab === 'hls' && canSubmitLink"
+        flat
+        dense
+        round
+        size="sm"
+        color="indigo-4"
+        icon="backspace"
+        :disable="hlsParsing"
+        @click="clearHlsUrlRows"
+        class="hls-url-clear-btn"
+      >
+        <q-tooltip class="bg-dark text-white">清空全部地址</q-tooltip>
+      </q-btn>
       <q-btn
         flat
         dense
@@ -66,7 +113,9 @@
           <div class="hls-segment-header">
             <q-icon name="playlist_play" size="16px" color="indigo-4" />
             <span class="hls-segment-summary">
-              保留 {{ hlsKeptCount }}/{{ hlsTotalCount }} 个分片 ·
+              <template v-if="hlsSourceCount > 1"
+                >{{ hlsSourceCount }} 个源 · </template
+              >保留 {{ hlsKeptCount }}/{{ hlsTotalCount }} 个分片 ·
               {{ hlsKeptDuration }}
               <template v-if="hlsRemovedCount"
                 >（已删除 {{ hlsRemovedCount }}）</template
@@ -116,10 +165,67 @@
               :disable="!hlsKeptCount"
               @click="playHlsRemaining"
             >
-              <q-tooltip class="bg-dark text-white"
-                >播放剩余 {{ hlsKeptCount }} 个分片</q-tooltip
-              >
+              <q-tooltip class="bg-dark text-white">{{
+                hlsSourceCount > 1
+                  ? `按顺序合并播放 ${hlsSourceCount} 个源的 ${hlsKeptCount} 个分片`
+                  : `播放剩余 ${hlsKeptCount} 个分片`
+              }}</q-tooltip>
             </q-btn>
+          </div>
+
+          <!-- 源列表：多个 m3u8 按这里显示的顺序合并，可上移 / 下移 / 移除 -->
+          <div v-if="hlsSourceList.length > 1" class="hls-source-list">
+            <div
+              v-for="(item, index) in hlsSourceList"
+              :key="item.source.id"
+              class="hls-source-item"
+            >
+              <span class="hls-source-order">{{ index + 1 }}</span>
+              <span class="hls-source-url" :title="item.source.url">{{
+                item.source.url
+              }}</span>
+              <span class="hls-source-meta"
+                >{{ item.keptCount }}/{{ item.totalCount }} 个分片 ·
+                {{ item.duration }}</span
+              >
+              <q-btn
+                flat
+                round
+                dense
+                size="sm"
+                color="indigo-4"
+                icon="arrow_upward"
+                :disable="index === 0"
+                @click="moveHlsSource(item.source.id, -1)"
+              >
+                <q-tooltip class="bg-dark text-white">上移</q-tooltip>
+              </q-btn>
+              <q-btn
+                flat
+                round
+                dense
+                size="sm"
+                color="indigo-4"
+                icon="arrow_downward"
+                :disable="index === hlsSourceList.length - 1"
+                @click="moveHlsSource(item.source.id, 1)"
+              >
+                <q-tooltip class="bg-dark text-white">下移</q-tooltip>
+              </q-btn>
+              <q-btn
+                flat
+                round
+                dense
+                size="sm"
+                color="red-4"
+                icon="delete_outline"
+                @click="removeHlsSource(item.source.id)"
+              >
+                <q-tooltip class="bg-dark text-white"
+                  >移除该源及其分片</q-tooltip
+                >
+              </q-btn>
+            </div>
           </div>
           <!-- 下载设置：文件名 + 目录 + 下载按钮，撑满一行（文件名自适应剩余宽度） -->
           <div class="hls-download-row">
@@ -153,7 +259,11 @@
               :label="hlsDownloadDir || '下载目录'"
             >
               <q-list dense class="hls-dir-menu">
-                <q-item clickable v-close-popup @click="chooseHlsDownloadDir('')">
+                <q-item
+                  clickable
+                  v-close-popup
+                  @click="chooseHlsDownloadDir('')"
+                >
                   <q-item-section>
                     <q-item-label>默认目录</q-item-label>
                     <q-item-label caption
@@ -183,7 +293,7 @@
                 }}
               </q-tooltip>
             </q-btn-dropdown>
-            <!-- 点下载后任务交给服务端，这里保持可用以便继续提交下载 -->
+            <!-- 点下载后任务交给服务端执行，本地分片列表随之清空，可继续粘贴下一组地址 -->
             <q-btn
               flat
               dense
@@ -203,57 +313,76 @@
             </q-btn>
           </div>
           <div class="hls-segment-list">
-            <div
-              v-for="seg in hlsSegments"
-              :key="seg.id"
-              class="hls-segment-item"
+            <template
+              v-for="(group, groupIndex) in hlsSegmentGroups"
+              :key="group.sourceId"
             >
-              <span class="hls-segment-index">#{{ seg.index }}</span>
-              <span class="hls-segment-duration">{{
-                seg.duration ? seg.duration.toFixed(1) + 's' : '--'
-              }}</span>
-              <span
-                class="hls-segment-url"
-                :title="seg.url"
-                @click="copySegmentUrl(seg)"
-                >{{ seg.url }}</span
+              <!-- 多源时标出每段的边界，便于分辨删除的是哪一个源的分片 -->
+              <div v-if="hlsSourceCount > 1" class="hls-segment-group">
+                <span class="hls-segment-group-label"
+                  >源 {{ groupIndex + 1 }}</span
+                >
+                <span class="hls-segment-group-url" :title="group.url">{{
+                  group.url
+                }}</span>
+                <span class="hls-segment-group-count"
+                  >{{ group.segments.length }} 个分片</span
+                >
+              </div>
+              <div
+                v-for="seg in group.segments"
+                :key="seg.id"
+                class="hls-segment-item"
               >
-              <q-btn
-                flat
-                round
-                dense
-                size="sm"
-                color="indigo-4"
-                icon="content_copy"
-                @click="copySegmentUrl(seg)"
-              >
-                <q-tooltip class="bg-dark text-white">复制该分片链接</q-tooltip>
-              </q-btn>
-              <q-btn
-                flat
-                round
-                dense
-                size="sm"
-                color="deep-orange-4"
-                icon="delete_sweep"
-                @click="removeHlsSimilarSegments(seg.id)"
-              >
-                <q-tooltip class="bg-dark text-white">
-                  删除同类分片（最后一节不同、前面都相同的全部删除）
-                </q-tooltip>
-              </q-btn>
-              <q-btn
-                flat
-                round
-                dense
-                size="sm"
-                color="red-4"
-                icon="delete_outline"
-                @click="removeHlsSegment(seg.id)"
-              >
-                <q-tooltip class="bg-dark text-white">删除该分片</q-tooltip>
-              </q-btn>
-            </div>
+                <span class="hls-segment-index">#{{ seg.index }}</span>
+                <span class="hls-segment-duration">{{
+                  seg.duration ? seg.duration.toFixed(1) + 's' : '--'
+                }}</span>
+                <span
+                  class="hls-segment-url"
+                  :title="seg.url"
+                  @click="copySegmentUrl(seg)"
+                  >{{ seg.url }}</span
+                >
+                <q-btn
+                  flat
+                  round
+                  dense
+                  size="sm"
+                  color="indigo-4"
+                  icon="content_copy"
+                  @click="copySegmentUrl(seg)"
+                >
+                  <q-tooltip class="bg-dark text-white"
+                    >复制该分片链接</q-tooltip
+                  >
+                </q-btn>
+                <q-btn
+                  flat
+                  round
+                  dense
+                  size="sm"
+                  color="deep-orange-4"
+                  icon="delete_sweep"
+                  @click="removeHlsSimilarSegments(seg.id)"
+                >
+                  <q-tooltip class="bg-dark text-white">
+                    删除同类分片（最后一节不同、前面都相同的全部删除）
+                  </q-tooltip>
+                </q-btn>
+                <q-btn
+                  flat
+                  round
+                  dense
+                  size="sm"
+                  color="red-4"
+                  icon="delete_outline"
+                  @click="removeHlsSegment(seg.id)"
+                >
+                  <q-tooltip class="bg-dark text-white">删除该分片</q-tooltip>
+                </q-btn>
+              </div>
+            </template>
           </div>
         </template>
 
@@ -471,6 +600,9 @@ const {
   activeLinkTab,
   activeLinkValue,
   canSubmitLink,
+  hlsUrlRows,
+  updateHlsUrlRow,
+  clearHlsUrlRows,
   hlsLoading,
   linkActionLabel,
   linkActionIcon,
@@ -478,6 +610,9 @@ const {
   linkActionLoading,
   hlsParsed,
   hlsSegments,
+  hlsSegmentGroups,
+  hlsSourceList,
+  hlsSourceCount,
   hlsTotalCount,
   hlsKeptCount,
   hlsRemovedCount,
@@ -495,6 +630,8 @@ const {
   removeHlsSegment,
   removeHlsSimilarSegments,
   restoreHlsSegments,
+  removeHlsSource,
+  moveHlsSource,
   downloadHls,
   cancelHlsDownload,
   chooseHlsDownloadDir,
@@ -718,6 +855,65 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
   color: rgba(165, 148, 249, 0.38);
 }
 
+/* 分片链接多行输入：胶囊形改圆角矩形，图标 / 按钮与首行对齐 */
+.magnet-input-wrapper.magnet-input-multi {
+  align-items: flex-start;
+  border-radius: 18px;
+  padding: 10px 8px 10px 14px;
+}
+
+.magnet-input-wrapper.magnet-input-multi .magnet-icon {
+  margin-top: 6px;
+}
+
+.magnet-input-wrapper.magnet-input-multi .magnet-submit-btn {
+  margin-top: 2px;
+}
+
+.hls-url-rows {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* 地址较多时内部滚动，输入框高度不无限增长 */
+  max-height: 112px;
+  overflow-y: auto;
+  padding: 2px 0;
+}
+
+.hls-url-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hls-url-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.hls-url-field :deep(.q-field__control) {
+  background: transparent;
+  border: none;
+  min-height: 26px;
+}
+
+.hls-url-field :deep(.q-field__native) {
+  color: #c4b5fd;
+  font-size: 0.86rem;
+}
+
+.hls-url-field :deep(.q-field__native::placeholder) {
+  color: rgba(165, 148, 249, 0.38);
+}
+
+.hls-url-clear-btn {
+  flex-shrink: 0;
+  margin-top: 2px;
+  opacity: 0.75;
+}
+
 .magnet-submit-btn {
   flex-shrink: 0;
   padding: 0 14px;
@@ -846,6 +1042,92 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
   max-height: 220px;
   overflow-y: auto;
   padding: 4px 0;
+}
+
+/* ── 源列表（多个 m3u8 的合并顺序） ────────────────────────────────────────── */
+.hls-source-list {
+  max-height: 132px;
+  overflow-y: auto;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(99, 102, 241, 0.18);
+  background: rgba(139, 92, 246, 0.06);
+}
+
+.hls-source-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 10px;
+  font-size: 0.74rem;
+  color: rgba(196, 181, 253, 0.75);
+  transition: background 0.15s;
+}
+
+.hls-source-item:hover {
+  background: rgba(139, 92, 246, 0.14);
+}
+
+.hls-source-order,
+.hls-url-order {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  font-size: 0.66rem;
+  color: #e0e7ff;
+  background: rgba(99, 102, 241, 0.35);
+  border-radius: 50%;
+  font-variant-numeric: tabular-nums;
+}
+
+.hls-source-url {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
+}
+
+.hls-source-meta {
+  flex-shrink: 0;
+  color: rgba(165, 148, 249, 0.8);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 分片列表里的源分组标题 ────────────────────────────────────────────────── */
+.hls-segment-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 2px 10px;
+  font-size: 0.68rem;
+  color: rgba(148, 163, 184, 0.9);
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.hls-segment-group-label {
+  flex-shrink: 0;
+  color: rgba(129, 140, 248, 0.95);
+}
+
+.hls-segment-group-url {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
+}
+
+.hls-segment-group-count {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .hls-segment-item {
@@ -977,6 +1259,15 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
 
   .hls-segment-list {
     max-height: 150px;
+  }
+
+  /* 小屏下源列表同样收窄，避免挤掉分片列表 */
+  .hls-source-list {
+    max-height: 88px;
+  }
+
+  .hls-url-rows {
+    max-height: 88px;
   }
 
   .hls-segment-url {

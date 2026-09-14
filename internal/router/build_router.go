@@ -210,6 +210,7 @@ func BuildAPIRouter(sigChan chan os.Signal) *gin.Engine {
 	router.GET("/api/torrent/stream/:infoHash", handler.GetTorrentStream)
 	router.GET("/api/torrent/status/:infoHash", handler.GetTorrentStatus)
 	router.DELETE("/api/torrent/:infoHash", handler.DeleteTorrent)
+	router.POST("/api/torrent/openFolder", handler.PostOpenTorrentFolder)
 
 	// 文件流路由：在 :10081 上使用 StreamTokenAuth 中间件（与 :10082 一致的 token 校验）
 	// AuthMiddleware 已跳过 /api/stream/ 路径，不会要求 Bearer Token

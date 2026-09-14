@@ -142,6 +142,11 @@ type hlsSegmentItem struct {
 	url       string
 	byteRange *hlsByteRange
 	key       *hlsKey
+	// initMap 该分片所属的初始化段（#EXT-X-MAP，fMP4 流）。
+	// 合并多个播放列表时中途可能切换初始化段，因此记录在每个分片上，
+	// 而不是整个播放列表只保留一个。
+	initMap   string
+	initRange *hlsByteRange
 }
 
 type hlsPlaylist struct {
@@ -229,10 +234,13 @@ func resolveHlsURL(base, ref string) string {
 	return bu.ResolveReference(u).String()
 }
 
-// parseHlsPlaylistText 解析 m3u8 文本；base 用于补全相对地址
+// parseHlsPlaylistText 解析 m3u8 文本；base 用于补全相对地址。
+// 支持一段文本里出现多个 #EXT-X-MAP（多源合并后的播放列表）。
 func parseHlsPlaylistText(text, base string) (*hlsPlaylist, error) {
 	pl := &hlsPlaylist{}
 	var currentKey *hlsKey
+	var currentInitMap string
+	var currentInitRange *hlsByteRange
 	var pendingRangeRaw string
 	var lastRangeEnd int64
 	var lastRangeURL string
@@ -263,9 +271,15 @@ func parseHlsPlaylistText(text, base string) (*hlsPlaylist, error) {
 				pendingRangeRaw = hlsValueAfterColon(line)
 			case strings.HasPrefix(line, "#EXT-X-MAP"):
 				attrs := parseHlsAttributes(hlsValueAfterColon(line))
-				pl.initMap = resolveHlsURL(base, attrs["URI"])
+				currentInitMap = resolveHlsURL(base, attrs["URI"])
+				currentInitRange = nil
 				if br, ok := attrs["BYTERANGE"]; ok {
-					pl.initRange = parseHlsByteRange(br, 0)
+					currentInitRange = parseHlsByteRange(br, 0)
+				}
+				// 记录首个初始化段：仅用于判定输出容器（mp4 / ts）
+				if pl.initMap == "" {
+					pl.initMap = currentInitMap
+					pl.initRange = currentInitRange
 				}
 			}
 			continue
@@ -290,6 +304,8 @@ func parseHlsPlaylistText(text, base string) (*hlsPlaylist, error) {
 			url:       segURL,
 			byteRange: br,
 			key:       currentKey,
+			initMap:   currentInitMap,
+			initRange: currentInitRange,
 		})
 		pendingRangeRaw = ""
 	}
@@ -358,6 +374,42 @@ func fetchHlsSegment(ctx context.Context, rawURL string, br *hlsByteRange, refer
 		lastErr = err
 	}
 	return nil, lastErr
+}
+
+// hlsInitKey 初始化段标识（地址 + 字节区间），空串表示该分片不需要初始化段
+func hlsInitKey(seg hlsSegmentItem) string {
+	if seg.initMap == "" {
+		return ""
+	}
+	if seg.initRange == nil {
+		return seg.initMap
+	}
+	return fmt.Sprintf("%s#%d-%d", seg.initMap, seg.initRange.offset, seg.initRange.length)
+}
+
+// hlsInitBytes 拉取初始化段并缓存：同一初始化段被大量分片共用时只拉一次
+func hlsInitBytes(ctx context.Context, seg hlsSegmentItem, referer string, cache *sync.Map) ([]byte, error) {
+	key := hlsInitKey(seg)
+	if v, ok := cache.Load(key); ok {
+		return v.([]byte), nil
+	}
+	data, err := fetchHlsSegment(ctx, seg.initMap, seg.initRange, referer)
+	if err != nil {
+		return nil, fmt.Errorf("下载初始化分片失败: %w", err)
+	}
+	cache.Store(key, data)
+	return data, nil
+}
+
+// hlsInitMapCount 统计不同的初始化段数量；大于 1 说明是多段 fMP4 合并
+func hlsInitMapCount(pl *hlsPlaylist) int {
+	seen := map[string]struct{}{}
+	for _, seg := range pl.segments {
+		if key := hlsInitKey(seg); key != "" {
+			seen[key] = struct{}{}
+		}
+	}
+	return len(seen)
 }
 
 // downloadHlsSegment 下载并按需解密一个分片
@@ -523,21 +575,13 @@ type hlsSegmentResult struct {
 // 相比「按批并发 + 批间等待」，这里是持续的流水线：任一 worker 空闲即领取下
 // 一个分片，不会被整批中最慢的分片拖住。分片按序号严格顺序落盘，写完立即释放
 // 引用；在途分片数由 hlsDownloadWindow 限制，避免内存被整个文件占满。
+//
+// 初始化段（#EXT-X-MAP，fMP4 流）在对应分片之前写入：单段播放列表等价于
+// 「文件头写一次」，多段合并（多源拼成一条播放列表）时则按序切换。
 func runHlsDownload(ctx context.Context, taskID string, pl *hlsPlaylist, out *os.File, referer string) (int64, error) {
 	total := len(pl.segments)
 	var writtenBytes int64
 
-	// 初始化分片（#EXT-X-MAP，fMP4 流）必须最先写入
-	if pl.initMap != "" {
-		data, err := fetchHlsSegment(ctx, pl.initMap, pl.initRange, referer)
-		if err != nil {
-			return 0, fmt.Errorf("下载初始化分片失败: %w", err)
-		}
-		if _, err := out.Write(data); err != nil {
-			return 0, err
-		}
-		writtenBytes += int64(len(data))
-	}
 	if total == 0 {
 		return writtenBytes, nil
 	}
@@ -582,6 +626,9 @@ func runHlsDownload(ctx context.Context, taskID string, pl *hlsPlaylist, out *os
 		}
 		written := 0
 		var lastNotify time.Time
+		// 初始化段缓存 + 已写入标识：多源合并时按序切换，同址同区间只拉取一次
+		initCache := &sync.Map{}
+		writtenInitKey := ""
 		for i := 0; i < total; i++ {
 			mu.Lock()
 			for !results[i].done && !canceled {
@@ -601,6 +648,22 @@ func runHlsDownload(ctx context.Context, taskID string, pl *hlsPlaylist, out *os
 				stopDispatch()
 				writeErr <- segErr
 				return
+			}
+			// 初始化段必须先于它的分片落盘
+			if initKey := hlsInitKey(pl.segments[i]); initKey != "" && initKey != writtenInitKey {
+				initData, initErr := hlsInitBytes(ctx, pl.segments[i], referer, initCache)
+				if initErr != nil {
+					stopDispatch()
+					writeErr <- initErr
+					return
+				}
+				if _, err := out.Write(initData); err != nil {
+					stopDispatch()
+					writeErr <- err
+					return
+				}
+				writtenBytes += int64(len(initData))
+				writtenInitKey = initKey
 			}
 			if len(data) > 0 {
 				if _, err := out.Write(data); err != nil {
@@ -721,6 +784,9 @@ func HlsDownloader(task model.TransferTaskModel) utils.Result {
 	// 清空旧日志并写入任务头
 	_ = os.Remove(TaskLogPath(task.ID))
 	appendHlsLog(task.ID, fmt.Sprintf("开始下载 %d 个分片 -> %s", len(pl.segments), dest))
+	if n := hlsInitMapCount(pl); n > 1 {
+		appendHlsLog(task.ID, fmt.Sprintf("检测到 %d 个初始化段（多段 fMP4 合并），将按分片顺序写入", n))
+	}
 
 	size, runErr := runHlsDownload(ctx, task.ID, pl, out, hlsOrigin(task.URL))
 	closeErr := out.Close()
@@ -778,7 +844,9 @@ func maybeScanDownloaded(destPath string) {
 
 // HlsDownloadParam 分片下载请求参数
 type HlsDownloadParam struct {
-	// Playlist 重建后的 m3u8 文本（可选分片删除结果），地址应为绝对地址
+	// Playlist 重建后的 m3u8 文本（可选分片删除结果，也可为多个播放列表合并后的
+	// 结果——多源之间以 #EXT-X-DISCONTINUITY 分隔、各自带自己的 #EXT-X-MAP），
+	// 地址应为绝对地址
 	Playlist string `json:"playlist"`
 	// SourceURL 原始 m3u8 地址，用于补全相对地址与展示
 	SourceURL string `json:"sourceUrl"`

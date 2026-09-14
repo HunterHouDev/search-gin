@@ -237,7 +237,22 @@ export function useTorrentDownload(
   }
 
   function openDownloadFolder(task: DownloadTask) {
-    window.open(`/api/openFolder/${task.infoHash}`, '_blank')
+    api
+      .post('/api/torrent/openFolder', {
+        infoHash: task.infoHash,
+        filePath: task.filePath,
+      })
+      .catch((err: unknown) => {
+        const axiosErr = err as {
+          response?: { data?: { message?: string; Message?: string } }
+          message?: string
+        }
+        $q.notify({
+          type: 'negative',
+          message: '打开下载目录失败: ' + ((axiosErr.response?.data?.message ?? axiosErr.response?.data?.Message) || axiosErr.message),
+          position: 'top',
+        })
+      })
   }
 
   function removeDownloadTask(task: DownloadTask) {
