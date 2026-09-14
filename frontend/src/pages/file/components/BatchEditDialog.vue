@@ -113,17 +113,18 @@
                         <q-btn dense icon="content_copy" color="grey" @click.stop="copyPath(item)">
                           <q-tooltip>复制路径</q-tooltip>
                         </q-btn>
-                        <q-btn-dropdown v-permission="'op:transcode'" dense icon="transform" color="teal">
-                          <q-tooltip>转码</q-tooltip>
-                          <q-list dense>
-                            <q-item v-close-popup clickable
-                              @click="toMp4(item)"><q-item-section>MP4</q-item-section></q-item>
-                            <q-item v-close-popup clickable
-                              @click="toVcode(item, 'h264')"><q-item-section>H264</q-item-section></q-item>
-                            <q-item v-close-popup clickable
-                              @click="toVcode(item, 'h265')"><q-item-section>H265</q-item-section></q-item>
-                          </q-list>
-                        </q-btn-dropdown>
+                        <q-btn v-permission="'op:transcode'" flat dense color="teal" label="MP4"
+                          @click="toMp4(item)">
+                          <q-tooltip>转码为 MP4</q-tooltip>
+                        </q-btn>
+                        <q-btn v-permission="'op:transcode'" flat dense color="teal" label="H264"
+                          @click="toVcode(item, 'h264')">
+                          <q-tooltip>转码为 H264</q-tooltip>
+                        </q-btn>
+                        <q-btn v-permission="'op:transcode'" flat dense color="teal" label="H265"
+                          @click="toVcode(item, 'h265')">
+                          <q-tooltip>转码为 H265</q-tooltip>
+                        </q-btn>
                         <span class="text-weight-bold" style="
                           flex: 1; min-width: 60px; font-size: 13px;
                           display: -webkit-box; -webkit-box-orient: vertical; line-clamp: 1;

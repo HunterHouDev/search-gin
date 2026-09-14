@@ -93,6 +93,40 @@ module.exports = configure(function (/* ctx */) {
           statics: path.resolve('src/statics'),
         });
 
+        // 注意：Quasar v3 只把 build.target / minify / sourcemap / outDir 等少数字段
+        // 透传给 Vite，其余 build.* 自定义字段（含 chunkSizeWarningLimit）会被忽略，
+        // 必须在 extendViteConf 里直接改 viteConf。
+
+        // 唯一超过 500 kB 的 chunk 是 hls.js（约 584 kB）。它由 useLinkPlayback
+        // 通过 `await import('hls.js')` 动态引入，只在点播时才下载，本身已是按需加载，
+        // 再拆分没有收益，因此抬高告警阈值以保持构建日志干净。
+        viteConf.build.chunkSizeWarningLimit = 700;
+
+        // @vueuse/core 的 dist 产物把 /* #__PURE__ */ 写在了括号内部
+        // （`const defaultState = (/* #__PURE__ */ {`），Rolldown 无法识别该注解位置，
+        // 只能忽略并抛出 INVALID_ANNOTATION 警告。这是上游产物的写法问题，本仓库无法修复，
+        // 这里仅过滤 node_modules 内的该类告警，不遮蔽我们自己源码里的注解错误。
+        viteConf.build.rolldownOptions = viteConf.build.rolldownOptions || {};
+        const userOnLog = viteConf.build.rolldownOptions.onLog;
+        viteConf.build.rolldownOptions.onLog = (level, log, handler) => {
+          if (
+            log &&
+            typeof log === 'object' &&
+            log.code === 'INVALID_ANNOTATION' &&
+            [log.id, log.loc && log.loc.file, log.message]
+              .filter(Boolean)
+              .some((target) => String(target).includes('node_modules'))
+          ) {
+            return;
+          }
+
+          if (typeof userOnLog === 'function') {
+            userOnLog(level, log, handler);
+          } else {
+            handler(level, log);
+          }
+        };
+
         // 依赖预构建：显式声明只在懒加载路由/组件里才用到的第三方包。
         // 否则 Vite 要等首次访问该路由时才发现新依赖并重新预构建，
         // 页面里已缓存的 ?v=<hash> 立刻过期，报 504 Outdated Optimize Dep。
