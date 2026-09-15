@@ -838,7 +838,7 @@
           <div v-else class="download-list">
             <div
               v-for="task in activeDownloads"
-              :key="task.infoHash"
+              :key="task.infoHash + '-' + task.filePath"
               class="download-item"
               :class="{
                 'download-item-playing':

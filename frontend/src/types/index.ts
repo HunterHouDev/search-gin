@@ -114,6 +114,25 @@ export enum SignalAction {
   Ice = 'ice',
 }
 
+// ── 统一任务列表（磁力下载）───────────────────────────────────────
+
+export interface TorrentTransferTask {
+  ID: string
+  Name: string
+  Type: string
+  Status: string
+  /** 进度百分比 0~100 */
+  Progress: number
+  /** 种子 infoHash（hex） */
+  InfoHash: string
+  /** 种子名 */
+  TorrentName: string
+  /** 种子内相对文件路径（空表示整个种子） */
+  TorrentFile: string
+  Path: string
+  CreateTime: string
+}
+
 // ── 节点信息 ──────────────────────────────────────────────────────
 
 export interface PeerInfo {

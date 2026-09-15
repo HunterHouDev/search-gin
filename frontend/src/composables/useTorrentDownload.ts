@@ -1,9 +1,14 @@
 import { ref } from 'vue'
 import { api } from 'src/boot/axios'
 import type { QVueGlobals } from 'quasar'
+import type { TorrentTransferTask } from 'src/types'
 
 // 磁力链 / BT 下载逻辑
 // 提取自 ImmersivePlayer.vue，减少组件代码约 220 行
+//
+// 下载任务列表已合并到后端统一任务列表（/api/transferTasks，Type=磁力下载）：
+// 关闭播放页 / 刷新页面不影响下载，进度由服务端每 5 秒同步回任务列表。
+// 完成后不触发索引扫描（有意设计：磁力下载文件不自动入库）。
 
 export interface TorrentFile {
   path: string
@@ -20,6 +25,26 @@ export interface DownloadTask {
   progress: number
   state: string
   peers: number
+}
+
+/** 统一任务列表中磁力下载任务的类型标识（后端 TaskTypeTorrent） */
+const TORRENT_TASK_TYPE = '磁力下载'
+/** 下载管理器任务列表轮询间隔（毫秒） */
+const TASK_LIST_POLL_MS = 3000
+
+/** 把统一任务列表中的磁力下载任务映射为下载管理器条目 */
+function toDownloadTask(t: TorrentTransferTask): DownloadTask {
+  const filePath = t.TorrentFile || ''
+  const fileName = filePath ? (filePath.split('/').pop() || filePath) : ''
+  return {
+    infoHash: t.InfoHash,
+    name: t.TorrentName || t.Name,
+    fileName,
+    filePath,
+    progress: t.Progress ?? 0,
+    state: t.Status,
+    peers: 0,
+  }
 }
 
 export function useTorrentDownload(
@@ -41,6 +66,43 @@ export function useTorrentDownload(
   const showDownloadManager = ref(false)
   const activeDownloads = ref<DownloadTask[]>([])
   let torrentPollTimer: ReturnType<typeof setInterval> | null = null
+  let taskListTimer: ReturnType<typeof setInterval> | null = null
+
+  // ── 统一任务列表同步（服务端驱动） ────────────────────────────────────────────
+  async function refreshDownloadTasks() {
+    try {
+      const res = await api.get('/api/transferTasks')
+      const body = res.data
+      const tasks: TorrentTransferTask[] = body?.data?.tasks ?? body?.Data?.tasks ?? []
+      activeDownloads.value = tasks
+        .filter((t) => t.Type === TORRENT_TASK_TYPE)
+        .map((t) => toDownloadTask(t))
+      // 无进行中的任务时停止轮询（下载完成即定格最终状态）
+      if (!hasRunningTask()) stopTaskListPolling()
+    } catch {
+      /* 任务列表刷新失败不影响播放 */
+    }
+  }
+
+  /** 是否仍有等待/执行中的磁力下载任务 */
+  function hasRunningTask() {
+    return activeDownloads.value.some((t) => t.state === '执行中' || t.state === '等待')
+  }
+
+  function startTaskListPolling() {
+    if (taskListTimer) return
+    taskListTimer = setInterval(refreshDownloadTasks, TASK_LIST_POLL_MS)
+  }
+
+  function stopTaskListPolling() {
+    if (taskListTimer) {
+      clearInterval(taskListTimer)
+      taskListTimer = null
+    }
+  }
+
+  // 进入页面时恢复服务端任务列表（下载不随页面关闭而中断）
+  refreshDownloadTasks()
 
   // 解析请求序号：取消或重新提交后，旧请求的响应直接丢弃，
   // 避免迟到的响应把弹窗意外打开
@@ -123,17 +185,11 @@ export function useTorrentDownload(
         filePath,
       })
       const result = response.data?.data ?? response.data?.Data
-      const newTask: DownloadTask = {
-        infoHash,
-        name: torrentName.value,
-        fileName,
-        filePath,
-        progress: result?.skipped ? 100 : 0,
-        state: result?.skipped ? '已下载' : '准备下载',
-        peers: 0,
-      }
-      activeDownloads.value.push(newTask)
-      if (!result?.skipped) startPolling(infoHash, newTask, filePath, play)
+      // 任务列表由服务端统一维护，这里刷新一次并启动轮询跟踪进度
+      await refreshDownloadTasks()
+      if (!result?.skipped) startTaskListPolling()
+      // 边下边播：继续轮询单种子进度（更新缓冲状态显示 + 3% 缓冲就绪后起播）
+      if (play && !result?.skipped) startPolling(infoHash, filePath)
 
       if (play) {
         // 立即用流地址起播，后台继续下载
@@ -145,7 +201,7 @@ export function useTorrentDownload(
       } else {
         $q.notify({
           type: 'positive',
-          message: result?.skipped ? '文件已存在，已加入下载列表' : `已开始下载：${fileName}`,
+          message: result?.skipped ? '文件已存在，无需下载' : `已开始下载：${fileName}`,
           position: 'top',
           timeout: 2000,
         })
@@ -172,14 +228,14 @@ export function useTorrentDownload(
     return startSelectedTorrentFile(false)
   }
 
-  /** autoPlay=false 时只跟踪进度，不触发播放 */
-  function startPolling(infoHash: string, task: DownloadTask, filePath: string, autoPlay = true) {
+  /** 边下边播：轮询单种子进度，缓冲就绪（≥3%）后起播。任务进度已由统一任务列表轮询负责 */
+  function startPolling(infoHash: string, filePath: string) {
     stopPolling()
     const pollStart = Date.now()
     torrentPollTimer = setInterval(async () => {
       if (Date.now() - pollStart > 5 * 60 * 1000) {
         stopPolling()
-        $q.notify({ type: 'warning', message: '下载超时', position: 'top' })
+        $q.notify({ type: 'warning', message: '缓冲超时，请稍后从下载管理器手动播放', position: 'top' })
         return
       }
       try {
@@ -190,18 +246,11 @@ export function useTorrentDownload(
           torrentProgress.value = d.progress
           torrentState.value = d.state
           torrentPeers.value = d.peers
-          if (task) { task.progress = d.progress; task.state = d.state; task.peers = d.peers }
-          if (autoPlay && d.progress >= 3) {
+          if (d.progress >= 3) {
             torrentState.value = '缓冲就绪，开始播放'
             const streamUrl = `/api/torrent/stream/${infoHash}?file=${encodeURIComponent(filePath)}`
             onVideoReady(streamUrl, d.videoFile || d.name)
             stopPolling()
-            return
-          }
-          if (!autoPlay && d.progress >= 100) {
-            task.state = '已下载'
-            stopPolling()
-            $q.notify({ type: 'positive', message: `下载完成：${task.fileName}`, position: 'top' })
           }
         }
       } catch { /* poll errors are non-critical */ }
@@ -217,8 +266,11 @@ export function useTorrentDownload(
     magnetSeq++
     stopPolling()
     if (currentInfoHash.value) {
-      try { await api.delete(`/api/torrent/${currentInfoHash.value}`) } catch { /* ignore */ }
-      activeDownloads.value = activeDownloads.value.filter((t) => t.infoHash !== currentInfoHash.value)
+      const infoHash = currentInfoHash.value
+      try { await api.delete(`/api/torrent/${infoHash}`) } catch { /* ignore */ }
+      activeDownloads.value = activeDownloads.value.filter((t) => t.infoHash !== infoHash)
+      // 服务端会连带清理该种子的任务条目，同步刷新一次
+      refreshDownloadTasks()
     }
     torrentLoading.value = false
     torrentProgress.value = 0
@@ -255,20 +307,21 @@ export function useTorrentDownload(
       })
   }
 
-  function removeDownloadTask(task: DownloadTask) {
-    api.delete(`/api/torrent/${task.infoHash}`).catch(() => { /* ignore */ })
+  /** 删除任务 = 取消下载（服务端会停止种子并清理同种子全部任务条目） */
+  async function removeDownloadTask(task: DownloadTask) {
+    try { await api.delete(`/api/torrent/${task.infoHash}`) } catch { /* ignore */ }
     activeDownloads.value = activeDownloads.value.filter((t) => t.infoHash !== task.infoHash)
     if (currentInfoHash.value === task.infoHash) {
       currentInfoHash.value = ''
       torrentLoading.value = false
     }
+    await refreshDownloadTasks()
   }
 
   function cleanup() {
     stopPolling()
-    if (currentInfoHash.value) {
-      api.delete(`/api/torrent/${currentInfoHash.value}`).catch(() => { /* ignore */ })
-    }
+    stopTaskListPolling()
+    // 任务已落在服务端统一任务列表中，离开播放页不取消下载
   }
 
   return {
@@ -279,6 +332,7 @@ export function useTorrentDownload(
     // actions
     submitMagnet, selectTorrentFile, playSelectedTorrentFile, downloadSelectedTorrentFile,
     cancelTorrent, playDownloadTask, openDownloadFolder, removeDownloadTask,
+    refreshDownloadTasks,
     cleanup,
   }
 }

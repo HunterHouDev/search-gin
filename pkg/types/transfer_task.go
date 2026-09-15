@@ -12,6 +12,10 @@ const (
 	// TaskTypeHls HLS 分片下载：服务端拉取 m3u8 分片并合并为一个本地文件，
 	// 任务落在服务端，关闭弹窗 / 刷新页面都不影响下载
 	TaskTypeHls = "分片下载"
+	// TaskTypeTorrent 磁力链下载：由 anacrolix/torrent 客户端在服务端执行，
+	// 任务落在服务端，关闭播放页 / 刷新页面都不影响下载。
+	// 完成后仅标记任务状态，不触发索引扫描（有意设计：磁力下载文件不自动入库）
+	TaskTypeTorrent = "磁力下载"
 )
 
 const (
@@ -58,6 +62,14 @@ type TransferTaskModel struct {
 	Size int64
 	// Duration 分片总时长文本（如 12:34）
 	Duration string
+
+	// ── 磁力链下载（TaskTypeTorrent）专用字段 ──
+	// InfoHash 种子 infoHash（hex），用于回查后端 torrent 状态
+	InfoHash string
+	// TorrentName 种子名（展示用）
+	TorrentName string
+	// TorrentFile 种子内相对文件路径（空表示下载整个种子）
+	TorrentFile string
 }
 
 func NewMergeTask(files []string, dest string, concat string, DeleteSource bool) TransferTaskModel {
@@ -116,6 +128,24 @@ func NewHlsTask(url, dest, name string, total int, duration string) TransferTask
 		TotalSegments: total,
 		Duration:      duration,
 		CreateTime:    now,
+	}
+}
+
+// NewTorrentTask 创建磁力链下载任务。
+// infoHash 关联后端种子；torrentName 为种子名；fileName 为展示文件名；
+// torrentFile 为种子内相对路径（空表示整个种子）；dest 为磁盘完整路径。
+func NewTorrentTask(infoHash, torrentName, fileName, torrentFile, dest string) TransferTaskModel {
+	now := time.Now()
+	return TransferTaskModel{
+		ID:          safeTaskID(now),
+		Type:        TaskTypeTorrent,
+		InfoHash:    infoHash,
+		TorrentName: torrentName,
+		TorrentFile: torrentFile,
+		Name:        fileName,
+		Path:        dest,
+		Dest:        dest,
+		CreateTime:  now,
 	}
 }
 

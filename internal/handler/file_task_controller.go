@@ -113,8 +113,10 @@ func GetDelTransferTask(c *gin.Context) {
 		c.JSON(http.StatusOK, utils.NewFailByMsg("任务不存在"))
 		return
 	}
-	// 分片下载任务在服务端执行，允许直接删除（删除即取消下载）
-	if task.Status == model.StatusExecuting && !strings.EqualFold(task.Type, model.TaskTypeHls) {
+	// 服务端执行的任务（分片下载 / 磁力下载）允许直接删除（删除即取消下载）
+	isServerSideTask := strings.EqualFold(task.Type, model.TaskTypeHls) ||
+		strings.EqualFold(task.Type, model.TaskTypeTorrent)
+	if task.Status == model.StatusExecuting && !isServerSideTask {
 		service.TransferTaskMutex.Unlock()
 		r := utils.Fail()
 		r.Message = "执行中无法删除"
@@ -123,6 +125,10 @@ func GetDelTransferTask(c *gin.Context) {
 	}
 	delete(service.TransferTask, taskID)
 	service.TransferTaskMutex.Unlock()
+	// 磁力下载任务：删除时停止对应种子的下载并清理同种子的其余任务
+	if strings.EqualFold(task.Type, model.TaskTypeTorrent) {
+		service.CancelTorrentTasks(task.InfoHash)
+	}
 	// DeleteTaskLog 内部会释放运行时资源并取消仍在下载的分片任务
 	service.DeleteTaskLog(taskID)
 	service.CleanupExpiredTaskLogs(7)

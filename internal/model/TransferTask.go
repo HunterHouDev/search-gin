@@ -5,10 +5,11 @@ import "search-gin/pkg/types"
 type TransferTaskModel = types.TransferTaskModel
 
 const (
-	TaskTypeCut   = types.TaskTypeCut
-	TaskTypeMerge = types.TaskTypeMerge
-	TaskTypeTrans = types.TaskTypeTrans
-	TaskTypeHls   = types.TaskTypeHls
+	TaskTypeCut     = types.TaskTypeCut
+	TaskTypeMerge   = types.TaskTypeMerge
+	TaskTypeTrans   = types.TaskTypeTrans
+	TaskTypeHls     = types.TaskTypeHls
+	TaskTypeTorrent = types.TaskTypeTorrent
 )
 
 const (
@@ -25,3 +26,4 @@ var NewMergeTask = types.NewMergeTask
 var NewTask = types.NewTask
 var NewCutTask = types.NewCutTask
 var NewHlsTask = types.NewHlsTask
+var NewTorrentTask = types.NewTorrentTask

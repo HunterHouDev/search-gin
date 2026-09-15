@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"search-gin/internal/model"
 	"search-gin/pkg/utils"
 
 	"github.com/anacrolix/torrent"
@@ -124,6 +125,7 @@ func (ts *TorrentService) StartDownload(infoHash, filePath string) (*StartDownlo
 					}, nil
 				}
 				f.Download()
+				ts.createTorrentTask(t, infoHash, filePath, fullPath)
 				utils.InfoFormat("开始下载文件: %s, InfoHash: %s", filePath, infoHash)
 				return &StartDownloadResult{
 					Skipped:  false,
@@ -137,6 +139,7 @@ func (ts *TorrentService) StartDownload(infoHash, filePath string) (*StartDownlo
 	}
 
 	t.DownloadAll()
+	ts.createTorrentTask(t, infoHash, "", "")
 	utils.InfoFormat("开始下载全部文件: %s", infoHash)
 	return &StartDownloadResult{
 		Skipped:  false,
@@ -144,6 +147,144 @@ func (ts *TorrentService) StartDownload(infoHash, filePath string) (*StartDownlo
 		FileSize: 0,
 		Message:  "开始下载全部文件",
 	}, nil
+}
+
+// createTorrentTask 为已开始下载的种子在统一任务列表中创建条目（TaskTypeTorrent）。
+// 同一种子同一文件的执行中任务不重复创建；任务队列已满时仅记录日志，不阻断下载。
+func (ts *TorrentService) createTorrentTask(t *torrent.Torrent, infoHash, torrentFile, dest string) {
+	torrentName := t.Name()
+	fileName := torrentName
+	if torrentFile != "" {
+		fileName = filepath.Base(torrentFile)
+	}
+
+	// 读锁查重：同一种子同一文件的执行中任务不重复创建
+	TransferTaskMutex.RLock()
+	for _, tk := range TransferTask {
+		if tk.Type == model.TaskTypeTorrent &&
+			strings.EqualFold(tk.InfoHash, infoHash) &&
+			tk.TorrentFile == torrentFile &&
+			(tk.Status == model.StatusPending || tk.Status == model.StatusExecuting) {
+			TransferTaskMutex.RUnlock()
+			return
+		}
+	}
+	TransferTaskMutex.RUnlock()
+
+	task := model.NewTorrentTask(infoHash, torrentName, fileName, torrentFile, dest)
+	task.SetStatus(model.StatusExecuting)
+
+	TransferTaskMutex.Lock()
+	if len(TransferTask) >= MaxTransferTaskCount {
+		TransferTaskMutex.Unlock()
+		utils.InfoFormat("任务队列已满，磁力下载任务未入列表（下载继续）: %s/%s", torrentName, torrentFile)
+		return
+	}
+	TransferTask[task.ID] = task
+	TransferTaskMutex.Unlock()
+	utils.InfoFormat("磁力下载任务已创建: %s/%s, InfoHash: %s", torrentName, torrentFile, infoHash)
+}
+
+// syncTorrentTasks 将种子实时进度同步到统一任务列表（TaskTypeTorrent，每 5 秒一次）。
+// 注意：进度取自整个种子的下载统计，同一种子多个文件任务共享同一进度值。
+// 完成时仅标记任务状态，不触发索引扫描（有意设计：磁力下载文件不自动入库）。
+func (ts *TorrentService) syncTorrentTasks() {
+	type taskSnap struct {
+		key      string
+		progress int
+		size     int64
+		complete bool
+		missing  bool
+	}
+	var updates []taskSnap
+
+	// 先在 torrent 侧收集状态快照，避免长时间持有 TransferTaskMutex
+	TransferTaskMutex.RLock()
+	for key, task := range TransferTask {
+		if task.Type != model.TaskTypeTorrent || task.Status != model.StatusExecuting || task.InfoHash == "" {
+			continue
+		}
+		var h metainfo.Hash
+		if err := h.FromHexString(task.InfoHash); err != nil {
+			continue
+		}
+		ts.mu.RLock()
+		t, ok := ts.torrents[h]
+		ts.mu.RUnlock()
+		if !ok {
+			// 种子已被移除/清理，任务标记取消
+			updates = append(updates, taskSnap{key: key, missing: true})
+			continue
+		}
+		stats := t.Stats()
+		progress := 0
+		if t.Length() > 0 {
+			p := float64(stats.BytesReadUsefulIntendedData.Int64()) / float64(t.Length()) * 100
+			if p > 100 {
+				p = 100
+			}
+			progress = int(p)
+		}
+		updates = append(updates, taskSnap{
+			key:      key,
+			progress: progress,
+			size:     stats.BytesReadUsefulIntendedData.Int64(),
+			complete: t.Complete().Bool(),
+		})
+	}
+	TransferTaskMutex.RUnlock()
+
+	if len(updates) == 0 {
+		return
+	}
+
+	TransferTaskMutex.Lock()
+	for _, u := range updates {
+		task, ok := TransferTask[u.key]
+		if !ok || task.Status != model.StatusExecuting {
+			continue
+		}
+		switch {
+		case u.missing:
+			task.SetStatus(model.StatusCancelled)
+			task.FinishTime = time.Now()
+		case u.complete:
+			task.Progress = 100
+			task.Size = u.size
+			task.SetStatus(model.StatusCompleted)
+			task.FinishTime = time.Now()
+			utils.InfoFormat("磁力下载完成（不触发索引扫描）: %s", task.Name)
+		default:
+			task.Progress = u.progress
+			task.Size = u.size
+		}
+		TransferTask[u.key] = task
+	}
+	TransferTaskMutex.Unlock()
+}
+
+// removeTorrentTasks 删除统一任务列表中指定种子的全部磁力下载任务条目
+func removeTorrentTasks(infoHash string) {
+	TransferTaskMutex.Lock()
+	for key, task := range TransferTask {
+		if task.Type == model.TaskTypeTorrent && strings.EqualFold(task.InfoHash, infoHash) {
+			delete(TransferTask, key)
+		}
+	}
+	TransferTaskMutex.Unlock()
+}
+
+// CancelTorrentTasks 取消指定种子的磁力下载并清理其全部任务条目。
+// 供任务列表删除接口调用：删除执行中的磁力下载任务即取消下载。
+func CancelTorrentTasks(infoHash string) {
+	if infoHash == "" {
+		return
+	}
+	if TorrentApp != nil {
+		// 内部会连带清理任务条目；种子已不存在时忽略错误
+		_ = TorrentApp.RemoveTorrent(infoHash)
+	}
+	removeTorrentTasks(infoHash)
 }
 
 func (ts *TorrentService) GetTorrent(infoHash string) (*torrent.Torrent, error) {
@@ -417,19 +558,25 @@ func (ts *TorrentService) RemoveTorrent(infoHash string) error {
 	ts.mu.Unlock()
 
 	t.Drop()
+	// 同步清理统一任务列表中的对应任务（用户主动移除种子 = 取消下载）
+	removeTorrentTasks(infoHash)
 	utils.InfoFormat("已移除种子: %s", infoHash)
 	return nil
 }
 
 func (ts *TorrentService) StartCleanup(ctx context.Context) {
-	ticker := time.NewTicker(30 * time.Minute)
-	defer ticker.Stop()
+	syncTicker := time.NewTicker(5 * time.Second)
+	cleanTicker := time.NewTicker(30 * time.Minute)
+	defer syncTicker.Stop()
+	defer cleanTicker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-syncTicker.C:
+			ts.syncTorrentTasks()
+		case <-cleanTicker.C:
 			ts.mu.Lock()
 			for hash, t := range ts.torrents {
 				if t.Complete().Bool() {
