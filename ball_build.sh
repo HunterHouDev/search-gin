@@ -7,14 +7,13 @@ log() {
 }
 
 clean_dirs() {
-	cd qapp || { log "ERROR" "无法进入 qapp 目录"; exit 1; }
-    log "INFO" "清理 dist 目录..."
+    # 根目录 dist 是 go:embed 的前端嵌入目录，必须存在且为空
+    log "INFO" "清理根目录 dist（go:embed 嵌入目录）..."
     rm -rf dist
     mkdir -p dist
-
-    log "INFO" "清理 dist 和 log..."
-    rm -rf dist log
-	cd .. || { log "ERROR" "无法返回上级目录"; exit 1; }
+    log "INFO" "清理 qapp 的 dist 和 log..."
+    rm -rf qapp/dist qapp/log
+    mkdir -p qapp/dist
 }
 
 build_frontend() {
@@ -32,6 +31,7 @@ build_frontend() {
         exit 1
     fi
     log "INFO" "打包完成，开始移动到 dist 目录"
+    mkdir -p ../dist || { log "ERROR" "创建 dist 目录失败"; exit 1; }
     cp -R dist/spa/* ../dist || { log "ERROR" "移动前端文件失败"; exit 1; }
     cd .. || { log "ERROR" "无法返回上级目录"; exit 1; }
 }
