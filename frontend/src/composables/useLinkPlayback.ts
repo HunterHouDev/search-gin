@@ -5,6 +5,8 @@ import {
   DelTransferTasksInfo,
   HlsCancelAPI,
   HlsDownloadAPI,
+  HlsRestartAPI,
+  HlsPlaylistAPI,
   TransferTasksInfo,
 } from 'src/components/api/searchAPI';
 
@@ -1238,6 +1240,9 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
 
   /** 下载列表项的副标题：按任务状态展示进度或结果 */
   function hlsDownloadMeta(item: HlsDownloadItem): string {
+    // 浏览器直下进行中时优先展示直下进度
+    const bp = browserDownloadProgress.value[item.id];
+    if (bp) return `浏览器直下 ${bp.done}/${bp.total} 个分片`;
     if (item.status === 'downloading') {
       return `${item.segmentCount}/${item.totalCount} 个分片 · ${item.progress}%`;
     }
@@ -1298,6 +1303,267 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
       }
     }
     void refreshHlsDownloads();
+  }
+
+  /** 重启失败/已取消的下载任务：服务端复用落盘的播放列表重新入队 */
+  async function restartHlsDownload(id: string) {
+    try {
+      const res = await HlsRestartAPI(id);
+      if (res?.Code !== 200) {
+        notifyNegative(res?.Message || '重启失败');
+        return;
+      }
+      $q.notify({
+        type: 'positive',
+        message: '任务已重新启动',
+        position: 'top',
+        timeout: 2000,
+      });
+      await refreshHlsDownloads();
+      syncDownloadPolling();
+    } catch (e) {
+      notifyNegative('重启任务失败：' + (e as Error).message);
+    }
+  }
+
+  // ── 浏览器直下（前端备用下载，不经过服务端） ─────────────────────────────
+  /** 浏览器直下的并发窗口与单分片重试次数 */
+  const BROWSER_DOWNLOAD_CONCURRENCY = 6;
+  const BROWSER_SEGMENT_RETRY = 2;
+
+  /** 浏览器直下进度：任务 id → 已完成分片数 / 总分片数 */
+  const browserDownloadProgress = ref<Record<string, { done: number; total: number }>>({});
+
+  /** 该任务是否正在浏览器直下 */
+  function browserDownloadInProgress(item: HlsDownloadItem): boolean {
+    return browserDownloadProgress.value[item.id] != null;
+  }
+
+  /** 浏览器直下的进度条取值（0~1），null 表示当前没有浏览器直下 */
+  function browserProgressRatio(item: HlsDownloadItem): number | null {
+    const bp = browserDownloadProgress.value[item.id];
+    if (!bp) return null;
+    return bp.total > 0 ? bp.done / bp.total : 0;
+  }
+
+  /** 单分片拉取：带重试；#EXT-X-BYTERANGE 分片用 Range 头取子区间 */
+  async function fetchBrowserSegment(
+    url: string,
+    range: { length: number; offset: number } | null,
+  ): Promise<Uint8Array> {
+    const headers: Record<string, string> = {};
+    if (range) headers.Range = `bytes=${range.offset}-${range.offset + range.length - 1}`;
+    let lastErr: Error | null = null;
+    for (let attempt = 0; attempt <= BROWSER_SEGMENT_RETRY; attempt++) {
+      try {
+        const res = await fetch(url, { headers });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return new Uint8Array(await res.arrayBuffer());
+      } catch (e) {
+        lastErr = e as Error;
+      }
+    }
+    throw lastErr ?? new Error('分片下载失败');
+  }
+
+  /** 导入 AES-128 密钥（HLS 标准即 AES-128-CBC + PKCS7，WebCrypto 原生支持） */
+  async function importBrowserKey(bytes: Uint8Array): Promise<CryptoKey> {
+    return crypto.subtle.importKey('raw', bytes, { name: 'AES-CBC' }, false, ['decrypt']);
+  }
+
+  /** 取任务播放列表：优先服务端落盘副本，其次直接从源站拉（受跨域限制） */
+  async function resolveBrowserPlaylist(item: HlsDownloadItem): Promise<string> {
+    try {
+      const res = await HlsPlaylistAPI(item.id);
+      if (res?.Code === 200 && res.Data) return res.Data;
+    } catch {
+      /* 服务端副本不可用时尝试源站直取 */
+    }
+    if (!item.sourceUrl) throw new Error('播放列表不存在，且源地址缺失');
+    const res = await fetch(item.sourceUrl);
+    if (!res.ok) throw new Error(`从源站拉取播放列表失败：HTTP ${res.status}`);
+    return res.text();
+  }
+
+  /**
+   * 浏览器直下核心：给定播放列表文本，浏览器直接从源站拉取全部分片，
+   * AES-128 用 WebCrypto 解密，按序合并后另存到本机，全程不经过服务端。
+   * 注意：源站禁止跨域（CORS）时会失败，此时请改用服务端下载。
+   */
+  async function browserDownloadFromPlaylist(
+    id: string,
+    name: string,
+    sourceUrl: string | undefined,
+    text: string,
+  ) {
+    try {
+      const parsed = parsePlaylist(text, sourceUrl || location.href, `browser-${id}`);
+      if (parsed.segments.length === 0) throw new Error('播放列表中没有分片');
+      const keys = resolveSegmentKeys(parsed);
+      if (keys.some((k) => k?.method === 'SAMPLE-AES')) {
+        throw new Error('该视频使用 SAMPLE-AES 加密，浏览器直下暂不支持');
+      }
+
+      const total = parsed.segments.length;
+      browserDownloadProgress.value = {
+        ...browserDownloadProgress.value,
+        [id]: { done: 0, total },
+      };
+
+      // fMP4：初始化段（#EXT-X-MAP）必须排在所有分片之前
+      const chunks: Uint8Array[] = [];
+      const mapLine = parsed.header.find((line) => line.startsWith('#EXT-X-MAP'));
+      const mapUri = mapLine ? /URI="([^"]*)"/.exec(mapLine)?.[1] : undefined;
+      if (mapUri) chunks.push(await fetchBrowserSegment(mapUri, null));
+
+      // 乱序完成后按序落位，保证拼接顺序与播放列表一致
+      const parts: (Uint8Array | null)[] = new Array(total).fill(null);
+      let cursor = 0;
+      let next = 0;
+      let done = 0;
+      const keyCache = new Map<string, CryptoKey>();
+
+      const worker = async () => {
+        for (;;) {
+          const i = cursor++;
+          if (i >= total) return;
+          const seg = parsed.segments[i];
+          const key = keys[i];
+          let data = await fetchBrowserSegment(seg.url, seg.byteRange);
+          if (key && key.method === 'AES-128') {
+            let ck = keyCache.get(key.url);
+            if (!ck) {
+              ck = await importBrowserKey(await fetchBrowserSegment(key.url, null));
+              keyCache.set(key.url, ck);
+            }
+            // 缺省 IV 按分片序号推导（与 HLS 规范一致）
+            const iv = key.iv ?? sequenceIV(parsed.mediaSeq + seg.index - 1);
+            data = new Uint8Array(
+              await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, ck, data),
+            );
+          }
+          parts[i] = data;
+          done++;
+          browserDownloadProgress.value = {
+            ...browserDownloadProgress.value,
+            [id]: { done, total },
+          };
+          while (next < total && parts[next]) {
+            chunks.push(parts[next] as Uint8Array);
+            parts[next] = null;
+            next++;
+          }
+        }
+      };
+
+      await Promise.all(
+        Array.from({ length: Math.min(BROWSER_DOWNLOAD_CONCURRENCY, total) }, () => worker()),
+      );
+
+      const blob = new Blob(chunks as BlobPart[]);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name || 'video';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      // 大文件触发保存后保留 object URL 一段时间，避免浏览器尚未开始写盘就被回收
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      $q.notify({
+        type: 'positive',
+        message: `浏览器直下完成：${name}`,
+        position: 'top',
+        timeout: 2500,
+      });
+    } catch (e) {
+      notifyBrowserDownloadError(e);
+    } finally {
+      const rest = { ...browserDownloadProgress.value };
+      delete rest[id];
+      browserDownloadProgress.value = rest;
+    }
+  }
+
+  /**
+   * 前端备用下载（下载列表条目）：优先服务端落盘的播放列表副本，
+   * 其次从源站直接拉取，全程不经过服务端。
+   */
+  async function downloadHlsInBrowser(item: HlsDownloadItem) {
+    if (browserDownloadInProgress(item)) {
+      notifyNegative('该任务的浏览器直下正在进行中');
+      return;
+    }
+    try {
+      const text = await resolveBrowserPlaylist(item);
+      await browserDownloadFromPlaylist(item.id, item.name, item.sourceUrl, text);
+    } catch (e) {
+      notifyBrowserDownloadError(e);
+    }
+  }
+
+  /** 浏览器直下失败的统一提示：跨域类错误给出改用服务端下载的建议 */
+  function notifyBrowserDownloadError(e: unknown) {
+    const msg = (e as Error).message || String(e);
+    notifyNegative(
+      /Failed to fetch|NetworkError|CORS|load failed/i.test(msg)
+        ? `浏览器直下失败（源站可能禁止跨域）：${msg}，建议使用服务端下载`
+        : `浏览器直下失败：${msg}`,
+    );
+  }
+
+  /** 本地面板浏览器直下固定使用的进度 id */
+  const BROWSER_NOW_ID = 'local';
+
+  /** 本地面板的浏览器直下是否进行中 */
+  function browserNowInProgress(): boolean {
+    return browserDownloadProgress.value[BROWSER_NOW_ID] != null;
+  }
+
+  /** 本地面板浏览器直下的进度（0~1），null 表示未进行 */
+  function browserNowProgressRatio(): number | null {
+    const bp = browserDownloadProgress.value[BROWSER_NOW_ID];
+    if (!bp) return null;
+    return bp.total > 0 ? bp.done / bp.total : 0;
+  }
+
+  /**
+   * 浏览器直下当前面板已解析的分片：不创建服务端任务，
+   * 直接在浏览器内拉取当前分片列表、解密合并后另存到本机。
+   */
+  async function downloadHlsInBrowserNow() {
+    const sources = hlsSources.value;
+    const segments = hlsSegments.value;
+    if (sources.length === 0 || segments.length === 0) {
+      notifyNegative('没有可下载的分片');
+      return;
+    }
+    // SAMPLE-AES 无法在浏览器内解密：按源分别解出每个分片生效的密钥再校验
+    const keysBySource = new Map(
+      sources.map((item) => [item.id, resolveSegmentKeys(item.parsed)]),
+    );
+    const unsupported = segments.some(
+      (seg) =>
+        keysBySource.get(seg.sourceId)?.[seg.index - 1]?.method === 'SAMPLE-AES',
+    );
+    if (unsupported) {
+      notifyNegative('该视频使用 SAMPLE-AES 加密，浏览器直下暂不支持');
+      return;
+    }
+    const fileName = resolveDownloadName(
+      hlsDownloadName.value,
+      hlsDefaultDownloadName.value,
+      hlsDownloadExt.value,
+    );
+    // 与服务端下载一致：重建播放列表（含分片删除与多源合并结果）
+    const playlist = buildPlaylistText(sources, segments);
+    const sourceUrl = hlsPrimaryUrl.value || hlsURL.value.trim();
+    await browserDownloadFromPlaylist(
+      BROWSER_NOW_ID,
+      fileName,
+      sourceUrl || undefined,
+      playlist,
+    );
   }
 
   /**
@@ -1483,6 +1749,13 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     moveHlsSource,
     downloadHls,
     cancelHlsDownload,
+    restartHlsDownload,
+    downloadHlsInBrowser,
+    downloadHlsInBrowserNow,
+    browserDownloadInProgress,
+    browserNowInProgress,
+    browserNowProgressRatio,
+    browserProgressRatio,
     chooseHlsDownloadDir,
     refreshHlsDownloads,
     playHlsDownload,

@@ -8,6 +8,7 @@ import (
 	"search-gin/pkg/utils"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 // TransferTask 以 ID (string, safeTaskID 格式) 为 key
@@ -29,6 +30,28 @@ func pendingExecutingCount() (pending, executing int) {
 		}
 	}
 	return
+}
+
+// truncateTaskDetail 按 UTF-8 字符边界截断日志详情，避免中文被切成乱码
+func truncateTaskDetail(s string, limit int) string {
+	if len(s) <= limit {
+		return s
+	}
+	cut := limit
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut] + "…"
+}
+
+// LogTaskEvent 记录任务生命周期事件（创建/完成/失败/取消/重启），
+// 同时写内存日志 LogMem（前端可查）与 gin.log（磁盘持久化）。
+func LogTaskEvent(event string, task model.TransferTaskModel, detail string) {
+	if detail != "" {
+		detail = ", " + truncateTaskDetail(detail, 300)
+	}
+	utils.InfoFormat("任务%s: type=%s, name=%s, id=%s%s", event, task.Type, task.Name, task.ID, detail)
+	LogMem.Add("任务%s: type=%s, name=%s, id=%s%s", event, task.Type, task.Name, task.ID, detail)
 }
 
 // ClearCompletedTasks 清除所有已完成的任务
@@ -92,6 +115,8 @@ func ClearAllTasks() utils.Result {
 // DeleteTaskLog 删除单任务日志文件，并释放该任务的运行时资源
 func DeleteTaskLog(taskID string) {
 	dropHlsRuntime(taskID)
+	// 一并清理持久化的播放列表（重启失败任务的依据）
+	_ = os.Remove(HlsPlaylistPath(taskID))
 	if err := os.Remove(TaskLogPath(taskID)); err != nil && !os.IsNotExist(err) {
 		utils.InfoFormat("删除任务日志文件失败: %s, 错误: %v", taskID, err)
 	}
@@ -209,7 +234,7 @@ func CreateMergeTask(fileIds []string, dest string, deleteSource bool) utils.Res
 	wakeTaskScheduler()
 
 	pending, executing := pendingExecutingCount()
-	LogMem.Add("CreateMergeTask: 创建成功 path=%s, CreateTime=%v, pending=%d, executing=%d", task.Path, task.CreateTime, pending, executing)
+	LogTaskEvent("创建", task, fmt.Sprintf("path=%s, pending=%d, executing=%d", task.Path, pending, executing))
 	return utils.NewSuccessByMsg("任务创建成功")
 }
 
@@ -250,7 +275,7 @@ func CreateTransferTask(id string, xcode string) utils.Result {
 	TransferTaskMutex.Unlock()
 	wakeTaskScheduler()
 	pending, executing := pendingExecutingCount()
-	LogMem.Add("CreateTransferTask: 创建成功 id=%s, xcode=%s, path=%s, CreateTime=%v, pending=%d, executing=%d", id, xcode, task.Path, task.CreateTime, pending, executing)
+	LogTaskEvent("创建", task, fmt.Sprintf("xcode=%s, path=%s, pending=%d, executing=%d", xcode, task.Path, pending, executing))
 	return utils.NewSuccessByMsg("任务创建成功")
 }
 
@@ -276,6 +301,6 @@ func CreateCutTask(id string, start string, end string) utils.Result {
 	wakeTaskScheduler()
 
 	pending, executing := pendingExecutingCount()
-	LogMem.Add("CreateCutTask: 创建成功 path=%s, start=%s, end=%s, CreateTime=%v, pending=%d, executing=%d", task.Path, start, end, task.CreateTime, pending, executing)
+	LogTaskEvent("创建", task, fmt.Sprintf("path=%s, start=%s, end=%s, pending=%d, executing=%d", task.Path, start, end, pending, executing))
 	return utils.NewSuccessByMsg("任务创建成功")
 }

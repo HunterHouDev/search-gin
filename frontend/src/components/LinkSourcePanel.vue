@@ -311,6 +311,23 @@
                 刷新页面都不会中断</q-tooltip
               >
             </q-btn>
+            <!-- 浏览器直下（前端备用）：放在服务端下载按钮旁边，不经服务端直接拉当前分片列表合并另存 -->
+            <q-btn
+              flat
+              dense
+              no-caps
+              size="sm"
+              color="deep-orange-4"
+              icon="cloud_download"
+              :label="browserNowLabel"
+              class="hls-download-btn"
+              :disable="!hlsKeptCount || browserNowInProgress()"
+              @click="downloadHlsInBrowserNow"
+            >
+              <q-tooltip class="bg-dark text-white"
+                >浏览器直接下载当前 {{ hlsKeptCount }} 个分片并合并另存，不经服务端；源站禁止跨域时失败，此为本页关闭后下载即中断</q-tooltip
+              >
+            </q-btn>
           </div>
           <div class="hls-segment-list">
             <template
@@ -432,8 +449,12 @@
                   hlsDownloadMeta(item)
                 }}</span>
                 <q-linear-progress
-                  v-if="item.status === 'downloading'"
-                  :value="item.progress / 100"
+                  v-if="item.status === 'downloading' || browserDownloadInProgress(item)"
+                  :value="
+                    item.status === 'downloading'
+                      ? item.progress / 100
+                      : (browserProgressRatio(item) ?? 0)
+                  "
                   size="3px"
                   color="indigo-4"
                   track-color="rgba(99, 102, 241, 0.18)"
@@ -458,6 +479,36 @@
                       ? '取消服务端下载任务'
                       : '移除该任务（不删除已下载的文件）'
                   }}
+                </q-tooltip>
+              </q-btn>
+              <!-- 重启：失败/已取消的任务复用服务端保存的播放列表重新下载 -->
+              <q-btn
+                v-if="item.status === 'failed' || item.status === 'canceled'"
+                flat
+                round
+                dense
+                size="sm"
+                color="orange-4"
+                icon="restart_alt"
+                @click="restartHlsDownload(item.id)"
+              >
+                <q-tooltip class="bg-dark text-white"
+                  >重新启动该下载任务</q-tooltip
+                >
+              </q-btn>
+              <!-- 浏览器直下（前端备用）：浏览器直接从源站拉分片、解密合并另存，不经服务端 -->
+              <q-btn
+                flat
+                round
+                dense
+                size="sm"
+                color="indigo-4"
+                icon="file_download"
+                :disable="browserDownloadInProgress(item)"
+                @click="downloadHlsInBrowser(item)"
+              >
+                <q-tooltip class="bg-dark text-white">
+                  浏览器直接下载（前端备用，不经服务端；源站禁止跨域时失败）
                 </q-tooltip>
               </q-btn>
               <!-- 播放：下载完成后回放本地文件 -->
@@ -634,6 +685,13 @@ const {
   moveHlsSource,
   downloadHls,
   cancelHlsDownload,
+  restartHlsDownload,
+  downloadHlsInBrowser,
+  downloadHlsInBrowserNow,
+  browserDownloadInProgress,
+  browserNowInProgress,
+  browserNowProgressRatio,
+  browserProgressRatio,
   chooseHlsDownloadDir,
   playHlsDownload,
   clearHlsDownloads,
@@ -647,6 +705,12 @@ const {
   onPlay: handlePlay,
   // 服务端可选保存目录：来自系统设置里的媒体目录
   getDownloadDirs: () => systemProperty.getSettingInfo?.Dirs ?? [],
+});
+
+/** 浏览器直下按钮文案：未进行时为固定文案，进行中显示实时百分比 */
+const browserNowLabel = computed(() => {
+  const r = browserNowProgressRatio();
+  return r == null ? '浏览器直下' : `直下中 ${Math.round(r * 100)}%`;
 });
 
 // ── 可见的链接类型 ────────────────────────────────────────────────────────────

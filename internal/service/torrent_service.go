@@ -183,6 +183,7 @@ func (ts *TorrentService) createTorrentTask(t *torrent.Torrent, infoHash, torren
 	TransferTask[task.ID] = task
 	TransferTaskMutex.Unlock()
 	utils.InfoFormat("磁力下载任务已创建: %s/%s, InfoHash: %s", torrentName, torrentFile, infoHash)
+	LogTaskEvent("创建", task, fmt.Sprintf("种子=%s/%s, InfoHash=%s", torrentName, torrentFile, infoHash))
 }
 
 // syncTorrentTasks 将种子实时进度同步到统一任务列表（TaskTypeTorrent，每 5 秒一次）。
@@ -248,12 +249,14 @@ func (ts *TorrentService) syncTorrentTasks() {
 		case u.missing:
 			task.SetStatus(model.StatusCancelled)
 			task.FinishTime = time.Now()
+			LogTaskEvent("取消", task, "种子资源缺失或已删除")
 		case u.complete:
 			task.Progress = 100
 			task.Size = u.size
 			task.SetStatus(model.StatusCompleted)
 			task.FinishTime = time.Now()
 			utils.InfoFormat("磁力下载完成（不触发索引扫描）: %s", task.Name)
+			LogTaskEvent("完成", task, fmt.Sprintf("size=%d（不触发索引扫描）", u.size))
 		default:
 			task.Progress = u.progress
 			task.Size = u.size

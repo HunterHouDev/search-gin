@@ -5,6 +5,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -39,6 +40,13 @@ const (
 	hlsDownloadWindow = hlsDownloadConcurrency * 3
 	// hlsSegmentRetry 单个分片的最大尝试次数（含首次）
 	hlsSegmentRetry = 3
+	// hlsThrottleRetry 遇到 429/5xx（限流/暂时不可用）时的最大尝试次数（含首次）：
+	// 等待按 1s → 2s → 4s 指数退避，比普通错误多一次机会
+	hlsThrottleRetry = 4
+	// hlsThrottleStep 限流退避基数：第 1 次重试等 1s，之后逐次翻倍
+	hlsThrottleStep = time.Second
+	// hlsGateCooldown 并发减半后的冷却期：期间不再触发限流才逐级恢复并发
+	hlsGateCooldown = 30 * time.Second
 	// hlsProgressInterval 进度回写最小间隔，避免分片很小时高频加锁 + SSE 广播
 	hlsProgressInterval = 300 * time.Millisecond
 	// hlsBrowserUA 使用浏览器 UA：部分 CDN 会对陌生 UA 限速或降级
@@ -347,29 +355,147 @@ func fetchHlsBytes(ctx context.Context, rawURL string, br *hlsByteRange, referer
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+		return nil, hlsHTTPStatusError{code: resp.StatusCode}
 	}
 	return io.ReadAll(resp.Body)
 }
 
+// hlsHTTPStatusError 带 HTTP 状态码的错误，用于识别可退避重试的类别
+type hlsHTTPStatusError struct{ code int }
+
+func (e hlsHTTPStatusError) Error() string { return fmt.Sprintf("HTTP %d", e.code) }
+
+// hlsThrottled 源站限流（429）或暂时不可用（5xx）：值得指数退避 + 降低并发
+func hlsThrottled(err error) bool {
+	var se hlsHTTPStatusError
+	if errors.As(err, &se) {
+		return se.code == http.StatusTooManyRequests || se.code >= 500
+	}
+	return false
+}
+
+// ── 并发自愈闸门：429/5xx 时临时减半全局分片并发 ────────────────
+
+// hlsGateCtxKey 把并发闸门挂到任务 ctx 上传递，避免层层改函数签名
+type hlsGateCtxKey struct{}
+
+// hlsGateFrom 取出 ctx 里的并发闸门；未挂载时返回 nil（退化为不限流）
+func hlsGateFrom(ctx context.Context) *hlsGate {
+	g, _ := ctx.Value(hlsGateCtxKey{}).(*hlsGate)
+	return g
+}
+
+// hlsGate 分片请求的并发闸门。
+//
+// 源站限流（429/5xx）时把在途分片请求上限减半，给源站喘息窗口；
+// 冷却期内不再触发限流则每次翻倍、逐级恢复到满并发。
+type hlsGate struct {
+	mu        sync.Mutex
+	cond      *sync.Cond
+	active    int       // 当前在途分片请求数
+	limit     int       // 当前生效的并发上限
+	base      int       // 满并发上限
+	recoverAt time.Time // 并发恢复（翻倍）的最早时间
+}
+
+func newHlsGate(base int) *hlsGate {
+	g := &hlsGate{limit: base, base: base}
+	g.cond = sync.NewCond(&g.mu)
+	return g
+}
+
+// acquire 领取一个并发槽位；ctx 取消时返回 false
+func (g *hlsGate) acquire(ctx context.Context) bool {
+	// ctx 取消时唤醒可能在 cond.Wait 里等待的协程（含本协程）
+	stop := context.AfterFunc(ctx, g.cond.Broadcast)
+	defer stop()
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	for {
+		now := time.Now()
+		if g.limit < g.base && !now.Before(g.recoverAt) {
+			// 冷却期已过且未再触发限流：并发恢复一级
+			g.limit *= 2
+			if g.limit > g.base {
+				g.limit = g.base
+			}
+			g.recoverAt = now.Add(hlsGateCooldown)
+		}
+		if g.active < g.limit {
+			g.active++
+			return true
+		}
+		if ctx.Err() != nil {
+			return false
+		}
+		g.cond.Wait()
+	}
+}
+
+// release 归还一个并发槽位
+func (g *hlsGate) release() {
+	g.mu.Lock()
+	g.active--
+	g.cond.Signal()
+	g.mu.Unlock()
+}
+
+// throttle 源站返回 429/5xx 后调用：并发上限减半并重置恢复冷却计时
+func (g *hlsGate) throttle() {
+	g.mu.Lock()
+	if g.limit > 1 {
+		g.limit /= 2
+	}
+	g.recoverAt = time.Now().Add(hlsGateCooldown)
+	g.cond.Broadcast()
+	g.mu.Unlock()
+}
+
 // fetchHlsSegment 带重试的分片拉取：CDN 偶发 5xx / 连接重置时，
 // 由该分片自己重试，不再让整个任务失败（旧实现单点失败即整任务终止）。
+//
+// 429/5xx 视为源站限流：等待按 1s → 2s → 4s 指数退避（比普通错误多一次机会），
+// 同时触发全局并发闸门减半；其他错误沿用 300ms/600ms 的短间隔重试。
 func fetchHlsSegment(ctx context.Context, rawURL string, br *hlsByteRange, referer string) ([]byte, error) {
+	gate := hlsGateFrom(ctx)
+	maxAttempts := hlsSegmentRetry
 	var lastErr error
-	for attempt := 0; attempt < hlsSegmentRetry; attempt++ {
+	for attempt := 0; ; attempt++ {
+		if attempt >= maxAttempts {
+			break
+		}
 		if attempt > 0 {
+			var wait time.Duration
+			if hlsThrottled(lastErr) {
+				// 限流类错误：指数退避，并升级为限流专用尝试次数（仅提升一次）
+				if maxAttempts < hlsThrottleRetry {
+					maxAttempts = hlsThrottleRetry
+				}
+				wait = hlsThrottleStep << (attempt - 1)
+			} else {
+				wait = time.Duration(attempt) * 300 * time.Millisecond
+			}
 			select {
 			case <-ctx.Done():
 				return nil, errHlsCanceled
-			case <-time.After(time.Duration(attempt) * 300 * time.Millisecond):
+			case <-time.After(wait):
 			}
 		}
+		if gate != nil && !gate.acquire(ctx) {
+			return nil, errHlsCanceled
+		}
 		data, err := fetchHlsBytes(ctx, rawURL, br, referer)
+		if gate != nil {
+			gate.release()
+		}
 		if err == nil {
 			return data, nil
 		}
 		if ctx.Err() != nil {
 			return nil, errHlsCanceled
+		}
+		if hlsThrottled(err) && gate != nil {
+			gate.throttle()
 		}
 		lastErr = err
 	}
@@ -513,6 +639,33 @@ func appendHlsLog(id, line string) {
 	fmt.Fprintf(f, "[%s] %s\n", time.Now().Format("15:04:05"), line)
 }
 
+// HlsPlaylistPath 持久化播放列表文件路径。
+// 任务失败/取消后运行时内存会被丢弃，重启任务时从这里恢复播放列表。
+func HlsPlaylistPath(taskKey string) string {
+	return filepath.Join(taskLogDir(), taskKey+".m3u8")
+}
+
+// ReadHlsPlaylist 读取任务落盘的播放列表文本（前端浏览器直下备用通道使用）。
+func ReadHlsPlaylist(taskID string) utils.Result {
+	data, err := os.ReadFile(HlsPlaylistPath(taskID))
+	if err != nil || len(data) == 0 {
+		return utils.NewFailByMsg("播放列表不存在或已丢失")
+	}
+	res := utils.NewSuccess()
+	res.Data = string(data)
+	return res
+}
+
+// saveHlsPlaylist 把播放列表文本落盘，供重启失败任务时恢复
+func saveHlsPlaylist(taskID, playlist string) {
+	if err := ensureTaskLogDir(); err != nil {
+		return
+	}
+	if err := os.WriteFile(HlsPlaylistPath(taskID), []byte(playlist), 0644); err != nil {
+		utils.ErrorFormat("保存播放列表失败: %s, 错误: %v", taskID, err)
+	}
+}
+
 // updateHlsProgress 更新任务进度（内存 + SSE 通知）
 func updateHlsProgress(id string, done, total int, size int64) {
 	progress := 0
@@ -585,6 +738,11 @@ func runHlsDownload(ctx context.Context, taskID string, pl *hlsPlaylist, out *os
 	if total == 0 {
 		return writtenBytes, nil
 	}
+
+	// 并发自愈闸门：429/5xx 时临时减半分片并发给源站喘息，冷却后逐级恢复。
+	// 挂到 ctx 上随所有 fetch 传递（分片 / 初始化段），无需层层改函数签名。
+	gate := newHlsGate(hlsDownloadConcurrency)
+	ctx = context.WithValue(ctx, hlsGateCtxKey{}, gate)
 
 	keyCache := &sync.Map{}
 	results := make([]hlsSegmentResult, total)
@@ -984,9 +1142,12 @@ func CreateHlsDownloadTask(param HlsDownloadParam) utils.Result {
 	TransferTaskMutex.Unlock()
 
 	putHlsRuntime(task.ID, playlist)
+	// 播放列表落盘：任务失败后可据此重启（运行时内存会被丢弃）
+	saveHlsPlaylist(task.ID, playlist)
 	wakeTaskScheduler()
 
 	utils.InfoFormat("CreateHlsDownloadTask: 创建成功 dest=%s, 分片数=%d", dest, len(pl.segments))
+	LogTaskEvent("创建", task, fmt.Sprintf("dest=%s, 分片数=%d", dest, len(pl.segments)))
 	return utils.NewSuccessByMsg("任务创建成功")
 }
 
@@ -1002,4 +1163,47 @@ func CancelHlsDownload(taskID string) utils.Result {
 		rt.cancel()
 	}
 	return utils.NewSuccessByMsg("已请求取消")
+}
+
+// RestartHlsDownload 重启失败/已取消的分片下载任务。
+// 播放列表在任务创建时已落盘（HlsPlaylistPath），运行时内存被丢弃也能恢复；
+// 复用原目标路径重新入队，由调度器重新执行。
+func RestartHlsDownload(taskID string) utils.Result {
+	TransferTaskMutex.RLock()
+	task, ok := TransferTask[taskID]
+	taskType, taskStatus := task.Type, task.Status
+	TransferTaskMutex.RUnlock()
+	if !ok || taskType != model.TaskTypeHls {
+		return utils.NewFailByMsg("任务不存在或不是分片下载任务")
+	}
+	if taskStatus == model.StatusPending || taskStatus == model.StatusExecuting {
+		return utils.NewFailByMsg("任务正在执行中，无需重启")
+	}
+	if taskStatus == model.StatusCompleted {
+		return utils.NewFailByMsg("任务已完成，无需重启")
+	}
+
+	data, err := os.ReadFile(HlsPlaylistPath(taskID))
+	if err != nil || len(data) == 0 {
+		return utils.NewFailByMsg("播放列表已丢失，无法重启（请重新提交下载）")
+	}
+
+	putHlsRuntime(taskID, string(data))
+
+	TransferTaskMutex.Lock()
+	if t, ok := TransferTask[taskID]; ok {
+		t.SetStatus(model.StatusPending)
+		t.Segments = 0
+		t.Progress = 0
+		t.Size = 0
+		t.Log = ""
+		TransferTask[taskID] = t
+	}
+	TransferTaskMutex.Unlock()
+	PendingTaskCount.Add(1)
+	wakeTaskScheduler()
+
+	utils.InfoFormat("RestartHlsDownload: 任务已重启 id=%s, dest=%s", taskID, task.Path)
+	LogTaskEvent("重启", task, "dest="+task.Path)
+	return utils.NewSuccessByMsg("任务已重新启动")
 }

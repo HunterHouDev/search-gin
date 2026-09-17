@@ -106,6 +106,24 @@ export const HlsCancelAPI = async (taskID: string) => {
   return res && res.data;
 };
 
+/** 重启失败/已取消的分片下载任务（服务端复用落盘的播放列表） */
+export const HlsRestartAPI = async (taskID: string) => {
+  const res = await commonAxios().post(`/api/hlsRestart/${taskID}`);
+  return res && res.data;
+};
+
+/**
+ * 读取任务创建时落盘的播放列表文本。
+ * 浏览器直下（前端备用下载）使用：前端拿到播放列表后直接从源站拉分片，
+ * 本地解密合并另存，全程不经过服务端。
+ */
+export const HlsPlaylistAPI = async (
+  taskID: string,
+): Promise<{ Code: number; Message?: string; Data?: string }> => {
+  const res = await commonAxios().get(`/api/hlsPlaylist/${taskID}`);
+  return res && res.data;
+};
+
 export const ClearCompletedTasks = async () => {
   const res = await commonAxios().post('/api/clearCompletedTasks');
   return res && res.data;

@@ -137,6 +137,10 @@ func BuildAPIRouter(sigChan chan os.Signal) *gin.Engine {
 	// HLS 分片下载：任务在服务端执行，前端只提交与查询进度
 	router.POST("/api/hlsDownload", handler.PostHlsDownload)
 	router.POST("/api/hlsCancel/:taskID", handler.PostHlsCancel)
+	// 重启失败/已取消的分片下载任务（复用落盘的播放列表）
+	router.POST("/api/hlsRestart/:taskID", handler.PostHlsRestart)
+	// 前端备用下载：返回落盘的播放列表，浏览器直接从源站拉分片下载（不经过服务端）
+	router.GET("/api/hlsPlaylist/:taskID", handler.GetHlsPlaylist)
 	router.POST("/api/authorList", handler.PostAuthor)
 	router.GET("/api/authorImage/:name", handler.GetAuthorImage)
 

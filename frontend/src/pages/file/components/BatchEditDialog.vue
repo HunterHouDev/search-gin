@@ -216,6 +216,10 @@
                     </q-item-label>
                   </q-item-section>
                   <q-item-section side>
+                    <q-btn v-if="isHlsRestartable(v)" dense flat icon="restart_alt" color="orange"
+                      @click="taskRestart(v)">
+                      <q-tooltip>重新启动该下载任务</q-tooltip>
+                    </q-btn>
                     <q-btn dense flat icon="fullscreen" color="grey" @click="taskLogFullscreenRef?.open(v)" />
                     <q-btn dense flat icon="close" color="red" @click="taskRemove(v.ID)" />
                   </q-item-section>
@@ -267,6 +271,7 @@ import {
   TansferFileVcode, CloseTag, AddTag, OpenFileFolder,
   TransferTasksInfo, DelTransferTasksInfo,
   ClearCompletedTasks, ClearFailedTasks, ClearAllTasks,
+  HlsRestartAPI,
 } from 'components/api/searchAPI';
 import { date } from 'quasar';
 import Sortable from 'sortablejs';
@@ -368,6 +373,23 @@ const taskFetch = async () => {
   taskTotalCount.value = res.Data?.counts || [0, 0, 0, 0, 0];
 };
 const taskRemove = async (id) => commonExec(() => DelTransferTasksInfo(id));
+// 重启失败/已取消的分片下载任务：服务端复用落盘的播放列表重新入队
+const isHlsRestartable = (v) => isHlsTask(v)
+  && (v.Status === '失败' || v.Status === '执行失败' || v.Status === '取消');
+const taskRestart = async (v) => {
+  try {
+    const res = await HlsRestartAPI(v.ID);
+    if (res?.Code !== 200) {
+      $q.notify({ type: 'negative', message: res?.Message || '重启失败', position: 'top' });
+      return;
+    }
+    $q.notify({ type: 'positive', message: '任务已重新启动', position: 'top', timeout: 2000 });
+    taskFetch();
+  } catch (e) {
+    $q.notify({ type: 'negative', message: '重启任务失败：' + (e?.message || e), position: 'top' });
+  }
+};
+// 前端备用下载（浏览器直下）在链接面板的下载列表中提供，统一任务列表只保留重启入口
 const clearCompleted = async () => { await commonExec(() => ClearCompletedTasks()); taskFetch(); };
 const clearFailed = async () => { await commonExec(() => ClearFailedTasks()); taskFetch(); };
 const clearAll = async () => { await commonExec(() => ClearAllTasks()); taskFetch(); };

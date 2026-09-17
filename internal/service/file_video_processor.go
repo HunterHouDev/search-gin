@@ -252,7 +252,7 @@ func isHwAccelFailure(log string) bool {
 	return false
 }
 
-// updateTaskStatus 集中管理任务状态变更
+// updateTaskStatus 集中管理任务状态变更；终态（完成/失败/取消）统一记录任务日志
 func updateTaskStatus(key string, status string) {
 	TransferTaskMutex.Lock()
 	defer TransferTaskMutex.Unlock()
@@ -264,6 +264,16 @@ func updateTaskStatus(key string, status string) {
 	t.FinishTime = time.Now()
 	TransferTask[key] = t
 	wakeTaskScheduler()
+
+	// 终态统一记录日志（内存 + 磁盘），失败/取消时带上任务回写的错误信息
+	switch status {
+	case model.StatusCompleted:
+		LogTaskEvent("完成", t, t.Log)
+	case model.StatusFailed:
+		LogTaskEvent("失败", t, t.Log)
+	case model.StatusCancelled:
+		LogTaskEvent("取消", t, t.Log)
+	}
 }
 
 // taskLogDir 日志文件目录
