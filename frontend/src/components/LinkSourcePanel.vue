@@ -340,6 +340,36 @@
                 }}
               </q-tooltip>
             </q-btn-dropdown>
+            <!-- 下载完成后自动转码：默认不转，选中后由服务端在落盘后按路径建转码任务 -->
+            <q-btn-dropdown
+              flat
+              dense
+              no-caps
+              size="sm"
+              class="hls-xcode-btn"
+              :color="hlsDownloadXcode ? 'teal-4' : 'indigo-4'"
+              icon="transform"
+              :label="hlsDownloadXcodeLabel"
+              :disable="!hlsKeptCount"
+            >
+              <q-list dense class="hls-xcode-menu">
+                <q-item
+                  v-for="opt in hlsXcodeOptions"
+                  :key="opt.value"
+                  clickable
+                  v-close-popup
+                  @click="hlsDownloadXcode = opt.value"
+                >
+                  <q-item-section>
+                    <q-item-label>{{ opt.label }}</q-item-label>
+                    <q-item-label caption>{{ opt.caption }}</q-item-label>
+                  </q-item-section>
+                </q-item>
+              </q-list>
+              <q-tooltip class="bg-dark text-white"
+                >下载完成后由服务端自动转码（转码是独立任务，可在任务列表查看进度）</q-tooltip
+              >
+            </q-btn-dropdown>
             <!-- 点下载后任务交给服务端执行，本地分片列表随之清空，可继续粘贴下一组地址 -->
             <q-btn
               flat
@@ -753,6 +783,7 @@ const {
   hlsDefaultDownloadName,
   hlsDownloadDir,
   hlsDownloadDirOptions,
+  hlsDownloadXcode,
   hlsDownloadList,
   hlsPlayingDownloadId,
   hlsDownloadMeta,
@@ -793,6 +824,21 @@ const {
   // 服务端可选保存目录：来自系统设置里的媒体目录
   getDownloadDirs: () => systemProperty.getSettingInfo?.Dirs ?? [],
 });
+
+/** 下载后转码选项：'' 不转码（默认），其余与后端 hlsAllowedXcode 一致 */
+const hlsXcodeOptions = [
+  { value: '', label: '不转码', caption: '下载后保持原样（ts / mp4）' },
+  { value: 'copy', label: '转 MP4', caption: '仅换封装，速度快' },
+  { value: 'h264', label: '转 H264', caption: '重新编码，兼容性最好' },
+  { value: 'h265', label: '转 H265', caption: '重新编码，体积更小' },
+];
+
+/** 转码下拉按钮文案 */
+const hlsDownloadXcodeLabel = computed(
+  () =>
+    hlsXcodeOptions.find((item) => item.value === hlsDownloadXcode.value)
+      ?.label ?? '下载后转码',
+);
 
 /** 浏览器直下按钮文案：未进行时为固定文案，进行中显示实时百分比 */
 const browserNowLabel = computed(() => {
@@ -1167,6 +1213,17 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
 .hls-dir-menu-label {
   word-break: break-all;
   font-size: 0.76rem;
+}
+
+/* 下载后转码下拉：菜单宽度贴合内容，按钮内文案不换行 */
+.hls-xcode-btn :deep(.q-btn__content) {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.hls-xcode-menu {
+  min-width: 180px;
 }
 
 /* 广告黑名单菜单：URL 前缀较长，限宽并允许折行 */

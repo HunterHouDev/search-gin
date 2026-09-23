@@ -95,6 +95,8 @@ export const HlsDownloadAPI = async (data: {
   sourceUrl?: string;
   fileName?: string;
   dir?: string;
+  /** 下载完成后自动转码的方式：copy / h264 / h265，留空表示不转码 */
+  xcode?: string;
 }) => {
   const res = await commonAxios().post('/api/hlsDownload', data);
   return res && res.data;

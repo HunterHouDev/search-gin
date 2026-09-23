@@ -147,7 +147,12 @@ func PostTransferToMp4(c *gin.Context) {
 		return
 	}
 
-	utils.InfoFormat("PostTransferToMp4 newFile [%v][%v]", req.Id, req.Xcode)
+	utils.InfoFormat("PostTransferToMp4 newFile [%v][%v][%v]", req.Id, req.Path, req.Xcode)
+	// 优先按路径：刚下载完成、尚未被扫描进索引的文件也能转码（分片下载完成后即走此路径）
+	if strings.TrimSpace(req.Path) != "" {
+		c.JSON(http.StatusOK, service.CreateTransferTaskByPath(req.Path, "", req.Xcode))
+		return
+	}
 	c.JSON(http.StatusOK, service.CreateTransferTask(req.Id, req.Xcode))
 }
 

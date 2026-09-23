@@ -62,6 +62,9 @@ type TransferTaskModel struct {
 	Size int64
 	// Duration 分片总时长文本（如 12:34）
 	Duration string
+	// TranscodeAfter 下载完成后自动转码的方式（copy/h264/h265），空表示不转码。
+	// 下载成功落盘后据此创建一条转码任务（按路径，不依赖索引）
+	TranscodeAfter string
 
 	// ── 磁力链下载（TaskTypeTorrent）专用字段 ──
 	// InfoHash 种子 infoHash（hex），用于回查后端 torrent 状态

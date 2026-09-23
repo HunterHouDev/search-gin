@@ -77,6 +77,21 @@ function readStoredDownloadDir(): string {
   }
 }
 
+/** 下载完成后自动转码的合法取值，'' 表示不转码 */
+const HLS_XCODE_VALUES = ['', 'copy', 'h264', 'h265'] as const;
+
+/** 读取上次选择的下载后转码方式；脏数据按不转码处理 */
+function readStoredDownloadXcode(): string {
+  try {
+    const saved = localStorage.getItem(DOWNLOAD_XCODE_STORAGE_KEY) ?? '';
+    return (HLS_XCODE_VALUES as readonly string[]).includes(saved)
+      ? saved
+      : '';
+  } catch {
+    return '';
+  }
+}
+
 /** 读取广告分片黑名单（分片「类」前缀数组）；脏数据忽略 */
 function readHlsAdBlacklist(): string[] {
   try {
@@ -281,6 +296,8 @@ const HLS_URL_RE = /\.m3u8(\?|#|$)/i;
 const M3U8_MIME = 'application/vnd.apple.mpegurl';
 /** 记住用户选择的服务端下载目录 */
 const DOWNLOAD_DIR_STORAGE_KEY = 'immersive.serverDownloadDir';
+/** 记住用户选择的下载后转码方式（'' 表示不转码） */
+const DOWNLOAD_XCODE_STORAGE_KEY = 'immersive.serverDownloadXcode';
 /** 广告分片黑名单（分片「类」前缀列表），刷新后继续生效 */
 const HLS_AD_BLACKLIST_KEY = 'immersive.hlsAdBlacklist';
 /** 下载中任务的轮询间隔（毫秒） */
@@ -899,6 +916,24 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
       hlsDownloadExt.value,
     ),
   );
+
+  // ── 下载完成后自动转码 ─────────────────────────────────────────────────────
+  /**
+   * 下载完成后自动转码的方式：'' 不转码 / copy 仅换封装为 mp4 / h264 / h265。
+   * 由服务端在下载落盘后按产物路径直接创建转码任务（不依赖索引）。
+   * 初始值取自上次选择，刷新后继续沿用。
+   */
+  const hlsDownloadXcode = ref(readStoredDownloadXcode());
+
+  // 记住用户的转码选择，下次打开面板默认沿用
+  watch(hlsDownloadXcode, (val) => {
+    try {
+      if (val) localStorage.setItem(DOWNLOAD_XCODE_STORAGE_KEY, val);
+      else localStorage.removeItem(DOWNLOAD_XCODE_STORAGE_KEY);
+    } catch {
+      // 隐私模式写入失败时忽略
+    }
+  });
 
   // ── 服务端下载目录（留空则用服务端默认目录） ─────────────────────────────────
   /** 已选择的服务端保存目录，空串表示使用服务端默认目录 */
@@ -1741,6 +1776,7 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
         sourceUrl,
         fileName,
         dir: hlsDownloadDir.value,
+        xcode: hlsDownloadXcode.value || undefined,
       });
       if (res?.Code !== 200) {
         notifyNegative(res?.Message || '创建下载任务失败');
@@ -1844,6 +1880,8 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     hlsDefaultDownloadName,
     hlsDownloadDir,
     hlsDownloadDirOptions,
+    // 下载完成后自动转码（'' 不转 / copy / h264 / h265）
+    hlsDownloadXcode,
     hlsDownloadActive,
     // 下载列表（服务端任务镜像，含进度 / 状态 / 回放）
     hlsDownloadList,

@@ -974,8 +974,25 @@ func HlsDownloader(task model.TransferTaskModel) utils.Result {
 	updateHlsProgress(task.ID, len(pl.segments), len(pl.segments), size)
 	finishHlsTask(task.ID, model.StatusCompleted, fmt.Sprintf("下载完成: %s (%s)", dest, formatHlsSize(size)))
 	maybeScanDownloaded(dest)
+	// 提交时选择了转码方式：下载产物按路径直接建转码任务（不依赖索引是否已扫描）
+	maybeTranscodeAfterDownload(task.ID, dest, task.TranscodeAfter)
 
 	return utils.NewSuccessByMsg("下载完成")
+}
+
+// maybeTranscodeAfterDownload 下载完成后按路径创建后续转码任务。
+// 失败只写任务日志，不改变下载任务本身的完成状态。
+func maybeTranscodeAfterDownload(taskID string, dest string, xcode string) {
+	if xcode == "" {
+		return
+	}
+	res := CreateTransferTaskByPath(dest, filepath.Base(dest), xcode)
+	if res.IsSuccess() {
+		appendHlsLog(taskID, fmt.Sprintf("已创建转码任务（%s -> mp4）", xcode))
+		return
+	}
+	appendHlsLog(taskID, fmt.Sprintf("创建转码任务失败: %s", res.Message))
+	utils.ErrorFormat("maybeTranscodeAfterDownload: dest=%s, xcode=%s, 错误: %s", dest, xcode, res.Message)
 }
 
 // maybeScanDownloaded 若目标文件落在已配置的媒体目录内，触发一次增量扫描
@@ -1012,7 +1029,13 @@ type HlsDownloadParam struct {
 	FileName string `json:"fileName"`
 	// Dir 服务端保存目录，留空则使用「工作目录/downloads」
 	Dir string `json:"dir"`
+	// Xcode 下载完成后自动转码的方式：copy（仅换封装为 mp4）/ h264 / h265；
+	// 留空表示下载后不转码
+	Xcode string `json:"xcode"`
 }
+
+// 允许在下载完成后自动执行的转码方式
+var hlsAllowedXcode = map[string]bool{"copy": true, "h264": true, "h265": true}
 
 var hlsInvalidNameChars = regexp.MustCompile(`[\\/:*?"<>|\x00-\x1f]`)
 var hlsExtRe = regexp.MustCompile(`\.[A-Za-z0-9]{1,8}$`)
@@ -1093,6 +1116,11 @@ func CreateHlsDownloadTask(param HlsDownloadParam) utils.Result {
 		return utils.NewFailByMsg("播放列表内容无效")
 	}
 
+	xcode := strings.ToLower(strings.TrimSpace(param.Xcode))
+	if xcode != "" && !hlsAllowedXcode[xcode] {
+		return utils.NewFailByMsg("转码方式无效（可选 copy / h264 / h265）")
+	}
+
 	pl, err := parseHlsPlaylistText(playlist, strings.TrimSpace(param.SourceURL))
 	if err != nil {
 		return utils.NewFailByMsg(err.Error())
@@ -1131,6 +1159,8 @@ func CreateHlsDownloadTask(param HlsDownloadParam) utils.Result {
 
 	task := model.NewHlsTask(strings.TrimSpace(param.SourceURL), dest, filepath.Base(dest), len(pl.segments), formatHlsDuration(pl.totalSeconds))
 	task.SetStatus(model.StatusPending)
+	// 下载完成后自动转码的方式（空=不转码），重启失败任务时同样保留
+	task.TranscodeAfter = xcode
 
 	TransferTaskMutex.Lock()
 	if len(TransferTask) >= MaxTransferTaskCount {

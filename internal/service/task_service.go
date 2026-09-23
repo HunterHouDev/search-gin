@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"search-gin/internal/model"
 	"search-gin/pkg/utils"
+	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
@@ -238,20 +239,35 @@ func CreateMergeTask(fileIds []string, dest string, deleteSource bool) utils.Res
 	return utils.NewSuccessByMsg("任务创建成功")
 }
 
-// CreateTransferTask 创建转码任务（含重复检查）
+// CreateTransferTask 按文件 id 创建转码任务（内部解析出路径后交给按路径的实现）
 func CreateTransferTask(id string, xcode string) utils.Result {
 	movieFile := GetEngine().FindById(id)
 	if !utils.ExistsFiles(movieFile.Path) {
 		return utils.NewFailByMsg("文件不存在")
 	}
+	return CreateTransferTaskByPath(movieFile.Path, movieFile.Name, xcode)
+}
 
-	from := utils.GetSuffix(movieFile.Path)
+// CreateTransferTaskByPath 按文件路径创建转码任务（含重复检查）。
+//
+// 不依赖索引：刚下载完成、尚未被扫描进索引的文件也能直接转码——
+// 分片下载完成后就是走这里创建后续转码任务。
+func CreateTransferTaskByPath(path string, name string, xcode string) utils.Result {
+	path = strings.TrimSpace(path)
+	if path == "" || !utils.ExistsFiles(path) {
+		return utils.NewFailByMsg("文件不存在")
+	}
+	if name == "" {
+		name = filepath.Base(path)
+	}
+
+	from := utils.GetSuffix(path)
 	to := "mp4"
 
 	// 读锁检查重复任务
 	TransferTaskMutex.RLock()
 	for _, taskModel := range TransferTask {
-		if taskModel.Path == movieFile.Path &&
+		if taskModel.Path == path &&
 			(taskModel.Status == model.StatusPending || taskModel.Status == model.StatusExecuting) {
 			TransferTaskMutex.RUnlock()
 			return utils.NewFailByMsg("该文件已有转码任务在执行，请等待完成")
@@ -265,7 +281,7 @@ func CreateTransferTask(id string, xcode string) utils.Result {
 		TransferTaskMutex.Unlock()
 		return utils.NewFailByMsg("任务队列已满（最多1000个），请清理已完成任务后再试")
 	}
-	task := model.NewTask(movieFile.Path, movieFile.Name, from, to)
+	task := model.NewTask(path, name, from, to)
 	task.SetStatus(model.StatusPending)
 	if xcode != "" {
 		task.VCode = xcode
