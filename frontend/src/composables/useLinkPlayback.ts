@@ -77,6 +77,20 @@ function readStoredDownloadDir(): string {
   }
 }
 
+/** 读取广告分片黑名单（分片「类」前缀数组）；脏数据忽略 */
+function readHlsAdBlacklist(): string[] {
+  try {
+    const saved = localStorage.getItem(HLS_AD_BLACKLIST_KEY);
+    if (!saved) return [];
+    const list: unknown = JSON.parse(saved);
+    if (!Array.isArray(list)) return [];
+    return list.filter((item): item is string => typeof item === 'string' && !!item);
+  } catch {
+    // 存储被禁用或内容损坏时忽略
+    return [];
+  }
+}
+
 /** 解析出的单个 HLS 分片 */
 export interface HlsSegment {
   /** 稳定 id（跨源全局唯一，用于删除 / 恢复） */
@@ -267,6 +281,8 @@ const HLS_URL_RE = /\.m3u8(\?|#|$)/i;
 const M3U8_MIME = 'application/vnd.apple.mpegurl';
 /** 记住用户选择的服务端下载目录 */
 const DOWNLOAD_DIR_STORAGE_KEY = 'immersive.serverDownloadDir';
+/** 广告分片黑名单（分片「类」前缀列表），刷新后继续生效 */
+const HLS_AD_BLACKLIST_KEY = 'immersive.hlsAdBlacklist';
 /** 下载中任务的轮询间隔（毫秒） */
 const DOWNLOAD_POLL_INTERVAL = 2000;
 
@@ -734,7 +750,7 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
   /** 源列表（含保留分片数与时长），供 UI 展示 */
   const hlsSourceList = computed(() =>
     hlsSources.value.map((source) => {
-      const kept = hlsSegments.value.filter(
+      const kept = hlsUsableSegments.value.filter(
         (seg) => seg.sourceId === source.id,
       );
       return {
@@ -757,14 +773,109 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     })),
   );
 
+  // ── 广告分片黑名单 ──────────────────────────────────────────────────────────
+  // 记录被标记为广告的「分片类」（即 segmentClassKey 前缀）。命中黑名单的分片在
+  // 解析时即被过滤，后续解析同一站点的其它视频也会自动剔除，无需重复标记。
+  const hlsAdBlacklist = ref<string[]>(readHlsAdBlacklist());
+
+  // 黑名单写回本地存储，刷新/重开弹窗后继续生效
+  watch(
+    hlsAdBlacklist,
+    (list) => {
+      try {
+        if (list.length > 0) {
+          localStorage.setItem(HLS_AD_BLACKLIST_KEY, JSON.stringify(list));
+        } else {
+          localStorage.removeItem(HLS_AD_BLACKLIST_KEY);
+        }
+      } catch {
+        // 隐私模式写入失败时忽略
+      }
+    },
+    { deep: true },
+  );
+
+  /** 该分片是否命中广告黑名单 */
+  function isHlsAdSegment(seg: HlsSegment): boolean {
+    return hlsAdBlacklist.value.includes(segmentClassKey(seg.url));
+  }
+
+  /**
+   * 实际参与播放 / 下载的分片。
+   * 黑名单（广告）分片仍留在列表里展示（置灰、未勾选），但不计入、不使用。
+   */
+  const hlsUsableSegments = computed(() =>
+    hlsSegments.value.filter((seg) => !isHlsAdSegment(seg)),
+  );
+  /** 当前列表里被标记为广告的分片数（仍可见，但已被排除） */
+  const hlsAdCount = computed(
+    () => hlsSegments.value.length - hlsUsableSegments.value.length,
+  );
+
+  /**
+   * 标记广告：与「删除同类」同样的判定（同类 = 最后一节不同、前面都相同），
+   * 但只在列表里置灰、不参与下载，并把该类加入黑名单——
+   * 之后解析同站点的其它播放列表时，这类分片同样是置灰状态。
+   */
+  function markHlsAdSegments(id: number) {
+    const target = hlsSegments.value.find((seg) => seg.id === id);
+    if (!target) return;
+    const key = segmentClassKey(target.url);
+    if (hlsAdBlacklist.value.includes(key)) {
+      $q.notify({
+        type: 'warning',
+        message: '该类已在广告黑名单中',
+        position: 'top',
+        timeout: 1500,
+      });
+      return;
+    }
+    hlsAdBlacklist.value = [...hlsAdBlacklist.value, key];
+    const marked = hlsSegments.value.filter(
+      (seg) => segmentClassKey(seg.url) === key,
+    ).length;
+    $q.notify({
+      type: 'warning',
+      message: `已标记 ${marked} 个同类分片为广告（列表置灰，下载时忽略）`,
+      position: 'top',
+    });
+  }
+
+  /** 取消某个黑名单条目：该类分片恢复参与播放 / 下载 */
+  function unmarkHlsAdSegments(key: string) {
+    hlsAdBlacklist.value = hlsAdBlacklist.value.filter((item) => item !== key);
+  }
+
+  /** 切换单个分片的广告标记：已标记则取消该类，未标记则标记该类 */
+  function toggleHlsAdSegment(id: number) {
+    const target = hlsSegments.value.find((seg) => seg.id === id);
+    if (!target) return;
+    const key = segmentClassKey(target.url);
+    if (hlsAdBlacklist.value.includes(key)) unmarkHlsAdSegments(key);
+    else markHlsAdSegments(id);
+  }
+
+  /** 清空广告黑名单 */
+  function clearHlsAdBlacklist() {
+    if (hlsAdBlacklist.value.length === 0) return;
+    hlsAdBlacklist.value = [];
+    $q.notify({
+      type: 'positive',
+      message: '已清空广告黑名单',
+      position: 'top',
+      timeout: 2000,
+    });
+  }
+
   const hlsTotalCount = computed(() => hlsAllSegments.value.length);
-  const hlsKeptCount = computed(() => hlsSegments.value.length);
+  // 保留数 / 时长只统计实际参与的分片（广告不计入）
+  const hlsKeptCount = computed(() => hlsUsableSegments.value.length);
   const hlsRemovedCount = computed(
-    () => hlsTotalCount.value - hlsKeptCount.value,
+    () => hlsTotalCount.value - hlsSegments.value.length,
   );
   const hlsKeptDuration = computed(() =>
     formatSeconds(
-      hlsSegments.value.reduce((sum, seg) => sum + seg.duration, 0),
+      hlsUsableSegments.value.reduce((sum, seg) => sum + seg.duration, 0),
     ),
   );
 
@@ -922,7 +1033,8 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
 
     const keptIds = new Set(hlsSegments.value.map((seg) => seg.id));
     hlsAllSegments.value = next.flatMap((item) => item.allSegments);
-    // 新解析 / 刷新的源默认全部保留，其它源沿用已有删除结果
+    // 新解析 / 刷新的源默认全部保留，其它源沿用已有删除结果。
+    // 广告分片不在此过滤：它们仍要显示在列表里（置灰），只是下载 / 播放时忽略。
     hlsSegments.value = hlsAllSegments.value.filter(
       (seg) => seg.sourceId === source.id || keptIds.has(seg.id),
     );
@@ -1142,7 +1254,7 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
   /** 播放剩余分片：有删除或多个源时用重建后的播放列表，否则直接播原始地址 */
   async function playHlsRemaining() {
     const sources = hlsSources.value;
-    const segments = hlsSegments.value;
+    const segments = hlsUsableSegments.value;
     if (sources.length === 0 || segments.length === 0) {
       notifyNegative('没有可播放的分片');
       return;
@@ -1533,7 +1645,7 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
    */
   async function downloadHlsInBrowserNow() {
     const sources = hlsSources.value;
-    const segments = hlsSegments.value;
+    const segments = hlsUsableSegments.value;
     if (sources.length === 0 || segments.length === 0) {
       notifyNegative('没有可下载的分片');
       return;
@@ -1591,7 +1703,7 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
    */
   async function downloadHls() {
     const sources = hlsSources.value;
-    const segments = hlsSegments.value;
+    const segments = hlsUsableSegments.value;
     if (sources.length === 0 || segments.length === 0) {
       notifyNegative('没有可下载的分片');
       return;
@@ -1745,6 +1857,14 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     removeHlsSegment,
     removeHlsSimilarSegments,
     restoreHlsSegments,
+    // 广告黑名单
+    hlsAdBlacklist,
+    hlsAdCount,
+    isHlsAdSegment,
+    markHlsAdSegments,
+    unmarkHlsAdSegments,
+    toggleHlsAdSegment,
+    clearHlsAdBlacklist,
     removeHlsSource,
     moveHlsSource,
     downloadHls,

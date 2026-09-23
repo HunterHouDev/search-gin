@@ -120,6 +120,9 @@
               <template v-if="hlsRemovedCount"
                 >（已删除 {{ hlsRemovedCount }}）</template
               >
+              <template v-if="hlsAdCount"
+                >（广告 {{ hlsAdCount }}，已排除）</template
+              >
             </span>
             <q-space />
             <q-btn
@@ -134,8 +137,52 @@
               @click="restoreHlsSegments"
             >
               <q-tooltip class="bg-dark text-white"
-                >恢复全部已删除分片</q-tooltip
+                >恢复全部已删除分片（广告仍保持置灰并排除）</q-tooltip
               >
+            </q-btn>
+            <!-- 广告黑名单：可查看 / 取消单条 / 清空 -->
+            <q-btn
+              v-if="hlsAdBlacklist.length"
+              flat
+              dense
+              no-caps
+              size="sm"
+              color="negative"
+              icon="block"
+              :label="`广告黑名单 ${hlsAdBlacklist.length}`"
+            >
+              <q-tooltip class="bg-dark text-white"
+                >被标记为广告的分片类：列表中置灰，下载 / 播放时忽略</q-tooltip
+              >
+              <q-menu dark class="hls-ad-menu">
+                <q-list dense>
+                  <q-item
+                    v-for="key in hlsAdBlacklist"
+                    :key="key"
+                    clickable
+                    v-close-popup
+                    @click="unmarkHlsAdSegments(key)"
+                  >
+                    <q-item-section>
+                      <q-item-label class="hls-ad-menu-label">{{
+                        key
+                      }}</q-item-label>
+                    </q-item-section>
+                    <q-item-section side>
+                      <q-icon name="undo" size="16px" />
+                    </q-item-section>
+                  </q-item>
+                  <q-separator dark />
+                  <q-item clickable v-close-popup @click="clearHlsAdBlacklist">
+                    <q-item-section>
+                      <q-item-label>清空黑名单</q-item-label>
+                    </q-item-section>
+                    <q-item-section side>
+                      <q-icon name="delete_forever" size="16px" />
+                    </q-item-section>
+                  </q-item>
+                </q-list>
+              </q-menu>
             </q-btn>
             <q-btn
               flat
@@ -346,11 +393,29 @@
                   >{{ group.segments.length }} 个分片</span
                 >
               </div>
+              <!-- 黑名单（广告）分片仍在列表中，但置灰 + 未勾选，下载 / 播放时忽略 -->
               <div
                 v-for="seg in group.segments"
                 :key="seg.id"
                 class="hls-segment-item"
+                :class="{ 'hls-segment-item--ad': isHlsAdSegment(seg) }"
               >
+                <q-icon
+                  class="hls-segment-check"
+                  :name="
+                    isHlsAdSegment(seg)
+                      ? 'check_box_outline_blank'
+                      : 'check_box'
+                  "
+                  size="16px"
+                  :color="isHlsAdSegment(seg) ? 'grey' : 'indigo-4'"
+                >
+                  <q-tooltip class="bg-dark text-white">{{
+                    isHlsAdSegment(seg)
+                      ? '广告（黑名单）：不参与播放 / 下载'
+                      : '参与播放 / 下载'
+                  }}</q-tooltip>
+                </q-icon>
                 <span class="hls-segment-index">#{{ seg.index }}</span>
                 <span class="hls-segment-duration">{{
                   seg.duration ? seg.duration.toFixed(1) + 's' : '--'
@@ -373,6 +438,22 @@
                   <q-tooltip class="bg-dark text-white"
                     >复制该分片链接</q-tooltip
                   >
+                </q-btn>
+                <!-- 标记 / 取消广告：同类分片进黑名单，列表置灰且下载时忽略 -->
+                <q-btn
+                  flat
+                  round
+                  dense
+                  size="sm"
+                  :color="isHlsAdSegment(seg) ? 'grey' : 'negative'"
+                  :icon="isHlsAdSegment(seg) ? 'undo' : 'block'"
+                  @click="toggleHlsAdSegment(seg.id)"
+                >
+                  <q-tooltip class="bg-dark text-white">{{
+                    isHlsAdSegment(seg)
+                      ? '取消广告标记：该类分片恢复参与播放 / 下载'
+                      : '标记为广告：同类分片加入黑名单（列表置灰，下载时忽略）'
+                  }}</q-tooltip>
                 </q-btn>
                 <q-btn
                   flat
@@ -681,6 +762,12 @@ const {
   removeHlsSegment,
   removeHlsSimilarSegments,
   restoreHlsSegments,
+  hlsAdBlacklist,
+  hlsAdCount,
+  isHlsAdSegment,
+  unmarkHlsAdSegments,
+  toggleHlsAdSegment,
+  clearHlsAdBlacklist,
   removeHlsSource,
   moveHlsSource,
   downloadHls,
@@ -742,7 +829,9 @@ async function copySegmentUrl(seg: HlsSegment) {
 }
 
 async function copyAllSegmentUrls() {
-  const urls = hlsSegments.value.map((seg) => seg.url);
+  const urls = hlsSegments.value
+    .filter((seg) => !isHlsAdSegment(seg))
+    .map((seg) => seg.url);
   if (urls.length === 0) {
     $q.notify({
       type: 'warning',
@@ -1080,6 +1169,18 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
   font-size: 0.76rem;
 }
 
+/* 广告黑名单菜单：URL 前缀较长，限宽并允许折行 */
+.hls-ad-menu {
+  max-width: 360px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.hls-ad-menu-label {
+  word-break: break-all;
+  font-size: 0.76rem;
+}
+
 .hls-filename-input :deep(.q-field__control) {
   height: 26px;
   min-height: 26px;
@@ -1206,6 +1307,26 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
 
 .hls-segment-item:hover {
   background: rgba(99, 102, 241, 0.12);
+}
+
+/* 广告（黑名单）分片：仍在列表中，但置灰 + 未勾选，表示不参与播放 / 下载 */
+.hls-segment-item--ad {
+  opacity: 0.45;
+  filter: grayscale(1);
+}
+
+.hls-segment-item--ad .hls-segment-url {
+  text-decoration: line-through;
+  cursor: default;
+}
+
+.hls-segment-item--ad:hover {
+  background: rgba(148, 163, 184, 0.1);
+}
+
+/* 勾选状态图标：不参与下载的分片显示未勾选框 */
+.hls-segment-check {
+  flex-shrink: 0;
 }
 
 .hls-segment-index {
