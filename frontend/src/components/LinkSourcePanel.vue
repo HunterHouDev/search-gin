@@ -519,8 +519,20 @@
           <div class="hls-download-list-header">
             <q-icon name="download_done" size="16px" color="green-4" />
             <span class="hls-download-list-title"
-              >下载列表 · {{ hlsDownloadList.length }}</span
+              >下载列表 · {{ hlsDownloadStats.total }}</span
             >
+            <span class="hls-download-stat hls-download-stat-running">
+              执行中 {{ hlsDownloadStats.downloading }}
+            </span>
+            <span class="hls-download-stat hls-download-stat-done">
+              完成 {{ hlsDownloadStats.done }}
+            </span>
+            <span
+              v-if="hlsDownloadStats.failed"
+              class="hls-download-stat hls-download-stat-failed"
+            >
+              失败 {{ hlsDownloadStats.failed }}
+            </span>
             <q-space />
             <q-btn
               flat
@@ -785,6 +797,7 @@ const {
   hlsDownloadDirOptions,
   hlsDownloadXcode,
   hlsDownloadList,
+  hlsDownloadStats,
   hlsPlayingDownloadId,
   hlsDownloadMeta,
   switchLinkTab,
@@ -1435,6 +1448,31 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
   font-size: 0.76rem;
   color: rgba(134, 239, 172, 0.9);
   white-space: nowrap;
+}
+
+/* 下载列表统计：执行中 / 完成 / 失败 */
+.hls-download-stat {
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  border-radius: 8px;
+  white-space: nowrap;
+  background: rgba(148, 163, 184, 0.16);
+  color: rgba(226, 232, 240, 0.85);
+}
+
+.hls-download-stat-running {
+  background: rgba(96, 165, 250, 0.18);
+  color: rgba(147, 197, 253, 0.95);
+}
+
+.hls-download-stat-done {
+  background: rgba(74, 222, 128, 0.16);
+  color: rgba(134, 239, 172, 0.95);
+}
+
+.hls-download-stat-failed {
+  background: rgba(248, 113, 113, 0.18);
+  color: rgba(252, 165, 165, 0.95);
 }
 
 .hls-download-list {

@@ -749,6 +749,17 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
   const hlsDownloadActive = computed(() =>
     hlsDownloadList.value.some((item) => item.status === 'downloading'),
   );
+  /** 下载列表统计：总数 / 执行中（含等待排队）/ 已完成 / 失败或取消 */
+  const hlsDownloadStats = computed(() => {
+    const stats = { total: 0, downloading: 0, done: 0, failed: 0 };
+    for (const item of hlsDownloadList.value) {
+      stats.total += 1;
+      if (item.status === 'downloading') stats.downloading += 1;
+      else if (item.status === 'done') stats.done += 1;
+      else stats.failed += 1;
+    }
+    return stats;
+  });
   let downloadPollTimer: ReturnType<typeof setInterval> | null = null;
 
   // ── 分片解析状态（支持多个 m3u8 源按顺序合并） ────────────────────────────────
@@ -1286,7 +1297,10 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     }
   }
 
-  /** 播放剩余分片：有删除或多个源时用重建后的播放列表，否则直接播原始地址 */
+  /**
+   * 播放剩余分片：删过分片 / 命中广告黑名单 / 多源时用重建后的播放列表，
+   * 否则直接播原始地址。
+   */
   async function playHlsRemaining() {
     const sources = hlsSources.value;
     const segments = hlsUsableSegments.value;
@@ -1295,6 +1309,7 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
       return;
     }
     const removed = hlsRemovedCount.value;
+    const ads = hlsAdCount.value;
     const multi = sources.length > 1;
     if (removed > 0 && !sources.every((item) => item.parsed.hasEndList)) {
       $q.notify({
@@ -1310,6 +1325,14 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
         position: 'top',
       });
     }
+    if (ads > 0) {
+      $q.notify({
+        type: 'info',
+        message: `已跳过 ${ads} 个广告分片`,
+        position: 'top',
+        timeout: 1500,
+      });
+    }
 
     destroyHls();
     revokeBlobUrl();
@@ -1317,8 +1340,8 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
 
     const name = fileNameFromUrl(hlsPrimaryUrl.value || hlsURL.value);
     let source = hlsPrimaryUrl.value || hlsURL.value.trim();
-    // 多源合并或删过分片时，分片序号 / 密钥行与原始播放列表已对不上，必须重建
-    if (removed > 0 || multi) {
+    // 多源合并、删过分片或剔除广告分片时，分片序号 / 密钥行与原始播放列表已对不上，必须重建
+    if (removed > 0 || ads > 0 || multi) {
       const text = buildPlaylistText(sources, segments);
       blobUrl = URL.createObjectURL(new Blob([text], { type: M3U8_MIME }));
       source = blobUrl;
@@ -1883,6 +1906,7 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     // 下载完成后自动转码（'' 不转 / copy / h264 / h265）
     hlsDownloadXcode,
     hlsDownloadActive,
+    hlsDownloadStats,
     // 下载列表（服务端任务镜像，含进度 / 状态 / 回放）
     hlsDownloadList,
     hlsPlayingDownloadId,
