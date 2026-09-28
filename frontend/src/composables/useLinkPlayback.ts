@@ -283,10 +283,19 @@ export interface LinkPlaybackOptions {
   submitMagnet: () => void | Promise<void>;
   /** 获取 video DOM 元素 */
   getVideoEl: () => HTMLVideoElement | null;
+  /**
+   * 可选：播放器按需展开（懒渲染）时，先让宿主把 video 元素渲染出来再返回。
+   * 播放器常驻的宿主不需要提供；用到时返回值等价于 getVideoEl()。
+   */
+  ensureVideo?: () => Promise<HTMLVideoElement | null>;
   /** 获取当前音量（0~1） */
   getVolume: () => number;
-  /** 通知页面开始播放：src 为空表示由 HLS 实例接管 */
-  onPlay: (src: string, name: string, isHls: boolean) => void;
+  /**
+   * 通知页面开始播放：src 为空表示由 HLS 实例接管。
+   * 可以是异步的——播放前必须先等它把播放器 / video 元素准备好，
+   * 否则后续的 attachMedia 会被宿主的重置操作（load()）打断。
+   */
+  onPlay: (src: string, name: string, isHls: boolean) => void | Promise<void>;
   /** 可选：服务端可选的下载目录列表（来自系统设置里的媒体目录） */
   getDownloadDirs?: () => string[];
 }
@@ -1238,12 +1247,16 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
 
   /** 用 video 标签或 hls.js 播放给定的播放列表地址 */
   async function startHlsPlayback(source: string, name: string) {
-    const videoEl = getVideoEl();
+    // 播放器按需展开时首帧还没有 video 元素，先让宿主渲染出来
+    let videoEl = getVideoEl();
+    if (!videoEl && opts.ensureVideo) {
+      videoEl = await opts.ensureVideo();
+    }
     if (!videoEl) return;
 
     // Safari / iOS 原生支持 HLS，直接交给 video 标签
     if (videoEl.canPlayType(M3U8_MIME)) {
-      onPlay(source, name, false);
+      await onPlay(source, name, false);
       // 部分浏览器不支持用 blob 地址走原生 HLS 管线，失败时给出提示
       if (source.startsWith('blob:')) {
         videoEl.addEventListener(
@@ -1266,8 +1279,9 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
         notifyNegative('当前浏览器不支持 HLS 播放');
         return;
       }
-      // 先通知页面重置播放状态（内部会销毁上一个 HLS 实例）
-      onPlay('', name, true);
+      // 先通知页面重置播放状态（内部会销毁上一个 HLS 实例）。
+      // 必须等它完成再 attachMedia，否则宿主的 load() 会把媒体源清掉
+      await onPlay('', name, true);
       const instance = new Hls({ enableWorker: true });
       hlsInstance = instance;
       instance.on(Hls.Events.MANIFEST_PARSED, () => {

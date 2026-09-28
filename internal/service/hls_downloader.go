@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"search-gin/internal/model"
@@ -45,6 +46,12 @@ const (
 	hlsThrottleRetry = 4
 	// hlsThrottleStep 限流退避基数：第 1 次重试等 1s，之后逐次翻倍
 	hlsThrottleStep = time.Second
+	// hlsNetworkRetry 连接被重置 / 读取中断等网络类错误的最大尝试次数（含首次）。
+	// 这类错误多半是复用连接被源站掐断，换新连接重试即可，但也不能像普通错误
+	// 那样急，故比 hlsSegmentRetry 多一次机会
+	hlsNetworkRetry = 4
+	// hlsNetworkStep 网络类错误退避基数：500ms → 1s → 2s
+	hlsNetworkStep = 500 * time.Millisecond
 	// hlsGateCooldown 并发减半后的冷却期：期间不再触发限流才逐级恢复并发
 	hlsGateCooldown = 30 * time.Second
 	// hlsProgressInterval 进度回写最小间隔，避免分片很小时高频加锁 + SSE 广播
@@ -69,7 +76,9 @@ var hlsHTTPClient = &http.Client{
 		}).DialContext,
 		MaxIdleConns:          hlsDownloadConcurrency * 4,
 		MaxIdleConnsPerHost:   hlsDownloadConcurrency * 2,
-		IdleConnTimeout:       90 * time.Second,
+		// 空闲连接保持时间刻意短：源站 / 中间设备常单方面关闭空闲连接，
+		// 客户端复用这种「已死」连接时就会报连接被重置（wsarecv / ECONNRESET）
+		IdleConnTimeout: 20 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		ForceAttemptHTTP2:     true,
@@ -374,6 +383,32 @@ func hlsThrottled(err error) bool {
 	return false
 }
 
+// hlsNetworkError 传输层错误：连接被重置（RST）、读取中途断开、握手/读写超时等。
+//
+// 典型成因是 Keep-Alive 连接被源站或中间设备单方面关闭后又被复用
+// （Windows 上表现为 wsarecv: An existing connection was forcibly closed），
+// 也可能是对端主动断流。这类错误换新连接重试往往成功，退避比普通错误长，
+// 但不触发全局降并发——它不是源站限流的信号，降并发只会拖慢速度。
+func hlsNetworkError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, io.ErrUnexpectedEOF) ||
+		errors.Is(err, io.EOF) ||
+		errors.Is(err, syscall.ECONNRESET) ||
+		errors.Is(err, syscall.ECONNABORTED) ||
+		errors.Is(err, syscall.EPIPE) ||
+		errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		return true
+	}
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
+}
+
 // ── 并发自愈闸门：429/5xx 时临时减半全局分片并发 ────────────────
 
 // hlsGateCtxKey 把并发闸门挂到任务 ctx 上传递，避免层层改函数签名
@@ -466,13 +501,20 @@ func fetchHlsSegment(ctx context.Context, rawURL string, br *hlsByteRange, refer
 		}
 		if attempt > 0 {
 			var wait time.Duration
-			if hlsThrottled(lastErr) {
+			switch {
+			case hlsThrottled(lastErr):
 				// 限流类错误：指数退避，并升级为限流专用尝试次数（仅提升一次）
 				if maxAttempts < hlsThrottleRetry {
 					maxAttempts = hlsThrottleRetry
 				}
 				wait = hlsThrottleStep << (attempt - 1)
-			} else {
+			case hlsNetworkError(lastErr):
+				// 传输层错误（连接重置 / 读中断 / 超时）：中等指数退避，多给一次机会
+				if maxAttempts < hlsNetworkRetry {
+					maxAttempts = hlsNetworkRetry
+				}
+				wait = hlsNetworkStep << (attempt - 1)
+			default:
 				wait = time.Duration(attempt) * 300 * time.Millisecond
 			}
 			select {

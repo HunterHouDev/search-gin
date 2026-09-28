@@ -1,8 +1,8 @@
 <template>
   <q-dialog ref="dialogRef" v-model="show" :fullscreen="isMobile" @hide="dialogHide" @before-show="beforeShow"
     :style="isMobile ? '' : 'min-width: 360px'">
-    <div :style="isMobile ? '' : 'width: 80vw; max-width: 1100px; min-width: 600px; align-content: center;'">
-      <q-layout container view="hHh Lpr lff"
+    <div :style="isMobile ? '' : dialogWidthStyle">
+      <q-layout container view="hHh Lpr lff" class="batch-edit-layout"
         :style="' border-radius: 8px; ' + (isMobile ? 'height: 100vh' : 'height: 88vh')">
         <q-header class="shadow-2">
           <q-tabs v-model="dialogTab" active-color="white" indicator-color="grey-5" narrow-indicator>
@@ -17,7 +17,7 @@
         </q-header>
 
         <q-page-container>
-          <q-page class="q-pa-sm bg-grey-4 ">
+          <q-page class="q-pa-sm batch-edit-page">
             <!-- 批量操作 -->
             <template v-if="dialogTab === 'batch'">
               <div class="row q-gutter-xs q-mb-sm items-center">
@@ -230,11 +230,9 @@
               </q-list>
             </template>
 
-            <!-- 视频 / 分片链接：面板常驻（v-show），切 tab 不会丢解析结果与下载任务 -->
-            <div
-              v-show="dialogTab === 'links'"
-              style="height: calc(82vh - 160px); overflow: auto"
-            >
+            <!-- 视频 / 分片链接：面板常驻（v-show），切 tab 不会丢解析结果与下载任务。
+                 高度按视口比例，内容超出时内部滚动 -->
+            <div v-show="dialogTab === 'links'" class="link-panel-scroll">
               <LinkSourcePanel ref="linkPanelRef" embedded />
             </div>
           </q-page>
@@ -298,6 +296,13 @@ const { show, dialogRef, dialogHide, beforeShow } = useDialogShell(() => {
 const dialogTab = ref('batch');
 const taskTab = ref('等待');
 const linkPanelRef = ref(null);
+
+// 链接面板是「左播放 / 右下载」的左右布局，需要比批量编辑更宽的弹窗
+const dialogWidthStyle = computed(() =>
+  dialogTab.value === 'links'
+    ? 'width: 92vw; max-width: 1400px; min-width: 600px; align-content: center;'
+    : 'width: 80vw; max-width: 1100px; min-width: 600px; align-content: center;',
+);
 
 watch(dialogTab, (tab) => {
   if (tab === 'tasks') {
@@ -566,6 +571,22 @@ defineExpose({ open, openTaskPanel });
 
 .q-item-label--caption {
   color: var(--q-text-secondary) !important;
+}
+
+/* 链接面板区：按视口比例取高（约等于原来的 82vh - 160px），超出内部滚动 */
+.link-panel-scroll {
+  height: 67vh;
+  overflow: auto;
+}
+
+/* 弹窗背景跟随主题（深色 / 自然浅色），不再写死 grey-4 */
+.batch-edit-layout,
+.batch-edit-page {
+  background: var(--q-bg-page);
+  color: var(--q-text-primary);
+  transition:
+    background-color 0.4s ease,
+    color 0.4s ease;
 }
 </style>
 <style>

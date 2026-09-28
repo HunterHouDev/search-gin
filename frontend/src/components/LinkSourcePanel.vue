@@ -1,5 +1,12 @@
 <template>
-  <div class="link-source-panel">
+  <div
+    class="link-source-panel"
+    :class="{
+      'link-source-panel-split': embedded,
+      // 播放中：左列（分片列表 + 下载列表）与右列（播放器）并排
+      'link-source-panel-playing': embedded && embeddedActive && !playerStopped,
+    }"
+  >
     <!-- 链接类型 Tab -->
     <div class="link-tabs">
       <button
@@ -514,8 +521,17 @@
           </div>
         </template>
 
-        <!-- 下载列表：点「下载」即出现在这里（取消 / 播放）；重新添加链接不会清空 -->
-        <div v-if="hlsDownloadList.length" class="hls-download-list-panel">
+      </div>
+    </transition>
+
+    <!-- 播放区 / 下载区：左右布局；左列下载列表，播放区在点「播放」后于右列展开 -->
+    <div class="link-source-stage" :class="{ 'link-source-stage-split': embedded }">
+      <!-- 左列：下载列表（点「下载」即出现在这里；重新添加链接不会清空） -->
+      <div
+        v-if="linkTab === 'hls' && hlsDownloadList.length"
+        class="link-source-stage-download"
+      >
+        <div class="hls-download-list-panel">
           <div class="hls-download-list-header">
             <q-icon name="download_done" size="16px" color="green-4" />
             <span class="hls-download-list-title"
@@ -659,27 +675,46 @@
           </div>
         </div>
       </div>
-    </transition>
-
-    <!-- 内嵌播放器：宿主不提供 video 时（如批量编辑弹窗）由组件自己承接播放 -->
-    <div v-if="embedded" class="link-source-player">
-      <video
-        ref="internalVideoRef"
-        class="link-source-video"
-        controls
-        playsinline
-        preload="metadata"
-      ></video>
-      <div v-if="!embeddedActive" class="link-source-player-hint">
-        <q-icon name="ondemand_video" size="34px" color="indigo-4" />
-        <span>视频链接 / 分片播放的内容会显示在这里</span>
+    </div>
+    <!-- 右列：内嵌播放器（宿主不提供 video 元素时由组件自己承接播放）。
+         只显示/隐藏而不销毁：video 元素常驻，任何时刻都能拿到它播放。
+         点「播放」才展开，解析完成不显示；点「停止」后再次隐藏。
+         与左列（分片列表 + 下载列表）并排，两者共同占满面板宽度 -->
+    <div
+      v-if="embedded"
+      v-show="embeddedActive && !playerStopped"
+      class="link-source-stage-play"
+    >
+      <div class="link-source-player">
+        <video
+          ref="internalVideoRef"
+          class="link-source-video"
+          controls
+          playsinline
+          preload="metadata"
+        ></video>
+        <!-- 停止：断开播放并隐藏播放器（HLS 会停止继续拉分片） -->
+        <q-btn
+          flat
+          round
+          dense
+          size="sm"
+          color="red-4"
+          icon="stop_circle"
+          class="link-source-player-stop"
+          @click="stopAndHidePlayer"
+        >
+          <q-tooltip class="bg-dark text-white"
+            >停止播放并隐藏播放器</q-tooltip
+          >
+        </q-btn>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { useClipboard } from '@vueuse/core';
 import {
@@ -730,11 +765,29 @@ const { copy: copyText } = useClipboard({ legacy: true });
 
 // ── 内嵌播放器 ────────────────────────────────────────────────────────────────
 const internalVideoRef = ref<HTMLVideoElement | null>(null);
-/** 内嵌播放器是否已有播放内容（无内容时显示提示遮罩） */
+/** 内嵌播放器是否已有播放内容 */
 const embeddedActive = ref(false);
+/** 用户点「停止」后隐藏播放器（再次点播放时恢复） */
+const playerStopped = ref(false);
 
 function getVideoEl(): HTMLVideoElement | null {
   return props.getVideoEl?.() ?? internalVideoRef.value;
+}
+
+/**
+ * 兜底：播放器若尚未显示（例如外部把 embeddedActive 置回 false），
+ * 先把播放器展开再返回 video 元素。播放器用 v-show 常驻，正常播放不会走到这里。
+ */
+async function ensureVideo(): Promise<HTMLVideoElement | null> {
+  if (props.getVideoEl) return props.getVideoEl();
+  if (!props.embedded) return internalVideoRef.value;
+  if (embeddedActive.value && !playerStopped.value) {
+    return internalVideoRef.value;
+  }
+  playerStopped.value = false;
+  embeddedActive.value = true;
+  await nextTick();
+  return internalVideoRef.value;
 }
 
 function getVolume(): number {
@@ -742,20 +795,24 @@ function getVolume(): number {
 }
 
 /** 播放请求：宿主有 onPlay 交给宿主，否则写入内嵌播放器 */
-function handlePlay(src: string, name: string, isHls: boolean) {
+async function handlePlay(src: string, name: string, isHls: boolean) {
   if (props.onPlay) {
-    props.onPlay(src, name, isHls);
+    await props.onPlay(src, name, isHls);
     return;
   }
+  // 播放器按需显示：先置为激活，等这一帧渲染生效再写 src
+  playerStopped.value = false;
+  embeddedActive.value = isHls || src.length > 0;
+  await nextTick();
   const videoEl = internalVideoRef.value;
   if (!videoEl) return;
+  videoEl.title = name;
+  // src 为空表示由 composable 内部的 hls.js 实例接管：
+  // 这里不能 load()——它会清掉随后 attachMedia 写入的媒体源
+  if (!src) return;
   videoEl.pause();
   videoEl.removeAttribute('src');
   videoEl.load();
-  videoEl.title = name;
-  embeddedActive.value = isHls || src.length > 0;
-  // src 为空表示由 composable 内部的 hls.js 实例接管（attachMedia 处理）
-  if (!src) return;
   videoEl.src = src;
   videoEl.play().catch((e: Error) => {
     console.warn('Autoplay blocked:', e.message);
@@ -832,6 +889,7 @@ const {
   magnetURI: magnetModel,
   submitMagnet: () => props.submitMagnet?.(),
   getVideoEl,
+  ensureVideo,
   getVolume,
   onPlay: handlePlay,
   // 服务端可选保存目录：来自系统设置里的媒体目录
@@ -909,6 +967,15 @@ async function copyAllSegmentUrls() {
 }
 
 // ── 停止播放 / 卸载 ───────────────────────────────────────────────────────────
+/**
+ * 停止播放并隐藏播放器：清掉播放源、销毁 HLS 实例（停止继续拉分片），
+ * 之后播放器区域收起，重新播放或重新解析链接时自动展开。
+ */
+function stopAndHidePlayer() {
+  stopPlayback();
+  playerStopped.value = true;
+}
+
 /** 销毁 HLS 实例并清空播放地址（宿主切换资源 / 关闭弹窗时调用） */
 function stopPlayback() {
   destroyHls();
@@ -933,20 +1000,74 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
 </script>
 
 <style scoped lang="scss">
+/* 宽度完全交给宿主容器（弹窗 92vw / 页面 64vw），面板自身只按比例铺满 */
 .link-source-panel {
   width: 100%;
-  /* 宿主容器更宽时（如弹窗）居中收窄，与播放器宽度对齐 */
-  max-width: 900px;
   margin: 0 auto;
+}
+
+/* 播放中：两列网格——左列上半是分片列表、下半是下载列表，右列是播放器。
+   列宽按 54 : 46 固定比例划分，顶部 Tab 与输入框横跨整行 */
+.link-source-panel-playing {
+  display: grid;
+  grid-template-columns: 54fr 46fr;
+  column-gap: 10px;
+}
+
+/* 顶部区块跨满两列 */
+.link-source-panel-playing > .link-tabs,
+.link-source-panel-playing > .magnet-input-wrapper {
+  grid-column: 1 / -1;
+}
+
+/* 其余区块（分片列表、下载列表）落在左列 */
+.link-source-panel-playing > * {
+  grid-column: 1;
+  min-width: 0;
+}
+
+/* 播放器占右列：从第 3 行（列表开始处）跨到末尾，高度按自身 16:9 比例 */
+.link-source-panel-playing > .link-source-stage-play {
+  grid-column: 2;
+  grid-row: 3 / span 100;
+  align-self: start;
+  min-width: 0;
+}
+
+/* ── 播放区 / 下载区 ────────────────────────────────────────────────────────── */
+/* 上下排列：下载列表（左列内）在上，播放器由网格排到右侧 */
+.link-source-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.link-source-stage-play,
+.link-source-stage-download {
+  min-width: 0;
+}
+
+/* 右列播放器：宽度由网格列决定，高度按 16:9 固定比例（没有上方 12px 间距） */
+.link-source-stage-play {
+  .link-source-player {
+    height: auto;
+    aspect-ratio: 16 / 9;
+    max-width: 100%;
+    max-height: 46vh;
+    min-height: 0;
+    margin: 0;
+  }
 }
 
 /* ── 内嵌播放器（批量编辑弹窗等宿主用） ─────────────────────────────────────── */
 .link-source-player {
   position: relative;
   width: 100%;
-  max-width: 900px;
-  height: 42vh;
-  min-height: 180px;
+  /* 高度按 16:9 比例随宽度变化；矮屏时由 max-height 兜底（画面 contain 不变形） */
+  height: auto;
+  aspect-ratio: 16 / 9;
+  max-height: 46vh;
   margin: 12px auto 0;
   background: #06060c;
   border: 1px solid rgba(99, 102, 241, 0.28);
@@ -958,22 +1079,18 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
   display: block;
   width: 100%;
   height: 100%;
+  /* 播放器高度跟随左列，画面按比例缩放、留黑边而不拉伸变形 */
+  object-fit: contain;
   background: #000;
 }
 
-.link-source-player-hint {
+/* 停止按钮：浮在播放器右上角，避免被原生控制条遮挡 */
+.link-source-player-stop {
   position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 0 16px;
-  text-align: center;
-  font-size: 0.78rem;
-  color: rgba(165, 148, 249, 0.7);
-  background: rgba(8, 8, 16, 0.94);
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  background: rgba(8, 8, 16, 0.72);
 }
 
 /* ── 链接类型 Tab ──────────────────────────────────────────────────────────── */
@@ -1274,14 +1391,15 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
 }
 
 .hls-segment-list {
-  max-height: 220px;
+  /* 按视口比例限高，条目多时内部滚动 */
+  max-height: 24vh;
   overflow-y: auto;
   padding: 4px 0;
 }
 
 /* ── 源列表（多个 m3u8 的合并顺序） ────────────────────────────────────────── */
 .hls-source-list {
-  max-height: 132px;
+  max-height: 12vh;
   overflow-y: auto;
   padding: 4px 0;
   border-bottom: 1px solid rgba(99, 102, 241, 0.18);
@@ -1431,9 +1549,15 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
 }
 
 /* ── 下载列表（已完成的分片视频，可回放） ──────────────────────────────────── */
+/* 下载列表已是独立卡片（不再嵌在分片面板内），底色必须自给自足：
+   否则会直接透出宿主的浅色页面背景（批量编辑弹窗是 bg-grey-4） */
 .hls-download-list-panel {
-  border-top: 1px solid rgba(99, 102, 241, 0.22);
-  background: rgba(16, 32, 24, 0.35);
+  background: rgba(12, 12, 24, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  border-radius: 14px;
+  overflow: hidden;
 }
 
 .hls-download-list-header {
@@ -1476,7 +1600,7 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
 }
 
 .hls-download-list {
-  max-height: 180px;
+  max-height: 30vh;
   overflow-y: auto;
   padding: 4px 0;
 }
@@ -1531,23 +1655,40 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
   border-radius: 2px;
 }
 
+/* 容器不够宽时左右布局会挤压两侧，回落到上下排列 */
+@media (max-width: 900px) {
+  /* 不够宽就回落单列，仍然是比例划分 */
+  .link-source-panel-playing {
+    grid-template-columns: 1fr;
+  }
+
+  .link-source-panel-playing > .link-source-stage-play {
+    grid-column: 1;
+    grid-row: auto;
+    width: 100%;
+  }
+
+  .link-source-stage-play .link-source-player {
+    max-height: 38vh;
+  }
+}
+
 @media (max-width: 768px) {
   .link-source-player {
-    height: 32vh;
-    min-height: 140px;
+    max-height: 34vh;
   }
 
   .hls-segment-list {
-    max-height: 150px;
+    max-height: 20vh;
   }
 
   /* 小屏下源列表同样收窄，避免挤掉分片列表 */
   .hls-source-list {
-    max-height: 88px;
+    max-height: 10vh;
   }
 
   .hls-url-rows {
-    max-height: 88px;
+    max-height: 10vh;
   }
 
   .hls-segment-url {
