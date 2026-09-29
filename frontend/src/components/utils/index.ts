@@ -65,6 +65,7 @@ export const MovieTypeOptions = [
   { label: '骑兵', value: '骑兵' },
   { label: '步兵', value: '步兵' },
   { label: '西洋', value: '斯巴达' },
+  { label: '短剧', value: '短剧' },
   { label: '漫动', value: '漫动' },
 ];
 
