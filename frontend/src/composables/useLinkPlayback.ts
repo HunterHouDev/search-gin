@@ -995,27 +995,25 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
 
   const canSubmitLink = computed(() => activeLinkValue.value.trim().length > 0);
 
-  /** 分片 tab 的输入框按钮只负责解析 / 追加（播放按钮位于分片列表头部） */
+  /** 分片 tab 的输入框按钮常驻「解析」（播放按钮位于分片列表头部） */
   // 磁力链按钮只负责「解析」，之后在弹窗里选文件再决定播放还是下载；
-  // 视频直链是直接播放；分片链按钮负责解析播放列表，已解析时追加为新的源
+  // 视频直链是直接播放；分片链按钮始终解析播放列表（同一地址重新解析，新地址追加为源）
   const linkActionLabel = computed(() => {
     if (linkTab.value === 'magnet') return '解析';
     if (linkTab.value === 'video') return '播放';
-    return hlsParsed.value ? '添加' : '解析';
+    return '解析';
   });
 
   const linkActionIcon = computed(() => {
     if (linkTab.value === 'magnet') return 'troubleshoot';
     if (linkTab.value === 'video') return 'play_circle_filled';
-    return hlsParsed.value ? 'add' : 'troubleshoot';
+    return 'troubleshoot';
   });
 
   const linkActionTooltip = computed(() => {
     if (linkTab.value === 'magnet') return '解析磁力链并选择要播放或下载的文件';
     if (linkTab.value === 'video') return activeLinkTab.value.tooltip;
-    if (!hlsParsed.value)
-      return '解析分片列表，可一次粘贴多个 m3u8 地址（空格 / 换行分隔）';
-    return `继续添加 m3u8 作为后续片段（当前 ${hlsSourceCount.value} 个源、保留 ${hlsKeptCount.value} 个分片）；同一地址会重新解析`;
+    return '解析分片列表，可一次粘贴多个 m3u8 地址（空格 / 换行分隔）；同一地址会重新解析';
   });
 
   const linkActionLoading = computed(
@@ -1183,8 +1181,8 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
   }
 
   /**
-   * 解析分片链接。输入框支持一次粘贴多个地址（空格 / 换行分隔）：
-   * 已存在的地址原位刷新，新地址追加为后续片段——多个源按顺序合并播放 / 下载。
+   * 解析分片链接。每次解析都是全新的一份：先清空上次的源与分片，
+   * 再解析输入框里的地址（空格 / 换行分隔，多个地址即多个源，按顺序合并播放 / 下载）。
    */
   async function parseHls() {
     const raw = hlsURL.value.trim();
@@ -1198,6 +1196,10 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
       notifyNegative('请输入有效的分片链接（http/https）');
       return;
     }
+
+    // 重新解析：只清空上次的源列表与分片，播放器保持原样（继续播放，不销毁 HLS 实例）；
+    // 下载列表与广告黑名单同样保留
+    resetHlsParse();
 
     hlsParsing.value = true;
     const failures: string[] = [];
@@ -1469,16 +1471,22 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     await removeHlsDownload(id);
   }
 
-  /** 清空下载列表：删除所有分片下载任务（不删除已下载到服务端的文件） */
-  async function clearHlsDownloads() {
-    const ids = hlsDownloadList.value.map((item) => item.id);
-    hlsDownloadList.value = [];
-    releaseDownloadPlaybackUrl();
+  /**
+   * 从列表移除给定条目：同步删除服务端任务记录。
+   * 注意只删任务记录，不删除已下载到服务端的文件。
+   */
+  async function deleteDownloadTasks(items: HlsDownloadItem[]) {
+    if (items.length === 0) return;
+    const ids = new Set(items.map((item) => item.id));
+    hlsDownloadList.value = hlsDownloadList.value.filter(
+      (item) => !ids.has(item.id),
+    );
+    if (ids.has(hlsPlayingDownloadId.value)) releaseDownloadPlaybackUrl();
     for (const id of ids) {
       try {
         await HlsCancelAPI(id);
       } catch {
-        /* 已完成的任务取消失败可忽略 */
+        /* 已结束的任务取消失败可忽略 */
       }
       try {
         await DelTransferTasksInfo(id);
@@ -1487,6 +1495,30 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
       }
     }
     void refreshHlsDownloads();
+  }
+
+  /** 清空已完成：删除状态为「完成」的任务记录 */
+  async function clearDoneHlsDownloads() {
+    const targets = hlsDownloadList.value.filter(
+      (item) => item.status === 'done',
+    );
+    if (targets.length === 0) {
+      notifyNegative('没有已完成的下载');
+      return;
+    }
+    await deleteDownloadTasks(targets);
+  }
+
+  /** 清空已失败：删除状态为「失败」或「已取消」的任务记录 */
+  async function clearFailedHlsDownloads() {
+    const targets = hlsDownloadList.value.filter(
+      (item) => item.status === 'failed' || item.status === 'canceled',
+    );
+    if (targets.length === 0) {
+      notifyNegative('没有失败或已取消的下载');
+      return;
+    }
+    await deleteDownloadTasks(targets);
   }
 
   /** 重启失败/已取消的下载任务：服务端复用落盘的播放列表重新入队 */
@@ -1670,17 +1702,73 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
   }
 
   /**
-   * 前端备用下载（下载列表条目）：优先服务端落盘的播放列表副本，
-   * 其次从源站直接拉取，全程不经过服务端。
+   * 当前面板已解析的分片重建出的播放列表，供浏览器直下使用。
+   * 返回 null 表示当前没有可下载的分片。
+   */
+  function buildCurrentBrowserPlaylist(): {
+    name: string;
+    sourceUrl?: string;
+    playlist: string;
+  } | null {
+    const sources = hlsSources.value;
+    const segments = hlsUsableSegments.value;
+    if (sources.length === 0 || segments.length === 0) return null;
+    // SAMPLE-AES 无法在浏览器内解密：按源分别解出每个分片生效的密钥再校验
+    const keysBySource = new Map(
+      sources.map((item) => [item.id, resolveSegmentKeys(item.parsed)]),
+    );
+    if (
+      segments.some(
+        (seg) =>
+          keysBySource.get(seg.sourceId)?.[seg.index - 1]?.method ===
+          'SAMPLE-AES',
+      )
+    ) {
+      throw new Error('该视频使用 SAMPLE-AES 加密，浏览器直下暂不支持');
+    }
+    return {
+      name: resolveDownloadName(
+        hlsDownloadName.value,
+        hlsDefaultDownloadName.value,
+        hlsDownloadExt.value,
+      ),
+      sourceUrl: hlsPrimaryUrl.value || hlsURL.value.trim() || undefined,
+      // 与服务端下载一致：重建播放列表（含分片删除与多源合并结果）
+      playlist: buildPlaylistText(sources, segments),
+    };
+  }
+
+  /**
+   * 浏览器下载（纯前端 JS）：优先用服务端保存的播放列表副本；
+   * 服务端没有落盘（任务早期就失败）时，退回当前面板已解析的分片，
+   * 在浏览器内拉取、解密、合并后另存本机，全程不经过服务端任务。
    */
   async function downloadHlsInBrowser(item: HlsDownloadItem) {
     if (browserDownloadInProgress(item)) {
-      notifyNegative('该任务的浏览器直下正在进行中');
+      notifyNegative('该任务的浏览器下载正在进行中');
       return;
     }
     try {
       const text = await resolveBrowserPlaylist(item);
       await browserDownloadFromPlaylist(item.id, item.name, item.sourceUrl, text);
+      return;
+    } catch {
+      // 服务端副本不可用 → 退回当前面板的分片继续尝试
+    }
+    try {
+      const current = buildCurrentBrowserPlaylist();
+      if (!current) {
+        notifyNegative(
+          '该任务没有可用的播放列表，且当前面板没有已解析的分片，请先解析该视频',
+        );
+        return;
+      }
+      await browserDownloadFromPlaylist(
+        item.id,
+        item.name || current.name,
+        current.sourceUrl,
+        current.playlist,
+      );
     } catch (e) {
       notifyBrowserDownloadError(e);
     }
@@ -1716,38 +1804,21 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
    * 直接在浏览器内拉取当前分片列表、解密合并后另存到本机。
    */
   async function downloadHlsInBrowserNow() {
-    const sources = hlsSources.value;
-    const segments = hlsUsableSegments.value;
-    if (sources.length === 0 || segments.length === 0) {
-      notifyNegative('没有可下载的分片');
-      return;
+    try {
+      const current = buildCurrentBrowserPlaylist();
+      if (!current) {
+        notifyNegative('没有可下载的分片');
+        return;
+      }
+      await browserDownloadFromPlaylist(
+        BROWSER_NOW_ID,
+        current.name,
+        current.sourceUrl,
+        current.playlist,
+      );
+    } catch (e) {
+      notifyBrowserDownloadError(e);
     }
-    // SAMPLE-AES 无法在浏览器内解密：按源分别解出每个分片生效的密钥再校验
-    const keysBySource = new Map(
-      sources.map((item) => [item.id, resolveSegmentKeys(item.parsed)]),
-    );
-    const unsupported = segments.some(
-      (seg) =>
-        keysBySource.get(seg.sourceId)?.[seg.index - 1]?.method === 'SAMPLE-AES',
-    );
-    if (unsupported) {
-      notifyNegative('该视频使用 SAMPLE-AES 加密，浏览器直下暂不支持');
-      return;
-    }
-    const fileName = resolveDownloadName(
-      hlsDownloadName.value,
-      hlsDefaultDownloadName.value,
-      hlsDownloadExt.value,
-    );
-    // 与服务端下载一致：重建播放列表（含分片删除与多源合并结果）
-    const playlist = buildPlaylistText(sources, segments);
-    const sourceUrl = hlsPrimaryUrl.value || hlsURL.value.trim();
-    await browserDownloadFromPlaylist(
-      BROWSER_NOW_ID,
-      fileName,
-      sourceUrl || undefined,
-      playlist,
-    );
   }
 
   /**
@@ -1955,7 +2026,8 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     chooseHlsDownloadDir,
     refreshHlsDownloads,
     playHlsDownload,
-    clearHlsDownloads,
+    clearDoneHlsDownloads,
+    clearFailedHlsDownloads,
     destroyHls,
     cleanup,
   };

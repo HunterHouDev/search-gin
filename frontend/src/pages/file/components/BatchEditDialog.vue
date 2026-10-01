@@ -53,6 +53,42 @@
                 </q-btn-dropdown>
                 <q-btn v-permission="'op:merge'" glossy color="orange"
                   :disable="selectedCount === 0 || isBatchProcessing" @click="mergeFiles">合并</q-btn>
+                <!-- 批量删除：磁盘文件一并删除，执行前二次确认 -->
+                <q-btn v-permission="'op:edit'" glossy color="negative" icon="delete_forever"
+                  :disable="selectedCount === 0 || isBatchProcessing" @click="deleteSelected">
+                  <q-tooltip>批量删除选中的文件（磁盘文件一并删除，不可恢复）</q-tooltip>
+                </q-btn>
+                <!-- 文件名批量替换：对选中文件的文件名做字符串替换后重命名 -->
+                <q-btn-dropdown v-permission="'op:edit'" glossy color="deep-purple" label="文件名替换"
+                  :disable="selectedCount === 0 || isBatchProcessing">
+                  <div class="q-pa-sm" style="min-width: 320px">
+                    <q-input v-model="replaceForm.from" dense filled label="查找字符串" />
+                    <q-input v-model="replaceForm.to" dense filled label="替换为" class="q-mt-xs" />
+                    <q-toggle v-model="replaceForm.includeExt" dense label="包含扩展名" class="q-mt-xs" />
+                    <div class="q-mt-sm">
+                      <div v-if="!replaceForm.from" class="text-caption dim">
+                        先勾选文件并填写查找字符串
+                      </div>
+                      <div v-else-if="!replacePreview.length" class="text-caption dim">
+                        没有文件名包含「{{ replaceForm.from }}」
+                      </div>
+                      <template v-else>
+                        <div class="text-caption">
+                          命中 {{ replacePreview.length }} 个文件：
+                        </div>
+                        <div v-for="p in replacePreview.slice(0, 5)" :key="p.id"
+                          class="text-caption ellipsis" style="max-width: 300px">
+                          {{ p.old }} → {{ p.new }}
+                        </div>
+                        <div v-if="replacePreview.length > 5" class="text-caption dim">
+                          ...等 {{ replacePreview.length }} 个
+                        </div>
+                      </template>
+                    </div>
+                    <q-btn color="deep-purple" label="提交重命名" class="full-width q-mt-sm" v-close-popup
+                      :disable="!replacePreview.length" @click="submitReplace" />
+                  </div>
+                </q-btn-dropdown>
               </div>
               <div class="row q-gutter-sm q-mb-sm items-center">
                 <q-input v-model="state.queryParam.Keyword" dense filled outlined color="primary" placeholder="搜索..."
@@ -265,7 +301,7 @@ import { useBreakpoint } from 'src/composables/useBreakpoint';
 import { useDialogShell } from 'src/composables/useDialogShell';
 import { MovieTypeOptions, parseTimeZH } from 'components/utils';
 import {
-  ResetMovieType, SearchAPI, RefreshAPI, FilesMerge,
+  ResetMovieType, SearchAPI, RefreshAPI, FilesMerge, DeleteFile, FileRename,
   TansferFileVcode, CloseTag, AddTag, OpenFileFolder,
   TransferTasksInfo, DelTransferTasksInfo,
   ClearCompletedTasks, ClearFailedTasks, ClearAllTasks,
@@ -479,6 +515,138 @@ const mergeFiles = () => {
   if (state.selector.length) commonExec(() => FilesMerge({ files: state.selector, DeleteFlag: false }));
 };
 
+// ── 文件名批量替换 ────────────────────────────────────────────────
+const replaceForm = reactive({ from: '', to: '', includeExt: false });
+
+/** 选中项对应的文件对象（按当前列表顺序） */
+const selectedItems = computed(() =>
+  state.selector
+    .map((id) => state.resultData.Data?.find((f) => f.Id === id))
+    .filter(Boolean),
+);
+
+/** 取路径里的文件名（含扩展名），兼容 / 与 \ 两种分隔符 */
+const fileNameOf = (item) => {
+  const p = item?.Path || item?.Name || '';
+  const parts = p.split(/[\\/]/);
+  return parts[parts.length - 1] || p;
+};
+
+/** 拆分主文件名与扩展名（无扩展名时返回空串） */
+const splitExt = (name) => {
+  const idx = name.lastIndexOf('.');
+  return idx > 0 ? [name.slice(0, idx), name.slice(idx + 1)] : [name, ''];
+};
+
+/** 单条文件替换后的新旧文件名；无命中返回 null */
+function replacedName(item) {
+  const full = fileNameOf(item);
+  const [stem, ext] = splitExt(full);
+  const from = replaceForm.from;
+  if (!from) return null;
+  const target = replaceForm.includeExt ? full : stem;
+  if (!target.includes(from)) return null;
+  const replaced = target.split(from).join(replaceForm.to || '');
+  const newFull = replaceForm.includeExt
+    ? replaced
+    : replaced + (ext ? '.' + ext : '');
+  return newFull === full ? null : { old: full, new: newFull };
+}
+
+/** 替换预览：只列命中的条目，提交前可先核对 */
+const replacePreview = computed(() =>
+  selectedItems.value
+    .map((item) => {
+      const r = replacedName(item);
+      return r ? { id: item.Id, ...r } : null;
+    })
+    .filter(Boolean),
+);
+
+/** 批量重命名：逐条调用重命名接口，结束汇总成功 / 失败数 */
+const submitReplace = async () => {
+  const targets = replacePreview.value;
+  if (!targets.length) return;
+  isBatchProcessing.value = true;
+  batchProgress.value = 0;
+  let ok = 0;
+  let fail = 0;
+  for (const t of targets) {
+    const item = state.resultData.Data?.find((f) => f.Id === t.id);
+    if (!item) continue;
+    try {
+      const res = await FileRename({
+        Id: item.Id,
+        Name: t.new,
+        Code: item.Code || '',
+        Title: item.Title || '',
+        Author: item.Author || '',
+        MovieType: item.MovieType || '',
+        MoveOut: false,
+        NoRefresh: true,
+        Host: item.NodeHost || '',
+      });
+      if (res?.Code === 200) {
+        ok += 1;
+        if (res.Data) Object.assign(item, res.Data);
+      } else {
+        fail += 1;
+      }
+    } catch {
+      fail += 1;
+    }
+    batchProgress.value += 1;
+  }
+  isBatchProcessing.value = false;
+  $q.notify({
+    type: fail ? 'warning' : 'positive',
+    message: fail
+      ? `替换完成：成功 ${ok} 个，失败 ${fail} 个`
+      : `替换完成：${ok} 个文件已重命名`,
+    position: 'top',
+  });
+  resetSelector();
+  fetchSearch();
+};
+
+// ── 批量删除 ──────────────────────────────────────────────────────
+/** 删除选中的文件（磁盘文件一并删除），执行前弹确认框 */
+const deleteSelected = () => {
+  const items = selectedItems.value;
+  if (!items.length) return;
+  $q.dialog({
+    title: '批量删除',
+    message: `确认删除选中的 ${items.length} 个文件？磁盘文件会一并删除，且不可恢复。`,
+    cancel: true,
+    persistent: true,
+  }).onOk(async () => {
+    isBatchProcessing.value = true;
+    batchProgress.value = 0;
+    let ok = 0;
+    let fail = 0;
+    for (const item of items) {
+      try {
+        const res = await DeleteFile(item);
+        if (res?.Code === 200) ok += 1;
+        else fail += 1;
+      } catch {
+        fail += 1;
+      }
+      batchProgress.value += 1;
+    }
+    isBatchProcessing.value = false;
+    $q.notify({
+      type: fail ? 'warning' : 'positive',
+      message: fail
+        ? `删除完成：成功 ${ok} 个，失败 ${fail} 个`
+        : `删除完成：${ok} 个文件已删除`,
+      position: 'top',
+    });
+    resetSelector();
+    fetchSearch();
+  });
+};
+
 // ── 单项操作 ──────────────────────────────────────────────────────
 const doSetMovieType = async (item, type) => {
   const u = await commonExec(() => ResetMovieType(item.Id, type));
@@ -557,26 +725,41 @@ defineExpose({ open, openTaskPanel });
 </script>
 
 <style scoped>
+/* 文字统一跟随主题：--q-text-secondary 在深色主题下是深色值，不能用作正文色 */
 .q-page {
-  color: var(--q-text-muted);
+  color: var(--q-text-primary);
 }
 
 .batch-item {
-  color: var(--q-text-secondary);
+  /* 卡片底色把条目从页面背景里区分出来 */
+  background: var(--q-bg-card);
+  color: var(--q-text-primary);
 }
 
 .batch-item .dim {
-  color: var(--q-text-secondary);
+  color: var(--q-text-muted);
 }
 
-.q-item-label--caption {
-  color: var(--q-text-secondary) !important;
+/* 任务列表等 Quasar 组件默认是浅色主题的黑字，深色背景下需覆盖 */
+.batch-edit-page :deep(.q-list),
+.batch-edit-page :deep(.q-item) {
+  background: transparent;
+  color: var(--q-text-primary);
 }
 
-/* 链接面板区：按视口比例取高（约等于原来的 82vh - 160px），超出内部滚动 */
+.batch-edit-page :deep(.q-item__label) {
+  color: var(--q-text-primary);
+}
+
+.batch-edit-page :deep(.q-item__label--caption) {
+  color: var(--q-text-muted) !important;
+}
+
+/* 链接面板区：按弹窗高度取剩余空间（88vh 减去顶部 Tab / 地址行与内边距），
+   面板内部再按行比例分配，外层不滚动 */
 .link-panel-scroll {
-  height: 67vh;
-  overflow: auto;
+  height: 78vh;
+  overflow: hidden;
 }
 
 /* 弹窗背景跟随主题（深色 / 自然浅色），不再写死 grey-4 */

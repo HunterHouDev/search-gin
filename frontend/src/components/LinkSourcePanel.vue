@@ -534,50 +534,86 @@
         <div class="hls-download-list-panel">
           <div class="hls-download-list-header">
             <q-icon name="download_done" size="16px" color="green-4" />
-            <span class="hls-download-list-title"
+            <span
+              class="hls-download-list-title hls-download-stat-btn"
+              :class="{ 'hls-download-stat-active': hlsDownloadFilter === 'all' }"
+              @click="toggleDownloadFilter('all')"
               >下载列表 · {{ hlsDownloadStats.total }}</span
             >
-            <span class="hls-download-stat hls-download-stat-running">
+            <!-- 点状态即筛选该状态的条目，再点一次取消筛选 -->
+            <span
+              class="hls-download-stat hls-download-stat-running hls-download-stat-btn"
+              :class="{
+                'hls-download-stat-active': hlsDownloadFilter === 'downloading',
+              }"
+              @click="toggleDownloadFilter('downloading')"
+            >
               执行中 {{ hlsDownloadStats.downloading }}
             </span>
-            <span class="hls-download-stat hls-download-stat-done">
+            <span
+              class="hls-download-stat hls-download-stat-done hls-download-stat-btn"
+              :class="{ 'hls-download-stat-active': hlsDownloadFilter === 'done' }"
+              @click="toggleDownloadFilter('done')"
+            >
               完成 {{ hlsDownloadStats.done }}
             </span>
             <span
-              v-if="hlsDownloadStats.failed"
-              class="hls-download-stat hls-download-stat-failed"
+              v-if="hlsDownloadStats.failed || hlsDownloadFilter === 'failed'"
+              class="hls-download-stat hls-download-stat-failed hls-download-stat-btn"
+              :class="{ 'hls-download-stat-active': hlsDownloadFilter === 'failed' }"
+              @click="toggleDownloadFilter('failed')"
             >
               失败 {{ hlsDownloadStats.failed }}
             </span>
             <q-space />
+            <!-- 清空已完成 / 清空已失败：只删对应状态的任务记录，不删已下载的文件 -->
             <q-btn
               flat
               dense
               no-caps
               size="sm"
-              color="grey-5"
+              color="green-4"
               icon="delete_sweep"
-              label="清空"
-              @click="clearHlsDownloads"
+              label="清空已完成"
+              :disable="!hlsDownloadStats.done"
+              @click="clearDoneHlsDownloads"
             >
               <q-tooltip class="bg-dark text-white"
-                >删除服务端的下载任务记录，不会删除已下载的文件</q-tooltip
+                >删除已完成的任务记录，不会删除已下载的文件</q-tooltip
+              >
+            </q-btn>
+            <q-btn
+              flat
+              dense
+              no-caps
+              size="sm"
+              color="red-4"
+              icon="delete_sweep"
+              label="清空已失败"
+              :disable="!hlsDownloadStats.failed"
+              @click="clearFailedHlsDownloads"
+            >
+              <q-tooltip class="bg-dark text-white"
+                >删除失败与已取消的任务记录，不会删除已下载的文件</q-tooltip
               >
             </q-btn>
           </div>
           <div class="hls-download-list">
             <div
-              v-for="item in hlsDownloadList"
+              v-for="item in hlsVisibleDownloadList"
               :key="item.id"
               class="hls-download-item"
-              :class="{
-                'hls-download-item-playing': item.id === hlsPlayingDownloadId,
-              }"
+              :class="[
+                `hls-download-item-${hlsDownloadBucket(item)}`,
+                {
+                  'hls-download-item-playing': item.id === hlsPlayingDownloadId,
+                },
+              ]"
             >
               <q-icon
                 name="movie"
                 size="16px"
-                color="indigo-4"
+                :color="hlsDownloadIconColor(item)"
                 class="hls-download-item-icon"
               />
               <div class="hls-download-item-info">
@@ -595,8 +631,8 @@
                       : (browserProgressRatio(item) ?? 0)
                   "
                   size="3px"
-                  color="indigo-4"
-                  track-color="rgba(99, 102, 241, 0.18)"
+                  :color="hlsDownloadIconColor(item)"
+                  track-color="rgba(148, 163, 184, 0.2)"
                   class="hls-download-item-bar"
                 />
               </div>
@@ -635,19 +671,21 @@
                   >重新启动该下载任务</q-tooltip
                 >
               </q-btn>
-              <!-- 浏览器直下（前端备用）：浏览器直接从源站拉分片、解密合并另存，不经服务端 -->
+              <!-- 浏览器下载（前端 JS）：优先用服务端保存的播放列表副本，
+                   拿不到（失败任务早期中断）就用当前面板已解析的分片；
+                   全程在浏览器内拉取分片、解密合并后另存本机，不经服务端任务 -->
               <q-btn
                 flat
                 round
                 dense
                 size="sm"
-                color="indigo-4"
-                icon="file_download"
+                color="orange-4"
+                icon="download_for_offline"
                 :disable="browserDownloadInProgress(item)"
                 @click="downloadHlsInBrowser(item)"
               >
                 <q-tooltip class="bg-dark text-white">
-                  浏览器直接下载（前端备用，不经服务端；源站禁止跨域时失败）
+                  浏览器下载（前端直接拉取分片并存到本机，不经服务端；源站禁止跨域时失败）
                 </q-tooltip>
               </q-btn>
               <!-- 播放：下载完成后回放本地文件 -->
@@ -720,6 +758,7 @@ import { useClipboard } from '@vueuse/core';
 import {
   LINK_TABS,
   useLinkPlayback,
+  type HlsDownloadItem,
   type HlsSegment,
   type LinkTab,
 } from 'src/composables/useLinkPlayback';
@@ -882,7 +921,8 @@ const {
   browserProgressRatio,
   chooseHlsDownloadDir,
   playHlsDownload,
-  clearHlsDownloads,
+  clearDoneHlsDownloads,
+  clearFailedHlsDownloads,
   destroyHls,
   cleanup,
 } = useLinkPlayback($q, {
@@ -916,6 +956,46 @@ const browserNowLabel = computed(() => {
   const r = browserNowProgressRatio();
   return r == null ? '浏览器直下' : `直下中 ${Math.round(r * 100)}%`;
 });
+
+// ── 下载列表过滤 ─────────────────────────────────────────────────────────────
+/** 列表状态分组，同时决定条目配色：执行中橘色 / 完成绿色 / 失败（含取消）红色 */
+type DownloadBucket = 'downloading' | 'done' | 'failed';
+/** 当前过滤项：all 为不过滤 */
+const hlsDownloadFilter = ref<DownloadBucket | 'all'>('all');
+
+/** 条目归入哪一组：浏览器直下进行中同样算「执行中」 */
+function hlsDownloadBucket(item: HlsDownloadItem): DownloadBucket {
+  if (item.status === 'downloading' || browserDownloadInProgress(item)) {
+    return 'downloading';
+  }
+  if (item.status === 'done') return 'done';
+  return 'failed';
+}
+
+/** 依过滤项展示的下载列表 */
+const hlsVisibleDownloadList = computed(() =>
+  hlsDownloadFilter.value === 'all'
+    ? hlsDownloadList.value
+    : hlsDownloadList.value.filter(
+        (item) => hlsDownloadBucket(item) === hlsDownloadFilter.value,
+      ),
+);
+
+/** 点表头的分组统计即切换过滤，再点一次回到全部 */
+function toggleDownloadFilter(bucket: DownloadBucket | 'all') {
+  hlsDownloadFilter.value = hlsDownloadFilter.value === bucket ? 'all' : bucket;
+}
+
+/** 条目主色：执行中橘色 / 完成绿色 / 失败红色 */
+const downloadBucketColor: Record<DownloadBucket, string> = {
+  downloading: 'orange-4',
+  done: 'green-4',
+  failed: 'red-4',
+};
+
+function hlsDownloadIconColor(item: HlsDownloadItem): string {
+  return downloadBucketColor[hlsDownloadBucket(item)];
+}
 
 // ── 可见的链接类型 ────────────────────────────────────────────────────────────
 const visibleTabs = computed(() =>
@@ -1007,11 +1087,47 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
 }
 
 /* 播放中：两列网格——左列上半是分片列表、下半是下载列表，右列是播放器。
-   列宽按 54 : 46 固定比例划分，顶部 Tab 与输入框横跨整行 */
+   列宽按 54 : 46 固定比例；行高按「顶部按内容、剩余空间平分」分配——
+   面板高度由宿主容器（弹窗）给定，播放器高度 = 弹窗高度 - 顶部高度 */
 .link-source-panel-playing {
   display: grid;
   grid-template-columns: 54fr 46fr;
+  grid-template-rows: auto auto minmax(0, 1fr) minmax(0, 1fr);
   column-gap: 10px;
+  height: 100%;
+}
+
+/* 左列两块撑满各自的行：面板变 flex 列，列表吃掉剩余高度并内部滚动 */
+.link-source-panel-playing > .hls-segment-panel,
+.link-source-panel-playing > .link-source-stage {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.link-source-panel-playing .hls-download-list-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.link-source-panel-playing .link-source-stage-download {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.link-source-panel-playing .hls-segment-list,
+.link-source-panel-playing .hls-download-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  /* 高度交给行比例分配，不再用 vh 限高 */
+  max-height: none;
+}
+
+/* 标题行保持自身高度，不被列表挤压 */
+.link-source-panel-playing .hls-segment-header,
+.link-source-panel-playing .hls-download-list-header {
+  flex-shrink: 0;
 }
 
 /* 顶部区块跨满两列 */
@@ -1026,12 +1142,15 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
   min-width: 0;
 }
 
-/* 播放器占右列：从第 3 行（列表开始处）跨到末尾，高度按自身 16:9 比例 */
+/* 播放器占右列：从第 3 行（列表开始处）跨到末尾，
+   拉伸满整行高度，内部播放器用 height: 100% 铺满 */
 .link-source-panel-playing > .link-source-stage-play {
   grid-column: 2;
-  grid-row: 3 / span 100;
-  align-self: start;
+  /* 跨分片列表 + 下载列表两行 = 弹窗去掉顶部后的全部高度 */
+  grid-row: 3 / span 2;
+  align-self: stretch;
   min-width: 0;
+  min-height: 0;
 }
 
 /* ── 播放区 / 下载区 ────────────────────────────────────────────────────────── */
@@ -1048,14 +1167,15 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
   min-width: 0;
 }
 
-/* 右列播放器：宽度由网格列决定，高度按 16:9 固定比例（没有上方 12px 间距） */
+/* 右列播放器：宽度由网格列决定，高度铺满左列列表区（没有上方 12px 间距） */
 .link-source-stage-play {
   .link-source-player {
-    height: auto;
-    aspect-ratio: 16 / 9;
+    height: 100%;
+    /* 高度由外部区域决定时不再按 16:9 计算，画面靠 object-fit: contain 保持比例 */
+    aspect-ratio: auto;
     max-width: 100%;
-    max-height: 46vh;
-    min-height: 0;
+    max-height: none;
+    min-height: 180px;
     margin: 0;
   }
 }
@@ -1391,8 +1511,8 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
 }
 
 .hls-segment-list {
-  /* 按视口比例限高，条目多时内部滚动 */
-  max-height: 24vh;
+  /* 按视口比例限高，条目多时在列表内部滚动（不撑高弹窗） */
+  max-height: 22vh;
   overflow-y: auto;
   padding: 4px 0;
 }
@@ -1599,8 +1719,24 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
   color: rgba(252, 165, 165, 0.95);
 }
 
+/* 统计可点击筛选：悬停有反馈，选中项加描边 */
+.hls-download-stat-btn {
+  cursor: pointer;
+  user-select: none;
+  transition: box-shadow 0.15s, filter 0.15s;
+}
+
+.hls-download-stat-btn:hover {
+  filter: brightness(1.25);
+}
+
+.hls-download-stat-active {
+  box-shadow: 0 0 0 1px currentColor inset;
+  filter: brightness(1.2);
+}
+
 .hls-download-list {
-  max-height: 30vh;
+  max-height: 28vh;
   overflow-y: auto;
   padding: 4px 0;
 }
@@ -1622,6 +1758,34 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
 /* 当前正在回放的条目：高亮提示，避免误播 */
 .hls-download-item-playing {
   background: rgba(34, 197, 94, 0.14);
+}
+
+/* 条目按任务状态着色：执行中橘 / 完成绿 / 失败红 */
+.hls-download-item-downloading {
+  border-left: 2px solid rgba(251, 146, 60, 0.85);
+  background: rgba(251, 146, 60, 0.08);
+}
+
+.hls-download-item-done {
+  border-left: 2px solid rgba(74, 222, 128, 0.75);
+  background: rgba(74, 222, 128, 0.06);
+}
+
+.hls-download-item-failed {
+  border-left: 2px solid rgba(248, 113, 113, 0.85);
+  background: rgba(248, 113, 113, 0.08);
+}
+
+.hls-download-item-downloading .hls-download-item-meta {
+  color: rgba(253, 186, 116, 0.9);
+}
+
+.hls-download-item-done .hls-download-item-meta {
+  color: rgba(134, 239, 172, 0.9);
+}
+
+.hls-download-item-failed .hls-download-item-meta {
+  color: rgba(252, 165, 165, 0.9);
 }
 
 .hls-download-item-icon {
@@ -1668,14 +1832,15 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
     width: 100%;
   }
 
+  /* 单列时没有可拉伸的行高，给播放器一个按视口比例的固定高度 */
   .link-source-stage-play .link-source-player {
-    max-height: 38vh;
+    height: 38vh;
   }
 }
 
 @media (max-width: 768px) {
   .link-source-player {
-    max-height: 34vh;
+    height: 34vh;
   }
 
   .hls-segment-list {
