@@ -50,16 +50,37 @@ func InitCheckMiddleware() gin.HandlerFunc {
 	}
 }
 
-// SlowRequestLogger 记录耗时超过阈值的请求（开发环境）
-func SlowRequestLogger() gin.HandlerFunc {
+// RequestLogger 记录失败的 HTTP 请求，以及（verbose 时的）慢请求：
+//   - 状态码 >= 400：写入内存日志（前端系统日志页可查）与 gin.log，便于排查失败原因；
+//     只记录路径不带 query，避免 streamToken 等凭据落进日志
+//   - 耗时 > 5s：仅 verbose（非生产）记录，避免生产环境日志膨胀
+//
+// 静态资源（非 /api/）的失败不记录，防止前端资源 404 刷屏。
+func RequestLogger(verbose bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 		path := c.Request.URL.Path
 		c.Next()
+
 		duration := time.Since(start)
-		if duration > 5*time.Second {
+		status := c.Writer.Status()
+
+		if status >= http.StatusBadRequest && strings.HasPrefix(path, "/api/") {
+			service.LogMem.Add("HTTP 请求失败: %s %s → %d (%v)",
+				c.Request.Method, path, status, duration.Round(time.Millisecond))
+			if status >= http.StatusInternalServerError {
+				utils.ErrorFormat("HTTP 请求失败: %s %s → %d (%v), 客户端=%s",
+					c.Request.Method, path, status, duration.Round(time.Millisecond), c.ClientIP())
+			} else {
+				utils.WarnFormat("HTTP 请求失败: %s %s → %d (%v), 客户端=%s",
+					c.Request.Method, path, status, duration.Round(time.Millisecond), c.ClientIP())
+			}
+			return
+		}
+
+		if verbose && duration > 5*time.Second {
 			utils.InfoFormat("慢请求 [%s] %s %d %v",
-				c.Request.Method, path, c.Writer.Status(), duration)
+				c.Request.Method, path, status, duration)
 		}
 	}
 }

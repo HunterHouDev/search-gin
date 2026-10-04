@@ -25,17 +25,25 @@ const opBody = (data: OpItem, extra: Record<string, unknown> = {}) => {
   };
 };
 
+// 耗时操作（重命名 / 移动 / 合并 / 重建索引）单独放宽超时，
+// 默认 30s 在大文件或需要下载封面图时会先超时
+const LONG_TIMEOUT = 120000;
+
 export const RefreshAPI = async (BaseDir: string) => {
   if (BaseDir && BaseDir.length > 0) {
     const params = encodeURI(BaseDir);
     return RefreshTargetAPI(params);
   }
-  const res = await commonAxios().get('/api/refreshIndex');
+  const res = await commonAxios().get('/api/refreshIndex', {
+    timeout: LONG_TIMEOUT,
+  });
   return res && res.data;
 };
 
 export const RefreshTargetAPI = async (params: string) => {
-  const res = await commonAxios().get(`/api/refreshTargetIndex/${params}`);
+  const res = await commonAxios().get(`/api/refreshTargetIndex/${params}`, {
+    timeout: LONG_TIMEOUT,
+  });
   return res && res.data;
 };
 
@@ -72,7 +80,9 @@ export const DeleteFile = async (data: OpItem) => {
 };
 
 export const FilesMerge = async (data: object) => {
-  const res = await commonAxios().post('/api/mergeFiles', data);
+  const res = await commonAxios().post('/api/mergeFiles', data, {
+    timeout: LONG_TIMEOUT,
+  });
   return res && res.data;
 };
 
@@ -177,12 +187,16 @@ export const CloseTag = async (data: OpItem, title: string) => {
 };
 
 export const FileRename = async (data: unknown) => {
-  const res = await commonAxios().post('/api/renameFile', data);
+  const res = await commonAxios().post('/api/renameFile', data, {
+    timeout: LONG_TIMEOUT,
+  });
   return res && res.data;
 };
 
 export const MoveFile = async (data: unknown) => {
-  const res = await commonAxios().post('/api/moveFile', data);
+  const res = await commonAxios().post('/api/moveFile', data, {
+    timeout: LONG_TIMEOUT,
+  });
   return res && res.data;
 }
 

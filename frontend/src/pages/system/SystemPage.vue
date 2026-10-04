@@ -230,14 +230,49 @@
               </div>
             </template>
 
-            <!-- 本地日志 -->
+            <!-- 本地日志：解析 gin.log 的每一行，按「时间 - 级别 - 内容」展示 -->
             <template v-if="logTab === 'local'">
+              <div class="row items-center q-gutter-sm q-mb-md">
+                <q-btn-toggle
+                  v-model="logTimeFilter"
+                  :options="logTimeOptions"
+                   flat no-caps class="q-ml-xs"
+                />
+                <q-select
+                  v-model="localLevelFilter"
+                  :options="localLevelOptions"
+                   clearable placeholder="级别"
+                  class="col-2" style="min-width:100px"
+                />
+                <q-input
+                  v-model="logKeyword"  debounce="300"
+                  placeholder="过滤关键词" clearable class="col-3"
+                >
+                  <template v-slot:prepend>
+                    <q-icon name="search" />
+                  </template>
+                </q-input>
+                <q-btn
+                  :icon="logSortAsc ? 'arrow_upward' : 'arrow_downward'"
+                  flat  @click="logSortAsc = !logSortAsc"
+                >
+                  <q-tooltip>{{ logSortAsc ? '时间正序' : '时间倒序' }}</q-tooltip>
+                </q-btn>
+              </div>
               <div class="log-list">
-                <div v-for="(line, idx) in localPageData" :key="idx" class="log-item q-py-xs">
-                  <span class="log-raw">{{ line }}</span>
+                <div v-for="(item, idx) in localPageData" :key="idx" class="log-item q-py-xs">
+                  <span class="log-type-dot" :class="localLevelDot(item.level)" />
+                  <span class="log-time">{{ item.time || '--' }}</span>
+                  <span class="log-separator"> - </span>
+                  <span class="log-level" :class="'level-' + item.level">
+                    {{ localLevelLabel(item.level) }}
+                  </span>
+                  <span class="log-msg" :title="item.src ? `${item.src} · ${item.msg}` : item.msg">
+                    {{ item.msg }}
+                  </span>
                 </div>
                 <div v-if="localPageData.length === 0" class="text-center text-grey q-py-md">
-                  暂无日志
+                  暂无匹配的日志
                 </div>
               </div>
               <div class="row justify-center q-mt-md" v-if="localTotalPages > 1">
@@ -279,7 +314,8 @@ const view = reactive({
 // ── 日志 ──
 const logTab = ref('memory');
 const logKeyword = ref('');
-const logSortAsc = ref(true);
+// 默认时间倒排：最新的日志排在最前面
+const logSortAsc = ref(false);
 const logTypeFilter = ref(null);
 const logTimeFilter = ref('');
 const logTimeOptions = [
@@ -295,11 +331,90 @@ interface LogItem {
   msg: string;
 }
 
+/** gin.log 解析后的一行：时间 / 级别 / 出处 / 干了什么 */
+interface LocalLogEntry {
+  time: string;
+  level: string;
+  src: string;
+  msg: string;
+  raw: string;
+}
+
 const logPageSize = 50;
 const allMemoryLogs = ref([] as LogItem[]);
 const memoryPage = ref(1);
-const allLocalLines = ref([] as LogItem[]);
+const allLocalLogs = ref([] as LocalLogEntry[]);
 const localPage = ref(1);
+/** 本地日志的级别筛选（info / warn / error ...） */
+const localLevelFilter = ref(null);
+const localLevelOptions = ['info', 'warn', 'error', 'debug', 'unknown'];
+
+/**
+ * 解析 gin.log 的一行。文件里是 logrus 的 JSON（time / level / message / src），
+ * 兼容早期的文本格式「级别 时间 文件:行 | 内容」以及无法识别的裸行。
+ */
+function parseLocalLogLine(raw: string): LocalLogEntry {
+  const text = (raw ?? '').trim();
+  if (!text) return { time: '', level: 'unknown', src: '', msg: '', raw: text };
+  if (text.startsWith('{')) {
+    try {
+      const obj = JSON.parse(text);
+      const level = String(obj.level ?? '').toLowerCase();
+      return {
+        time: String(obj.time ?? '').substring(0, 19),
+        level: level || 'unknown',
+        src: String(obj.src ?? ''),
+        msg: String(obj.message ?? obj.msg ?? text),
+        raw: text,
+      };
+    } catch {
+      // JSON 解析失败（例如被截断的行）时继续按文本格式尝试
+    }
+  }
+  // 文本格式：INFO 2026-01-02 15:04:05 file.go:12 | message
+  const m = text.match(
+    /^([A-Za-z]+)\s+(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2})\s+(\S*)\s*\|\s*(.*)$/,
+  );
+  if (m) {
+    return {
+      time: m[2].substring(0, 19),
+      level: m[1].toLowerCase(),
+      src: m[3],
+      msg: m[4],
+      raw: text,
+    };
+  }
+  // 裸行：能提取到开头时间就用，否则时间留空
+  const t = text.match(/^(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2})/);
+  return {
+    time: t ? t[1].substring(0, 19) : '',
+    level: 'unknown',
+    src: '',
+    msg: text,
+    raw: text,
+  };
+}
+
+/** 级别徽标文案与配色（圆点沿用内存日志的 type-* 色） */
+const localLevelLabel = (level: string) =>
+  level ? level.toUpperCase() : '-';
+function localLevelDot(level: string) {
+  switch (level) {
+    case 'error':
+    case 'fatal':
+    case 'panic':
+      return 'type-cancel';
+    case 'warn':
+    case 'warning':
+      return 'type-search';
+    case 'debug':
+      return 'type-default';
+    case 'info':
+      return 'type-done';
+    default:
+      return 'type-info';
+  }
+}
 
 function logExtractType(msg: string) {
   if (!msg) return '';
@@ -312,6 +427,8 @@ const logTypeColorMap: Record<string, string> = {
   '首次': 'type-join', '新节点': 'type-join', '全量': 'type-scan',
   'Plan': 'type-info', 'ScanAll': 'type-scan', '索引': 'type-info',
   '搜索': 'type-search',
+  // HTTP 请求失败（后端 RequestLogger 记录）
+  'HTTP': 'type-cancel', '慢请求': 'type-search',
 };
 // 简化 JSON 日志：提取 状态码 路径 数据长度
 function simplifyLog(msg: string): string {
@@ -355,25 +472,26 @@ function daysAgoYMD(n: number) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+/** 时间筛选（今天 / 昨天 / ≥3天）对内存日志与本地日志通用 */
+function matchLogTime(timeStr: string) {
+  if (!logTimeFilter.value) return true;
+  const d = getDateYMD(timeStr);
+  if (!d) return false;
+  switch (logTimeFilter.value) {
+    case 'today': return d === todayYMD();
+    case 'yesterday': return d === daysAgoYMD(1);
+    case 'older': return d <= daysAgoYMD(3);
+    default: return true;
+  }
+}
+
 const memoryFiltered = computed(() => {
   let list = [...allMemoryLogs.value];
   const kw = logKeyword.value?.trim().toLowerCase();
   if (kw) list = list.filter((item) => item.msg?.toLowerCase().includes(kw) || item.time?.includes(kw));
   if (logTypeFilter.value) list = list.filter((item) => logExtractType(item.msg) === logTypeFilter.value);
   if (logTimeFilter.value) {
-    const today = todayYMD();
-    const yesterday = daysAgoYMD(1);
-    const threeDaysAgo = daysAgoYMD(3);
-    list = list.filter((item) => {
-      const d = getDateYMD(item.time);
-      if (!d) return false;
-      switch (logTimeFilter.value) {
-        case 'today': return d === today;
-        case 'yesterday': return d === yesterday;
-        case 'older': return d <= threeDaysAgo;
-        default: return true;
-      }
-    });
+    list = list.filter((item) => matchLogTime(item.time));
   }
   list.sort((a, b) => logSortAsc.value ? a.time.localeCompare(b.time) : b.time.localeCompare(a.time));
   return list;
@@ -385,17 +503,46 @@ const memoryPageData = computed(() => {
   return memoryFiltered.value.slice(start, start + logPageSize);
 });
 
-watch([logKeyword, logTypeFilter, logTimeFilter, logSortAsc], () => { memoryPage.value = 1; });
+watch([logKeyword, logTypeFilter, logTimeFilter, logSortAsc, localLevelFilter], () => {
+  memoryPage.value = 1;
+  localPage.value = 1;
+});
 
-const localTotalPages = computed(() => Math.max(1, Math.ceil(allLocalLines.value.length / logPageSize)));
+/** 本地日志筛选：关键词（内容 / 时间 / 出处）+ 级别 + 时间范围 */
+const localFiltered = computed(() => {
+  let list = [...allLocalLogs.value];
+  const kw = logKeyword.value?.trim().toLowerCase();
+  if (kw) {
+    list = list.filter((item) =>
+      item.msg?.toLowerCase().includes(kw) ||
+      item.time?.includes(kw) ||
+      item.src?.toLowerCase().includes(kw),
+    );
+  }
+  if (localLevelFilter.value) {
+    list = list.filter((item) => item.level === localLevelFilter.value);
+  }
+  if (logTimeFilter.value) {
+    list = list.filter((item) => matchLogTime(item.time));
+  }
+  list.sort((a, b) =>
+    logSortAsc.value
+      ? (a.time || '').localeCompare(b.time || '')
+      : (b.time || '').localeCompare(a.time || ''),
+  );
+  return list;
+});
+
+const localTotalPages = computed(() => Math.max(1, Math.ceil(localFiltered.value.length / logPageSize)));
 const localPageData = computed(() => {
   const start = (localPage.value - 1) * logPageSize;
-  return allLocalLines.value.slice(start, start + logPageSize);
+  return localFiltered.value.slice(start, start + logPageSize);
 });
 
 async function fetchLocalLog() {
   const { data } = await GetLocalLog();
-  allLocalLines.value = Array.isArray(data) ? data : [];
+  const lines: string[] = Array.isArray(data) ? data : [];
+  allLocalLogs.value = lines.map(parseLocalLogLine);
 }
 async function fetchMemoryLog() {
   const { data } = await GeMemeryLog();
@@ -407,7 +554,7 @@ const clearMemoryLog = async () => {
 };
 const clearLocalLog = async () => {
   await ClearLocalLog();
-  allLocalLines.value = [];
+  allLocalLogs.value = [];
 };
 
 const fetchSearch = async () => {
@@ -678,12 +825,54 @@ onUnmounted(() => {
 
 .log-msg {
   color: var(--q-text-primary);
+  flex: 1;
+  min-width: 0;
+  /* 内容过长时单行截断，完整内容放在 title 里悬停查看 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .log-raw {
   color: var(--q-text-primary);
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+/* 日志级别徽标：一眼区分 INFO / WARN / ERROR */
+.log-level {
+  flex-shrink: 0;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.level-error {
+  background: rgba(239, 83, 80, 0.18);
+  color: #ef5350;
+}
+
+.level-warn,
+.level-warning {
+  background: rgba(255, 202, 40, 0.18);
+  color: #ffca28;
+}
+
+.level-info {
+  background: rgba(38, 166, 154, 0.18);
+  color: #26a69a;
+}
+
+.level-debug {
+  background: rgba(144, 164, 174, 0.18);
+  color: #90a4ae;
+}
+
+.level-unknown {
+  background: rgba(120, 144, 156, 0.18);
+  color: #78909c;
 }
 
 .text-subtitle1 {

@@ -326,15 +326,17 @@ const editItemSubmit = async (MoveOut = false) => {
     systemProperty.lastAuthores.pop();
   }
   systemProperty.lastAuthores = [Author, ...systemProperty.lastAuthores];
+  // 超时 / 网络 / HTTP 错误由 axios 拦截器统一提示，未捕获的 rejection 有全局兜底，
+  // 这里只处理业务结果
   const res = await FileRename(param);
-  if (res.Code === 200) {
+  if (res?.Code === 200) {
     if (systemProperty.fileEditAutoRefresh) {
       emits('success', Id);
     }
   } else {
     $q.notify({
       type: 'negative',
-      message: res.Message,
+      message: res?.Message || '重命名失败',
       position: 'bottom-left',
     });
   }

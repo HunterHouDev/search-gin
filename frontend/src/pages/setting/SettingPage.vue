@@ -297,8 +297,8 @@
                 <div class="item-label">备注</div>
                 <div class="item-hint">关于网络配置的备注信息</div>
               </div>
-              <div class="item-control textarea">
-                <q-input v-model="view.settingInfo.Remark" type="textarea" autogrow :rows="3" dense outlined />
+              <div class="item-control ">
+                <q-input v-model="view.settingInfo.Remark" type="textarea" class="textarea" autogrow :rows="3" dense outlined />
               </div>
             </div>
 

@@ -237,6 +237,10 @@ func InfoNormal(v ...any) {
 	logger.WithFields(callerField()).Infof("%v", v...)
 }
 
+func WarnFormat(format string, v ...any) {
+	logger.WithFields(callerField()).Warnf(format, v...)
+}
+
 func ErrorFormat(format string, v ...any) {
 	logger.WithFields(callerField()).Errorf(format, v...)
 }

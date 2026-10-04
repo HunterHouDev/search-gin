@@ -105,9 +105,8 @@ func BuildAPIRouter(sigChan chan os.Signal) *gin.Engine {
 	router.Use(middleware.InitCheckMiddleware())
 	router.Use(middleware.AuthMiddleware())
 
-	if !env.IsProd {
-		router.Use(middleware.SlowRequestLogger())
-	}
+	// 失败请求始终记录（前端系统日志可查），慢请求仅非生产环境记录
+	router.Use(middleware.RequestLogger(!env.IsProd))
 
 	router.NoRoute(handler.Index)
 	router.GET("/", handler.Index)
