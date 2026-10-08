@@ -191,8 +191,8 @@ func (s *searchService) Rename(movie model.FileEdit) utils.Result {
 		return utils.NewFailByMsg("执行失败")
 	}
 
-	if movie.Png != "" && strings.HasPrefix(movie.Png, "http") {
-		if movie.Jpg != "" && strings.HasPrefix(movie.Jpg, "http") {
+	if hasImageSource(movie.Png) {
+		if hasImageSource(movie.Jpg) {
 			res := DownJpgMakePng(newPath, movie.Jpg, false)
 			if !res.IsSuccess() {
 				return res
@@ -202,7 +202,7 @@ func (s *searchService) Rename(movie model.FileEdit) utils.Result {
 		if !res.IsSuccess() {
 			return res
 		}
-	} else if movie.Jpg != "" && strings.HasPrefix(movie.Jpg, "http") {
+	} else if hasImageSource(movie.Jpg) {
 		res := DownJpgMakePng(newPath, movie.Jpg, true)
 		if !res.IsSuccess() {
 			return res

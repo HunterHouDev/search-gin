@@ -4,10 +4,12 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/tls"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
@@ -35,7 +37,10 @@ import (
 const (
 	// hlsDownloadConcurrency 同时在途的分片请求数。
 	// 分片下载是纯网络 I/O，并发数可以高于任务槽位数（默认 4）。
-	hlsDownloadConcurrency = 8
+	// 注意：该值同时决定 hlsDownloadWindow 与连接池上限，改动会连带生效。
+	// 若源站持续返回 connection reset（按连接数限流），可下调此值（8 → 4）
+	// 换取稳定性，代价是下载变慢。
+	hlsDownloadConcurrency = 4
 	// hlsDownloadWindow 已派发但尚未落盘的分片上限（滑动窗口）。
 	// 顺序写盘时若窗口无限，最前面的慢分片会让后续分片全部堆积在内存里。
 	hlsDownloadWindow = hlsDownloadConcurrency * 3
@@ -48,8 +53,8 @@ const (
 	hlsThrottleStep = time.Second
 	// hlsNetworkRetry 连接被重置 / 读取中断等网络类错误的最大尝试次数（含首次）。
 	// 这类错误多半是复用连接被源站掐断，换新连接重试即可，但也不能像普通错误
-	// 那样急，故比 hlsSegmentRetry 多一次机会
-	hlsNetworkRetry = 4
+	// 那样急，故比 hlsSegmentRetry 多一次机会（退避 500ms → 1s → 2s → 4s）
+	hlsNetworkRetry = 5
 	// hlsNetworkStep 网络类错误退避基数：500ms → 1s → 2s
 	hlsNetworkStep = 500 * time.Millisecond
 	// hlsGateCooldown 并发减半后的冷却期：期间不再触发限流才逐级恢复并发
@@ -82,6 +87,33 @@ var hlsHTTPClient = &http.Client{
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		ForceAttemptHTTP2:     true,
+	},
+}
+
+// hlsRetryHTTPClient 重试专用客户端：每次请求新建一条连接，且不走 HTTP/2。
+//
+// 必要性：连接被源站/中间设备单方面掐断时（Windows 表现为
+// "wsarecv: An existing connection was forcibly closed"），连接池里可能残留
+// 已经失效的连接，重试若仍从池中取连接就会连续打在同一条坏连接上，重试形同虚设。
+// 这个客户端 DisableKeepAlives，保证每一次重试都是全新的 TCP + TLS。
+//
+// 同时显式关闭 HTTP/2：部分 CDN 的 h2 实现在长连接多流传输时会单方面 RST 流，
+// 退化为 HTTP/1.1 反而稳定。TLSNextProto 置空才是彻底禁用（仅 ForceAttemptHTTP2=false
+// 时 Transport 仍可能通过 ALPN 协商升级）。
+var hlsRetryHTTPClient = &http.Client{
+	Timeout: 120 * time.Second,
+	Transport: &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   10 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		// 注意：DisableKeepAlives 下连接不复用，再设 MaxIdleConns 没有意义
+		DisableKeepAlives:     true,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		ForceAttemptHTTP2:     false,
+		TLSNextProto:          map[string]func(string, *tls.Conn) http.RoundTripper{},
 	},
 }
 
@@ -344,7 +376,11 @@ func hlsOrigin(rawURL string) string {
 	return u.Scheme + "://" + u.Host + "/"
 }
 
-func fetchHlsBytes(ctx context.Context, rawURL string, br *hlsByteRange, referer string) ([]byte, error) {
+// fetchHlsBytes 拉取一个 URL 的字节内容。
+//
+// freshConn=true 时走 hlsRetryHTTPClient（新建连接、仅 HTTP/1.1），
+// 用于「上一次请求因连接被掐断而失败」的重试场景。
+func fetchHlsBytes(ctx context.Context, rawURL string, br *hlsByteRange, referer string, freshConn bool) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, err
@@ -358,7 +394,11 @@ func fetchHlsBytes(ctx context.Context, rawURL string, br *hlsByteRange, referer
 	if br != nil {
 		req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", br.offset, br.offset+br.length-1))
 	}
-	resp, err := hlsHTTPClient.Do(req)
+	client := hlsHTTPClient
+	if freshConn {
+		client = hlsRetryHTTPClient
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -407,6 +447,17 @@ func hlsNetworkError(err error) bool {
 	}
 	var netErr net.Error
 	return errors.As(err, &netErr) && netErr.Timeout()
+}
+
+// hlsJitter 给退避时长叠加最多 25% 的随机抖动。
+//
+// 8 个 worker 同时失败时若按完全相同的间隔重试，会形成同步重试风暴——
+// 整齐划一的突发重试正是源站/ WAF 判定异常流量的典型特征，反而招致更多 RST。
+func hlsJitter(d time.Duration) time.Duration {
+	if d <= 0 {
+		return d
+	}
+	return d + time.Duration(rand.Int63n(int64(d)/4+1))
 }
 
 // ── 并发自愈闸门：429/5xx 时临时减半全局分片并发 ────────────────
@@ -517,16 +568,20 @@ func fetchHlsSegment(ctx context.Context, rawURL string, br *hlsByteRange, refer
 			default:
 				wait = time.Duration(attempt) * 300 * time.Millisecond
 			}
+			wait = hlsJitter(wait)
 			select {
 			case <-ctx.Done():
 				return nil, errHlsCanceled
 			case <-time.After(wait):
 			}
 		}
+		// 上一跳是连接被掐断，或已重试到第 3 次：改用「新建连接 + 仅 HTTP/1.1」
+		// 的客户端，避免重试仍旧打在同一条已被源站关闭的复用连接上
+		freshConn := attempt >= 2 || (attempt > 0 && hlsNetworkError(lastErr))
 		if gate != nil && !gate.acquire(ctx) {
 			return nil, errHlsCanceled
 		}
-		data, err := fetchHlsBytes(ctx, rawURL, br, referer)
+		data, err := fetchHlsBytes(ctx, rawURL, br, referer, freshConn)
 		if gate != nil {
 			gate.release()
 		}
@@ -541,7 +596,119 @@ func fetchHlsSegment(ctx context.Context, rawURL string, br *hlsByteRange, refer
 		}
 		lastErr = err
 	}
-	return nil, lastErr
+	// 带上重试次数，便于从任务日志判断是偶发抖动还是源站持续拒绝
+	return nil, fmt.Errorf("%w（已重试 %d 次）", lastErr, maxAttempts-1)
+}
+
+// hlsUriRe 匹配播放列表标签里的 URI="..."（#EXT-X-KEY / #EXT-X-MAP ...）
+var hlsUriRe = regexp.MustCompile(`URI="([^"]*)"`)
+
+// refreshPlaylistAuth 重新拉取一次 m3u8，按「去掉 query 的路径」把新的鉴权参数
+// 替换到已保存的播放列表文本上。
+//
+// hlsSignedQueryRe 疑似时效签名的 query 参数名。各 CDN 叫法不一，宽松匹配：
+// 宁可多刷一次，也不要漏掉真正会过期的签名。
+var hlsSignedQueryRe = regexp.MustCompile(`(?i)auth_key|signature|x-amz-|x-oss-|token|sign=|expires|expire|play_session|hdntl`)
+
+// hlsPlaylistHasSignedQuery 播放列表里是否存在带时效签名的地址。
+// 没有签名就说明地址不会过期，不值得为了刷新多拉一次源站。
+func hlsPlaylistHasSignedQuery(playlistText string) bool {
+	for _, line := range strings.Split(playlistText, "\n") {
+		// 只看 query 部分：路径里恰好出现同名片段不算
+		for _, chunk := range strings.Split(line, "?")[1:] {
+			query := chunk
+			if i := strings.IndexAny(query, "\"#"); i >= 0 {
+				query = query[:i]
+			}
+			if hlsSignedQueryRe.MatchString(query) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// 分片地址常带时效签名（auth_key / token 之类），任务创建时的文本搁置一段时间
+// 再跑就过期了；源站对过期鉴权往往直接断开连接（wsarecv / connection reset）
+// 而不是返回 403，表现得像网络故障。这里只替换地址里的 query，
+// 分片列表本身（已删除的分片、多源顺序、字节区间）一律不动。
+// 拉取失败（源站不可达 / 内容不是 m3u8）时原样返回，不阻塞任务。
+func refreshPlaylistAuth(ctx context.Context, playlistText string, sourceURL string) string {
+	sourceURL = strings.TrimSpace(sourceURL)
+	if sourceURL == "" {
+		return playlistText
+	}
+	// 地址里没有时效签名就不会过期，不必为刷新多拉一次播放列表
+	if !hlsPlaylistHasSignedQuery(playlistText) {
+		return playlistText
+	}
+	// 刷新只是尽力而为：源站迟迟不响应时不该把任务卡在这里
+	fetchCtx, cancelFetch := context.WithTimeout(ctx, 15*time.Second)
+	defer cancelFetch()
+	freshBytes, err := fetchHlsBytes(fetchCtx, sourceURL, nil, hlsOrigin(sourceURL), false)
+	if err != nil || !strings.Contains(string(freshBytes), "#EXTM3U") {
+		return playlistText
+	}
+	fresh, err := parseHlsPlaylistText(string(freshBytes), sourceURL)
+	if err != nil {
+		return playlistText
+	}
+
+	// path → 完整地址（含新的 query）
+	byPath := make(map[string]string, len(fresh.segments)+8)
+	pathOf := func(raw string) string {
+		if i := strings.IndexAny(raw, "?#"); i >= 0 {
+			return raw[:i]
+		}
+		return raw
+	}
+	add := func(raw string) {
+		if raw != "" {
+			byPath[pathOf(raw)] = raw
+		}
+	}
+	for _, seg := range fresh.segments {
+		add(seg.url)
+		// 密钥与初始化段地址同样带鉴权参数
+		if seg.key != nil {
+			add(seg.key.url)
+		}
+		add(seg.initMap)
+	}
+	add(fresh.initMap)
+	if len(byPath) == 0 {
+		return playlistText
+	}
+
+	base, baseErr := url.Parse(sourceURL)
+	lines := strings.Split(playlistText, "\n")
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			// 标签行：只替换其中的 URI="..."（密钥 / 初始化段地址同样带鉴权）
+			lines[i] = hlsUriRe.ReplaceAllStringFunc(line, func(m string) string {
+				sub := hlsUriRe.FindStringSubmatch(m)
+				if sub == nil {
+					return m
+				}
+				next, ok := byPath[pathOf(sub[1])]
+				if !ok {
+					return m
+				}
+				return `URI="` + next + `"`
+			})
+			continue
+		}
+		// 分片行：整行替换为新地址（文本里的地址是绝对的，相对地址按源地址补全后再匹配）
+		abs := trimmed
+		if u, err := url.Parse(trimmed); err == nil && !u.IsAbs() && baseErr == nil {
+			abs = base.ResolveReference(u).String()
+		}
+		if next, ok := byPath[pathOf(abs)]; ok {
+			lines[i] = next
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // hlsInitKey 初始化段标识（地址 + 字节区间），空串表示该分片不需要初始化段
@@ -584,6 +751,11 @@ func hlsInitMapCount(pl *hlsPlaylist) int {
 func downloadHlsSegment(ctx context.Context, pl *hlsPlaylist, seg hlsSegmentItem, referer string, keyCache *sync.Map) ([]byte, error) {
 	data, err := fetchHlsSegment(ctx, seg.url, seg.byteRange, referer)
 	if err != nil {
+		// 单个分片耗尽重试即终止整个任务，这里留一条服务端日志便于事后定位；
+		// 取消属于正常终止，不写错误日志
+		if ctx.Err() == nil {
+			utils.ErrorFormat("HLS 分片 %d 下载失败: %v", seg.index, err)
+		}
 		return nil, fmt.Errorf("分片 %d 下载失败: %w", seg.index, err)
 	}
 	if seg.key == nil || seg.key.method != "AES-128" || seg.key.url == "" {
@@ -608,7 +780,9 @@ func hlsKeyBytes(ctx context.Context, keyURL string, referer string, cache *sync
 	if v, ok := cache.Load(keyURL); ok {
 		return v.([]byte), nil
 	}
-	data, err := fetchHlsBytes(ctx, keyURL, nil, referer)
+	// 走 fetchHlsSegment 而非 fetchHlsBytes：密钥只拉一次却没有重试，
+	// 一次连接重置就会让整个任务失败，代价太大
+	data, err := fetchHlsSegment(ctx, keyURL, nil, referer)
 	if err != nil {
 		return nil, fmt.Errorf("获取解密密钥失败: %w", err)
 	}
@@ -953,6 +1127,14 @@ func HlsDownloader(task model.TransferTaskModel) utils.Result {
 		return utils.NewFailByMsg("播放列表内容丢失")
 	}
 
+	// 任务（尤其是重启的失败任务）用的是创建时保存的播放列表文本，
+	// 分片地址上的时效签名可能已过期：先按路径把新的鉴权参数换上再解析
+	authRefreshed := false
+	if refreshed := refreshPlaylistAuth(ctx, playlistText, task.URL); refreshed != playlistText {
+		playlistText = refreshed
+		authRefreshed = true
+	}
+
 	pl, err := parseHlsPlaylistText(playlistText, task.URL)
 	if err != nil {
 		finishHlsTask(task.ID, model.StatusFailed, "解析播放列表失败: "+err.Error())
@@ -984,6 +1166,9 @@ func HlsDownloader(task model.TransferTaskModel) utils.Result {
 	// 清空旧日志并写入任务头
 	_ = os.Remove(TaskLogPath(task.ID))
 	appendHlsLog(task.ID, fmt.Sprintf("开始下载 %d 个分片 -> %s", len(pl.segments), dest))
+	if authRefreshed {
+		appendHlsLog(task.ID, "已刷新分片地址上的鉴权参数")
+	}
 	if n := hlsInitMapCount(pl); n > 1 {
 		appendHlsLog(task.ID, fmt.Sprintf("检测到 %d 个初始化段（多段 fMP4 合并），将按分片顺序写入", n))
 	}

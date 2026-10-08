@@ -596,11 +596,12 @@ function buildSingleSourceText(
   parsed: ParsedPlaylist,
   segments: HlsSegment[],
 ): string {
-  const out: string[] = [...parsed.header];
+  // 地址统一过一遍鉴权映射（文件头里的 #EXT-X-MAP / #EXT-X-KEY 同样带签名）
+  const out: string[] = parsed.header.map(resolveTagUris);
   for (const segment of segments) {
-    out.push(...segment.tags);
+    out.push(...segment.tags.map(resolveTagUris));
     if (segment.extinf) out.push(segment.extinf);
-    out.push(segment.url);
+    out.push(resolveAuthUrl(segment.url));
   }
   if (parsed.hasEndList) out.push('#EXT-X-ENDLIST');
   return out.join('\n') + '\n';
@@ -613,7 +614,7 @@ function buildSingleSourceText(
 function renderSegmentKey(key: SegmentKey | null, sequence: number): string {
   if (!key) return '#EXT-X-KEY:METHOD=NONE';
   const iv = key.iv ?? sequenceIV(sequence);
-  return `#EXT-X-KEY:METHOD=${key.method},URI="${key.url}",IV=0x${bytesToHex(iv)}`;
+  return `#EXT-X-KEY:METHOD=${key.method},URI="${resolveAuthUrl(key.url)}",IV=0x${bytesToHex(iv)}`;
 }
 
 /**
@@ -666,7 +667,7 @@ function buildPlaylistText(
     const mapLine = source.parsed.header.find((line) =>
       line.startsWith('#EXT-X-MAP'),
     );
-    if (mapLine) out.push(mapLine);
+    if (mapLine) out.push(resolveTagUris(mapLine));
 
     const keys = resolveSegmentKeys(source.parsed);
     for (const seg of kept) {
@@ -679,14 +680,83 @@ function buildPlaylistText(
         currentKeyLine = keyLine;
       }
       // 密钥行已由上面按显式 IV 统一输出，过滤掉原始标签里的 KEY 行
-      out.push(...seg.tags.filter((tag) => !tag.startsWith('#EXT-X-KEY')));
+      out.push(
+        ...seg.tags
+          .filter((tag) => !tag.startsWith('#EXT-X-KEY'))
+          .map(resolveTagUris),
+      );
       if (seg.extinf) out.push(seg.extinf);
-      out.push(seg.url);
+      out.push(resolveAuthUrl(seg.url));
       emitted++;
     }
   }
   out.push('#EXT-X-ENDLIST');
   return out.join('\n') + '\n';
+}
+
+// ── 鉴权参数（auth_key 等）刷新 ───────────────────────────────
+//
+// m3u8 里的分片地址常带时效签名，解析完搁置一段时间再下载就过期了；
+// 源站对过期鉴权通常是直接断开连接（ERR_CONNECTION_RESET / wsarecv）而不是
+// 返回 403，表现得像网络故障，很难一眼看出是签名过期。
+//
+// 刷新只做一件事：重新拉一次 m3u8，按「去掉 query 的路径」把新地址记进映射，
+// 之后所有地址（分片 / 密钥 / 初始化段）都在输出时统一过一遍映射。
+// 分片列表本身（删除结果、广告黑名单、多源顺序）一律不动。
+
+/** 疑似时效签名的 query 参数名（各 CDN 叫法不一，宽松匹配：宁可多刷一次） */
+const TIMED_SIGN_QUERY =
+  /auth_key|signature|x-amz-|x-oss-|token|sign=|expires|expire|play_session|hdntl/i;
+
+/** 最新一次解析出的「路径（去掉 query）→ 完整地址」映射 */
+const authUrlMap = new Map<string, string>();
+
+/** 同一资源在「刷新前 / 刷新后」的匹配键 */
+function urlPathKey(url: string): string {
+  return url.split('#')[0].split('?')[0];
+}
+
+/** 地址里是否带着疑似时效签名的参数；没有就说明不会过期，不必刷新 */
+function hasTimedSignature(url: string): boolean {
+  const query = url.split('#')[0].split('?')[1];
+  return !!query && TIMED_SIGN_QUERY.test(query);
+}
+
+/** 收集一行里所有 URI="..." 的地址（#EXT-X-KEY / #EXT-X-MAP 等） */
+function collectTagUris(line: string): string[] {
+  const out: string[] = [];
+  const re = /URI="([^"]*)"/gi;
+  let matched: RegExpExecArray | null;
+  while ((matched = re.exec(line)) !== null) out.push(matched[1]);
+  return out;
+}
+
+/** 按路径匹配替换一行里的 URI="..."（带上新的 auth_key 等 query） */
+function refreshTagUris(line: string, fresh: Map<string, string>): string {
+  return line.replace(/URI="([^"]*)"/gi, (match, uri: string) => {
+    const next = fresh.get(urlPathKey(uri));
+    return next ? `URI="${next}"` : match;
+  });
+}
+
+/** 把一次新鲜解析结果里的地址收成「路径 → 完整地址」映射 */
+function collectFreshUrls(parsed: ParsedPlaylist): Map<string, string> {
+  const fresh = new Map<string, string>();
+  for (const seg of parsed.segments) fresh.set(urlPathKey(seg.url), seg.url);
+  for (const line of parsed.header) {
+    for (const uri of collectTagUris(line)) fresh.set(urlPathKey(uri), uri);
+  }
+  return fresh;
+}
+
+/** 取地址的最新版本：映射里没有就原样返回（没刷新过或源站不可达） */
+function resolveAuthUrl(url: string): string {
+  return authUrlMap.get(urlPathKey(url)) ?? url;
+}
+
+/** 用最新映射替换一行标签里的 URI="..." */
+function resolveTagUris(line: string): string {
+  return refreshTagUris(line, authUrlMap);
 }
 
 function formatSeconds(total: number): string {
@@ -1061,6 +1131,8 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     hlsSources.value = [];
     hlsAllSegments.value = [];
     hlsSegments.value = [];
+    // 上一次解析攒下的鉴权映射随之作废，否则新地址会被旧的同路径地址覆盖
+    authUrlMap.clear();
     // 地址变化后旧的下载文件名不再适用，回到默认名
     hlsDownloadName.value = '';
   }
@@ -1178,6 +1250,70 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     const res = await fetch(url, { credentials: 'omit' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.text();
+  }
+
+  /**
+   * 重新拉取各源的 m3u8，把新鲜地址按「去掉 query 的路径」记进全局映射。
+   *
+   * 之后分片 / 密钥 / 初始化段地址都在输出时统一过一遍映射（见 resolveAuthUrl），
+   * 分片列表本身（删除结果、广告黑名单、多源顺序）一律不动。
+   * 拉取失败（跨域 / 网络）时静默沿用旧地址，不阻塞下载。
+   *
+   * @returns 刷新出的地址条数；0 表示没刷新，沿用解析时的地址
+   */
+  async function refreshAuthUrls(sources: HlsSource[]): Promise<number> {
+    let refreshed = 0;
+    for (const source of sources) {
+      // 源地址 / 分片地址都没有时效签名就不会过期，不必为刷新多拉一次播放列表
+      if (
+        !hasTimedSignature(source.url) &&
+        !hasTimedSignature(source.parsed.segments[0]?.url ?? '')
+      ) {
+        continue;
+      }
+      try {
+        const text = await fetchPlaylistText(source.url);
+        if (!text.includes('#EXTM3U')) continue;
+        for (const [path, url] of collectFreshUrls(
+          parsePlaylist(text, source.url, source.id),
+        )) {
+          authUrlMap.set(path, url);
+          refreshed++;
+        }
+      } catch {
+        /* 刷新失败就沿用旧地址 */
+      }
+    }
+    return refreshed;
+  }
+
+  /** 按路径匹配刷新播放列表文本里的地址鉴权参数；无法刷新时原样返回 */
+  async function refreshPlaylistText(
+    text: string,
+    sourceUrl: string,
+  ): Promise<string> {
+    if (!sourceUrl) return text;
+    try {
+      const freshText = await fetchPlaylistText(sourceUrl);
+      if (!freshText.includes('#EXTM3U')) return text;
+      const fresh = collectFreshUrls(
+        parsePlaylist(freshText, sourceUrl, 'auth-refresh'),
+      );
+      if (fresh.size === 0) return text;
+      return text
+        .split(/\r?\n/)
+        .map((line) => {
+          const trimmed = line.trim();
+          // 标签行：替换其中的 URI="..."；分片行：整行换成新地址
+          if (trimmed.length === 0 || trimmed.startsWith('#')) {
+            return refreshTagUris(line, fresh);
+          }
+          return fresh.get(urlPathKey(toAbsoluteUrl(trimmed, sourceUrl))) ?? line;
+        })
+        .join('\n');
+    } catch {
+      return text;
+    }
   }
 
   /**
@@ -1544,8 +1680,14 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
 
   // ── 浏览器直下（前端备用下载，不经过服务端） ─────────────────────────────
   /** 浏览器直下的并发窗口与单分片重试次数 */
-  const BROWSER_DOWNLOAD_CONCURRENCY = 6;
-  const BROWSER_SEGMENT_RETRY = 2;
+  // 并发刻意低于浏览器同域 6 连接上限：源站按连接数限流时会直接 RST
+  // （ERR_CONNECTION_RESET），并发压满反而更容易被掐断
+  const BROWSER_DOWNLOAD_CONCURRENCY = 4;
+  /** 单个分片的最大尝试次数（含首次） */
+  const BROWSER_SEGMENT_ATTEMPTS = 4;
+  /** 重试退避基数：传输层错误 500ms → 1s → 2s，限流类 1s → 2s → 4s */
+  const BROWSER_RETRY_STEP_MS = 500;
+  const BROWSER_THROTTLE_STEP_MS = 1000;
 
   /** 浏览器直下进度：任务 id → 已完成分片数 / 总分片数 */
   const browserDownloadProgress = ref<Record<string, { done: number; total: number }>>({});
@@ -1562,7 +1704,31 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     return bp.total > 0 ? bp.done / bp.total : 0;
   }
 
-  /** 单分片拉取：带重试；#EXT-X-BYTERANGE 分片用 Range 头取子区间 */
+  /** 传输层错误：连接被重置（ERR_CONNECTION_RESET）/ 断流 / 跨域失败。
+   *  浏览器下 fetch 的网络错误统一抛 TypeError，只能靠 message 区分。 */
+  function isBrowserNetworkError(e: unknown): boolean {
+    if (e instanceof TypeError) return true;
+    const msg = (e as Error)?.message ?? '';
+    return /Failed to fetch|NetworkError|load failed|ERR_CONNECTION/i.test(msg);
+  }
+
+  /** 源站限流 / 暂时不可用：值得更长退避 */
+  function isBrowserThrottleError(e: unknown): boolean {
+    return /HTTP (429|5\d\d)/.test((e as Error)?.message ?? '');
+  }
+
+  /** 退避等待：叠加最多 25% 抖动，避免多个 worker 同步重试形成突发流量 */
+  function browserBackoff(attempt: number, throttled: boolean): Promise<void> {
+    const step = throttled ? BROWSER_THROTTLE_STEP_MS : BROWSER_RETRY_STEP_MS;
+    const wait = step * 2 ** (attempt - 1) * (1 + Math.random() * 0.25);
+    return new Promise((resolve) => setTimeout(resolve, wait));
+  }
+
+  /** 单分片拉取：带退避重试；#EXT-X-BYTERANGE 分片用 Range 头取子区间。
+   *
+   * 源站常见的 ERR_CONNECTION_RESET 是瞬时掐断，立刻重试往往再撞一次，
+   * 故按类型退避后再试（与服务端 hls_downloader 的重试策略保持一致）。
+   */
   async function fetchBrowserSegment(
     url: string,
     range: { length: number; offset: number } | null,
@@ -1570,16 +1736,22 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     const headers: Record<string, string> = {};
     if (range) headers.Range = `bytes=${range.offset}-${range.offset + range.length - 1}`;
     let lastErr: Error | null = null;
-    for (let attempt = 0; attempt <= BROWSER_SEGMENT_RETRY; attempt++) {
+    for (let attempt = 1; attempt <= BROWSER_SEGMENT_ATTEMPTS; attempt++) {
       try {
         const res = await fetch(url, { headers });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return new Uint8Array(await res.arrayBuffer());
       } catch (e) {
         lastErr = e as Error;
+        if (attempt < BROWSER_SEGMENT_ATTEMPTS) {
+          await browserBackoff(attempt, isBrowserThrottleError(e));
+        }
       }
     }
-    throw lastErr ?? new Error('分片下载失败');
+    const reason = isBrowserNetworkError(lastErr) ? '源站中断了连接' : '分片下载失败';
+    throw new Error(
+      `${reason}（已重试 ${BROWSER_SEGMENT_ATTEMPTS - 1} 次）：${lastErr?.message ?? '未知错误'}`,
+    );
   }
 
   /** 导入 AES-128 密钥（HLS 标准即 AES-128-CBC + PKCS7，WebCrypto 原生支持） */
@@ -1591,7 +1763,10 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
   async function resolveBrowserPlaylist(item: HlsDownloadItem): Promise<string> {
     try {
       const res = await HlsPlaylistAPI(item.id);
-      if (res?.Code === 200 && res.Data) return res.Data;
+      if (res?.Code === 200 && res.Data) {
+        // 服务端副本是任务创建时的旧文本，里面的鉴权参数可能已过期
+        return await refreshPlaylistText(res.Data, item.sourceUrl);
+      }
     } catch {
       /* 服务端副本不可用时尝试源站直取 */
     }
@@ -1612,6 +1787,9 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     sourceUrl: string | undefined,
     text: string,
   ) {
+    // 任一分片最终失败即整体放弃：置位后其余 worker 尽快收尾，
+    // 不再继续从源站拉数据（否则 Promise.all 已 reject，剩下的请求全是无用功）
+    let aborted = false;
     try {
       const parsed = parsePlaylist(text, sourceUrl || location.href, `browser-${id}`);
       if (parsed.segments.length === 0) throw new Error('播放列表中没有分片');
@@ -1641,6 +1819,7 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
 
       const worker = async () => {
         for (;;) {
+          if (aborted) return;
           const i = cursor++;
           if (i >= total) return;
           const seg = parsed.segments[i];
@@ -1693,6 +1872,7 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
         timeout: 2500,
       });
     } catch (e) {
+      aborted = true;
       notifyBrowserDownloadError(e);
     } finally {
       const rest = { ...browserDownloadProgress.value };
@@ -1739,6 +1919,26 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
   }
 
   /**
+   * 同上，但先刷新一遍地址鉴权参数（与服务端下载一致）：
+   * 面板里的解析结果可能是很久之前拿的，签名过期会让源站直接断连。
+   */
+  async function buildFreshBrowserPlaylist(): Promise<{
+    name: string;
+    sourceUrl?: string;
+    playlist: string;
+  } | null> {
+    const current = buildCurrentBrowserPlaylist();
+    if (!current) return null;
+    const refreshed = await refreshAuthUrls(hlsSources.value);
+    if (refreshed === 0) return current;
+    // 映射已更新：按同样的一批分片再生成一次文本即可（删除与多源合并结果不变）
+    return {
+      ...current,
+      playlist: buildPlaylistText(hlsSources.value, hlsUsableSegments.value),
+    };
+  }
+
+  /**
    * 浏览器下载（纯前端 JS）：优先用服务端保存的播放列表副本；
    * 服务端没有落盘（任务早期就失败）时，退回当前面板已解析的分片，
    * 在浏览器内拉取、解密、合并后另存本机，全程不经过服务端任务。
@@ -1756,7 +1956,7 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
       // 服务端副本不可用 → 退回当前面板的分片继续尝试
     }
     try {
-      const current = buildCurrentBrowserPlaylist();
+      const current = await buildFreshBrowserPlaylist();
       if (!current) {
         notifyNegative(
           '该任务没有可用的播放列表，且当前面板没有已解析的分片，请先解析该视频',
@@ -1777,8 +1977,14 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
   /** 浏览器直下失败的统一提示：跨域类错误给出改用服务端下载的建议 */
   function notifyBrowserDownloadError(e: unknown) {
     const msg = (e as Error).message || String(e);
+    if (/ERR_CONNECTION|Failed to fetch|NetworkError|load failed/i.test(msg)) {
+      notifyNegative(
+        `浏览器直下失败（源站中断了连接，重试后仍未恢复）：${msg}，建议改用服务端下载`,
+      );
+      return;
+    }
     notifyNegative(
-      /Failed to fetch|NetworkError|CORS|load failed/i.test(msg)
+      /CORS/i.test(msg)
         ? `浏览器直下失败（源站可能禁止跨域）：${msg}，建议使用服务端下载`
         : `浏览器直下失败：${msg}`,
     );
@@ -1805,7 +2011,7 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
    */
   async function downloadHlsInBrowserNow() {
     try {
-      const current = buildCurrentBrowserPlaylist();
+      const current = await buildFreshBrowserPlaylist();
       if (!current) {
         notifyNegative('没有可下载的分片');
         return;
@@ -1873,11 +2079,15 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
       hlsDownloadExt.value,
     );
     const sourceUrl = hlsPrimaryUrl.value || hlsURL.value.trim();
-    // 重建播放列表（含分片删除结果与多源合并），交给服务端按序拉取
+
+    hlsLoading.value = true;
+    // 分片地址常带时效签名：下载前重新拉一次播放列表，按路径换上新的鉴权参数，
+    // 避免源站因签名过期直接断连（表现为 ERR_CONNECTION_RESET）
+    const refreshed = await refreshAuthUrls(sources);
+    // 重建播放列表（含分片删除结果与多源合并），地址统一取映射里的最新版本
     const playlist = buildPlaylistText(sources, segments);
     const total = segments.length;
 
-    hlsLoading.value = true;
     try {
       const res = await HlsDownloadAPI({
         playlist,
@@ -1893,7 +2103,9 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
       $q.notify({
         type: 'positive',
         message: `已提交服务端下载 · ${total} 个分片`,
-        caption: '下载在服务端继续，分片列表已清空',
+        caption:
+          '下载在服务端继续，分片列表已清空' +
+          (refreshed > 0 ? `（已刷新 ${refreshed} 个地址的鉴权参数）` : ''),
         position: 'top',
       });
       // 任务已交给服务端，本地这批解析结果随之作废：清空分片列表与输入框里的链接列表，

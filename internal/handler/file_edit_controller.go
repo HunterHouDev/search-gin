@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 	"search-gin/internal/model"
@@ -14,6 +15,18 @@ import (
 )
 
 var pendingRenameCount atomic.Int32
+
+// briefImage 日志用的封面摘要：内联 base64 图片可能有上百 KB，
+// 整条打进日志会把 gin.log 撑爆，这里只记类型和长度
+func briefImage(v string) string {
+	if v == "" {
+		return "-"
+	}
+	if service.IsDataImage(v) {
+		return fmt.Sprintf("内联图片(base64,%d字符)", len(v))
+	}
+	return v
+}
 
 // readBodyTwice 读取请求体并重置，用于需要多次读取 body 的场景
 func readBodyTwice(c *gin.Context) ([]byte, error) {
@@ -63,7 +76,8 @@ func PostRename(c *gin.Context) {
 		return
 	}
 
-	utils.InfoFormat("PostRename :searchCnt[%v]", currentFile)
+	utils.InfoFormat("PostRename :id[%s] name[%s] jpg[%s] png[%s]",
+		currentFile.Id, currentFile.Name, briefImage(currentFile.Jpg), briefImage(currentFile.Png))
 	count := pendingRenameCount.Add(1)
 	sse.BroadcastEvent(model.SSERenameStart, map[string]interface{}{
 		"count": count,
@@ -97,7 +111,8 @@ func PostMove(c *gin.Context) {
 		return
 	}
 
-	utils.InfoFormat("PostMove :[%v]", currentFile)
+	utils.InfoFormat("PostMove :id[%s] name[%s] jpg[%s] png[%s]",
+		currentFile.Id, currentFile.Name, briefImage(currentFile.Jpg), briefImage(currentFile.Png))
 	res := UseApp().files.Move(currentFile.Id, currentFile.Path, currentFile.Title)
 	c.JSON(http.StatusOK, res)
 }

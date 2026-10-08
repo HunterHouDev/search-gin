@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -10,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -174,4 +177,123 @@ func TestRunHlsDownloadCanceled(t *testing.T) {
 
 	_, err = runHlsDownload(ctx, "test-cancel", pl, out, "")
 	assert.ErrorIs(t, err, errHlsCanceled)
+}
+
+// TestHlsNetworkErrorClassifiesReset 校验「连接被源站强行关闭」被识别为可重试的网络错误。
+//
+// 真实报错形如：read tcp 192.168.3.2:12504->219.155.150.155:443: wsarecv:
+// An existing connection was forcibly closed by the remote host.
+func TestHlsNetworkErrorClassifiesReset(t *testing.T) {
+	resetErr := &net.OpError{
+		Op:  "read",
+		Net: "tcp",
+		Err: os.NewSyscallError("wsarecv", syscall.ECONNRESET),
+	}
+	assert.True(t, hlsNetworkError(resetErr))
+	assert.False(t, hlsThrottled(resetErr))
+	// HTTP 状态码类错误不算网络错误，避免重试策略串味
+	assert.False(t, hlsNetworkError(hlsHTTPStatusError{code: 503}))
+}
+
+// TestHlsJitterRange 校验退避抖动落在 [d, 1.25d] 区间内
+func TestHlsJitterRange(t *testing.T) {
+	base := time.Second
+	for i := 0; i < 50; i++ {
+		got := hlsJitter(base)
+		assert.GreaterOrEqual(t, got, base)
+		assert.LessOrEqual(t, got, base+base/4)
+	}
+	assert.Equal(t, time.Duration(0), hlsJitter(0))
+}
+
+// TestRefreshPlaylistAuthUpdatesQuery 校验过期鉴权参数被按路径替换为新值：
+// 分片行、#EXT-X-KEY 与 #EXT-X-MAP 的 URI 都要换，其余内容保持原样。
+func TestRefreshPlaylistAuthUpdatesQuery(t *testing.T) {
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, strings.Join([]string{
+			"#EXTM3U",
+			`#EXT-X-KEY:METHOD=AES-128,URI="`+srv.URL+`/key.bin?auth_key=NEW",IV=0x01`,
+			`#EXT-X-MAP:URI="`+srv.URL+`/init.mp4?auth_key=NEW"`,
+			"#EXTINF:4.0,",
+			srv.URL + "/seg1.m4s?auth_key=NEW",
+			"#EXTINF:4.0,",
+			srv.URL + "/seg2.m4s?auth_key=NEW",
+		}, "\n"))
+	}))
+	defer srv.Close()
+
+	old := strings.Join([]string{
+		"#EXTM3U",
+		`#EXT-X-KEY:METHOD=AES-128,URI="` + srv.URL + `/key.bin?auth_key=OLD",IV=0x01`,
+		`#EXT-X-MAP:URI="` + srv.URL + `/init.mp4?auth_key=OLD"`,
+		"#EXTINF:4.0,",
+		srv.URL + "/seg1.m4s?auth_key=OLD",
+		"#EXTINF:4.0,",
+		srv.URL + "/seg2.m4s?auth_key=OLD",
+	}, "\n")
+
+	got := refreshPlaylistAuth(context.Background(), old, srv.URL+"/index.m3u8")
+	assert.NotContains(t, got, "auth_key=OLD")
+	// 密钥 URI、初始化段 URI、两个分片地址，共 4 处
+	assert.Equal(t, 4, strings.Count(got, "auth_key=NEW"))
+	// 未被替换的部分（标签本身、时长行）保持原样
+	assert.Contains(t, got, "#EXT-X-KEY:METHOD=AES-128")
+	assert.Contains(t, got, "#EXTINF:4.0,")
+}
+
+// TestRefreshPlaylistAuthKeepsOriginalOnFailure 校验源站不可用时原样返回
+func TestRefreshPlaylistAuthKeepsOriginalOnFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer srv.Close()
+
+	old := "#EXTM3U\nhttp://example.com/seg1.m4s?auth_key=OLD\n"
+	assert.Equal(t, old, refreshPlaylistAuth(context.Background(), old, srv.URL+"/index.m3u8"))
+	// 源地址缺失时同样直接返回
+	assert.Equal(t, old, refreshPlaylistAuth(context.Background(), old, ""))
+}
+
+// TestRefreshPlaylistAuthSkipsUnsigned 校验地址里没有时效签名时直接跳过刷新，
+// 不为了刷新白白多打一次源站。
+func TestRefreshPlaylistAuthSkipsUnsigned(t *testing.T) {
+	var hits int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		fmt.Fprint(w, "#EXTM3U\nhttp://example.com/seg1.m4s\n")
+	}))
+	defer srv.Close()
+
+	old := "#EXTM3U\nhttp://example.com/seg1.m4s\n"
+	assert.Equal(t, old, refreshPlaylistAuth(context.Background(), old, srv.URL+"/index.m3u8"))
+	assert.Equal(t, int32(0), atomic.LoadInt32(&hits))
+}
+
+// TestFetchHlsSegmentRetriesOnConnectionReset 校验连接被掐断后会换连接重试成功。
+// 服务端前两次直接关闭 TCP 连接（模拟源站单方面 RST），第三次才返回数据。
+func TestFetchHlsSegmentRetriesOnConnectionReset(t *testing.T) {
+	var attempts int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if atomic.AddInt32(&attempts, 1) <= 2 {
+			// 直接断开底层连接，让客户端收到 read: connection reset
+			if hj, ok := w.(http.Hijacker); ok {
+				conn, _, err := hj.Hijack()
+				if err == nil {
+					_ = conn.Close()
+					return
+				}
+			}
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		fmt.Fprint(w, "payload")
+	}))
+	defer srv.Close()
+
+	data, err := fetchHlsSegment(context.Background(), srv.URL+"/seg1", nil, "")
+	assert.NoError(t, err)
+	assert.Equal(t, "payload", string(data))
+	assert.Equal(t, int32(3), atomic.LoadInt32(&attempts))
 }

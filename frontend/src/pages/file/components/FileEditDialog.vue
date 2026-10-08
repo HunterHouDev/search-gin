@@ -66,14 +66,15 @@
             </q-input>
             <q-input outlined autogrow label="番号" v-model="view.item.Code" :dense="false" @change="makePreview"
               clearable />
-            <q-input :class="isMobile ? '' : 'col-6'" label="JPG地址" autogrow outlined clearable v-model="view.item.Jpg"
-              :dense="false" @clear="systemProperty.fileEditAutoJpg = false">
+            <q-input :class="isMobile ? '' : 'col-6'" label="JPG地址" autogrow outlined clearable
+              :model-value="jpgDisplay" @update:model-value="onJpgInput"
+              @clear="systemProperty.fileEditAutoJpg = false" :dense="false">
               <template v-slot:append>
                 <q-icon name="style" size="md" class="cursor-pointer" @click="pasteFromClipboard('Jpg')" />
               </template>
             </q-input>
-            <q-input :class="isMobile ? '' : 'col-6'" label="PNG地址" autogrow outlined v-model="view.item.Png" clearable
-              :dense="false">
+            <q-input :class="isMobile ? '' : 'col-6'" label="PNG地址" autogrow outlined clearable
+              :model-value="pngDisplay" @update:model-value="onPngInput" :dense="false">
               <template v-slot:append>
                 <q-icon name="style" size="md" class="cursor-pointer" @click="pasteFromClipboard('Png')" />
               </template>
@@ -85,9 +86,9 @@
             </p>
           </div>
           <div class="q-pa-sm preview-panel">
-            <template v-if="view.item.Jpg || view.item.Png">
-              <q-img v-if="view.item.Jpg" fit="fill" height="180px" :src="view.item.Jpg"></q-img>
-              <q-img v-if="view.item.Png" fit="fill" height="180px" :src="view.item.Png"></q-img>
+            <template v-if="jpgSrc || pngSrc">
+              <q-img v-if="jpgSrc" fit="fill" height="180px" :src="jpgSrc"></q-img>
+              <q-img v-if="pngSrc" fit="fill" height="180px" :src="pngSrc"></q-img>
             </template>
             <div v-else class="preview-placeholder">
               <q-icon name="image" size="48px" color="grey-5" />
@@ -106,7 +107,7 @@
 
 <script setup>
 import { useDialogPluginComponent, useQuasar } from 'quasar';
-import { reactive, ref, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 
 import { FileRename } from 'components/api/searchAPI';
 import { formatTitle } from 'components/utils';
@@ -126,6 +127,75 @@ const view = reactive({
 
 const showBus = ref(false);
 const busUrl = ref('');
+
+// ── 内联 base64 图片（data:image/xxx;base64,...） ────────────────
+// 有些站点只提供内联 base64 图片，复制出来就是一整串 data URI（动辄上百 KB），
+// 直接塞进输入框既没法看也没法改，故单独存放，输入框只显示一个摘要标签。
+const jpgDataUrl = ref('');
+const pngDataUrl = ref('');
+
+const isDataImage = (v: string): boolean =>
+  typeof v === 'string' &&
+  v.startsWith('data:image/') &&
+  v.includes(';base64,');
+
+// 解码后的大致体积，用于摘要显示
+const dataImageSize = (v: string): string => {
+  const idx = v.indexOf(';base64,');
+  const raw = v.slice(idx + 8);
+  const padding = raw.endsWith('==') ? 2 : raw.endsWith('=') ? 1 : 0;
+  const bytes = Math.max(0, Math.floor((raw.length * 3) / 4) - padding);
+  return bytes >= 1024 * 1024
+    ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
+    : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+};
+
+const dataImageLabel = (v: string): string =>
+  `【内联 base64 图片 · ${dataImageSize(v)}】`;
+
+const jpgSrc = computed(() => jpgDataUrl.value || view.item?.Jpg || '');
+const pngSrc = computed(() => pngDataUrl.value || view.item?.Png || '');
+const jpgDisplay = computed(() =>
+  jpgDataUrl.value ? dataImageLabel(jpgDataUrl.value) : view.item?.Jpg || ''
+);
+const pngDisplay = computed(() =>
+  pngDataUrl.value ? dataImageLabel(pngDataUrl.value) : view.item?.Png || ''
+);
+
+// 输入/粘贴统一入口：识别到 base64 图片就存到独立字段，普通地址仍走 item
+// v 来自 q-input 的 update:model-value，可能是 number / null，统一转成字符串处理
+const applyImageField = (
+  field: 'Jpg' | 'Png',
+  v: string | number | null,
+): void => {
+  const text = v == null ? '' : String(v);
+  if (isDataImage(text)) {
+    if (field === 'Jpg') {
+      jpgDataUrl.value = text;
+      view.item.Jpg = '';
+    } else {
+      pngDataUrl.value = text;
+      view.item.Png = '';
+    }
+    $q.notify({
+      type: 'positive',
+      message: `已填入 base64 图片（${dataImageSize(text)}）`,
+      position: 'bottom',
+    });
+    return;
+  }
+  if (field === 'Jpg') {
+    jpgDataUrl.value = '';
+    view.item.Jpg = text;
+  } else {
+    pngDataUrl.value = '';
+    view.item.Png = text;
+  }
+};
+const onJpgInput = (v: string | number | null): void =>
+  applyImageField('Jpg', v);
+const onPngInput = (v: string | number | null): void =>
+  applyImageField('Png', v);
 
 const toggleJavBus = () => {
   if (!systemProperty.fileEditAutoCode) {
@@ -163,7 +233,10 @@ const onWindowFocus = async () => {
     const text = (await navigator.clipboard.readText() || '').trim();
     if (!text || text.length === 0 || text === lastClipboardText) return;
     lastClipboardText = text;
-    if (text.startsWith('http')) {
+    // 内联 base64 图片由 applyImageField 自行提示，这里只提示 http 地址
+    if (isDataImage(text)) {
+      applyImageField('Jpg', text);
+    } else if (text.startsWith('http')) {
       view.item.Jpg = text;
       $q.notify({ type: 'positive', message: `已填入JPG: ${text.slice(0, 50)}`, position: 'bottom' });
     } else {
@@ -198,6 +271,8 @@ const makePreview = () => {
     systemProperty.fileEditAutoJpg
   ) {
     const uriCode = view.item.Code.toLowerCase().trim().replace('-', '00');
+    // 自动封面会覆盖手填的内联图片
+    jpgDataUrl.value = '';
     view.item.Jpg =
       systemProperty.SettingInfo.ImageUrl + `${uriCode}/${uriCode}pl.jpg`;
   }
@@ -242,6 +317,10 @@ const titleChange = (v) => {
 
 const pasteFromClipboard = async (field) => {
   const text = await navigator.clipboard.readText();
+  if (field === 'Jpg' || field === 'Png') {
+    applyImageField(field, text);
+    return;
+  }
   view.item[field] = text;
   if (field === 'Title') {
     titleChange(text);
@@ -250,6 +329,8 @@ const pasteFromClipboard = async (field) => {
 
 const open = (item) => {
   showBus.value = false;
+  jpgDataUrl.value = '';
+  pngDataUrl.value = '';
   view.item = new FileModel().fromObject(item);
   view.nodeHost = item.NodeHost || '';
   view.item.Jpg = null;
@@ -265,8 +346,10 @@ const editMoveout = async () => {
 };
 
 const editItemSubmit = async (MoveOut = false) => {
-  const { Id, Title, Code, Author, FileType, MovieType, Jpg, Png, Tags } =
-    view.item;
+  const { Id, Title, Code, Author, FileType, MovieType, Tags } = view.item;
+  // 内联 base64 图片存在独立字段，优先于输入框里的地址
+  const Jpg = jpgDataUrl.value || view.item.Jpg || '';
+  const Png = pngDataUrl.value || view.item.Png || '';
   let code = Code.trim().toUpperCase();
   if (code && code.indexOf('-') < 0) {
     code = '-' + code;
