@@ -275,6 +275,9 @@ export function isPlayableDownloadPath(path: string): boolean {
   return PLAYABLE_VIDEO_EXT_RE.test(path || '');
 }
 
+/** 原路径不可播时，按顺序探测的同名候选扩展名（转码产物的常见容器） */
+const PLAYABLE_EXT_CANDIDATES = ['mp4', 'm4v', 'mov', 'webm', 'mkv'] as const;
+
 function mapTaskStatus(status: string): HlsDownloadStatus {
   if (status === '执行中') return 'downloading';
   // 服务端并发槽位占满时任务停在「等待」，对使用者而言就是排队等执行
@@ -1640,12 +1643,14 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
                 ? '队列中，等待空闲的执行槽位'
                 : '正在服务端下载…',
       createdAt: new Date(task.CreateTime).getTime() || Date.now(),
-      // TS 容器（MPEG-TS）浏览器的 <video> 无法解码（实测 DEMUXER_ERROR），
-      // 只有 fMP4 / webm 等浏览器原生支持的容器才能页面内回放
-      playable:
-        status === 'done' &&
-        Boolean(task.Path) &&
-        PLAYABLE_VIDEO_EXT_RE.test(task.Path),
+      // 下载完成且有落盘路径就可以点「播放」。
+      //
+      // 这里不再按扩展名卡死：TS 容器（MPEG-TS）浏览器 <video> 解不了
+      // （实测 DEMUXER_ERROR），但下载时选了「转 MP4」的产物是同名的 .mp4，
+      // 而任务记录的 Path 始终是下载产物（.ts，转码任务是一条独立任务，
+      // 不会把新路径回写到这里）。按扩展名直接禁用会让转过码的任务永远放不了，
+      // 故容器是否可播放到点击时再解析（见 resolvePlayablePath）。
+      playable: status === 'done' && Boolean(task.Path),
       sourceUrl: task.URL || '',
     };
   }
@@ -2173,6 +2178,29 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     await onPlay(url, item.name, false);
   }
 
+  /** resolvePlayablePath 返回实际可回放的路径（找不到返回 null）。
+   *
+   * 任务记录的 Path 是下载产物，可能是浏览器解不了的容器（如 .ts）；
+   * 而「下载后转 MP4」是一条独立任务，产物是同名的 .mp4，不会回写到下载任务上。
+   * 因此这里先看原路径能不能播，不能播就按候选扩展名找转码产物。
+   */
+  async function resolvePlayablePath(path: string): Promise<string | null> {
+    if (isPlayableDownloadPath(path)) return path;
+    // 去掉最后一个扩展名（Windows 路径分隔符是 \，不能一并切掉目录）
+    const base = path.replace(/\.[^.\\/]+$/, '');
+    for (const ext of PLAYABLE_EXT_CANDIDATES) {
+      const candidate = `${base}.${ext}`;
+      try {
+        const res = await FileExistsAPI(candidate);
+        if (res?.Code === 200 && res.Data?.exists === true) return candidate;
+      } catch {
+        // 403（不在媒体目录内）等由 axios 拦截器提示过，直接放弃继续探测
+        return null;
+      }
+    }
+    return null;
+  }
+
   /**
    * 播放下载列表里的视频：文件已在服务端，直接走流式接口回放。
    * 回放前先向服务端确认一次文件是否还在——下载完成后文件可能已被移走 / 删除，
@@ -2184,18 +2212,9 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
       notifyNegative('找不到文件路径，无法在页面内回放');
       return;
     }
+    let playPath: string | null = null;
     try {
-      const res = await FileExistsAPI(item.path);
-      if (res?.Code !== 200) {
-        notifyNegative(res?.Message || '无法确认文件是否存在，未开始播放');
-        return;
-      }
-      if (res.Data?.exists !== true) {
-        notifyNegative('文件已不存在（可能已被移动或删除），无法在页面内回放');
-        // 顺带同步一次列表，让条目状态与服务端保持一致
-        void refreshHlsDownloads();
-        return;
-      }
+      playPath = await resolvePlayablePath(item.path);
     } catch (e) {
       // 拦截器已提示过的错误（如路径不在媒体目录内的 403）不再重复弹窗
       if (!(e as ApiError).__notified) {
@@ -2203,11 +2222,21 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
       }
       return;
     }
+    if (!playPath) {
+      notifyNegative(
+        isPlayableDownloadPath(item.path)
+          ? '文件已不存在（可能已被移动或删除），无法在页面内回放'
+          : '该容器浏览器无法直接播放，且未找到转码后的同名文件（下载时选择「转 MP4」后可直接回放）',
+      );
+      // 顺带同步一次列表，让条目状态与服务端保持一致
+      void refreshHlsDownloads();
+      return;
+    }
     releaseDownloadPlaybackUrl();
     revokeBlobUrl();
     hlsPlayingDownloadId.value = item.id;
     onPlay(
-      `/api/stream/GetFileByPathUseEncode/${encodeURIComponent(item.path)}`,
+      `/api/stream/GetFileByPathUseEncode/${encodeURIComponent(playPath)}`,
       item.name,
       false,
     );

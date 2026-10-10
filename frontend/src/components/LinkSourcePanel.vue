@@ -844,11 +844,11 @@
                   {{
                     item.status !== 'done'
                       ? '服务端下载完成后可播放'
-                      : item.playable
-                        ? '播放已下载的视频'
+                      : !item.playable
+                        ? '该任务没有落盘路径，无法在页面内回放'
                         : isPlayableDownloadPath(item.path)
-                          ? '该文件不在媒体目录内，无法在页面内回放'
-                          : 'TS 容器浏览器无法直接播放：下载时选择「转 MP4」，完成后即可回放'
+                          ? '播放已下载的视频'
+                          : '下载产物是 TS 容器：已转码出同名 MP4 时会自动播放转码产物，否则需先选择「转 MP4」'
                   }}
                 </q-tooltip>
               </q-btn>
