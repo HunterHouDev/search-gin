@@ -46,7 +46,8 @@ func TestRunHlsDownloadPreservesOrder(t *testing.T) {
 	assert.NoError(t, err)
 	defer out.Close()
 
-	n, err := runHlsDownload(context.Background(), "test-order", pl, out, srv.URL+"/")
+	// 并发传 0：走服务端默认并发
+	n, err := runHlsDownload(context.Background(), "test-order", pl, out, srv.URL+"/", 0)
 	assert.NoError(t, err)
 
 	var want strings.Builder
@@ -83,7 +84,8 @@ func TestRunHlsDownloadRetriesSegment(t *testing.T) {
 	assert.NoError(t, err)
 	defer out.Close()
 
-	_, err = runHlsDownload(context.Background(), "test-retry", pl, out, "")
+	// 并发传 0：走服务端默认并发
+	_, err = runHlsDownload(context.Background(), "test-retry", pl, out, "", 0)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, attempts)
 
@@ -134,7 +136,8 @@ func TestRunHlsDownloadWritesInitSegmentPerPart(t *testing.T) {
 	assert.NoError(t, err)
 	defer out.Close()
 
-	_, err = runHlsDownload(context.Background(), "test-init", pl, out, "")
+	// 并发传 0：走服务端默认并发
+	_, err = runHlsDownload(context.Background(), "test-init", pl, out, "", 0)
 	assert.NoError(t, err)
 
 	got, err := os.ReadFile(out.Name())
@@ -175,7 +178,8 @@ func TestRunHlsDownloadCanceled(t *testing.T) {
 		cancel()
 	}()
 
-	_, err = runHlsDownload(ctx, "test-cancel", pl, out, "")
+	// 并发传 0：走服务端默认并发
+	_, err = runHlsDownload(ctx, "test-cancel", pl, out, "", 0)
 	assert.ErrorIs(t, err, errHlsCanceled)
 }
 
@@ -296,4 +300,17 @@ func TestFetchHlsSegmentRetriesOnConnectionReset(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "payload", string(data))
 	assert.Equal(t, int32(3), atomic.LoadInt32(&attempts))
+}
+
+// TestNormalizeConcurrency 校验任务级并发数的归一化：
+// 未指定（≤0）取默认值，超出上限截断；滑动窗口随并发数放大。
+func TestNormalizeConcurrency(t *testing.T) {
+	assert.Equal(t, hlsDownloadConcurrency, normalizeConcurrency(0))
+	assert.Equal(t, hlsDownloadConcurrency, normalizeConcurrency(-3))
+	assert.Equal(t, 1, normalizeConcurrency(1))
+	assert.Equal(t, 8, normalizeConcurrency(8))
+	assert.Equal(t, hlsMaxConcurrency, normalizeConcurrency(hlsMaxConcurrency+1))
+
+	assert.Equal(t, hlsDownloadConcurrency*3, hlsWindowOf(0))
+	assert.Equal(t, 12, hlsWindowOf(4))
 }

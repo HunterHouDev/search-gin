@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"search-gin/internal/service"
 	"search-gin/pkg/utils"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -53,6 +54,31 @@ func GetFileByPathUseEncode(c *gin.Context) {
 	} else {
 		c.JSON(http.StatusNotFound, utils.NewFailByMsg("文件不存在"))
 	}
+}
+
+// GetFileExists 校验服务端上的文件是否仍然存在。
+//
+// 下载列表回放前先问一次：下载完成后文件可能已被移走或删除，
+// 直接起播只会得到一个打不开的流，先提示使用者更清楚。
+// 路径校验与文件流一致（必须在已配置的媒体目录内）。
+func GetFileExists(c *gin.Context) {
+	rawPath := c.Query("path")
+	if strings.TrimSpace(rawPath) == "" {
+		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("缺少文件路径"))
+		return
+	}
+
+	validatedPath, ok := validatePathOrRespond(c, rawPath, "访问被拒绝：路径不在允许范围内")
+	if !ok {
+		return
+	}
+
+	result := utils.NewSuccess()
+	result.Data = map[string]interface{}{
+		"exists": utils.ExistsFiles(validatedPath),
+		"path":   validatedPath,
+	}
+	c.JSON(http.StatusOK, result)
 }
 
 func GetDeleteFileByPathUseEncode(c *gin.Context) {

@@ -198,3 +198,21 @@ func TestSetScanWalkInner_NilQueue(t *testing.T) {
 	})
 	// should not panic
 }
+
+// TestResizeTaskSlotsKeepsUsed 校验调整并行任务数时已占用的槽位不会丢失：
+// 否则在跑的任务会被漏算，实际并行数可能超过新上限。
+func TestResizeTaskSlotsKeepsUsed(t *testing.T) {
+	taskSlotsOnce = sync.Once{}
+	InitTaskSlots(2)
+	assert.True(t, acquireTaskSlot(2))
+	assert.True(t, acquireTaskSlot(2))
+	assert.False(t, acquireTaskSlot(2)) // 两个槽位已占满
+
+	ResizeTaskSlots(5)
+	assert.Equal(t, 5, cap(taskSlots))
+	// 已占用 2 个，新上限 5 → 只剩 3 个可用
+	assert.True(t, acquireTaskSlot(5))
+	assert.True(t, acquireTaskSlot(5))
+	assert.True(t, acquireTaskSlot(5))
+	assert.False(t, acquireTaskSlot(5))
+}

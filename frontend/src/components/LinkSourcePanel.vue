@@ -354,10 +354,16 @@
               no-caps
               size="sm"
               class="hls-xcode-btn"
-              :color="hlsDownloadXcode ? 'teal-4' : 'indigo-4'"
+              :color="
+                hlsXcodeSkipped
+                  ? 'grey-6'
+                  : hlsDownloadXcode
+                    ? 'teal-4'
+                    : 'indigo-4'
+              "
               icon="transform"
               :label="hlsDownloadXcodeLabel"
-              :disable="!hlsKeptCount"
+              :disable="!hlsKeptCount || hlsXcodeSkipped"
             >
               <q-list dense class="hls-xcode-menu">
                 <q-item
@@ -373,10 +379,54 @@
                   </q-item-section>
                 </q-item>
               </q-list>
-              <q-tooltip class="bg-dark text-white"
-                >下载完成后由服务端自动转码（转码是独立任务，可在任务列表查看进度）</q-tooltip
-              >
+              <q-tooltip class="bg-dark text-white">{{
+                hlsXcodeSkipped
+                  ? '原视频已是 MP4（fMP4 源），下载产物即为 mp4，无需转码'
+                  : '下载完成后由服务端自动转码（转码是独立任务，可在任务列表查看进度）'
+              }}</q-tooltip>
             </q-btn-dropdown>
+            <!-- 并发下载数量：单个任务内同时下载的分片数，随任务一起提交给服务端 -->
+            <q-input
+              v-model="concurrencyModel"
+              dark
+              dense
+              borderless
+              type="number"
+              :min="DOWNLOAD_PARAM_MIN"
+              :max="DOWNLOAD_PARAM_MAX"
+              class="hls-param-input"
+              prefix="并发"
+              :disable="!hlsKeptCount"
+            >
+              <template #prepend>
+                <q-icon name="speed" size="16px" color="indigo-4" />
+              </template>
+              <q-tooltip class="bg-dark text-white"
+                >并发下载数量：该任务内同时下载的分片数（1~16，默认 4）。源站频繁断连
+                / 限流时调小更稳，网络好时调大更快</q-tooltip
+              >
+            </q-input>
+            <!-- 并行任务数量：服务端同时执行的任务数上限，对所有任务类型生效 -->
+            <q-input
+              v-model="parallelModel"
+              dark
+              dense
+              borderless
+              type="number"
+              :min="DOWNLOAD_PARAM_MIN"
+              :max="DOWNLOAD_PARAM_MAX"
+              class="hls-param-input"
+              prefix="并行"
+              :disable="!hlsKeptCount"
+            >
+              <template #prepend>
+                <q-icon name="tune" size="16px" color="indigo-4" />
+              </template>
+              <q-tooltip class="bg-dark text-white"
+                >并行任务数量：服务端同时执行的任务数上限（1~16，默认
+                4），对所有任务类型生效，提交下载时一并应用</q-tooltip
+              >
+            </q-input>
             <!-- 点下载后任务交给服务端执行，本地分片列表随之清空，可继续粘贴下一组地址 -->
             <q-btn
               flat
@@ -565,6 +615,78 @@
             >
               失败 {{ hlsDownloadStats.failed }}
             </span>
+            <!-- 队列中：并行任务数已满，等有空闲槽位才真正开始 -->
+            <span
+              v-if="hlsDownloadStats.queued || hlsDownloadFilter === 'downloading'"
+              class="hls-download-stat hls-download-stat-queued hls-download-stat-btn"
+              :class="{
+                'hls-download-stat-active': hlsDownloadFilter === 'downloading',
+              }"
+              @click="toggleDownloadFilter('downloading')"
+            >
+              队列中 {{ hlsDownloadStats.queued }}
+            </span>
+            <!-- 下载参数：默认只读；点「修改参数」切换输入态，保存后回到只读 -->
+            <span v-if="!paramsEditing" class="hls-download-params">
+              并发 {{ hlsDownloadConcurrency }} · 并行 {{ hlsDownloadParallel }}
+              <q-btn
+                flat
+                dense
+                no-caps
+                size="sm"
+                color="indigo-4"
+                icon="edit"
+                label="修改参数"
+                @click="startEditParams"
+              >
+                <q-tooltip class="bg-dark text-white"
+                  >并发：单个任务内同时下载的分片数（1~16）；并行：服务端同时执行的任务数上限（1~16）</q-tooltip
+                >
+              </q-btn>
+            </span>
+            <span v-else class="hls-download-params">
+              <q-input
+                v-model="paramDraft.concurrency"
+                dark
+                dense
+                borderless
+                type="number"
+                :min="DOWNLOAD_PARAM_MIN"
+                :max="DOWNLOAD_PARAM_MAX"
+                prefix="并发"
+                class="hls-param-input"
+              />
+              <q-input
+                v-model="paramDraft.parallel"
+                dark
+                dense
+                borderless
+                type="number"
+                :min="DOWNLOAD_PARAM_MIN"
+                :max="DOWNLOAD_PARAM_MAX"
+                prefix="并行"
+                class="hls-param-input"
+              />
+              <q-btn
+                flat
+                dense
+                no-caps
+                size="sm"
+                color="green-4"
+                icon="check"
+                label="保存"
+                @click="saveParams"
+              />
+              <q-btn
+                flat
+                dense
+                no-caps
+                size="sm"
+                color="grey-5"
+                label="取消"
+                @click="paramsEditing = false"
+              />
+            </span>
             <q-space />
             <!-- 清空已完成 / 清空已失败：只删对应状态的任务记录，不删已下载的文件 -->
             <q-btn
@@ -688,7 +810,26 @@
                   浏览器下载（前端直接拉取分片并存到本机，不经服务端；源站禁止跨域时失败）
                 </q-tooltip>
               </q-btn>
-              <!-- 播放：下载完成后回放本地文件 -->
+              <!-- 在线播放：直接播源站地址，不依赖下载是否完成 -->
+              <q-btn
+                flat
+                round
+                dense
+                size="sm"
+                color="teal-4"
+                icon="ondemand_video"
+                :disable="!item.sourceUrl"
+                @click="playHlsDownloadOnline(item)"
+              >
+                <q-tooltip class="bg-dark text-white">
+                  {{
+                    item.sourceUrl
+                      ? '在线播放源站链接（m3u8 走 HLS；源站需可访问，签名过期会播不了）'
+                      : '该任务没有源地址，无法在线播放'
+                  }}
+                </q-tooltip>
+              </q-btn>
+              <!-- 下载后播放：回放服务端已下载的文件 -->
               <q-btn
                 flat
                 round
@@ -705,7 +846,9 @@
                       ? '服务端下载完成后可播放'
                       : item.playable
                         ? '播放已下载的视频'
-                        : '该文件不在媒体目录内，无法在页面内回放'
+                        : isPlayableDownloadPath(item.path)
+                          ? '该文件不在媒体目录内，无法在页面内回放'
+                          : 'TS 容器浏览器无法直接播放：下载时选择「转 MP4」，完成后即可回放'
                   }}
                 </q-tooltip>
               </q-btn>
@@ -752,12 +895,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { useClipboard } from '@vueuse/core';
 import {
   LINK_TABS,
   useLinkPlayback,
+  isPlayableDownloadPath,
   type HlsDownloadItem,
   type HlsSegment,
   type LinkTab,
@@ -874,6 +1018,8 @@ const {
   updateHlsUrlRow,
   clearHlsUrlRows,
   hlsLoading,
+  // 解析中：模板用它禁用解析按钮，缺了会一直是 undefined
+  hlsParsing,
   linkActionLabel,
   linkActionIcon,
   linkActionTooltip,
@@ -889,8 +1035,13 @@ const {
   hlsKeptDuration,
   hlsDownloadName,
   hlsDefaultDownloadName,
+  hlsDownloadExt,
   hlsDownloadDir,
   hlsDownloadDirOptions,
+  hlsDownloadConcurrency,
+  hlsDownloadParallel,
+  saveDownloadParams,
+  playHlsDownloadOnline,
   hlsDownloadXcode,
   hlsDownloadList,
   hlsDownloadStats,
@@ -944,11 +1095,77 @@ const hlsXcodeOptions = [
   { value: 'h265', label: '转 H265', caption: '重新编码，体积更小' },
 ];
 
+/** 下载并发参数的取值区间（与后端一致，越界由后端兜底截断） */
+const DOWNLOAD_PARAM_MIN = 1;
+const DOWNLOAD_PARAM_MAX = 16;
+
+/**
+ * 数字输入框与整数状态的桥接：输入框始终是字符串，
+ * 空值 / 非法值不写入（保留原值），越界夹到区间内。
+ */
+function numberModel(get: () => number, set: (n: number) => void) {
+  return computed({
+    get: () => String(get()),
+    set: (val: string) => {
+      if (String(val).trim() === '') return;
+      const n = Math.round(Number(val));
+      if (!Number.isFinite(n)) return;
+      set(Math.min(DOWNLOAD_PARAM_MAX, Math.max(DOWNLOAD_PARAM_MIN, n)));
+    },
+  });
+}
+
+/** 并发下载数量：单个任务内同时在途的分片数 */
+const concurrencyModel = numberModel(
+  () => hlsDownloadConcurrency.value,
+  (n) => (hlsDownloadConcurrency.value = n),
+);
+/** 并行任务数量：服务端同时执行的任务数上限 */
+const parallelModel = numberModel(
+  () => hlsDownloadParallel.value,
+  (n) => (hlsDownloadParallel.value = n),
+);
+
+/**
+ * 下载参数的编辑态：默认只读展示，点「修改参数」进入输入态，
+ * 保存（或取消）后回到只读。草稿只在保存时写回，避免输入过程中
+ * 影响正在提交的任务。
+ */
+const paramsEditing = ref(false);
+const paramDraft = reactive({ concurrency: '', parallel: '' });
+
+function startEditParams() {
+  paramDraft.concurrency = String(hlsDownloadConcurrency.value);
+  paramDraft.parallel = String(hlsDownloadParallel.value);
+  paramsEditing.value = true;
+}
+
+function saveParams() {
+  saveDownloadParams(
+    Number(paramDraft.concurrency),
+    Number(paramDraft.parallel),
+  );
+  paramsEditing.value = false;
+  $q.notify({
+    type: 'positive',
+    message: `下载参数已保存（并发 ${hlsDownloadConcurrency.value} · 并行 ${hlsDownloadParallel.value}）`,
+    position: 'top',
+    timeout: 2000,
+  });
+}
+
+/**
+ * 原视频已是 mp4（fMP4 源，产物容器就是 mp4）时不提供转码：
+ * 再转一次只是换封装，白白占用任务槽位，服务端也会直接跳过。
+ */
+const hlsXcodeSkipped = computed(() => hlsDownloadExt.value === 'mp4');
+
 /** 转码下拉按钮文案 */
-const hlsDownloadXcodeLabel = computed(
-  () =>
-    hlsXcodeOptions.find((item) => item.value === hlsDownloadXcode.value)
-      ?.label ?? '下载后转码',
+const hlsDownloadXcodeLabel = computed(() =>
+  hlsXcodeSkipped.value
+    ? '无需转码'
+    : (hlsXcodeOptions.find((item) => item.value === hlsDownloadXcode.value)
+        ?.label ?? '下载后转码'),
 );
 
 /** 浏览器直下按钮文案：未进行时为固定文案，进行中显示实时百分比 */
@@ -965,7 +1182,12 @@ const hlsDownloadFilter = ref<DownloadBucket | 'all'>('all');
 
 /** 条目归入哪一组：浏览器直下进行中同样算「执行中」 */
 function hlsDownloadBucket(item: HlsDownloadItem): DownloadBucket {
-  if (item.status === 'downloading' || browserDownloadInProgress(item)) {
+  // 排队中与执行中同组：都用「执行中」筛选一起看
+  if (
+    item.status === 'downloading' ||
+    item.status === 'queued' ||
+    browserDownloadInProgress(item)
+  ) {
     return 'downloading';
   }
   if (item.status === 'done') return 'done';
@@ -1506,6 +1728,40 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
   color: rgba(165, 148, 249, 0.45);
 }
 
+/* 并发 / 并行参数：固定窄宽，避免挤占文件名输入的剩余空间 */
+.hls-param-input {
+  flex: 0 0 auto;
+  width: 92px;
+}
+
+.hls-param-input :deep(.q-field__control) {
+  height: 26px;
+  min-height: 26px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.hls-param-input :deep(.q-field__native) {
+  font-size: 0.74rem;
+  color: rgba(224, 231, 255, 0.95);
+  padding: 0;
+  text-align: center;
+}
+
+.hls-param-input :deep(.q-field__prefix) {
+  font-size: 0.72rem;
+  color: rgba(165, 148, 249, 0.75);
+  padding-right: 4px;
+}
+
+/* 数字输入框自带的步进箭头在窄输入框里很挤，隐藏掉（仍可键盘输入） */
+.hls-param-input :deep(input[type='number']::-webkit-outer-spin-button),
+.hls-param-input :deep(input[type='number']::-webkit-inner-spin-button) {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 .hls-filename-input :deep(.q-field__prepend) {
   padding-right: 4px;
 }
@@ -1717,6 +1973,22 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
 .hls-download-stat-failed {
   background: rgba(248, 113, 113, 0.18);
   color: rgba(252, 165, 165, 0.95);
+}
+
+/* 队列中：等待空闲槽位，用中性色与「执行中」区分 */
+.hls-download-stat-queued {
+  background: rgba(148, 163, 184, 0.18);
+  color: rgba(203, 213, 225, 0.95);
+}
+
+/* 下载参数：只读文案 / 编辑态输入，紧跟在列表状态后面 */
+.hls-download-params {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  color: rgba(165, 148, 249, 0.9);
+  white-space: nowrap;
 }
 
 /* 统计可点击筛选：悬停有反馈，选中项加描边 */

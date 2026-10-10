@@ -9,9 +9,17 @@ import (
 	"time"
 )
 
+const (
+	// defaultTaskParallel 未配置时的并行任务数（与 setting 的默认值一致）
+	defaultTaskParallel = 4
+	// maxTaskParallel 并行任务数上限：再高也压不出吞吐，只会让任务互相抢带宽
+	maxTaskParallel = 16
+)
+
 // 任务并发控制
 var (
 	taskSlots      chan struct{} // 总并发槽位信号量
+	taskSlotsMu    sync.Mutex    // 保护 taskSlots 的替换（并行任务数支持运行时调整）
 	transcodeCount atomic.Int32  // 转码（h264/h265）执行数，共用 1 个槽
 	taskSlotsOnce  sync.Once
 )
@@ -26,33 +34,109 @@ var taskSignal = make(chan struct{}, 1)
 // InitTaskSlots 初始化任务并发槽位（由 StartBackgroundTasks 调用）
 func InitTaskSlots(maxConcurrent int) {
 	taskSlotsOnce.Do(func() {
-		if maxConcurrent <= 0 {
-			maxConcurrent = 4
-		}
-		taskSlots = make(chan struct{}, maxConcurrent)
+		resizeTaskSlots(maxConcurrent)
 	})
 }
 
-// acquireTaskSlot 占用一个并发槽位，无可用槽位时阻塞
+// ResizeTaskSlots 调整并行任务槽位总数（下载任务提交时可带上该值）。
+// 已占用的槽位会迁移到新的信号量：否则调整瞬间会漏算在跑的任务，
+// 实际并行数可能超过新上限。
+func ResizeTaskSlots(maxConcurrent int) {
+	taskSlotsMu.Lock()
+	defer taskSlotsMu.Unlock()
+	resizeTaskSlots(maxConcurrent)
+}
+
+// resizeTaskSlots 重建槽位信号量，调用方需持有 taskSlotsMu
+func resizeTaskSlots(maxConcurrent int) {
+	if maxConcurrent <= 0 {
+		maxConcurrent = defaultTaskParallel
+	}
+	if maxConcurrent > maxTaskParallel {
+		maxConcurrent = maxTaskParallel
+	}
+	// 排空旧信号量即可得到当前已占用的槽位数
+	used := 0
+	if taskSlots != nil {
+	drain:
+		for {
+			select {
+			case <-taskSlots:
+				used++
+			default:
+				break drain
+			}
+		}
+	}
+	next := make(chan struct{}, maxConcurrent)
+	// 新旧上限不一致时（例如 8 → 2 且已占用 5），多出的占用无法迁移，
+	// 这里按新上限截断——在跑的任务不受影响，只是调度器暂时不再放行新任务
+	for i := 0; i < used && i < maxConcurrent; i++ {
+		next <- struct{}{}
+	}
+	taskSlots = next
+}
+
+// applyTaskParallel 调整全局并行任务数上限：写入设置并立即重建槽位。
+// ≤0 或超过上限时忽略，保持服务端现有配置不变。
+func applyTaskParallel(n int) {
+	if n <= 0 || n > maxTaskParallel {
+		return
+	}
+	setting := GetOSSetting()
+	if setting.TaskMaxConcurrent == n && taskSlots != nil {
+		return
+	}
+	setting.TaskMaxConcurrent = n
+	SetOSSetting(setting)
+	if err := FlushDictionary(SettingFileName); err != nil {
+		utils.ErrorFormat("applyTaskParallel: 设置落盘失败: %v", err)
+	}
+	ResizeTaskSlots(n)
+	utils.InfoFormat("applyTaskParallel: 并行任务数调整为 %d", n)
+}
+
+// acquireTaskSlot 占用一个并发槽位，无可用槽位时返回 false（不阻塞）
 func acquireTaskSlot(max int) bool {
 	if max <= 0 {
 		return true // 不限制
 	}
+	slots := currentTaskSlots(max)
+	if slots == nil {
+		return false
+	}
 	select {
-	case taskSlots <- struct{}{}:
+	case slots <- struct{}{}:
 		return true
 	default:
 		return false // 槽位满
 	}
 }
 
+// currentTaskSlots 取当前槽位信号量；未初始化时按需建一个
+func currentTaskSlots(max int) chan struct{} {
+	taskSlotsMu.Lock()
+	slots := taskSlots
+	taskSlotsMu.Unlock()
+	if slots == nil {
+		InitTaskSlots(max)
+		taskSlotsMu.Lock()
+		slots = taskSlots
+		taskSlotsMu.Unlock()
+	}
+	return slots
+}
+
 // releaseTaskSlot 释放一个并发槽位
 func releaseTaskSlot() {
-	if taskSlots == nil {
+	taskSlotsMu.Lock()
+	slots := taskSlots
+	taskSlotsMu.Unlock()
+	if slots == nil {
 		return
 	}
 	select {
-	case <-taskSlots:
+	case <-slots:
 	default:
 	}
 }

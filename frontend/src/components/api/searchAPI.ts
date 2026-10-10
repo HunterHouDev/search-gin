@@ -97,6 +97,23 @@ export const DelTransferTasksInfo = async (taskID: string) => {
 };
 
 /**
+ * 校验服务端文件是否仍然存在（下载列表回放前先确认，避免起播后才发现文件没了）。
+ * 路径不在媒体目录内时后端返回 403，由 axios 拦截器统一提示。
+ */
+export const FileExistsAPI = async (
+  path: string
+): Promise<{
+  Code: number;
+  Message?: string;
+  Data?: { exists: boolean; path: string };
+}> => {
+  const res = await commonAxios().get('/api/fileExists', {
+    params: { path },
+  });
+  return res && res.data;
+};
+
+/**
  * 创建服务端 HLS 分片下载任务。
  * 下载在服务端执行，前端关闭弹窗 / 刷新页面都不会中断。
  */
@@ -107,6 +124,10 @@ export const HlsDownloadAPI = async (data: {
   dir?: string;
   /** 下载完成后自动转码的方式：copy / h264 / h265，留空表示不转码 */
   xcode?: string;
+  /** 并发下载数量：该任务内同时下载的分片数（1~16），不传由服务端取默认值 */
+  concurrency?: number;
+  /** 并行任务数量：服务端同时执行的任务数上限（1~16），不传则保持服务端现有配置 */
+  parallel?: number;
 }) => {
   const res = await commonAxios().post('/api/hlsDownload', data);
   return res && res.data;

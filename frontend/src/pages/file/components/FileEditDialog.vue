@@ -105,7 +105,7 @@
   </q-dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { useDialogPluginComponent, useQuasar } from 'quasar';
 import { computed, reactive, ref, watch } from 'vue';
 

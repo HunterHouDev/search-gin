@@ -35,15 +35,17 @@ import (
 // ──────────────────────────────────────────────────────────────
 
 const (
-	// hlsDownloadConcurrency 同时在途的分片请求数。
+	// hlsDownloadConcurrency 同时在途的分片请求数（默认值）。
 	// 分片下载是纯网络 I/O，并发数可以高于任务槽位数（默认 4）。
-	// 注意：该值同时决定 hlsDownloadWindow 与连接池上限，改动会连带生效。
+	// 注意：该值同时决定滑动窗口与连接池上限，任务可通过参数覆盖
+	// （见 HlsDownloadParam.Concurrency）。
 	// 若源站持续返回 connection reset（按连接数限流），可下调此值（8 → 4）
 	// 换取稳定性，代价是下载变慢。
 	hlsDownloadConcurrency = 4
-	// hlsDownloadWindow 已派发但尚未落盘的分片上限（滑动窗口）。
-	// 顺序写盘时若窗口无限，最前面的慢分片会让后续分片全部堆积在内存里。
-	hlsDownloadWindow = hlsDownloadConcurrency * 3
+	// hlsMinConcurrency / hlsMaxConcurrency 任务级并发的允许区间：
+	// 小于 1 视为未指定（取默认值），大于上限则截断，避免打挂源站或撑爆内存
+	hlsMinConcurrency = 1
+	hlsMaxConcurrency = 16
 	// hlsSegmentRetry 单个分片的最大尝试次数（含首次）
 	hlsSegmentRetry = 3
 	// hlsThrottleRetry 遇到 429/5xx（限流/暂时不可用）时的最大尝试次数（含首次）：
@@ -53,10 +55,17 @@ const (
 	hlsThrottleStep = time.Second
 	// hlsNetworkRetry 连接被重置 / 读取中断等网络类错误的最大尝试次数（含首次）。
 	// 这类错误多半是复用连接被源站掐断，换新连接重试即可，但也不能像普通错误
-	// 那样急，故比 hlsSegmentRetry 多一次机会（退避 500ms → 1s → 2s → 4s）
-	hlsNetworkRetry = 5
-	// hlsNetworkStep 网络类错误退避基数：500ms → 1s → 2s
-	hlsNetworkStep = 500 * time.Millisecond
+	// 那样急，故比 hlsSegmentRetry 多两次机会（退避 1s → 2s → 4s → 8s → 8s）
+	hlsNetworkRetry = 6
+	// hlsNetworkStep 网络类错误退避基数：1s → 2s → 4s → 8s
+	hlsNetworkStep = time.Second
+	// hlsNetworkMaxBackoff 网络类错误退避封顶。
+	//
+	// 实测：部分源站对持续下载的连接发 RST（wsarecv: forcibly closed），限流窗口
+	// 在 30s 量级，退避不够长时「换连接重试」仍落在窗口内，重试形同虚设
+	// （旧值 500ms 起步，5 次总退避仅 7.5s，全部打在同一窗口里）。
+	// 加长到 1s 起步并封顶 8s，6 次总退避约 31s，才能跨过窗口。
+	hlsNetworkMaxBackoff = 8 * time.Second
 	// hlsGateCooldown 并发减半后的冷却期：期间不再触发限流才逐级恢复并发
 	hlsGateCooldown = 30 * time.Second
 	// hlsProgressInterval 进度回写最小间隔，避免分片很小时高频加锁 + SSE 广播
@@ -122,6 +131,8 @@ var hlsRetryHTTPClient = &http.Client{
 type hlsRuntime struct {
 	playlist string
 	cancel   context.CancelFunc
+	// concurrency 该任务的下载并发数（分片同时在途数）
+	concurrency int
 }
 
 var (
@@ -131,8 +142,53 @@ var (
 
 func putHlsRuntime(id string, playlist string) {
 	hlsRuntimeMutex.Lock()
-	hlsRuntimeMap[id] = &hlsRuntime{playlist: playlist}
+	// 重启任务时沿用该任务原本的并发设置（runtime 可能已被丢弃，此时回到默认值）
+	concurrency := hlsDownloadConcurrency
+	if rt, ok := hlsRuntimeMap[id]; ok && rt.concurrency > 0 {
+		concurrency = rt.concurrency
+	}
+	hlsRuntimeMap[id] = &hlsRuntime{playlist: playlist, concurrency: concurrency}
 	hlsRuntimeMutex.Unlock()
+}
+
+// putHlsRuntimeConcurrency 创建任务时指定该任务的下载并发数
+func putHlsRuntimeConcurrency(id string, playlist string, concurrency int) {
+	hlsRuntimeMutex.Lock()
+	hlsRuntimeMap[id] = &hlsRuntime{playlist: playlist, concurrency: concurrency}
+	hlsRuntimeMutex.Unlock()
+}
+
+// hlsConcurrencyOf 取任务的下载并发数；未记录或非法时回落到默认值
+func hlsConcurrencyOf(id string) int {
+	hlsRuntimeMutex.Lock()
+	defer hlsRuntimeMutex.Unlock()
+	if rt, ok := hlsRuntimeMap[id]; ok && rt.concurrency >= hlsMinConcurrency {
+		if rt.concurrency > hlsMaxConcurrency {
+			return hlsMaxConcurrency
+		}
+		return rt.concurrency
+	}
+	return hlsDownloadConcurrency
+}
+
+// hlsWindowOf 已派发但尚未落盘的分片上限（滑动窗口），随并发数放大。
+// 顺序写盘时若窗口无限，最前面的慢分片会让后续分片全部堆积在内存里。
+func hlsWindowOf(concurrency int) int {
+	if concurrency < hlsMinConcurrency {
+		concurrency = hlsDownloadConcurrency
+	}
+	return concurrency * 3
+}
+
+// normalizeConcurrency 归一化任务级并发数：未指定（<1）取默认值，超出上限截断
+func normalizeConcurrency(n int) int {
+	if n < hlsMinConcurrency {
+		return hlsDownloadConcurrency
+	}
+	if n > hlsMaxConcurrency {
+		return hlsMaxConcurrency
+	}
+	return n
 }
 
 func setHlsCancel(id string, cancel context.CancelFunc) {
@@ -427,8 +483,11 @@ func hlsThrottled(err error) bool {
 //
 // 典型成因是 Keep-Alive 连接被源站或中间设备单方面关闭后又被复用
 // （Windows 上表现为 wsarecv: An existing connection was forcibly closed），
-// 也可能是对端主动断流。这类错误换新连接重试往往成功，退避比普通错误长，
-// 但不触发全局降并发——它不是源站限流的信号，降并发只会拖慢速度。
+// 也可能是对端主动断流。这类错误换新连接重试往往成功，退避比普通错误长。
+//
+// 是否代表限流要分情况：偶发一次抖动不是；但同一源站对后续请求持续 RST、
+// 换新连接也无效时，就是隐式限流（不回 429 而是直接断连接），此时放慢才有效
+// （见 fetchHlsSegment 里对 gate.throttle 的调用条件）。
 func hlsNetworkError(err error) bool {
 	if err == nil {
 		return false
@@ -541,7 +600,8 @@ func (g *hlsGate) throttle() {
 // 由该分片自己重试，不再让整个任务失败（旧实现单点失败即整任务终止）。
 //
 // 429/5xx 视为源站限流：等待按 1s → 2s → 4s 指数退避（比普通错误多一次机会），
-// 同时触发全局并发闸门减半；其他错误沿用 300ms/600ms 的短间隔重试。
+// 同时触发并发闸门减半；连接被掐断等传输层错误按 1s → 2s → 4s → 8s（封顶）退避，
+// 连续出现时也触发降并发；其他错误沿用 300ms/600ms 的短间隔重试。
 func fetchHlsSegment(ctx context.Context, rawURL string, br *hlsByteRange, referer string) ([]byte, error) {
 	gate := hlsGateFrom(ctx)
 	maxAttempts := hlsSegmentRetry
@@ -560,11 +620,16 @@ func fetchHlsSegment(ctx context.Context, rawURL string, br *hlsByteRange, refer
 				}
 				wait = hlsThrottleStep << (attempt - 1)
 			case hlsNetworkError(lastErr):
-				// 传输层错误（连接重置 / 读中断 / 超时）：中等指数退避，多给一次机会
+				// 传输层错误（连接重置 / 读中断 / 超时）：中等指数退避，多给两次机会
 				if maxAttempts < hlsNetworkRetry {
 					maxAttempts = hlsNetworkRetry
 				}
 				wait = hlsNetworkStep << (attempt - 1)
+				// 封顶：指数退避不设上限时最后一次等待会远超源站的限流窗口，
+				// 白白拉长任务时长；到顶后按固定间隔重试即可
+				if wait > hlsNetworkMaxBackoff {
+					wait = hlsNetworkMaxBackoff
+				}
 			default:
 				wait = time.Duration(attempt) * 300 * time.Millisecond
 			}
@@ -591,7 +656,12 @@ func fetchHlsSegment(ctx context.Context, rawURL string, br *hlsByteRange, refer
 		if ctx.Err() != nil {
 			return nil, errHlsCanceled
 		}
-		if hlsThrottled(err) && gate != nil {
+		// 源站吃不消的两种信号都触发降并发：
+		// 1) 显式限流 429/5xx；
+		// 2) 隐式限流——不返回状态码而是直接掐断连接（RST）。实测同一源站在
+		//    开跑约 40 秒后开始持续 RST，换新连接也无效，只有放慢才过得去。
+		//    这类错误要从第 2 次失败（attempt>=1）起才算数，避免偶发抖动就砍半并发。
+		if gate != nil && (hlsThrottled(err) || (attempt >= 1 && hlsNetworkError(err))) {
 			gate.throttle()
 		}
 		lastErr = err
@@ -947,23 +1017,25 @@ type hlsSegmentResult struct {
 //
 // 初始化段（#EXT-X-MAP，fMP4 流）在对应分片之前写入：单段播放列表等价于
 // 「文件头写一次」，多段合并（多源拼成一条播放列表）时则按序切换。
-func runHlsDownload(ctx context.Context, taskID string, pl *hlsPlaylist, out *os.File, referer string) (int64, error) {
+func runHlsDownload(ctx context.Context, taskID string, pl *hlsPlaylist, out *os.File, referer string, concurrency int) (int64, error) {
 	total := len(pl.segments)
 	var writtenBytes int64
 
 	if total == 0 {
 		return writtenBytes, nil
 	}
+	// 并发数由任务指定（未指定时取默认值），并夹在允许区间内
+	concurrency = normalizeConcurrency(concurrency)
 
 	// 并发自愈闸门：429/5xx 时临时减半分片并发给源站喘息，冷却后逐级恢复。
 	// 挂到 ctx 上随所有 fetch 传递（分片 / 初始化段），无需层层改函数签名。
-	gate := newHlsGate(hlsDownloadConcurrency)
+	gate := newHlsGate(concurrency)
 	ctx = context.WithValue(ctx, hlsGateCtxKey{}, gate)
 
 	keyCache := &sync.Map{}
 	results := make([]hlsSegmentResult, total)
 	// inflight 限制已派发但未落盘的分片数量（滑动窗口）
-	inflight := make(chan struct{}, hlsDownloadWindow)
+	inflight := make(chan struct{}, hlsWindowOf(concurrency))
 
 	var mu sync.Mutex
 	cond := sync.NewCond(&mu)
@@ -1063,7 +1135,7 @@ func runHlsDownload(ctx context.Context, taskID string, pl *hlsPlaylist, out *os
 	// 下载协程池：并发拉取 + 解密，结果落到对应槽位
 	jobs := make(chan int)
 	var wg sync.WaitGroup
-	for w := 0; w < hlsDownloadConcurrency; w++ {
+	for w := 0; w < concurrency; w++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -1173,7 +1245,7 @@ func HlsDownloader(task model.TransferTaskModel) utils.Result {
 		appendHlsLog(task.ID, fmt.Sprintf("检测到 %d 个初始化段（多段 fMP4 合并），将按分片顺序写入", n))
 	}
 
-	size, runErr := runHlsDownload(ctx, task.ID, pl, out, hlsOrigin(task.URL))
+	size, runErr := runHlsDownload(ctx, task.ID, pl, out, hlsOrigin(task.URL), hlsConcurrencyOf(task.ID))
 	closeErr := out.Close()
 
 	if runErr != nil {
@@ -1211,6 +1283,13 @@ func HlsDownloader(task model.TransferTaskModel) utils.Result {
 // 失败只写任务日志，不改变下载任务本身的完成状态。
 func maybeTranscodeAfterDownload(taskID string, dest string, xcode string) {
 	if xcode == "" {
+		return
+	}
+	// 转码目标固定是 mp4：下载产物已经是 mp4 时再转一次没有意义，
+	// 且转码为避免覆盖源文件会把目标改成 mov（见 transferWithEncoderRetry），
+	// 结果反而更差，这里直接跳过
+	if strings.EqualFold(utils.GetSuffix(dest), "mp4") {
+		appendHlsLog(taskID, fmt.Sprintf("下载产物已是 mp4，跳过转码（%s）", xcode))
 		return
 	}
 	res := CreateTransferTaskByPath(dest, filepath.Base(dest), xcode)
@@ -1259,6 +1338,12 @@ type HlsDownloadParam struct {
 	// Xcode 下载完成后自动转码的方式：copy（仅换封装为 mp4）/ h264 / h265；
 	// 留空表示下载后不转码
 	Xcode string `json:"xcode"`
+	// Concurrency 该任务内同时下载的分片数（1~16）。
+	// 未传 / 传 0 / 超出区间时由服务端取默认值（4）或截断到上限
+	Concurrency int `json:"concurrency"`
+	// Parallel 服务端同时执行的任务数上限（1~16）。
+	// 未传 / 非法时保持服务端现有配置不变；传了则即时生效并写入设置
+	Parallel int `json:"parallel"`
 }
 
 // 允许在下载完成后自动执行的转码方式
@@ -1348,6 +1433,11 @@ func CreateHlsDownloadTask(param HlsDownloadParam) utils.Result {
 		return utils.NewFailByMsg("转码方式无效（可选 copy / h264 / h265）")
 	}
 
+	// 并发下载数量：任务级，只影响本任务
+	concurrency := normalizeConcurrency(param.Concurrency)
+	// 并行任务数量：全局设置，随本次提交一并调整（不传则不动）
+	applyTaskParallel(param.Parallel)
+
 	pl, err := parseHlsPlaylistText(playlist, strings.TrimSpace(param.SourceURL))
 	if err != nil {
 		return utils.NewFailByMsg(err.Error())
@@ -1366,6 +1456,13 @@ func CreateHlsDownloadTask(param HlsDownloadParam) utils.Result {
 		} else {
 			fileName += ".ts"
 		}
+	}
+
+	// 原视频已是 mp4（fMP4：播放列表带 #EXT-X-MAP 初始化段）时不做转码——
+	// 产物本来就是 mp4 封装，再转一次只是白白占用任务槽位
+	if xcode != "" && pl.initMap != "" {
+		utils.InfoFormat("CreateHlsDownloadTask: 原视频为 mp4，跳过转码（%s）", xcode)
+		xcode = ""
 	}
 
 	dir := strings.TrimSpace(param.Dir)
@@ -1398,12 +1495,12 @@ func CreateHlsDownloadTask(param HlsDownloadParam) utils.Result {
 	PendingTaskCount.Add(1)
 	TransferTaskMutex.Unlock()
 
-	putHlsRuntime(task.ID, playlist)
+	putHlsRuntimeConcurrency(task.ID, playlist, concurrency)
 	// 播放列表落盘：任务失败后可据此重启（运行时内存会被丢弃）
 	saveHlsPlaylist(task.ID, playlist)
 	wakeTaskScheduler()
 
-	utils.InfoFormat("CreateHlsDownloadTask: 创建成功 dest=%s, 分片数=%d", dest, len(pl.segments))
+	utils.InfoFormat("CreateHlsDownloadTask: 创建成功 dest=%s, 分片数=%d, 并发=%d", dest, len(pl.segments), concurrency)
 	LogTaskEvent("创建", task, fmt.Sprintf("dest=%s, 分片数=%d", dest, len(pl.segments)))
 	return utils.NewSuccessByMsg("任务创建成功")
 }

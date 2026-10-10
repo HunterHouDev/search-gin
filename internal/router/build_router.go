@@ -161,6 +161,8 @@ func BuildAPIRouter(sigChan chan os.Signal) *gin.Engine {
 	router.POST("/api/moveFile", handler.PostMove)
 
 	router.GET("/api/DeleteFileByPathUseEncode/:path", handler.GetDeleteFileByPathUseEncode)
+	// 文件存在性校验：下载列表回放前先确认文件还在（路径校验与文件流一致）
+	router.GET("/api/fileExists", handler.GetFileExists)
 
 	router.GET("/api/refreshTargetIndex/:dir", handler.GetRefreshTargetIndex)
 	router.GET("/api/refreshIndex", handler.GetRefreshIndex)

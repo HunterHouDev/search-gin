@@ -3,12 +3,14 @@ import type { QVueGlobals } from 'quasar';
 import type HlsJs from 'hls.js';
 import {
   DelTransferTasksInfo,
+  FileExistsAPI,
   HlsCancelAPI,
   HlsDownloadAPI,
   HlsRestartAPI,
   HlsPlaylistAPI,
   TransferTasksInfo,
 } from 'src/components/api/searchAPI';
+import type { ApiError } from 'src/boot/axios';
 
 // 外部链接播放逻辑（磁力链 / 视频链接 / 分片链接）
 // 磁力链复用 useTorrentDownload，视频直链与 HLS 分片链在此处理。
@@ -74,6 +76,27 @@ function readStoredDownloadDir(): string {
     return localStorage.getItem(DOWNLOAD_DIR_STORAGE_KEY) ?? '';
   } catch {
     return '';
+  }
+}
+
+/** 并发下载数量 / 并行任务数量的取值区间（与后端一致，超出由后端截断） */
+const DOWNLOAD_CONCURRENCY_MIN = 1;
+const DOWNLOAD_CONCURRENCY_MAX = 16;
+const DOWNLOAD_PARALLEL_MIN = 1;
+const DOWNLOAD_PARALLEL_MAX = 16;
+/** 两个参数的默认值：与后端默认并发 / 默认并行任务数一致 */
+const DEFAULT_DOWNLOAD_CONCURRENCY = 4;
+const DEFAULT_DOWNLOAD_PARALLEL = 4;
+
+/** 读取上次设置的整数型下载参数；脏数据或越界时回落到默认值 */
+function readStoredInt(key: string, fallback: number, min: number, max: number): number {
+  try {
+    const saved = Number(localStorage.getItem(key));
+    if (!Number.isFinite(saved)) return fallback;
+    const rounded = Math.round(saved);
+    return rounded >= min && rounded <= max ? rounded : fallback;
+  } catch {
+    return fallback;
   }
 }
 
@@ -213,7 +236,12 @@ interface SegmentKey {
 }
 
 /** 下载任务状态：下载中 / 已完成 / 已取消 / 失败 */
-export type HlsDownloadStatus = 'downloading' | 'done' | 'canceled' | 'failed';
+export type HlsDownloadStatus =
+  | 'downloading'
+  | 'queued'
+  | 'done'
+  | 'canceled'
+  | 'failed';
 
 /** 服务端返回的传输任务（此处只用到分片下载相关字段） */
 interface HlsServerTask {
@@ -239,8 +267,18 @@ interface HlsServerTask {
 const HLS_TASK_TYPE = '分片下载';
 
 /** 服务端任务状态 → 下载列表状态 */
+/** 浏览器 <video> 能直接解码的容器扩展名；TS 分片合并出的 .ts 不在其中 */
+const PLAYABLE_VIDEO_EXT_RE = /\.(mp4|m4v|webm|mkv|mov)$/i;
+
+/** 下载文件能否在页面内回放（容器需为浏览器原生支持的格式） */
+export function isPlayableDownloadPath(path: string): boolean {
+  return PLAYABLE_VIDEO_EXT_RE.test(path || '');
+}
+
 function mapTaskStatus(status: string): HlsDownloadStatus {
-  if (status === '执行中' || status === '等待') return 'downloading';
+  if (status === '执行中') return 'downloading';
+  // 服务端并发槽位占满时任务停在「等待」，对使用者而言就是排队等执行
+  if (status === '等待') return 'queued';
   if (status === '完成') return 'done';
   if (status === '取消') return 'canceled';
   return 'failed';
@@ -307,6 +345,10 @@ const M3U8_MIME = 'application/vnd.apple.mpegurl';
 const DOWNLOAD_DIR_STORAGE_KEY = 'immersive.serverDownloadDir';
 /** 记住用户选择的下载后转码方式（'' 表示不转码） */
 const DOWNLOAD_XCODE_STORAGE_KEY = 'immersive.serverDownloadXcode';
+/** 记住用户设置的并发下载数量（单个任务内同时在途的分片数） */
+const DOWNLOAD_CONCURRENCY_KEY = 'immersive.serverDownloadConcurrency';
+/** 记住用户设置的并行任务数量（服务端同时执行的任务数上限） */
+const DOWNLOAD_PARALLEL_KEY = 'immersive.serverDownloadParallel';
 /** 广告分片黑名单（分片「类」前缀列表），刷新后继续生效 */
 const HLS_AD_BLACKLIST_KEY = 'immersive.hlsAdBlacklist';
 /** 下载中任务的轮询间隔（毫秒） */
@@ -824,16 +866,25 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
   const hlsDownloadList = ref<HlsDownloadItem[]>([]);
   /** 正在页面内回放的下载项 id，用于列表高亮 */
   const hlsPlayingDownloadId = ref('');
-  /** 是否存在进行中的下载（决定是否轮询服务端进度） */
+  /** 是否存在进行中的下载（含排队等待，决定是否轮询服务端进度） */
   const hlsDownloadActive = computed(() =>
-    hlsDownloadList.value.some((item) => item.status === 'downloading'),
+    hlsDownloadList.value.some(
+      (item) => item.status === 'downloading' || item.status === 'queued',
+    ),
   );
-  /** 下载列表统计：总数 / 执行中（含等待排队）/ 已完成 / 失败或取消 */
+  /** 下载列表统计：总数 / 执行中 / 队列中 / 已完成 / 失败或取消 */
   const hlsDownloadStats = computed(() => {
-    const stats = { total: 0, downloading: 0, done: 0, failed: 0 };
+    const stats = {
+      total: 0,
+      downloading: 0,
+      queued: 0,
+      done: 0,
+      failed: 0,
+    };
     for (const item of hlsDownloadList.value) {
       stats.total += 1;
       if (item.status === 'downloading') stats.downloading += 1;
+      else if (item.status === 'queued') stats.queued += 1;
       else if (item.status === 'done') stats.done += 1;
       else stats.failed += 1;
     }
@@ -1044,6 +1095,68 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
   /** 选择下载目录 */
   function chooseHlsDownloadDir(dir: string) {
     hlsDownloadDir.value = dir;
+  }
+
+  // ── 下载并发参数（提交任务时一并传给服务端） ───────────────────────────
+  /** 并发下载数量：单个任务内同时在途的分片数，越大越快但更易触发源站限流 */
+  const hlsDownloadConcurrency = ref(
+    readStoredInt(
+      DOWNLOAD_CONCURRENCY_KEY,
+      DEFAULT_DOWNLOAD_CONCURRENCY,
+      DOWNLOAD_CONCURRENCY_MIN,
+      DOWNLOAD_CONCURRENCY_MAX,
+    ),
+  );
+  /** 并行任务数量：服务端同时执行的任务数上限（对所有任务类型生效） */
+  const hlsDownloadParallel = ref(
+    readStoredInt(
+      DOWNLOAD_PARALLEL_KEY,
+      DEFAULT_DOWNLOAD_PARALLEL,
+      DOWNLOAD_PARALLEL_MIN,
+      DOWNLOAD_PARALLEL_MAX,
+    ),
+  );
+
+  // 与目录选择一样：记住用户设置，刷新后继续沿用
+  watch([hlsDownloadConcurrency, hlsDownloadParallel], ([concurrency, parallel]) => {
+    try {
+      localStorage.setItem(DOWNLOAD_CONCURRENCY_KEY, String(concurrency));
+      localStorage.setItem(DOWNLOAD_PARALLEL_KEY, String(parallel));
+    } catch {
+      // 隐私模式写入失败时忽略
+    }
+  });
+
+  /**
+   * 并行任务数是服务端的全局设置：用户没动过就不提交，
+   * 否则一次普通下载会把服务端现有的配置悄悄改回默认值。
+   */
+  let parallelTouched = false;
+  watch(hlsDownloadParallel, () => {
+    parallelTouched = true;
+  });
+
+  /**
+   * 保存下载参数（面板「修改参数」的提交入口）：夹回允许区间后写入并持久化。
+   * 并行任务数同时标记为「用户已设置」——否则提交下载时不会带给服务端。
+   */
+  function saveDownloadParams(concurrency: number, parallel: number) {
+    const clamp = (n: number, min: number, max: number) => {
+      const v = Math.round(Number(n));
+      if (!Number.isFinite(v)) return min;
+      return Math.min(max, Math.max(min, v));
+    };
+    hlsDownloadConcurrency.value = clamp(
+      concurrency,
+      DOWNLOAD_CONCURRENCY_MIN,
+      DOWNLOAD_CONCURRENCY_MAX,
+    );
+    hlsDownloadParallel.value = clamp(
+      parallel,
+      DOWNLOAD_PARALLEL_MIN,
+      DOWNLOAD_PARALLEL_MAX,
+    );
+    parallelTouched = true;
   }
 
   const activeLinkTab = computed<LinkTabItem>(
@@ -1523,9 +1636,16 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
             ? task.Log || '下载失败'
             : status === 'canceled'
               ? '已取消'
-              : '正在服务端下载…',
+              : status === 'queued'
+                ? '队列中，等待空闲的执行槽位'
+                : '正在服务端下载…',
       createdAt: new Date(task.CreateTime).getTime() || Date.now(),
-      playable: status === 'done' && Boolean(task.Path),
+      // TS 容器（MPEG-TS）浏览器的 <video> 无法解码（实测 DEMUXER_ERROR），
+      // 只有 fMP4 / webm 等浏览器原生支持的容器才能页面内回放
+      playable:
+        status === 'done' &&
+        Boolean(task.Path) &&
+        PLAYABLE_VIDEO_EXT_RE.test(task.Path),
       sourceUrl: task.URL || '',
     };
   }
@@ -1568,6 +1688,10 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     if (item.status === 'downloading') {
       return `${item.segmentCount}/${item.totalCount} 个分片 · ${item.progress}%`;
     }
+    // 排队中：服务端并行任务数已满，等有空闲槽位才开始下载
+    if (item.status === 'queued') {
+      return `队列中 · 共 ${item.totalCount} 个分片`;
+    }
     if (item.status === 'done') {
       const parts = [`${item.segmentCount} 个分片`, item.duration];
       if (item.sizeText) parts.push(item.sizeText);
@@ -1594,7 +1718,8 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
   /** 列表项按钮：下载中 → 先请求取消再删除；已结束 → 直接移除记录 */
   async function cancelHlsDownload(id: string) {
     const item = hlsDownloadList.value.find((it) => it.id === id);
-    if (item?.status === 'downloading') {
+    // 排队中的任务同样要通知服务端取消，否则轮到它时仍会开始下载
+    if (item?.status === 'downloading' || item?.status === 'queued') {
       try {
         await HlsCancelAPI(id);
       } catch {
@@ -2028,12 +2153,54 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
   }
 
   /**
+   * 在线播放：直接播任务记录的源站地址，不依赖下载是否完成。
+   * m3u8 交给 hls.js（Safari 走原生），普通视频地址直接给播放器。
+   * 注意：源站需当前仍可访问，且带时效签名的地址过期后会播不了。
+   */
+  async function playHlsDownloadOnline(item: HlsDownloadItem) {
+    const url = (item.sourceUrl || '').trim();
+    if (!url) {
+      notifyNegative('该任务没有源地址，无法在线播放');
+      return;
+    }
+    releaseDownloadPlaybackUrl();
+    revokeBlobUrl();
+    hlsPlayingDownloadId.value = item.id;
+    if (HLS_URL_RE.test(url)) {
+      await startHlsPlayback(url, item.name);
+      return;
+    }
+    await onPlay(url, item.name, false);
+  }
+
+  /**
    * 播放下载列表里的视频：文件已在服务端，直接走流式接口回放。
+   * 回放前先向服务端确认一次文件是否还在——下载完成后文件可能已被移走 / 删除，
+   * 直接起播只会得到一个打不开的流（黑屏或加载失败），先提示使用者更清楚。
    * 注意：保存目录需位于系统设置里的媒体目录内，否则会被路径校验拦截。
    */
   async function playHlsDownload(item: HlsDownloadItem) {
     if (!item.path) {
       notifyNegative('找不到文件路径，无法在页面内回放');
+      return;
+    }
+    try {
+      const res = await FileExistsAPI(item.path);
+      if (res?.Code !== 200) {
+        notifyNegative(res?.Message || '无法确认文件是否存在，未开始播放');
+        return;
+      }
+      if (res.Data?.exists !== true) {
+        notifyNegative('文件已不存在（可能已被移动或删除），无法在页面内回放');
+        // 顺带同步一次列表，让条目状态与服务端保持一致
+        void refreshHlsDownloads();
+        return;
+      }
+    } catch (e) {
+      // 拦截器已提示过的错误（如路径不在媒体目录内的 403）不再重复弹窗
+      if (!(e as ApiError).__notified) {
+        notifyNegative('检查文件是否存在失败：' + (e as Error).message);
+      }
       return;
     }
     releaseDownloadPlaybackUrl();
@@ -2079,6 +2246,10 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
       hlsDownloadExt.value,
     );
     const sourceUrl = hlsPrimaryUrl.value || hlsURL.value.trim();
+    // 原视频已是 mp4（fMP4 源：播放列表带 #EXT-X-MAP 初始化段）时不转码——
+    // 产物本身就是 mp4 封装，服务端同样会跳过，这里干脆不提交
+    const xcode =
+      hlsDownloadExt.value === 'mp4' ? '' : hlsDownloadXcode.value;
 
     hlsLoading.value = true;
     // 分片地址常带时效签名：下载前重新拉一次播放列表，按路径换上新的鉴权参数，
@@ -2094,7 +2265,10 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
         sourceUrl,
         fileName,
         dir: hlsDownloadDir.value,
-        xcode: hlsDownloadXcode.value || undefined,
+        xcode: xcode || undefined,
+        concurrency: hlsDownloadConcurrency.value,
+        // 用户没改过并行任务数时不传，保持服务端现有配置
+        parallel: parallelTouched ? hlsDownloadParallel.value : undefined,
       });
       if (res?.Code !== 200) {
         notifyNegative(res?.Message || '创建下载任务失败');
@@ -2198,8 +2372,14 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     // 下载（服务端任务）
     hlsDownloadName,
     hlsDefaultDownloadName,
+    // 下载产物容器后缀：mp4 表示原视频已是 mp4（无需转码），ts 为 MPEG-TS
+    hlsDownloadExt,
     hlsDownloadDir,
     hlsDownloadDirOptions,
+    // 并发下载数量 / 并行任务数量（提交任务时传给服务端）
+    hlsDownloadConcurrency,
+    hlsDownloadParallel,
+    saveDownloadParams,
     // 下载完成后自动转码（'' 不转 / copy / h264 / h265）
     hlsDownloadXcode,
     hlsDownloadActive,
@@ -2238,6 +2418,8 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     chooseHlsDownloadDir,
     refreshHlsDownloads,
     playHlsDownload,
+    // 在线播放（源站地址）与下载后播放（服务端文件）分开入口
+    playHlsDownloadOnline,
     clearDoneHlsDownloads,
     clearFailedHlsDownloads,
     destroyHls,
