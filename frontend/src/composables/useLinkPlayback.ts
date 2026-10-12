@@ -100,6 +100,15 @@ function readStoredInt(key: string, fallback: number, min: number, max: number):
   }
 }
 
+/** 读取布尔型开关（存 '1' / '0'）；脏数据或存储不可用时按关闭处理 */
+function readStoredBool(key: string): boolean {
+  try {
+    return localStorage.getItem(key) === '1';
+  } catch {
+    return false;
+  }
+}
+
 /** 下载完成后自动转码的合法取值，'' 表示不转码 */
 const HLS_XCODE_VALUES = ['', 'copy', 'h264', 'h265'] as const;
 
@@ -352,6 +361,10 @@ const DOWNLOAD_XCODE_STORAGE_KEY = 'immersive.serverDownloadXcode';
 const DOWNLOAD_CONCURRENCY_KEY = 'immersive.serverDownloadConcurrency';
 /** 记住用户设置的并行任务数量（服务端同时执行的任务数上限） */
 const DOWNLOAD_PARALLEL_KEY = 'immersive.serverDownloadParallel';
+/** 记住「快捷下载」开关：分片链接输入框内容变化后自动触发解析 */
+const DOWNLOAD_QUICK_PARSE_KEY = 'immersive.serverQuickParse';
+/** 快捷下载的输入防抖（毫秒）：等粘贴 / 输入停稳再打源站，避免打到半截地址 */
+const QUICK_PARSE_DELAY = 800;
 /** 广告分片黑名单（分片「类」前缀列表），刷新后继续生效 */
 const HLS_AD_BLACKLIST_KEY = 'immersive.hlsAdBlacklist';
 /** 下载中任务的轮询间隔（毫秒） */
@@ -1162,6 +1175,22 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     parallelTouched = true;
   }
 
+  /** 快捷下载：分片链接输入框非空且内容变化后自动触发解析，省掉手动点「解析」 */
+  const quickParse = ref(readStoredBool(DOWNLOAD_QUICK_PARSE_KEY));
+
+  watch(quickParse, (val) => {
+    try {
+      localStorage.setItem(DOWNLOAD_QUICK_PARSE_KEY, val ? '1' : '0');
+    } catch {
+      // 隐私模式写入失败时忽略
+    }
+  });
+
+  /** 设置快捷下载开关（面板「下载设置」的提交入口） */
+  function setQuickParse(val: boolean) {
+    quickParse.value = val;
+  }
+
   const activeLinkTab = computed<LinkTabItem>(
     () => LINK_TABS.find((t) => t.value === linkTab.value) ?? LINK_TABS[0],
   );
@@ -1433,10 +1462,13 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
   }
 
   /**
-   * 解析分片链接。每次解析都是全新的一份：先清空上次的源与分片，
-   * 再解析输入框里的地址（空格 / 换行分隔，多个地址即多个源，按顺序合并播放 / 下载）。
+   * 解析分片链接。多个地址即多个源，按顺序合并播放 / 下载。
+   *
+   * @param keepExisting 保留已解析的源与分片（追加）。手动点「解析」是重新解析
+   * （先清空上次结果）；快捷下载自动触发时传 true——粘贴即添加，
+   * 否则每粘一个新链接都会把前面已添加的源清掉。
    */
-  async function parseHls() {
+  async function parseHls(keepExisting = false) {
     const raw = hlsURL.value.trim();
     if (!raw) {
       notifyNegative('请输入分片链接');
@@ -1451,7 +1483,9 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
 
     // 重新解析：只清空上次的源列表与分片，播放器保持原样（继续播放，不销毁 HLS 实例）；
     // 下载列表与广告黑名单同样保留
-    resetHlsParse();
+    if (!keepExisting) {
+      resetHlsParse();
+    }
 
     hlsParsing.value = true;
     const failures: string[] = [];
@@ -1498,6 +1532,28 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
       notifyNegative(`解析失败：${failures.join('；')}`);
     }
   }
+
+  // 快捷下载：输入框内容停稳后自动解析（粘贴完不用再点「解析」）。
+  // 解析成功会清空输入框，内容为空时重置记忆，同一个地址下次粘贴仍会触发；
+  // 解析失败时输入框保留内容，靠「内容没变就不重放」避免反复打失败的源站。
+  let quickParseTimer: ReturnType<typeof setTimeout> | null = null;
+  let lastQuickParsed = '';
+  watch(hlsURL, (val) => {
+    const text = val.trim();
+    if (!text) {
+      lastQuickParsed = '';
+      return;
+    }
+    if (!quickParse.value) return;
+    if (quickParseTimer) clearTimeout(quickParseTimer);
+    quickParseTimer = setTimeout(() => {
+      quickParseTimer = null;
+      if (hlsParsing.value || text === lastQuickParsed) return;
+      lastQuickParsed = text;
+      // 追加模式：连续粘贴多个源时不会清掉已解析的结果
+      void parseHls(true);
+    }, QUICK_PARSE_DELAY);
+  });
 
   /** 用 video 标签或 hls.js 播放给定的播放列表地址 */
   async function startHlsPlayback(source: string, name: string) {
@@ -2364,6 +2420,12 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
       clearInterval(downloadPollTimer);
       downloadPollTimer = null;
     }
+    // 快捷下载的自动解析是延时触发的，面板收起后不该再打源站
+    if (quickParseTimer) {
+      clearTimeout(quickParseTimer);
+      quickParseTimer = null;
+      lastQuickParsed = '';
+    }
     destroyHls();
     revokeBlobUrl();
     releaseDownloadPlaybackUrl();
@@ -2408,7 +2470,10 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     // 并发下载数量 / 并行任务数量（提交任务时传给服务端）
     hlsDownloadConcurrency,
     hlsDownloadParallel,
+    // 快捷下载：输入框内容变化后自动解析
+    quickParse,
     saveDownloadParams,
+    setQuickParse,
     // 下载完成后自动转码（'' 不转 / copy / h264 / h265）
     hlsDownloadXcode,
     hlsDownloadActive,

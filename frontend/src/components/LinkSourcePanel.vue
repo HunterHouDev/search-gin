@@ -385,48 +385,6 @@
                   : '下载完成后由服务端自动转码（转码是独立任务，可在任务列表查看进度）'
               }}</q-tooltip>
             </q-btn-dropdown>
-            <!-- 并发下载数量：单个任务内同时下载的分片数，随任务一起提交给服务端 -->
-            <q-input
-              v-model="concurrencyModel"
-              dark
-              dense
-              borderless
-              type="number"
-              :min="DOWNLOAD_PARAM_MIN"
-              :max="DOWNLOAD_PARAM_MAX"
-              class="hls-param-input"
-              prefix="并发"
-              :disable="!hlsKeptCount"
-            >
-              <template #prepend>
-                <q-icon name="speed" size="16px" color="indigo-4" />
-              </template>
-              <q-tooltip class="bg-dark text-white"
-                >并发下载数量：该任务内同时下载的分片数（1~16，默认 4）。源站频繁断连
-                / 限流时调小更稳，网络好时调大更快</q-tooltip
-              >
-            </q-input>
-            <!-- 并行任务数量：服务端同时执行的任务数上限，对所有任务类型生效 -->
-            <q-input
-              v-model="parallelModel"
-              dark
-              dense
-              borderless
-              type="number"
-              :min="DOWNLOAD_PARAM_MIN"
-              :max="DOWNLOAD_PARAM_MAX"
-              class="hls-param-input"
-              prefix="并行"
-              :disable="!hlsKeptCount"
-            >
-              <template #prepend>
-                <q-icon name="tune" size="16px" color="indigo-4" />
-              </template>
-              <q-tooltip class="bg-dark text-white"
-                >并行任务数量：服务端同时执行的任务数上限（1~16，默认
-                4），对所有任务类型生效，提交下载时一并应用</q-tooltip
-              >
-            </q-input>
             <!-- 点下载后任务交给服务端执行，本地分片列表随之清空，可继续粘贴下一组地址 -->
             <q-btn
               flat
@@ -626,21 +584,22 @@
             >
               队列中 {{ hlsDownloadStats.queued }}
             </span>
-            <!-- 下载参数：默认只读；点「修改参数」切换输入态，保存后回到只读 -->
+            <!-- 下载设置：默认只读；点「下载设置」切换输入态，保存后回到只读 -->
             <span v-if="!paramsEditing" class="hls-download-params">
-              并发 {{ hlsDownloadConcurrency }} · 并行 {{ hlsDownloadParallel }}
+              并发 {{ hlsDownloadConcurrency }} · 并行 {{ hlsDownloadParallel }} ·
+              快捷下载 {{ quickParse ? '开' : '关' }}
               <q-btn
                 flat
                 dense
                 no-caps
                 size="sm"
                 color="indigo-4"
-                icon="edit"
-                label="修改参数"
+                icon="settings"
+                label="下载设置"
                 @click="startEditParams"
               >
                 <q-tooltip class="bg-dark text-white"
-                  >并发：单个任务内同时下载的分片数（1~16）；并行：服务端同时执行的任务数上限（1~16）</q-tooltip
+                  >并发：单个任务内同时下载的分片数（1~16）；并行：服务端同时执行的任务数上限（1~16）；快捷下载：粘贴链接后自动解析</q-tooltip
                 >
               </q-btn>
             </span>
@@ -667,6 +626,19 @@
                 prefix="并行"
                 class="hls-param-input"
               />
+              <!-- 快捷下载：开启后分片链接输入框内容停稳即自动解析，不用再点「解析」 -->
+              <q-toggle
+                v-model="paramDraft.quick"
+                dense
+                dark
+                color="green-4"
+                label="快捷下载"
+                class="hls-quick-toggle"
+              >
+                <q-tooltip class="bg-dark text-white"
+                  >开启后：粘贴 / 输入分片链接，内容停稳约 1 秒即自动解析（追加到已有源，不会清掉之前的解析结果）</q-tooltip
+                >
+              </q-toggle>
               <q-btn
                 flat
                 dense
@@ -1040,7 +1012,10 @@ const {
   hlsDownloadDirOptions,
   hlsDownloadConcurrency,
   hlsDownloadParallel,
+  // 快捷下载：开启后粘贴分片链接自动解析
+  quickParse,
   saveDownloadParams,
+  setQuickParse,
   playHlsDownloadOnline,
   hlsDownloadXcode,
   hlsDownloadList,
@@ -1100,43 +1075,21 @@ const DOWNLOAD_PARAM_MIN = 1;
 const DOWNLOAD_PARAM_MAX = 16;
 
 /**
- * 数字输入框与整数状态的桥接：输入框始终是字符串，
- * 空值 / 非法值不写入（保留原值），越界夹到区间内。
- */
-function numberModel(get: () => number, set: (n: number) => void) {
-  return computed({
-    get: () => String(get()),
-    set: (val: string) => {
-      if (String(val).trim() === '') return;
-      const n = Math.round(Number(val));
-      if (!Number.isFinite(n)) return;
-      set(Math.min(DOWNLOAD_PARAM_MAX, Math.max(DOWNLOAD_PARAM_MIN, n)));
-    },
-  });
-}
-
-/** 并发下载数量：单个任务内同时在途的分片数 */
-const concurrencyModel = numberModel(
-  () => hlsDownloadConcurrency.value,
-  (n) => (hlsDownloadConcurrency.value = n),
-);
-/** 并行任务数量：服务端同时执行的任务数上限 */
-const parallelModel = numberModel(
-  () => hlsDownloadParallel.value,
-  (n) => (hlsDownloadParallel.value = n),
-);
-
-/**
- * 下载参数的编辑态：默认只读展示，点「修改参数」进入输入态，
+ * 下载设置的编辑态：默认只读展示，点「下载设置」进入输入态，
  * 保存（或取消）后回到只读。草稿只在保存时写回，避免输入过程中
  * 影响正在提交的任务。
  */
 const paramsEditing = ref(false);
-const paramDraft = reactive({ concurrency: '', parallel: '' });
+const paramDraft = reactive({
+  concurrency: '',
+  parallel: '',
+  quick: false,
+});
 
 function startEditParams() {
   paramDraft.concurrency = String(hlsDownloadConcurrency.value);
   paramDraft.parallel = String(hlsDownloadParallel.value);
+  paramDraft.quick = quickParse.value;
   paramsEditing.value = true;
 }
 
@@ -1145,10 +1098,11 @@ function saveParams() {
     Number(paramDraft.concurrency),
     Number(paramDraft.parallel),
   );
+  setQuickParse(paramDraft.quick);
   paramsEditing.value = false;
   $q.notify({
     type: 'positive',
-    message: `下载参数已保存（并发 ${hlsDownloadConcurrency.value} · 并行 ${hlsDownloadParallel.value}）`,
+    message: `下载设置已保存（并发 ${hlsDownloadConcurrency.value} · 并行 ${hlsDownloadParallel.value} · 快捷下载 ${quickParse.value ? '开' : '关'}）`,
     position: 'top',
     timeout: 2000,
   });
@@ -1732,6 +1686,17 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
 .hls-param-input {
   flex: 0 0 auto;
   width: 92px;
+}
+
+/* 快捷下载开关：与输入框同一行，标签字号与输入框保持一致 */
+.hls-quick-toggle {
+  flex: 0 0 auto;
+  margin-left: 2px;
+}
+
+.hls-quick-toggle :deep(.q-toggle__label) {
+  font-size: 0.74rem;
+  color: rgba(224, 231, 255, 0.95);
 }
 
 .hls-param-input :deep(.q-field__control) {

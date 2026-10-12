@@ -1,7 +1,7 @@
 <template>
   <q-dialog ref="dialogRef" v-model="show" :fullscreen="isMobile" @hide="dialogHide" @before-show="beforeShow"
     :style="isMobile ? '' : 'min-width: 360px'">
-    <div :style="isMobile ? '' : dialogWidthStyle">
+    <div class="batch-edit-root" :style="isMobile ? '' : dialogWidthStyle">
       <q-layout container view="hHh Lpr lff" class="batch-edit-layout"
         :style="' border-radius: 8px; ' + (isMobile ? 'height: 100vh' : 'height: 88vh')">
         <q-header class="shadow-2">
@@ -143,8 +143,11 @@
                         <q-btn dense icon="open_in_new" @click="commonExec(() => OpenFileFolder(item))">
                           <q-tooltip>打开文件夹</q-tooltip>
                         </q-btn>
-                        <q-btn dense icon="play_circle" @click="playNewWindow(item)">
-                          <q-tooltip>播放</q-tooltip>
+                        <q-btn dense icon="play_circle" @click="playInDialog(item)">
+                          <q-tooltip>在弹窗内播放（右下角小窗，浏览器解码）</q-tooltip>
+                        </q-btn>
+                        <q-btn dense icon="open_in_full" @click="playNewWindow(item)">
+                          <q-tooltip>外部窗口播放（系统解码，支持 ts / mkv 等更多容器）</q-tooltip>
                         </q-btn>
                         <q-btn dense icon="content_copy" color="grey" @click.stop="copyPath(item)">
                           <q-tooltip>复制路径</q-tooltip>
@@ -269,7 +272,9 @@
             <!-- 视频 / 分片链接：面板常驻（v-show），切 tab 不会丢解析结果与下载任务。
                  高度按视口比例，内容超出时内部滚动 -->
             <div v-show="dialogTab === 'links'" class="link-panel-scroll">
-              <LinkSourcePanel ref="linkPanelRef" embedded />
+              <!-- 播放器由本弹窗统一提供（右下角悬浮小窗），面板不再自带播放器 -->
+              <LinkSourcePanel ref="linkPanelRef" :get-video-el="getVideoEl" :ensure-video="ensureVideo"
+                :get-volume="getPlayerVolume" :on-play="handlePanelPlay" />
             </div>
           </q-page>
         </q-page-container>
@@ -286,6 +291,31 @@
           </span>
         </q-footer>
       </q-layout>
+      <!-- 弹窗级播放器：右下角悬浮小窗。
+           批量列表的「播放」与分片下载列表的「已下载播放」共用同一个 video 元素 -->
+      <div
+        v-show="playerVisible"
+        ref="playerBoxRef"
+        class="batch-mini-player"
+        :class="{ 'is-resizing': playerResizing }"
+        :style="playerStyle"
+      >
+        <div class="batch-mini-player-bar">
+          <span class="ellipsis batch-mini-player-title">{{ playerTitle }}</span>
+          <q-btn flat dense round size="sm" color="red-4" icon="close" @click="stopPlayer">
+            <q-tooltip class="bg-dark text-white">停止播放并关闭小窗</q-tooltip>
+          </q-btn>
+        </div>
+        <video ref="playerRef" class="batch-mini-player-video" controls playsinline preload="metadata" />
+        <!-- 缩放手柄：按住拖拽改宽高（右下边不动），双击还原默认尺寸 -->
+        <div
+          class="batch-mini-player-resize"
+          @mousedown="startPlayerResize"
+          @dblclick="resetPlayerSize"
+        >
+          <q-tooltip class="bg-dark text-white">拖拽调整大小，双击还原默认尺寸</q-tooltip>
+        </div>
+      </div>
     </div>
   </q-dialog>
   <TaskLogFullscreen ref="taskLogFullscreenRef" />
@@ -293,7 +323,7 @@
 
 <script setup>
 import { useQuasar } from 'quasar';
-import { reactive, ref, computed, watch } from 'vue';
+import { reactive, ref, computed, watch, nextTick } from 'vue';
 import { useSystemProperty } from 'stores/System';
 import { useCommonExec } from 'src/composables/useCommonExec';
 import { openExternalWindow } from 'src/utils/appWindow';
@@ -311,6 +341,7 @@ import { date } from 'quasar';
 import Sortable from 'sortablejs';
 import TaskLogFullscreen from './TaskLogFullscreen.vue';
 import LinkSourcePanel from 'src/components/LinkSourcePanel.vue';
+import { getVideoSrt } from 'components/utils/images';
 
 const $q = useQuasar();
 const systemProperty = useSystemProperty();
@@ -324,16 +355,174 @@ let taskTimer = null;
 const { show, dialogRef, dialogHide, beforeShow } = useDialogShell(() => {
   clearTimeout(debounceTimer);
   clearInterval(taskTimer);
+  // 关闭弹窗后不能让声音还在后台响
+  stopPlayer();
+  endPlayerResize();
   if (sortableInstance) { sortableInstance.destroy(); sortableInstance = null; }
   if (state.callback) state.callback({ settingInfo: state.settingInfo });
 });
+
+// ── 弹窗级播放器（右下角悬浮小窗） ──────────────────────────────────
+// 批量列表的「播放」与分片下载列表的「已下载播放」共用这一个 video 元素：
+// 前者由本弹窗直接写 src，后者由链接面板通过 onPlay 回调交给这里播放。
+const playerRef = ref(null);
+const playerBoxRef = ref(null);
+const playerVisible = ref(false);
+const playerTitle = ref('');
+
+// ── 小窗尺寸调整 ────────────────────────────────────────────────
+// 手柄在小窗左上角：拖拽时右下边固定不动，向左上拖即变大、向右下拖即缩小。
+// 默认贴右下角（right / bottom 定位）；一旦开始拖拽就换成 left / top 定位，
+// 否则左上角的位移无法表达。尺寸在关闭后保留，位置回到右下角，
+// 避免弹窗尺寸变化后小窗飘到外面。
+const PLAYER_DEFAULT = { w: 340, h: 240 };
+const PLAYER_MIN = { w: 220, h: 150 };
+const playerSize = reactive({ ...PLAYER_DEFAULT });
+/** 拖拽期间固定下来的左上角坐标；null 表示仍用默认的右下角定位 */
+const playerPos = reactive({ left: null, top: null });
+const playerResizing = ref(false);
+let resizeStart = null;
+
+const playerStyle = computed(() => {
+  const s = { width: `${playerSize.w}px`, height: `${playerSize.h}px` };
+  if (playerPos.left !== null) {
+    s.left = `${playerPos.left}px`;
+    s.top = `${playerPos.top}px`;
+    s.right = 'auto';
+    s.bottom = 'auto';
+  }
+  return s;
+});
+
+function clampNum(n, min, max) {
+  return Math.min(Math.max(n, min), Math.max(min, max));
+}
+
+function startPlayerResize(e) {
+  const el = playerBoxRef.value;
+  if (!el || e.button !== 0) return;
+  e.preventDefault();
+  const box = el.offsetParent || el.parentElement;
+  if (playerPos.left === null) {
+    playerPos.left = el.offsetLeft;
+    playerPos.top = el.offsetTop;
+  }
+  // 拖左上角：右下边（rightEdge / bottomEdge）保持不动，位移只改 left / top
+  resizeStart = {
+    x: e.clientX,
+    y: e.clientY,
+    left: playerPos.left,
+    top: playerPos.top,
+    rightEdge: playerPos.left + playerSize.w,
+    bottomEdge: playerPos.top + playerSize.h,
+    boxW: box?.clientWidth || window.innerWidth,
+    boxH: box?.clientHeight || window.innerHeight,
+  };
+  playerResizing.value = true;
+  document.addEventListener('mousemove', onPlayerResizeMove);
+  document.addEventListener('mouseup', endPlayerResize);
+  document.body.style.userSelect = 'none';
+}
+
+function onPlayerResizeMove(e) {
+  if (!resizeStart) return;
+  const s = resizeStart;
+  // left / top 不能小于 0，也不能让宽高压到最小尺寸以下
+  const left = clampNum(s.left + (e.clientX - s.x), 0, Math.max(0, s.rightEdge - PLAYER_MIN.w));
+  const top = clampNum(s.top + (e.clientY - s.y), 0, Math.max(0, s.bottomEdge - PLAYER_MIN.h));
+  playerPos.left = left;
+  playerPos.top = top;
+  playerSize.w = clampNum(s.rightEdge - left, PLAYER_MIN.w, Math.max(PLAYER_MIN.w, s.boxW - 12));
+  playerSize.h = clampNum(s.bottomEdge - top, PLAYER_MIN.h, Math.max(PLAYER_MIN.h, s.boxH - 12));
+}
+
+function endPlayerResize() {
+  resizeStart = null;
+  playerResizing.value = false;
+  document.removeEventListener('mousemove', onPlayerResizeMove);
+  document.removeEventListener('mouseup', endPlayerResize);
+  document.body.style.userSelect = '';
+}
+
+/** 双击手柄还原默认尺寸，并回到右下角 */
+function resetPlayerSize() {
+  playerSize.w = PLAYER_DEFAULT.w;
+  playerSize.h = PLAYER_DEFAULT.h;
+  playerPos.left = null;
+  playerPos.top = null;
+}
+
+/**
+ * 供链接面板取用（hls.js 需要真实的 video 元素来 attachMedia）。
+ * 小窗用 v-show 常驻，元素隐藏时也拿得到——被调用即意味着要起播，
+ * 这里顺手把小窗放出来，否则画面会播在一个看不见的 video 上。
+ */
+function getVideoEl() {
+  if (!playerVisible.value) playerVisible.value = true;
+  return playerRef.value;
+}
+
+/** 播放器按需展开：先显示小窗，等这一帧渲染完再把元素交给调用方 */
+async function ensureVideo() {
+  playerVisible.value = true;
+  await nextTick();
+  return playerRef.value;
+}
+
+function getPlayerVolume() {
+  return playerRef.value?.volume ?? 0.8;
+}
+
+/**
+ * 链接面板的播放请求（在线播放 / 已下载播放）。
+ * src 为空表示由面板里的 hls.js 接管，此时只负责把小窗显示出来。
+ */
+async function handlePanelPlay(src, name, _isHls) {
+  const el = await ensureVideo();
+  if (!el) return;
+  playerTitle.value = name || '';
+  if (!src) return;
+  el.pause();
+  el.removeAttribute('src');
+  el.load();
+  el.src = src;
+  el.play().catch(() => {
+    // 自动播放被浏览器拦下时静默：控件已展开，用户点一下即可
+  });
+}
+
+/** 批量列表：在弹窗小窗里播放（浏览器解码，ts / mkv 等容器可能放不了） */
+async function playInDialog(item) {
+  if (!item?.Path) {
+    $q.notify({ type: 'negative', message: '该文件没有路径，无法播放', position: 'top' });
+    return;
+  }
+  await handlePanelPlay(getVideoSrt(item.Path), item.Name || item.Path, false);
+}
+
+/** 停止并收起小窗 */
+function stopPlayer() {
+  const el = playerRef.value;
+  if (el) {
+    el.pause();
+    el.removeAttribute('src');
+    el.load();
+  }
+  playerVisible.value = false;
+  playerTitle.value = '';
+  // 尺寸是用户偏好，关窗后保留；位置回到右下角（弹窗尺寸可能已变）
+  playerPos.left = null;
+  playerPos.top = null;
+  // HLS 由链接面板的 hls.js 实例持有，一并销毁，避免关窗后还在拉分片
+  linkPanelRef.value?.destroyHls?.();
+}
 
 // ── Tab ──────────────────────────────────────────────────────────
 const dialogTab = ref('batch');
 const taskTab = ref('等待');
 const linkPanelRef = ref(null);
 
-// 链接面板是「左播放 / 右下载」的左右布局，需要比批量编辑更宽的弹窗
+// 链接面板是「上分片列表 / 下下载列表」的长列表，需要比批量编辑更宽的弹窗
 const dialogWidthStyle = computed(() =>
   dialogTab.value === 'links'
     ? 'width: 92vw; max-width: 1400px; min-width: 600px; align-content: center;'
@@ -770,6 +959,85 @@ defineExpose({ open, openTaskPanel });
   transition:
     background-color 0.4s ease,
     color 0.4s ease;
+}
+
+/* ── 弹窗级播放器：悬浮在右下角的小窗 ────────────────────────────── */
+/* 小窗按弹窗定位，故根节点要给一个定位上下文 */
+.batch-edit-root {
+  position: relative;
+}
+
+/* 宽高由 JS 的 playerStyle 提供，拖拽手柄改尺寸 */
+.batch-mini-player {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 6px;
+  border-radius: 10px;
+  background: rgba(16, 16, 22, 0.96);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+/* 拖拽中禁用过渡与文本选中，避免画面跟着抖 */
+.batch-mini-player.is-resizing {
+  user-select: none;
+}
+
+.batch-mini-player-bar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.batch-mini-player-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* 让开左上角的缩放手柄，避免文件名被压住 */
+  padding-left: 16px;
+  font-size: 12px;
+  color: rgba(224, 231, 255, 0.9);
+}
+
+/* 视频填满标题栏以下的剩余空间，缩放时按比例留黑边而不是拉伸变形 */
+.batch-mini-player-video {
+  display: block;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  object-fit: contain;
+  background: #000;
+  border-radius: 6px;
+}
+
+/* 左上角缩放手柄：三条斜线示意可拖拽（向左上拖变大、向右下拖变小） */
+.batch-mini-player-resize {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  background:
+    linear-gradient(
+      315deg,
+      transparent 0 45%,
+      rgba(224, 231, 255, 0.75) 45% 55%,
+      transparent 55% 70%,
+      rgba(224, 231, 255, 0.75) 70% 80%,
+      transparent 80%
+    );
+  border-top-left-radius: 10px;
+  opacity: 0.6;
+}
+
+.batch-mini-player-resize:hover {
+  opacity: 1;
 }
 </style>
 <style>
