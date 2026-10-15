@@ -132,6 +132,81 @@
               >
             </span>
             <q-space />
+            <!-- 下载设置：默认只读；点「下载设置」切换输入态，保存后回到只读 -->
+            <span v-if="!paramsEditing" class="hls-download-params">
+              并发 {{ hlsDownloadConcurrency }} · 并行 {{ hlsDownloadParallel }} ·
+              快捷下载 {{ quickParse ? '开' : '关' }}
+              <q-btn
+                flat
+                dense
+                no-caps
+                size="sm"
+                color="indigo-4"
+                icon="settings"
+                label="下载设置"
+                @click="startEditParams"
+              >
+                <q-tooltip class="bg-dark text-white"
+                  >并发：单个任务内同时下载的分片数（1~16）；并行：服务端同时执行的任务数上限（1~16）；快捷下载：粘贴链接后自动解析</q-tooltip
+                >
+              </q-btn>
+            </span>
+            <span v-else class="hls-download-params">
+              <q-input
+                v-model="paramDraft.concurrency"
+                dark
+                dense
+                borderless
+                type="number"
+                :min="DOWNLOAD_PARAM_MIN"
+                :max="DOWNLOAD_PARAM_MAX"
+                prefix="并发"
+                class="hls-param-input"
+              />
+              <q-input
+                v-model="paramDraft.parallel"
+                dark
+                dense
+                borderless
+                type="number"
+                :min="DOWNLOAD_PARAM_MIN"
+                :max="DOWNLOAD_PARAM_MAX"
+                prefix="并行"
+                class="hls-param-input"
+              />
+              <!-- 快捷下载：开启后分片链接输入框内容停稳即自动解析，不用再点「解析」 -->
+              <q-toggle
+                v-model="paramDraft.quick"
+                dense
+                dark
+                color="green-4"
+                label="快捷下载"
+                class="hls-quick-toggle"
+              >
+                <q-tooltip class="bg-dark text-white"
+                  >开启后：粘贴 / 输入分片链接，内容停稳约 1 秒即自动解析（追加到已有源，不会清掉之前的解析结果）</q-tooltip
+                >
+              </q-toggle>
+              <q-btn
+                flat
+                dense
+                no-caps
+                size="sm"
+                color="green-4"
+                icon="check"
+                label="保存"
+                @click="saveParams"
+              />
+              <q-btn
+                flat
+                dense
+                no-caps
+                size="sm"
+                color="grey-5"
+                label="取消"
+                @click="paramsEditing = false"
+              />
+            </span>
             <q-btn
               flat
               dense
@@ -583,81 +658,6 @@
               @click="toggleDownloadFilter('downloading')"
             >
               队列中 {{ hlsDownloadStats.queued }}
-            </span>
-            <!-- 下载设置：默认只读；点「下载设置」切换输入态，保存后回到只读 -->
-            <span v-if="!paramsEditing" class="hls-download-params">
-              并发 {{ hlsDownloadConcurrency }} · 并行 {{ hlsDownloadParallel }} ·
-              快捷下载 {{ quickParse ? '开' : '关' }}
-              <q-btn
-                flat
-                dense
-                no-caps
-                size="sm"
-                color="indigo-4"
-                icon="settings"
-                label="下载设置"
-                @click="startEditParams"
-              >
-                <q-tooltip class="bg-dark text-white"
-                  >并发：单个任务内同时下载的分片数（1~16）；并行：服务端同时执行的任务数上限（1~16）；快捷下载：粘贴链接后自动解析</q-tooltip
-                >
-              </q-btn>
-            </span>
-            <span v-else class="hls-download-params">
-              <q-input
-                v-model="paramDraft.concurrency"
-                dark
-                dense
-                borderless
-                type="number"
-                :min="DOWNLOAD_PARAM_MIN"
-                :max="DOWNLOAD_PARAM_MAX"
-                prefix="并发"
-                class="hls-param-input"
-              />
-              <q-input
-                v-model="paramDraft.parallel"
-                dark
-                dense
-                borderless
-                type="number"
-                :min="DOWNLOAD_PARAM_MIN"
-                :max="DOWNLOAD_PARAM_MAX"
-                prefix="并行"
-                class="hls-param-input"
-              />
-              <!-- 快捷下载：开启后分片链接输入框内容停稳即自动解析，不用再点「解析」 -->
-              <q-toggle
-                v-model="paramDraft.quick"
-                dense
-                dark
-                color="green-4"
-                label="快捷下载"
-                class="hls-quick-toggle"
-              >
-                <q-tooltip class="bg-dark text-white"
-                  >开启后：粘贴 / 输入分片链接，内容停稳约 1 秒即自动解析（追加到已有源，不会清掉之前的解析结果）</q-tooltip
-                >
-              </q-toggle>
-              <q-btn
-                flat
-                dense
-                no-caps
-                size="sm"
-                color="green-4"
-                icon="check"
-                label="保存"
-                @click="saveParams"
-              />
-              <q-btn
-                flat
-                dense
-                no-caps
-                size="sm"
-                color="grey-5"
-                label="取消"
-                @click="paramsEditing = false"
-              />
             </span>
             <q-space />
             <!-- 清空已完成 / 清空已失败：只删对应状态的任务记录，不删已下载的文件 -->
@@ -1566,9 +1566,12 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
   overflow: hidden;
 }
 
+/* 下载设置（并发 / 并行 / 快捷下载）也落在这行，编辑态是输入框，
+   弹窗较窄时允许换行，避免把右侧按钮挤出可视区域 */
 .hls-segment-header {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 6px 10px;
   border-bottom: 1px solid rgba(99, 102, 241, 0.18);
@@ -1946,7 +1949,7 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
   color: rgba(203, 213, 225, 0.95);
 }
 
-/* 下载参数：只读文案 / 编辑态输入，紧跟在列表状态后面 */
+/* 下载参数：只读文案 / 编辑态输入，位于分片列表头部、恢复按钮之前 */
 .hls-download-params {
   display: inline-flex;
   align-items: center;

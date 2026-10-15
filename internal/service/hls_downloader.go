@@ -1555,6 +1555,8 @@ func RestartHlsDownload(taskID string) utils.Result {
 	}
 	TransferTaskMutex.Unlock()
 	PendingTaskCount.Add(1)
+	// 手动重启：清空自动重跑次数，用户已介入处理时重新给满自动重试额度
+	ResetHlsAutoRetry(taskID)
 	wakeTaskScheduler()
 
 	utils.InfoFormat("RestartHlsDownload: 任务已重启 id=%s, dest=%s", taskID, task.Path)

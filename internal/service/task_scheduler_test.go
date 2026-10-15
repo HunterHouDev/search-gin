@@ -2,6 +2,7 @@ package service
 
 import (
 	"search-gin/internal/model"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -215,4 +216,119 @@ func TestResizeTaskSlotsKeepsUsed(t *testing.T) {
 	assert.True(t, acquireTaskSlot(5))
 	assert.True(t, acquireTaskSlot(5))
 	assert.False(t, acquireTaskSlot(5))
+}
+
+// ── 空闲自动重跑失败的分片下载 ────────────────────────────────────────────
+
+// replaceTransferTasks 临时替换全局任务列表，测试结束后还原
+func replaceTransferTasks(t *testing.T, tasks map[string]model.TransferTaskModel) {
+	t.Helper()
+	TransferTaskMutex.Lock()
+	orig := TransferTask
+	TransferTask = tasks
+	TransferTaskMutex.Unlock()
+	t.Cleanup(func() {
+		TransferTaskMutex.Lock()
+		TransferTask = orig
+		TransferTaskMutex.Unlock()
+		PendingTaskCount.Store(0)
+	})
+}
+
+// hlsTestID 生成与真实任务同格式、且不含 Windows 非法字符的任务 ID
+func hlsTestID(prefix string) string {
+	return strings.ReplaceAll(prefix+time.Now().Format(time.RFC3339Nano), ":", "-")
+}
+
+// newFailedHlsTask 造一个已失败的分片下载任务，并落盘播放列表（重启依赖它）
+func newFailedHlsTask(id string, created time.Time) model.TransferTaskModel {
+	saveHlsPlaylist(id, "#EXTM3U\nhttps://example.com/1.ts\n")
+	return model.TransferTaskModel{
+		ID:         id,
+		Type:       model.TaskTypeHls,
+		Status:     model.StatusFailed,
+		CreateTime: created,
+	}
+}
+
+func TestEarliestFailedHlsTask_PicksOldest(t *testing.T) {
+	now := time.Now()
+	older := newFailedHlsTask(hlsTestID("hls-older-"), now.Add(-2*time.Hour))
+	newer := newFailedHlsTask(hlsTestID("hls-newer-"), now.Add(-time.Minute))
+	replaceTransferTasks(t, map[string]model.TransferTaskModel{
+		older.ID: older,
+		newer.ID: newer,
+		// 其它类型 / 其它状态都不应被选中
+		"cut": {
+			ID:         "cut",
+			Type:       model.TaskTypeCut,
+			Status:     model.StatusFailed,
+			CreateTime: now.Add(-3 * time.Hour),
+		},
+		"done": {
+			ID:         "done",
+			Type:       model.TaskTypeHls,
+			Status:     model.StatusCompleted,
+			CreateTime: now.Add(-4 * time.Hour),
+		},
+	})
+
+	got, found := earliestFailedHlsTask()
+	assert.True(t, found)
+	assert.Equal(t, older.ID, got.ID)
+}
+
+func TestMaybeAutoRetryHls_RestartsWhenIdle(t *testing.T) {
+	now := time.Now()
+	task := newFailedHlsTask(hlsTestID("hls-idle-"), now.Add(-time.Minute))
+	replaceTransferTasks(t, map[string]model.TransferTaskModel{task.ID: task})
+	ResetHlsAutoRetry(task.ID)
+
+	maybeAutoRetryHls()
+
+	TransferTaskMutex.RLock()
+	got := TransferTask[task.ID]
+	TransferTaskMutex.RUnlock()
+	assert.Equal(t, model.StatusPending, got.Status)
+	assert.Equal(t, 1, hlsAutoRetryCount(task.ID))
+}
+
+// 队列里还有等待 / 执行中的任务时不抢占：自动重跑只发生在真正空闲的时候
+func TestMaybeAutoRetryHls_SkipsWhenBusy(t *testing.T) {
+	now := time.Now()
+	task := newFailedHlsTask(hlsTestID("hls-busy-"), now.Add(-time.Minute))
+	replaceTransferTasks(t, map[string]model.TransferTaskModel{
+		task.ID: task,
+		"busy": {
+			ID:         "busy",
+			Type:       model.TaskTypeTrans,
+			Status:     model.StatusExecuting,
+			CreateTime: now,
+		},
+	})
+	ResetHlsAutoRetry(task.ID)
+
+	maybeAutoRetryHls()
+
+	TransferTaskMutex.RLock()
+	got := TransferTask[task.ID]
+	TransferTaskMutex.RUnlock()
+	assert.Equal(t, model.StatusFailed, got.Status)
+	assert.Equal(t, 0, hlsAutoRetryCount(task.ID))
+}
+
+// 重跑次数到上限后停手：源站持续失败时不能无限循环
+func TestMaybeAutoRetryHls_StopsAfterMax(t *testing.T) {
+	now := time.Now()
+	task := newFailedHlsTask(hlsTestID("hls-max-"), now.Add(-time.Minute))
+	replaceTransferTasks(t, map[string]model.TransferTaskModel{task.ID: task})
+	hlsAutoRetry.Store(task.ID, hlsAutoRetryMax)
+
+	maybeAutoRetryHls()
+
+	TransferTaskMutex.RLock()
+	got := TransferTask[task.ID]
+	TransferTaskMutex.RUnlock()
+	assert.Equal(t, model.StatusFailed, got.Status)
+	assert.Equal(t, hlsAutoRetryMax, hlsAutoRetryCount(task.ID))
 }

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"search-gin/internal/model"
 	"search-gin/pkg/utils"
 	"strings"
@@ -14,6 +15,10 @@ const (
 	defaultTaskParallel = 4
 	// maxTaskParallel 并行任务数上限：再高也压不出吞吐，只会让任务互相抢带宽
 	maxTaskParallel = 16
+	// hlsAutoRetryMax 单个失败任务自动重跑的次数上限。
+	// 源站彻底不可用 / 播放列表失效时必须有终点，
+	// 否则「失败 → 空闲 → 重跑 → 再失败」会无限循环。
+	hlsAutoRetryMax = 3
 )
 
 // 任务并发控制
@@ -149,6 +154,91 @@ func taskVCode(task model.TransferTaskModel) string {
 	return ""
 }
 
+// ── 空闲自动重跑失败的分片下载 ────────────────────────────────────────────
+//
+// 下载是串行推进的：一批任务跑完后总有「队列空转」的间隙。
+// 空闲时把最早失败的任务重新拉起，省去人工点重启；
+// 手动重启会重置额度（见 RestartHlsDownload），失败太多次则停手不再打扰。
+
+// hlsAutoRetry 任务 ID → 已自动重跑的次数
+var hlsAutoRetry sync.Map
+
+// maybeAutoRetryHls 没有等待 / 执行中的任务时，自动重启最早失败的分片下载任务。
+//
+// 每次只补一个：哪怕有多个失败任务也先跑最早的，
+// 避免一次性占满并行槽位，也让重试顺序对用户可预期。
+func maybeAutoRetryHls() {
+	pending, executing := pendingExecutingCount()
+	if pending > 0 || executing > 0 {
+		return
+	}
+	task, found := earliestFailedHlsTask()
+	if !found {
+		return
+	}
+	used := hlsAutoRetryCount(task.ID)
+	if used >= hlsAutoRetryMax {
+		return
+	}
+
+	res := RestartHlsDownload(task.ID)
+	// 重启失败同样计入次数：播放列表丢失这类问题重试也不会成功
+	hlsAutoRetry.Store(task.ID, used+1)
+	next := used + 1
+	if res.IsSuccess() {
+		utils.InfoFormat("maybeAutoRetryHls: 空闲自动重跑失败任务 id=%s（第 %d/%d 次）", task.ID, next, hlsAutoRetryMax)
+		appendHlsLog(task.ID, fmt.Sprintf("空闲自动重跑：第 %d/%d 次", next, hlsAutoRetryMax))
+		return
+	}
+	utils.InfoFormat("maybeAutoRetryHls: 自动重跑未成功 id=%s（第 %d/%d 次）: %s", task.ID, next, hlsAutoRetryMax, res.Message)
+}
+
+// earliestFailedHlsTask 找出创建时间最早的分片下载失败任务；
+// 顺带清理已不在任务列表里的重跑计数，避免长期运行后无限堆积。
+func earliestFailedHlsTask() (model.TransferTaskModel, bool) {
+	TransferTaskMutex.RLock()
+	defer TransferTaskMutex.RUnlock()
+
+	alive := make(map[string]struct{}, len(TransferTask))
+	var earliest model.TransferTaskModel
+	found := false
+	for id, t := range TransferTask {
+		alive[id] = struct{}{}
+		if !strings.EqualFold(t.Type, model.TaskTypeHls) || t.Status != model.StatusFailed {
+			continue
+		}
+		if !found || t.CreateTime.Before(earliest.CreateTime) {
+			earliest = t
+			found = true
+		}
+	}
+	hlsAutoRetry.Range(func(key, _ any) bool {
+		if id, ok := key.(string); ok {
+			if _, ok := alive[id]; !ok {
+				hlsAutoRetry.Delete(id)
+			}
+		}
+		return true
+	})
+	return earliest, found
+}
+
+// hlsAutoRetryCount 取任务已自动重跑的次数（未记录过时为 0）
+func hlsAutoRetryCount(taskID string) int {
+	if v, ok := hlsAutoRetry.Load(taskID); ok {
+		if n, ok := v.(int); ok {
+			return n
+		}
+	}
+	return 0
+}
+
+// ResetHlsAutoRetry 清空任务的自动重跑次数。
+// 手动重启意味着用户已经介入处理，此时应当重新给满自动重试的额度。
+func ResetHlsAutoRetry(taskID string) {
+	hlsAutoRetry.Delete(taskID)
+}
+
 // wakeTaskScheduler 非阻塞通知调度器检查任务
 func wakeTaskScheduler() {
 	select {
@@ -191,6 +281,10 @@ func (s *searchService) TaskScheduler() {
 
 // pollTasks 轮询并执行待处理任务（槽位调度）
 func (s *searchService) pollTasks() {
+	// 空闲补跑放在最前面：没有等待 / 执行中的任务时重启最早失败的分片下载，
+	// 重启成功后 PendingTaskCount 变正，下面的流程会立刻把它拉起来
+	maybeAutoRetryHls()
+
 	if PendingTaskCount.Load() == 0 {
 		return
 	}
