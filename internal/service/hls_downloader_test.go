@@ -47,7 +47,7 @@ func TestRunHlsDownloadPreservesOrder(t *testing.T) {
 	defer out.Close()
 
 	// 并发传 0：走服务端默认并发
-	n, err := runHlsDownload(context.Background(), "test-order", pl, out, srv.URL+"/", 0)
+	n, err := runHlsDownload(context.Background(), "test-order", pl, out, srv.URL+"/", 0, 0, 0)
 	assert.NoError(t, err)
 
 	var want strings.Builder
@@ -57,7 +57,166 @@ func TestRunHlsDownloadPreservesOrder(t *testing.T) {
 	got, err := os.ReadFile(out.Name())
 	assert.NoError(t, err)
 	assert.Equal(t, want.String(), string(got))
-	assert.Equal(t, int64(want.Len()), n)
+	assert.Equal(t, int64(want.Len()), n.writtenBytes)
+}
+
+// TestRunHlsDownloadResumesFromOffset 校验断点续传：起点之前的分片不再请求，
+// 且文件整体仍按分片序号拼接（磁盘上的旧内容 + 本次续写的部分）。
+func TestRunHlsDownloadResumesFromOffset(t *testing.T) {
+	const total = 8
+	const startIdx = 4
+
+	var mu sync.Mutex
+	requests := map[string]int{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		requests[r.URL.Path]++
+		mu.Unlock()
+		idx, err := strconv.Atoi(strings.TrimPrefix(r.URL.Path, "/seg"))
+		if err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		fmt.Fprintf(w, "s%02d|", idx)
+	}))
+	defer srv.Close()
+
+	text := "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:0\n"
+	for i := 1; i <= total; i++ {
+		text += fmt.Sprintf("#EXTINF:1.0,\n%s/seg%d\n", srv.URL, i)
+	}
+	pl, err := parseHlsPlaylistText(text, srv.URL+"/index.m3u8")
+	assert.NoError(t, err)
+
+	// 前 startIdx 个分片模拟「上次失败留在磁盘上的内容」
+	var head strings.Builder
+	for i := 1; i <= startIdx; i++ {
+		fmt.Fprintf(&head, "s%02d|", i)
+	}
+	path := filepath.Join(t.TempDir(), "video.ts")
+	assert.NoError(t, os.WriteFile(path, []byte(head.String()), 0644))
+
+	out, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0644)
+	assert.NoError(t, err)
+	defer out.Close()
+
+	res, err := runHlsDownload(context.Background(), "test-resume", pl, out, srv.URL+"/", 0, startIdx, int64(head.Len()))
+	assert.NoError(t, err)
+	assert.Equal(t, total-startIdx, res.written)
+
+	var want strings.Builder
+	for i := 1; i <= total; i++ {
+		fmt.Fprintf(&want, "s%02d|", i)
+	}
+	got, err := os.ReadFile(path)
+	assert.NoError(t, err)
+	assert.Equal(t, want.String(), string(got))
+
+	mu.Lock()
+	defer mu.Unlock()
+	for i := 1; i <= startIdx; i++ {
+		assert.Equal(t, 0, requests[fmt.Sprintf("/seg%d", i)])
+	}
+	assert.Equal(t, 1, requests["/seg5"])
+}
+
+// TestHlsResumeOffset 校验续传起点的判定：.part 与断点记录必须对得上才续传
+func TestHlsResumeOffset(t *testing.T) {
+	text := "#EXTM3U\n#EXTINF:1.0,\nhttps://x/a.ts\n#EXTINF:1.0,\nhttps://x/b.ts\n"
+	pl, err := parseHlsPlaylistText(text, "https://x/index.m3u8")
+	assert.NoError(t, err)
+
+	dir := t.TempDir()
+	part := filepath.Join(dir, "video.ts.part")
+	id := "resume-offset"
+
+	// 没有断点记录 → 从头重下
+	segments, size := hlsResumeOffset(id, part, pl)
+	assert.Equal(t, 0, segments)
+	assert.Equal(t, int64(0), size)
+
+	// 有记录但 .part 不存在 → 从头重下
+	hlsSaveResume(id, 1, 16)
+	segments, _ = hlsResumeOffset(id, part, pl)
+	assert.Equal(t, 0, segments)
+
+	// 记录与文件大小不符 → 从头重下（否则拼出来的文件会在断点处错位）
+	assert.NoError(t, os.WriteFile(part, []byte("01234567"), 0644))
+	assert.Equal(t, 0, func() int { s, _ := hlsResumeOffset(id, part, pl); return s }())
+
+	// 一致 → 续传
+	assert.NoError(t, os.WriteFile(part, []byte("0123456789abcdef"), 0644))
+	segments, size = hlsResumeOffset(id, part, pl)
+	assert.Equal(t, 1, segments)
+	assert.Equal(t, int64(16), size)
+
+	// 多初始化段（多源合并）不续传：断点处可能需要重新写入初始化段
+	multi := pl
+	multi.segments[0].initMap = "https://x/initA.mp4"
+	multi.segments[1].initMap = "https://x/initB.mp4"
+	assert.Equal(t, 2, hlsInitMapCount(multi))
+	segments, _ = hlsResumeOffset(id, part, multi)
+	assert.Equal(t, 0, segments)
+
+	hlsClearResume(id)
+}
+
+// TestRunHlsDownloadSkipsFailedSegments 校验少量坏片不再拖垮整个任务：
+// 额度内跳过并在结果里报出分片序号，其余分片照常拼接。
+func TestRunHlsDownloadSkipsFailedSegments(t *testing.T) {
+	const total = 40
+	const bad = 7
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		idx, err := strconv.Atoi(strings.TrimPrefix(r.URL.Path, "/seg"))
+		if err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		// 404 属于普通错误：重试次数少，测试不必真等限流退避
+		if idx == bad {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		fmt.Fprintf(w, "s%02d|", idx)
+	}))
+	defer srv.Close()
+
+	text := "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:0\n"
+	for i := 1; i <= total; i++ {
+		text += fmt.Sprintf("#EXTINF:1.0,\n%s/seg%d\n", srv.URL, i)
+	}
+	pl, err := parseHlsPlaylistText(text, srv.URL+"/index.m3u8")
+	assert.NoError(t, err)
+
+	path := filepath.Join(t.TempDir(), "video.ts")
+	out, err := os.Create(path)
+	assert.NoError(t, err)
+	defer out.Close()
+
+	res, err := runHlsDownload(context.Background(), "test-skip", pl, out, srv.URL+"/", 0, 0, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, []int{bad}, res.skipped)
+
+	var want strings.Builder
+	for i := 1; i <= total; i++ {
+		if i == bad {
+			continue
+		}
+		fmt.Fprintf(&want, "s%02d|", i)
+	}
+	got, err := os.ReadFile(path)
+	assert.NoError(t, err)
+	assert.Equal(t, want.String(), string(got))
+}
+
+// TestHlsSkipAllowance 校验容错额度：短视频不容错，长视频按量给额度且有上限
+func TestHlsSkipAllowance(t *testing.T) {
+	assert.Equal(t, 0, hlsSkipAllowance(1))
+	assert.Equal(t, 0, hlsSkipAllowance(19))
+	assert.Equal(t, 1, hlsSkipAllowance(20))
+	assert.Equal(t, 3, hlsSkipAllowance(300))
+	assert.Equal(t, 20, hlsSkipAllowance(5000))
 }
 
 // TestRunHlsDownloadRetriesSegment 校验单个分片失败后自动重试，不再让整个任务失败
@@ -85,7 +244,7 @@ func TestRunHlsDownloadRetriesSegment(t *testing.T) {
 	defer out.Close()
 
 	// 并发传 0：走服务端默认并发
-	_, err = runHlsDownload(context.Background(), "test-retry", pl, out, "", 0)
+	_, err = runHlsDownload(context.Background(), "test-retry", pl, out, "", 0, 0, 0)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, attempts)
 
@@ -137,7 +296,7 @@ func TestRunHlsDownloadWritesInitSegmentPerPart(t *testing.T) {
 	defer out.Close()
 
 	// 并发传 0：走服务端默认并发
-	_, err = runHlsDownload(context.Background(), "test-init", pl, out, "", 0)
+	_, err = runHlsDownload(context.Background(), "test-init", pl, out, "", 0, 0, 0)
 	assert.NoError(t, err)
 
 	got, err := os.ReadFile(out.Name())
@@ -179,7 +338,7 @@ func TestRunHlsDownloadCanceled(t *testing.T) {
 	}()
 
 	// 并发传 0：走服务端默认并发
-	_, err = runHlsDownload(ctx, "test-cancel", pl, out, "", 0)
+	_, err = runHlsDownload(ctx, "test-cancel", pl, out, "", 0, 0, 0)
 	assert.ErrorIs(t, err, errHlsCanceled)
 }
 

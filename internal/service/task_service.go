@@ -82,6 +82,8 @@ func ClearFailedTasks() utils.Result {
 		if task.Status == model.StatusFailed {
 			delete(TransferTask, key)
 			DeleteTaskLog(key)
+			// 失败的下载可能留了 .part，一并清掉，避免占着磁盘
+			CleanupHlsPartial(task)
 			count++
 		}
 	}
@@ -99,6 +101,7 @@ func ClearAllTasks() utils.Result {
 		if task.Status != model.StatusExecuting {
 			delete(TransferTask, key)
 			DeleteTaskLog(key)
+			CleanupHlsPartial(task)
 			count++
 		}
 	}

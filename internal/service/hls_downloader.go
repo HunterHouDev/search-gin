@@ -952,6 +952,149 @@ func saveHlsPlaylist(taskID, playlist string) {
 	}
 }
 
+// ── 断点续传 ──────────────────────────────────────────────────
+//
+// 一场下载动辄上千个分片，跑到第 900 个失败就从头再下一遍是失败率高的主因：
+// 重跑往往还是在同一位置失败，任务永远下不完。这里把「已完整写盘的分片数与
+// 字节数」记到 sidecar 文件里，失败 / 取消保留 .part，重启时从断点继续。
+
+// hlsResumePath 断点信息文件路径
+func hlsResumePath(taskID string) string {
+	return filepath.Join(taskLogDir(), taskID+".resume")
+}
+
+// hlsSaveResume 写入断点信息（已完整写盘的分片数 + 文件字节数）
+func hlsSaveResume(taskID string, segments int, size int64) {
+	if err := ensureTaskLogDir(); err != nil {
+		return
+	}
+	_ = os.WriteFile(hlsResumePath(taskID), []byte(fmt.Sprintf("%d %d\n", segments, size)), 0644)
+}
+
+// hlsLoadResume 读取断点信息；文件缺失或内容损坏时返回 0（从头重下）
+func hlsLoadResume(taskID string) (int, int64) {
+	data, err := os.ReadFile(hlsResumePath(taskID))
+	if err != nil {
+		return 0, 0
+	}
+	var segments int
+	var size int64
+	if _, err := fmt.Sscanf(strings.TrimSpace(string(data)), "%d %d", &segments, &size); err != nil {
+		return 0, 0
+	}
+	if segments <= 0 || size <= 0 {
+		return 0, 0
+	}
+	return segments, size
+}
+
+// hlsClearResume 清除断点信息（下载完成或任务被移除时调用）
+func hlsClearResume(taskID string) {
+	_ = os.Remove(hlsResumePath(taskID))
+}
+
+// hlsPersistResume 保存断点：文件大小以磁盘上的实际大小为准
+func hlsPersistResume(taskID, partPath string, segments int) {
+	if taskID == "" || segments <= 0 {
+		hlsClearResume(taskID)
+		return
+	}
+	st, err := os.Stat(partPath)
+	if err != nil || st.Size() <= 0 {
+		hlsClearResume(taskID)
+		return
+	}
+	hlsSaveResume(taskID, segments, st.Size())
+}
+
+// hlsTruncatePart 把 .part 截到指定大小（用于丢弃写失败的半截分片）
+func hlsTruncatePart(partPath string, size int64) {
+	if size <= 0 {
+		return
+	}
+	if st, err := os.Stat(partPath); err == nil && st.Size() > size {
+		_ = os.Truncate(partPath, size)
+	}
+}
+
+// CleanupHlsPartial 清理下载中断残留的 .part 与断点记录（任务被移除时调用）
+func CleanupHlsPartial(task model.TransferTaskModel) {
+	if !strings.EqualFold(task.Type, model.TaskTypeHls) {
+		return
+	}
+	dest := strings.TrimSpace(task.Path)
+	if dest == "" {
+		dest = strings.TrimSpace(task.Dest)
+	}
+	if dest == "" {
+		return
+	}
+	_ = os.Remove(dest + ".part")
+	hlsClearResume(task.ID)
+}
+
+// hlsResumeOffset 计算续传起点（已完整写盘的分片数与字节数）。
+// .part 与断点记录必须一致（大小对得上），否则宁可从头重下，也不能拼出错位的文件。
+func hlsResumeOffset(taskID, tmpPath string, pl *hlsPlaylist) (int, int64) {
+	// 多初始化段（多源合并）时断点处可能需要重新写入 init 段，保守起见不续传
+	if taskID == "" || pl == nil || hlsInitMapCount(pl) > 1 {
+		return 0, 0
+	}
+	segments, size := hlsLoadResume(taskID)
+	if segments <= 0 || segments >= len(pl.segments) {
+		return 0, 0
+	}
+	st, err := os.Stat(tmpPath)
+	if err != nil || st.Size() != size {
+		return 0, 0
+	}
+	return segments, size
+}
+
+// hlsOpenFlags 从头下载用截断模式，续传用追加模式
+func hlsOpenFlags(resumeSeg int) int {
+	if resumeSeg > 0 {
+		return os.O_WRONLY | os.O_APPEND
+	}
+	return os.O_CREATE | os.O_WRONLY | os.O_TRUNC
+}
+
+// hlsSkipAllowance 允许的失败分片数量：偶发坏片不该让整部片子从头再下。
+// 短视频（<20 个分片）不容错——少一段就是肉眼可见的缺失；
+// 长视频按每 100 个分片给 1 个额度，最多 20 个。
+func hlsSkipAllowance(total int) int {
+	if total < 20 {
+		return 0
+	}
+	n := total / 100
+	if n < 1 {
+		n = 1
+	}
+	if n > 20 {
+		n = 20
+	}
+	return n
+}
+
+// hlsIndexText 把跳过的分片序号拼成可读文本（超过 10 个只列前 10 个）
+func hlsIndexText(indexes []int) string {
+	if len(indexes) == 0 {
+		return ""
+	}
+	limit := len(indexes)
+	if limit > 10 {
+		limit = 10
+	}
+	parts := make([]string, 0, limit+1)
+	for _, idx := range indexes[:limit] {
+		parts = append(parts, strconv.Itoa(idx))
+	}
+	if len(indexes) > limit {
+		parts = append(parts, "...")
+	}
+	return strings.Join(parts, ", ")
+}
+
 // updateHlsProgress 更新任务进度（内存 + SSE 通知）
 func updateHlsProgress(id string, done, total int, size int64) {
 	progress := 0
@@ -1009,6 +1152,16 @@ type hlsSegmentResult struct {
 	done bool
 }
 
+// hlsRunOutcome 一次下载运行的结果（供调用方写断点 / 生成完成说明）
+type hlsRunOutcome struct {
+	// writtenBytes 本次写盘后的文件总字节数（续传时含起点之前的部分）
+	writtenBytes int64
+	// written 本次写盘的分片数（不含续传起点之前的分片，含被跳过的分片）
+	written int
+	// skipped 因下载失败被跳过的分片序号
+	skipped []int
+}
+
 // runHlsDownload 并发下载全部分片并按序写入 out，返回已写入字节数。
 //
 // 相比「按批并发 + 批间等待」，这里是持续的流水线：任一 worker 空闲即领取下
@@ -1017,12 +1170,17 @@ type hlsSegmentResult struct {
 //
 // 初始化段（#EXT-X-MAP，fMP4 流）在对应分片之前写入：单段播放列表等价于
 // 「文件头写一次」，多段合并（多源拼成一条播放列表）时则按序切换。
-func runHlsDownload(ctx context.Context, taskID string, pl *hlsPlaylist, out *os.File, referer string, concurrency int) (int64, error) {
+func runHlsDownload(ctx context.Context, taskID string, pl *hlsPlaylist, out *os.File, referer string, concurrency int, startIdx int, startBytes int64) (hlsRunOutcome, error) {
 	total := len(pl.segments)
-	var writtenBytes int64
+	outcome := hlsRunOutcome{writtenBytes: startBytes}
 
 	if total == 0 {
-		return writtenBytes, nil
+		return outcome, nil
+	}
+	// 续传起点越界（播放列表比上次短）时退回整段重下
+	if startIdx < 0 || startIdx > total {
+		startIdx, startBytes = 0, 0
+		outcome.writtenBytes = 0
 	}
 	// 并发数由任务指定（未指定时取默认值），并夹在允许区间内
 	concurrency = normalizeConcurrency(concurrency)
@@ -1070,12 +1228,24 @@ func runHlsDownload(ctx context.Context, taskID string, pl *hlsPlaylist, out *os
 		if logStep < 1 {
 			logStep = 1
 		}
-		written := 0
+		written := startIdx
 		var lastNotify time.Time
 		// 初始化段缓存 + 已写入标识：多源合并时按序切换，同址同区间只拉取一次
 		initCache := &sync.Map{}
+		// 续传时起点之前的分片（连同它依赖的初始化段）已经在文件里，
+		// 把起点前一个分片的初始化段视为已写入，避免在中途重复插入一份
 		writtenInitKey := ""
-		for i := 0; i < total; i++ {
+		if startIdx > 0 {
+			writtenInitKey = hlsInitKey(pl.segments[startIdx-1])
+		}
+		allowSkip := hlsSkipAllowance(total)
+		// 失败收尾：回写进度后通知主协程（有可能错误本身来自 ctx 取消）
+		fail := func(err error) {
+			outcome.written = written - startIdx
+			stopDispatch()
+			writeErr <- err
+		}
+		for i := startIdx; i < total; i++ {
 			mu.Lock()
 			for !results[i].done && !canceled {
 				cond.Wait()
@@ -1091,44 +1261,49 @@ func runHlsDownload(ctx context.Context, taskID string, pl *hlsPlaylist, out *os
 			<-inflight
 
 			if segErr != nil {
-				stopDispatch()
-				writeErr <- segErr
+				// 偶发坏片不再拖垮整部片子：额度内跳过继续写，
+				// 超出额度才判失败（源站整体不可用时才会走到这里）
+				if len(outcome.skipped) < allowSkip {
+					outcome.skipped = append(outcome.skipped, pl.segments[i].index)
+					written++
+					appendHlsLog(taskID, fmt.Sprintf("分片 %d 下载失败，已跳过（累计 %d/%d 个）: %v", pl.segments[i].index, len(outcome.skipped), allowSkip, segErr))
+					continue
+				}
+				fail(segErr)
 				return
 			}
 			// 初始化段必须先于它的分片落盘
 			if initKey := hlsInitKey(pl.segments[i]); initKey != "" && initKey != writtenInitKey {
 				initData, initErr := hlsInitBytes(ctx, pl.segments[i], referer, initCache)
 				if initErr != nil {
-					stopDispatch()
-					writeErr <- initErr
+					fail(initErr)
 					return
 				}
 				if _, err := out.Write(initData); err != nil {
-					stopDispatch()
-					writeErr <- err
+					fail(err)
 					return
 				}
-				writtenBytes += int64(len(initData))
+				outcome.writtenBytes += int64(len(initData))
 				writtenInitKey = initKey
 			}
 			if len(data) > 0 {
 				if _, err := out.Write(data); err != nil {
-					stopDispatch()
-					writeErr <- err
+					fail(err)
 					return
 				}
-				writtenBytes += int64(len(data))
+				outcome.writtenBytes += int64(len(data))
 			}
 			written++
 			// 进度回写节流：分片很小时避免高频加锁 + SSE 广播
 			if written == total || time.Since(lastNotify) >= hlsProgressInterval {
 				lastNotify = time.Now()
-				updateHlsProgress(taskID, written, total, writtenBytes)
+				updateHlsProgress(taskID, written, total, outcome.writtenBytes)
 			}
 			if written == total || written%logStep == 0 {
 				appendHlsLog(taskID, fmt.Sprintf("已下载 %d/%d 分片", written, total))
 			}
 		}
+		outcome.written = written - startIdx
 		writeErr <- nil
 	}()
 
@@ -1163,7 +1338,7 @@ func runHlsDownload(ctx context.Context, taskID string, pl *hlsPlaylist, out *os
 	// 派发分片：取消或写盘失败时立刻停止
 	var feedErr error
 dispatch:
-	for idx := range pl.segments {
+	for idx := startIdx; idx < len(pl.segments); idx++ {
 		if ctx.Err() != nil {
 			feedErr = errHlsCanceled
 			break
@@ -1182,9 +1357,9 @@ dispatch:
 	wg.Wait()
 
 	if err := <-writeErr; err != nil {
-		return writtenBytes, err
+		return outcome, err
 	}
-	return writtenBytes, feedErr
+	return outcome, feedErr
 }
 
 // HlsDownloader 任务执行入口（由调度器调用）
@@ -1229,7 +1404,9 @@ func HlsDownloader(task model.TransferTaskModel) utils.Result {
 	}
 
 	tmpPath := dest + ".part"
-	out, err := os.Create(tmpPath)
+	// 续传：上次失败 / 取消留在磁盘上的分片直接接着写，不必从头再下一遍
+	resumeSeg, resumeBytes := hlsResumeOffset(task.ID, tmpPath, pl)
+	out, err := os.OpenFile(tmpPath, hlsOpenFlags(resumeSeg), 0o644)
 	if err != nil {
 		finishHlsTask(task.ID, model.StatusFailed, "创建文件失败: "+err.Error())
 		return utils.NewFailByMsg("创建文件失败")
@@ -1238,6 +1415,9 @@ func HlsDownloader(task model.TransferTaskModel) utils.Result {
 	// 清空旧日志并写入任务头
 	_ = os.Remove(TaskLogPath(task.ID))
 	appendHlsLog(task.ID, fmt.Sprintf("开始下载 %d 个分片 -> %s", len(pl.segments), dest))
+	if resumeSeg > 0 {
+		appendHlsLog(task.ID, fmt.Sprintf("断点续传：从第 %d/%d 个分片继续（已下载 %s）", resumeSeg+1, len(pl.segments), formatHlsSize(resumeBytes)))
+	}
 	if authRefreshed {
 		appendHlsLog(task.ID, "已刷新分片地址上的鉴权参数")
 	}
@@ -1245,20 +1425,31 @@ func HlsDownloader(task model.TransferTaskModel) utils.Result {
 		appendHlsLog(task.ID, fmt.Sprintf("检测到 %d 个初始化段（多段 fMP4 合并），将按分片顺序写入", n))
 	}
 
-	size, runErr := runHlsDownload(ctx, task.ID, pl, out, hlsOrigin(task.URL), hlsConcurrencyOf(task.ID))
+	outcome, runErr := runHlsDownload(ctx, task.ID, pl, out, hlsOrigin(task.URL), hlsConcurrencyOf(task.ID), resumeSeg, resumeBytes)
 	closeErr := out.Close()
+	size := outcome.writtenBytes
+	// 已落在 .part 里的分片数（含续传起点之前的部分）
+	doneSegments := resumeSeg + outcome.written
 
 	if runErr != nil {
-		_ = os.Remove(tmpPath)
+		// 失败不清 .part：下次重跑（空闲自动补跑或手动重启）从这里继续。
+		// 先截到最后一个完整分片的边界——写盘失败时可能已经落下半截分片，
+		// 直接续传会把残缺数据拼在中间
+		hlsTruncatePart(tmpPath, size)
+		hlsPersistResume(task.ID, tmpPath, doneSegments)
 		if runErr == errHlsCanceled {
-			finishHlsTask(task.ID, model.StatusCancelled, "任务已取消")
+			finishHlsTask(task.ID, model.StatusCancelled, fmt.Sprintf("任务已取消（已下载 %d/%d 个分片，重启可续传）", doneSegments, len(pl.segments)))
 			return utils.NewFailByMsg("任务已取消")
 		}
+		// 多为鉴权过期（源站直接断连而不是返回 403）：把最新地址的播放列表写回磁盘，
+		// 下次重试不至于继续拿着过期地址反复失败
+		saveHlsPlaylist(task.ID, refreshPlaylistAuth(context.Background(), hlsPlaylistOf(task.ID), task.URL))
 		finishHlsTask(task.ID, model.StatusFailed, "下载失败: "+runErr.Error())
 		return utils.NewFailByMsg("下载失败")
 	}
 	if closeErr != nil {
-		_ = os.Remove(tmpPath)
+		hlsTruncatePart(tmpPath, size)
+		hlsPersistResume(task.ID, tmpPath, doneSegments)
 		finishHlsTask(task.ID, model.StatusFailed, "写入文件失败: "+closeErr.Error())
 		return utils.NewFailByMsg("写入文件失败")
 	}
@@ -1269,9 +1460,17 @@ func HlsDownloader(task model.TransferTaskModel) utils.Result {
 		finishHlsTask(task.ID, model.StatusFailed, "保存文件失败: "+err.Error())
 		return utils.NewFailByMsg("保存文件失败")
 	}
+	hlsClearResume(task.ID)
+
+	// 少量坏片被跳过：文件可用，但要说清楚缺在哪儿
+	skipNote := ""
+	if len(outcome.skipped) > 0 {
+		skipNote = fmt.Sprintf("，跳过 %d 个失败分片", len(outcome.skipped))
+		appendHlsLog(task.ID, fmt.Sprintf("已跳过 %d 个下载失败的分片：%s（该文件在对应位置可能跳帧 / 卡顿）", len(outcome.skipped), hlsIndexText(outcome.skipped)))
+	}
 
 	updateHlsProgress(task.ID, len(pl.segments), len(pl.segments), size)
-	finishHlsTask(task.ID, model.StatusCompleted, fmt.Sprintf("下载完成: %s (%s)", dest, formatHlsSize(size)))
+	finishHlsTask(task.ID, model.StatusCompleted, fmt.Sprintf("下载完成: %s (%s)%s", dest, formatHlsSize(size), skipNote))
 	maybeScanDownloaded(dest)
 	// 提交时选择了转码方式：下载产物按路径直接建转码任务（不依赖索引是否已扫描）
 	maybeTranscodeAfterDownload(task.ID, dest, task.TranscodeAfter)
@@ -1551,6 +1750,12 @@ func RestartHlsDownload(taskID string) utils.Result {
 		t.Progress = 0
 		t.Size = 0
 		t.Log = ""
+		// 有断点时先把已下载进度填回去：列表不会先闪一下 0% 再跳回实际进度
+		if seg, size := hlsLoadResume(taskID); seg > 0 && len(data) > 0 {
+			t.Segments = seg
+			t.Size = size
+			t.Progress = seg * 100 / len(data)
+		}
 		TransferTask[taskID] = t
 	}
 	TransferTaskMutex.Unlock()
