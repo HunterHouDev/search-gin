@@ -91,8 +91,9 @@
                 </q-btn-dropdown>
               </div>
               <div class="row q-gutter-sm q-mb-sm items-center">
-                <q-input v-model="state.queryParam.Keyword" dense filled outlined color="primary" placeholder="搜索..."
-                  style="width: 10rem" @update:model-value="debouncedSearch">
+                <q-input v-model="state.queryParam.Keyword" dense filled outlined
+                  color="primary" placeholder="搜索..." style="width: 10rem"
+                  @update:model-value="debouncedSearch">
                   <template v-slot:append>
                     <q-icon name="search" class="cursor-pointer" @click="fetchSearch" />
                   </template>

@@ -22,13 +22,14 @@
       </button>
     </div>
 
-    <!-- 链接输入框 -->
+    <!-- 链接输入框：右键直接用剪切板内容填充 -->
     <div
       class="magnet-input-wrapper"
       :class="{
         'magnet-focused': linkFocused,
         'magnet-input-multi': linkTab === 'hls',
       }"
+      @contextmenu.prevent="pasteLinkFromClipboard"
     >
       <q-icon
         :name="activeLinkTab.icon"
@@ -184,7 +185,7 @@
                 class="hls-quick-toggle"
               >
                 <q-tooltip class="bg-dark text-white"
-                  >开启后：粘贴 / 输入分片链接，内容停稳约 1 秒即自动解析（追加到已有源，不会清掉之前的解析结果）</q-tooltip
+                  >开启后：粘贴 / 输入分片链接，内容停稳约 1 秒即自动解析（每次执行都会先清掉上一次的解析结果；要合并多个源就把多个地址一起粘贴）</q-tooltip
                 >
               </q-toggle>
               <q-btn
@@ -358,25 +359,32 @@
           </div>
           <!-- 下载设置：文件名 + 目录 + 下载按钮，撑满一行（文件名自适应剩余宽度） -->
           <div class="hls-download-row">
-            <q-input
-              v-model="hlsDownloadName"
-              dark
-              dense
-              borderless
-              class="hls-filename-input"
-              :placeholder="hlsDefaultDownloadName"
-              :disable="!hlsKeptCount"
-              maxlength="120"
-              @keyup.enter="downloadHls"
+            <!-- 文件名输入框：右键直接用剪切板内容填充（display: contents 不占布局，
+                 文件名输入框仍独占该行剩余宽度） -->
+            <span
+              style="display: contents"
+              @contextmenu.prevent="pasteFileNameFromClipboard"
             >
-              <template #prepend>
-                <q-icon name="edit_note" size="16px" color="indigo-4" />
-              </template>
-              <q-tooltip class="bg-dark text-white">
-                自定义保存文件名，留空则用默认名
-                {{ hlsDefaultDownloadName }}
-              </q-tooltip>
-            </q-input>
+              <q-input
+                v-model="hlsDownloadName"
+                dark
+                dense
+                borderless
+                class="hls-filename-input"
+                :placeholder="hlsDefaultDownloadName"
+                :disable="!hlsKeptCount"
+                maxlength="120"
+                @keyup.enter="downloadHls"
+              >
+                <template #prepend>
+                  <q-icon name="edit_note" size="16px" color="indigo-4" />
+                </template>
+                <q-tooltip class="bg-dark text-white">
+                  自定义保存文件名，留空则用默认名；右键可直接粘贴剪切板内容
+                  {{ hlsDefaultDownloadName }}
+                </q-tooltip>
+              </q-input>
+            </span>
             <q-btn-dropdown
               flat
               dense
@@ -1221,6 +1229,40 @@ async function copyAllSegmentUrls() {
     timeout: 1500,
   });
 }
+
+// ── 右键填充输入框（剪切板 → 输入框） ────────────────────────────────────────
+/**
+ * 右键输入框：直接把剪切板内容填进来，省掉「先聚焦再 Ctrl+V」。
+ * 读不到剪切板（非安全上下文：http 局域网访问 / 浏览器未授权）时给出提示，
+ * 否则右键「什么都没发生」会让人以为功能没生效。
+ */
+async function fillFromClipboard(apply: (text: string) => void) {
+  try {
+    const text = ((await navigator.clipboard.readText()) || '').trim();
+    if (!text) return;
+    apply(text);
+  } catch {
+    $q.notify({
+      type: 'warning',
+      message: '无法读取剪切板，请用 Ctrl+V 粘贴（局域网 http 访问下浏览器会禁用读取）',
+      position: 'top',
+      timeout: 2500,
+    });
+  }
+}
+
+/** 右键链接输入框：填到当前 tab 对应的链接（磁力 / 视频 / 分片） */
+const pasteLinkFromClipboard = () =>
+  fillFromClipboard((text) => {
+    // 分片链接按空格 / 换行拆成多行，一次粘贴多个地址也照旧
+    activeLinkValue.value = text;
+  });
+
+/** 右键文件名输入框：填下载文件名 */
+const pasteFileNameFromClipboard = () =>
+  fillFromClipboard((text) => {
+    hlsDownloadName.value = text;
+  });
 
 // ── 停止播放 / 卸载 ───────────────────────────────────────────────────────────
 /**

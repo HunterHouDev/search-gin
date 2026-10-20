@@ -57,10 +57,12 @@ const shutdownUnitOptions = [
   { label: '小时', value: 'hour' },
 ];
 
+// 默认选中「定时」：立即关机不可撤销（只能到机器上手动开机），
+// 误点代价太大；定时关机随时可以「清除定时」撤回。
 const view = reactive({
   shutdownValue: 1,
-  shutdownUnit: 'minute',
-  shutdownType: 'now',
+  shutdownUnit: 'hour',
+  shutdownType: 'target',
 });
 
 const open = () => {

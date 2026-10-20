@@ -1228,7 +1228,7 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
   const linkActionTooltip = computed(() => {
     if (linkTab.value === 'magnet') return '解析磁力链并选择要播放或下载的文件';
     if (linkTab.value === 'video') return activeLinkTab.value.tooltip;
-    return '解析分片列表，可一次粘贴多个 m3u8 地址（空格 / 换行分隔）；同一地址会重新解析';
+    return '解析分片列表（先清空上一次的解析结果）：可一次粘贴多个 m3u8 地址，空格 / 换行分隔即按顺序合并';
   });
 
   const linkActionLoading = computed(
@@ -1464,11 +1464,11 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
   /**
    * 解析分片链接。多个地址即多个源，按顺序合并播放 / 下载。
    *
-   * @param keepExisting 保留已解析的源与分片（追加）。手动点「解析」是重新解析
-   * （先清空上次结果）；快捷下载自动触发时传 true——粘贴即添加，
-   * 否则每粘一个新链接都会把前面已添加的源清掉。
+   * 每次执行都是全新的一份：先清掉上一次的源与分片，再解析输入框里的地址，
+   * 否则新结果与旧结果会混在同一份列表里（删分片、合并顺序都对不上）。
+   * 想一次合并多个源就把多个地址一起粘贴（空格 / 换行分隔）。
    */
-  async function parseHls(keepExisting = false) {
+  async function parseHls() {
     const raw = hlsURL.value.trim();
     if (!raw) {
       notifyNegative('请输入分片链接');
@@ -1481,11 +1481,9 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
       return;
     }
 
-    // 重新解析：只清空上次的源列表与分片，播放器保持原样（继续播放，不销毁 HLS 实例）；
+    // 先清空上一次的解析结果（源列表 + 分片），播放器保持原样（继续播放，不销毁 HLS 实例）；
     // 下载列表与广告黑名单同样保留
-    if (!keepExisting) {
-      resetHlsParse();
-    }
+    resetHlsParse();
 
     hlsParsing.value = true;
     const failures: string[] = [];
@@ -1550,8 +1548,8 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
       quickParseTimer = null;
       if (hlsParsing.value || text === lastQuickParsed) return;
       lastQuickParsed = text;
-      // 追加模式：连续粘贴多个源时不会清掉已解析的结果
-      void parseHls(true);
+      // 与手动点「解析」一致：每次执行都先清掉上一次的结果
+      void parseHls();
     }, QUICK_PARSE_DELAY);
   });
 

@@ -64,6 +64,30 @@
           @delete="onSearchPanelDelete"
         />
       </div>
+      <!-- 视频链接 / 分片下载：不再弹出播放列表。
+           面板常驻（v-show），关掉浮层不会中断正在播放的链接 -->
+      <div v-show="view.showLinkPanel" class="link-panel-mask">
+        <div class="link-panel-wrap">
+          <div class="row items-center q-px-sm q-py-xs">
+            <span class="text-subtitle2">视频链接 / 分片下载</span>
+            <q-space />
+            <q-btn
+              flat
+              dense
+              round
+              color="red"
+              icon="close"
+              @click="view.showLinkPanel = false"
+            />
+          </div>
+          <LinkSourcePanel
+            ref="linkPanelRef"
+            :get-video-el="getVideoEl"
+            :get-volume="getPlayerVolume"
+            :on-play="handleLinkPlay"
+          />
+        </div>
+      </div>
       <FileEdit ref="fileEditRef" />
       <q-page-sticky position="top-left" :offset="[0, -50]">
         <div class="q-gutter-sm row justify-start">
@@ -123,10 +147,14 @@
             dense
             color="red"
             v-if="!minimal"
-            icon="ti-menu-alt"
-            @click="view.showDrawer = true"
+            icon="ti-plus"
+            @click="view.showLinkPanel = true"
             v-touch-pan.prevent.mouse="moveFab"
-          ></q-btn>
+          >
+            <q-tooltip class="bg-white text-primary"
+              >在线播放/下载</q-tooltip
+            >
+          </q-btn>
         </div>
         <div
           v-if="!minimal"
@@ -148,7 +176,10 @@
           }"
         >
           <div>
+            <!-- 链接 / 下载任务播放时没有索引信息（SizeStr / Author / Code 为空）：
+                 空值不渲染，避免留一排空白 chip -->
             <q-chip
+              v-if="view.currentData.SizeStr"
               square
               dense
               text-color="red"
@@ -161,7 +192,7 @@
             </q-chip>
 
             <q-chip
-              v-if="view.showExtraInfo"
+              v-if="view.showExtraInfo && view.currentData.Author"
               square
               dense
               text-color="red"
@@ -173,7 +204,7 @@
               </span>
             </q-chip>
             <q-chip
-              v-if="view.showExtraInfo"
+              v-if="view.showExtraInfo && view.currentData.Code"
               square
               dense
               text-color="red"
@@ -353,7 +384,7 @@
 
 <script setup>
 import { useQuasar } from 'quasar';
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useSystemProperty } from 'stores/System';
 import { isMobile } from 'src/boot/platform';
 
@@ -371,6 +402,7 @@ import SearchPanel from 'components/SearchPanel.vue';
 import FileEdit from 'src/pages/file/components/FileEditDialog.vue';
 import VideoVolumnBtn from 'components/VideoVolumnBtn.vue';
 import DeleteBtn from 'components/DeleteBtn.vue';
+import LinkSourcePanel from 'src/components/LinkSourcePanel.vue';
 
 defineProps({
   minimal: { type: Boolean, default: false },
@@ -391,6 +423,8 @@ const searchPanelRef = ref(null);
 const fileEditRef = ref(null);
 const view = reactive({
   showDrawer: false,
+  // 视频链接 / 分片下载浮层（播放走当前小窗播放器）
+  showLinkPanel: false,
   showExtraInfo: true,
   splitterModel: 100,
   currentData: {},
@@ -496,6 +530,70 @@ const onSearchPanelDelete = async (item) => {
   searchPanelRef.value?.fetchSearch();
 };
 
+// ── 视频链接 / 分片下载面板（播放落到当前小窗播放器） ──────────────────────────
+const linkPanelRef = ref(null);
+
+/** 当前播放用的 video 元素（小窗播放器本身） */
+const getVideoEl = () => document.getElementById('hoverVideoID');
+
+/** 小窗的当前音量，供链接面板起播时沿用 */
+const getPlayerVolume = () =>
+  getVideoEl()?.volume ?? systemProperty.videoOptions?.volume ?? 0.8;
+
+/**
+ * 切换播放源前的收尾：停掉面板持有的 hls 实例，并清空元素上的 src。
+ *
+ * hls.js 会把 MediaSource 直接写到 video 元素的 src 上（Vue 并不知情），
+ * 之后再只改 view.videoUrl 会出问题：
+ *   1) 值与上次相同 → Vue 判定无变化不会重新渲染，同一个地址再点播放毫无反应；
+ *   2) 值不同虽然会渲染，但残留的 MediaSource 会和新源互相打架。
+ * 所以每次切换都先在这里归零，必要时再由调用方强制对齐元素属性。
+ */
+const resetVideoElement = () => {
+  linkPanelRef.value?.destroyHls?.();
+  const el = getVideoEl();
+  if (!el) return;
+  try {
+    el.pause();
+  } catch {
+    /* 忽略暂停异常 */
+  }
+  el.removeAttribute('src');
+  el.load();
+};
+
+/**
+ * 链接面板的播放请求：一律用当前播放器播放。
+ *
+ * src 为空表示由面板的 hls.js 实例接管（它会自己写 MediaSource），
+ * 此时不能碰元素——置空 view.videoUrl 会让整个小窗被 v-show 隐藏。
+ */
+const handleLinkPlay = async (src, name) => {
+  if (name) {
+    // 下载任务 / 链接不是索引里的文件：只保留任务文件名，
+    // SizeStr / Author / Code 一律不带（否则会残留上一个文件的元信息）
+    view.currentData = { Name: name };
+  }
+  // 播放一律落到小窗播放器，浮层正挡在前面：起播即收起。
+  // 面板是 v-show 常驻，收起不会中断下载，也不会停掉 hls.js 的播放
+  view.showLinkPanel = false;
+  if (!src) return;
+
+  resetVideoElement();
+  view.videoUrl = src;
+  await nextTick();
+  const el = getVideoEl();
+  if (!el) return;
+  // 元素上的 src 可能还留着上一次的 MediaSource，强制对齐
+  if (el.getAttribute('src') !== src) {
+    el.src = src;
+  }
+  el.volume = systemProperty.videoOptions?.volume ?? el.volume;
+  el.play().catch(() => {
+    // 自动播放被浏览器拦下时静默：控件已展开，用户点一下即可
+  });
+};
+
 const moveFab = (ev) => {
   systemProperty.pictureInPictureVideoOffset = [
     systemProperty.pictureInPictureVideoOffset[0] - ev.delta.x,
@@ -521,6 +619,8 @@ const closeVideo = () => {
   exitFrameWebFullscreen();
   exitFullscreen();
   systemProperty.PlayingMovie = {};
+  // 播放器都没了，链接面板跟着收起（面板常驻，这里只是隐藏）
+  view.showLinkPanel = false;
   view.videoUrl = null;
   cancelAnimationFrame(animationFrame);
   emmits('close');
@@ -604,11 +704,17 @@ const openVideo = async (params) => {
   view.queryParam = queryParam;
   view.currentData = item;
   systemProperty.PlayingMovie = item;
+  // 上一个源可能是分片链接（hls.js 直接写在元素上的 MediaSource）：先归零再换源，
+  // 否则再播同一个文件时 Vue 认为 src 没变，点了播放也不切换
+  resetVideoElement();
   view.videoUrl = streamUrl;
 
   const videoElement = document.getElementById('hoverVideoID');
   const videoLocation = systemProperty.getPlayerLocation(item.Id);
   if (videoElement) {
+    if (videoElement.getAttribute('src') !== streamUrl) {
+      videoElement.src = streamUrl;
+    }
     videoElement.volume = systemProperty.videoOptions?.volume;
     videoElement.loop = systemProperty.videoOptions?.loop;
 
@@ -672,6 +778,7 @@ const setVideoWidth = () => {
 const videoWidthDebounce = useDebounceFn(setVideoWidth, 500);
 
 const restartVideo = () => {
+  resetVideoElement();
   view.videoUrl = null;
   const time1 = setTimeout(() => {
     view.videoUrl = view.currentData.StreamUrl;
@@ -760,5 +867,25 @@ defineExpose({
   font-weight: 500;
   width: fit-content;
   background-color: rgba(0, 0, 0, 0.2);
+}
+
+/* 视频链接 / 分片下载浮层：盖在整个页面上，内容超出时内部滚动 */
+.link-panel-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.link-panel-wrap {
+  width: min(92vw, 1100px);
+  max-height: 80vh;
+  overflow: auto;
+  background: rgba(12, 12, 24, 0.95);
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  border-radius: 12px;
 }
 </style>
