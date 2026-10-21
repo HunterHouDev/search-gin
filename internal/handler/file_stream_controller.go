@@ -16,8 +16,11 @@ func GetRefreshTargetIndex(c *gin.Context) {
 	if !requirePermission(c, "op:scan") {
 		return
 	}
-	dir := c.Param("dir")
-	baseDir, _ := url.QueryUnescape(dir)
+	// rawPathParam 已按路径语义解过码，这里不能再解一次（见其注释）
+	baseDir, err := rawPathParam(c, "dir")
+	if err != nil {
+		baseDir = c.Param("dir")
+	}
 
 	validatedDir, ok := validatePathOrRespond(c, baseDir, "路径不在允许范围内")
 	if !ok {
@@ -37,9 +40,31 @@ func GetRefreshIndex(c *gin.Context) {
 	c.JSON(http.StatusOK, utils.NewSuccessByMsg("计划扫描："+fmt.Sprint(cnt)))
 }
 
+// rawPathParam 取路由参数的原始值，再按「路径」语义解码一次。
+//
+// 不能直接用 c.Param + url.QueryUnescape：
+//  1. net/http 的 URL.Path 已经解过一次码，再解一次遇到 `%`（如 `50%.mp4`）会报错；
+//  2. gin 解码参数是 QueryUnescape 语义，`+` 会被当成空格——
+//     文件名里的 `+`（前端编码成 %2B）会变成空格，于是找不到文件、返回 404。
+//
+// 这里从原始 URL（仍未解码）里取最后一段，用 PathUnescape 解码，
+// `%2B` → `+`、`%25` → `%` 都能还原成文件名本身；取不到时回落到 c.Param。
+func rawPathParam(c *gin.Context, key string) (string, error) {
+	raw := c.Request.URL.EscapedPath()
+	if idx := strings.LastIndex(raw, "/"); idx >= 0 {
+		raw = raw[idx+1:]
+	}
+	if raw == "" {
+		// 没有真实 URL 段（例如单元测试直接调用 handler）：回落到路由参数，
+		// 仍按路径语义解码，非法转义照样报错
+		return url.PathUnescape(c.Param(key))
+	}
+	return url.PathUnescape(raw)
+}
+
 func GetFileByPathUseEncode(c *gin.Context) {
-	decodedPath, err := url.QueryUnescape(c.Param("path"))
-	if err != nil {
+	decodedPath, err := rawPathParam(c, "path")
+	if err != nil || strings.TrimSpace(decodedPath) == "" {
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("无效的文件路径"))
 		return
 	}
@@ -51,9 +76,11 @@ func GetFileByPathUseEncode(c *gin.Context) {
 
 	if utils.ExistsFiles(validatedPath) {
 		c.File(validatedPath)
-	} else {
-		c.JSON(http.StatusNotFound, utils.NewFailByMsg("文件不存在"))
+		return
 	}
+	// 带上解析后的路径：下载回放 404 时能一眼看出是地址被解错了还是文件真的没了
+	utils.InfoFormat("GetFileByPathUseEncode: 文件不存在 path=%s", validatedPath)
+	c.JSON(http.StatusNotFound, utils.NewFailByMsg("文件不存在: "+validatedPath))
 }
 
 // GetFileExists 校验服务端上的文件是否仍然存在。
@@ -86,8 +113,9 @@ func GetDeleteFileByPathUseEncode(c *gin.Context) {
 		return
 	}
 
-	decodedPath, err := url.QueryUnescape(c.Param("path"))
-	if err != nil {
+	// 与回放同一套解码规则：文件名里的 % / + 才能还原（见 rawPathParam 注释）
+	decodedPath, err := rawPathParam(c, "path")
+	if err != nil || strings.TrimSpace(decodedPath) == "" {
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("无效的文件路径"))
 		return
 	}

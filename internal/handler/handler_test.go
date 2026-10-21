@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -795,6 +798,33 @@ func TestGetFileByPathUseEncode_InvalidPath(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), "无效的文件路径")
+}
+
+// TestGetFileByPathUseEncode_SpecialChars 校验文件名里的空格 / 中文 / % / + 都能还原。
+//
+// 前端用 encodeURIComponent 编码（`+` → %2B，空格 → %20）。若服务端按
+// QueryUnescape 语义再解一次：`%` 会直接报「无效的文件路径」、`+` 会被解成空格，
+// 表现为下载列表点回放返回 400 / 404，播放器一直转圈。
+func TestGetFileByPathUseEncode_SpecialChars(t *testing.T) {
+	dir := t.TempDir()
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{dirs: []string{dir}})
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/api/stream/GetFileByPathUseEncode/:path", GetFileByPathUseEncode)
+
+	for _, name := range []string{"v.mp4", "my video 电影.mp4", "50%.mp4", "a+b.mp4"} {
+		file := filepath.Join(dir, name)
+		require.NoError(t, os.WriteFile(file, []byte("x"), 0644))
+
+		// encodeURIComponent 语义：空格是 %20，不是 +
+		encoded := strings.ReplaceAll(url.QueryEscape(file), "+", "%20")
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/api/stream/GetFileByPathUseEncode/"+encoded, nil)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code, "文件名: %s", name)
+	}
 }
 
 func TestGetDeleteFileByPathUseEncode_NoAdmin(t *testing.T) {
