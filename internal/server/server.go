@@ -47,6 +47,8 @@ func GracefulShutdown(sigChan <-chan os.Signal, servers []*http.Server) {
 
 		// 强制写入索引缓存，避免 30 秒去抖窗口内退出导致缓存丢失
 		service.FlushCache()
+		// 下载列表同样强制落盘：去抖窗口内的状态变更不该丢
+		service.FlushHlsTaskStore()
 
 		shutdownTimeout := 5 * time.Second
 		for _, srv := range servers {

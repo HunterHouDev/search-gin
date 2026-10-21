@@ -12,7 +12,7 @@
     label="PNG"
     class="fts12"
     @click="previewPng"
-    v-if="systemProperty.PlayingMovie.MovieType != '骑兵'"
+    v-if="systemProperty.PlayingMovie?.MovieType != '骑兵'"
   />
   <q-btn
     flat

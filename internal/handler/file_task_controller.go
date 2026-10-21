@@ -131,6 +131,8 @@ func GetDelTransferTask(c *gin.Context) {
 	}
 	// 分片下载：清理失败 / 取消残留的临时文件（散落在下载目录，不会随任务一起消失）
 	service.CleanupHlsPartial(task)
+	// 列表变了：同步下载列表快照
+	service.SaveHlsTaskStore()
 	// DeleteTaskLog 内部会释放运行时资源并取消仍在下载的分片任务
 	service.DeleteTaskLog(taskID)
 	service.CleanupExpiredTaskLogs(7)

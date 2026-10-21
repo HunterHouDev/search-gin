@@ -255,11 +255,19 @@ func FillURLs(c *gin.Context, movies []model.FileItem) {
 
 	for i := range movies {
 		m := &movies[i]
+		// Srt 是按文件名推导出来的，磁盘上不一定真有同名字幕：
+		// 不存在的清掉，前端就不会为一个不存在的字幕发 404
+		if m.Srt != "" && !utils.ExistsFiles(m.Srt) {
+			m.Srt = ""
+		}
 		if m.StreamUrl != "" {
 			continue
 		}
 		localBase := localBases[i%2] // 交替使用两个端口，突破浏览器 HTTP/1.1 每域名 6 连接限制
-		m.StreamUrl = localBase + streamPath + url.QueryEscape(m.Path) + streamTokenParam
+		// 路径参数必须用 PathEscape（空格 → %20，`+` 原样保留）。
+		// 旧的 QueryEscape 会把空格编成 `+`，与服务端按路径语义解码对不上：
+		// 文件名带空格时还原出 `+`，表现就是「视频无法播放 / 404」。
+		m.StreamUrl = localBase + streamPath + url.PathEscape(m.Path) + streamTokenParam
 		m.PngUrl = localBase + pngPath + m.Id + imgTokenParam
 		m.JpgUrl = localBase + jpgPath + m.Id + imgTokenParam
 		m.NodeHost = localNode

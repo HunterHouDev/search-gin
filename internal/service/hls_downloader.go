@@ -199,11 +199,21 @@ func setHlsCancel(id string, cancel context.CancelFunc) {
 	hlsRuntimeMutex.Unlock()
 }
 
+// hlsPlaylistOf 取任务的播放列表文本。
+//
+// 运行时里没有时回落到落盘的文件（HlsPlaylistPath）：
+// 进程重启后内存里的运行时是空的，而下载列表是从磁盘快照恢复的——
+// 少了这个回落，恢复出来的任务一跑就报「播放列表内容丢失」。
 func hlsPlaylistOf(id string) string {
 	hlsRuntimeMutex.Lock()
-	defer hlsRuntimeMutex.Unlock()
 	if rt, ok := hlsRuntimeMap[id]; ok {
+		hlsRuntimeMutex.Unlock()
 		return rt.playlist
+	}
+	hlsRuntimeMutex.Unlock()
+
+	if data, err := os.ReadFile(HlsPlaylistPath(id)); err == nil && len(data) > 0 {
+		return string(data)
 	}
 	return ""
 }
@@ -1143,6 +1153,8 @@ func finishHlsTask(id string, status string, message string) {
 		appendHlsLog(id, message)
 	}
 	forgetHlsRuntime(id)
+	// 任务结束（完成 / 失败 / 取消）：同步到下载列表快照
+	SaveHlsTaskStore()
 }
 
 // hlsSegmentResult 单个分片的下载结果；按索引放在固定槽位以恢复写入顺序
@@ -1698,6 +1710,8 @@ func CreateHlsDownloadTask(param HlsDownloadParam) utils.Result {
 	// 播放列表落盘：任务失败后可据此重启（运行时内存会被丢弃）
 	saveHlsPlaylist(task.ID, playlist)
 	wakeTaskScheduler()
+	// 任务已入列表：更新下载列表快照（重启后仍在列表里）
+	SaveHlsTaskStore()
 
 	utils.InfoFormat("CreateHlsDownloadTask: 创建成功 dest=%s, 分片数=%d, 并发=%d", dest, len(pl.segments), concurrency)
 	LogTaskEvent("创建", task, fmt.Sprintf("dest=%s, 分片数=%d", dest, len(pl.segments)))
@@ -1763,6 +1777,8 @@ func RestartHlsDownload(taskID string) utils.Result {
 	// 手动重启：清空自动重跑次数，用户已介入处理时重新给满自动重试额度
 	ResetHlsAutoRetry(taskID)
 	wakeTaskScheduler()
+	// 状态回到等待：同步下载列表快照
+	SaveHlsTaskStore()
 
 	utils.InfoFormat("RestartHlsDownload: 任务已重启 id=%s, dest=%s", taskID, task.Path)
 	LogTaskEvent("重启", task, "dest="+task.Path)

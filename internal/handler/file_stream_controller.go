@@ -62,25 +62,69 @@ func rawPathParam(c *gin.Context, key string) (string, error) {
 	return url.PathUnescape(raw)
 }
 
+// pathCandidates 给出该路径参数的两种解码结果：
+//
+//  1. 路径语义（PathUnescape）：`%20` → 空格、`+` 保持 `+`
+//     —— 现在生成链接的统一规则（PathEscape），也兼容 encodeURIComponent；
+//  2. query 语义（QueryUnescape）：`+` → 空格
+//     —— 老版本用 url.QueryEscape 生成过链接（空格编成 `+`），
+//     浏览器缓存 / 持久化的播放地址里还可能是这种格式。
+//
+// 由调用方按「哪个解码结果真的存在」来挑，避免猜编码方式猜错就把能播的文件判成 404。
+func pathCandidates(raw string) []string {
+	out := make([]string, 0, 2)
+	add := func(p string, err error) {
+		if err != nil || strings.TrimSpace(p) == "" {
+			return
+		}
+		for _, exist := range out {
+			if exist == p {
+				return
+			}
+		}
+		out = append(out, p)
+	}
+	add(url.PathUnescape(raw))
+	add(url.QueryUnescape(raw))
+	return out
+}
+
 func GetFileByPathUseEncode(c *gin.Context) {
-	decodedPath, err := rawPathParam(c, "path")
-	if err != nil || strings.TrimSpace(decodedPath) == "" {
+	raw := c.Request.URL.EscapedPath()
+	if idx := strings.LastIndex(raw, "/"); idx >= 0 {
+		raw = raw[idx+1:]
+	}
+	if raw == "" {
+		// 单元测试直接调用 handler 时没有真实 URL 段：回落到路由参数
+		raw = c.Param("path")
+	}
+
+	candidates := pathCandidates(raw)
+	if len(candidates) == 0 {
 		c.JSON(http.StatusBadRequest, utils.NewFailByMsg("无效的文件路径"))
 		return
 	}
 
-	validatedPath, ok := validatePathOrRespond(c, decodedPath, "访问被拒绝：路径不在允许范围内")
-	if !ok {
-		return
+	dirs := UseApp().config.Get().Dirs
+	allowed := false
+	for _, candidate := range candidates {
+		validatedPath, err := utils.ValidatePath(candidate, dirs)
+		if err != nil {
+			continue
+		}
+		allowed = true
+		if utils.ExistsFiles(validatedPath) {
+			c.File(validatedPath)
+			return
+		}
 	}
-
-	if utils.ExistsFiles(validatedPath) {
-		c.File(validatedPath)
+	if !allowed {
+		c.JSON(http.StatusForbidden, utils.NewFailByMsg("访问被拒绝：路径不在允许范围内"))
 		return
 	}
 	// 带上解析后的路径：下载回放 404 时能一眼看出是地址被解错了还是文件真的没了
-	utils.InfoFormat("GetFileByPathUseEncode: 文件不存在 path=%s", validatedPath)
-	c.JSON(http.StatusNotFound, utils.NewFailByMsg("文件不存在: "+validatedPath))
+	utils.InfoFormat("GetFileByPathUseEncode: 文件不存在 raw=%s path=%s", raw, candidates[0])
+	c.JSON(http.StatusNotFound, utils.NewFailByMsg("文件不存在: "+candidates[0]))
 }
 
 // GetFileExists 校验服务端上的文件是否仍然存在。

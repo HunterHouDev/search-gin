@@ -813,7 +813,8 @@ func TestGetFileByPathUseEncode_SpecialChars(t *testing.T) {
 	router := gin.New()
 	router.GET("/api/stream/GetFileByPathUseEncode/:path", GetFileByPathUseEncode)
 
-	for _, name := range []string{"v.mp4", "my video 电影.mp4", "50%.mp4", "a+b.mp4"} {
+	// 「皮皮\皮皮+某.mp4」是线上真实踩到的形状：中文 ＋ 字面量 `+`
+	for _, name := range []string{"v.mp4", "my video 电影.mp4", "50%.mp4", "a+b.mp4", "皮皮+某.mp4"} {
 		file := filepath.Join(dir, name)
 		require.NoError(t, os.WriteFile(file, []byte("x"), 0644))
 
@@ -825,6 +826,27 @@ func TestGetFileByPathUseEncode_SpecialChars(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code, "文件名: %s", name)
 	}
+}
+
+// TestGetFileByPathUseEncode_QueryStylePlus 兼容把空格编码成 `+` 的客户端
+// （URLSearchParams / QueryEscape 语义）；文件名本身带空格时也能播。
+func TestGetFileByPathUseEncode_QueryStylePlus(t *testing.T) {
+	dir := t.TempDir()
+	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{dirs: []string{dir}})
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/api/stream/GetFileByPathUseEncode/:path", GetFileByPathUseEncode)
+
+	file := filepath.Join(dir, "皮皮 第01集.mp4")
+	require.NoError(t, os.WriteFile(file, []byte("x"), 0644))
+
+	// QueryEscape：空格 → `+`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/stream/GetFileByPathUseEncode/"+url.QueryEscape(file), nil)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestGetDeleteFileByPathUseEncode_NoAdmin(t *testing.T) {

@@ -163,7 +163,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch } from 'vue';
+import { computed, ref, reactive, watch } from 'vue';
 import { format } from 'quasar';
 import { useQuasar } from 'quasar';
 import { useBreakpoint } from 'src/composables/useBreakpoint';

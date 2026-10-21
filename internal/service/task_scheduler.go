@@ -377,6 +377,8 @@ func markTaskExecuting(key string) {
 		PendingTaskCount.Add(-1)
 	}
 	TransferTaskMutex.Unlock()
+	// 状态变为执行中：同步到下载列表快照
+	SaveHlsTaskStore()
 }
 
 // ── 扫描任务队列 ──────────────────────────────────────────────────

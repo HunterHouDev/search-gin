@@ -31,7 +31,8 @@ const LONG_TIMEOUT = 120000;
 
 export const RefreshAPI = async (BaseDir: string) => {
   if (BaseDir && BaseDir.length > 0) {
-    const params = encodeURI(BaseDir);
+    // encodeURIComponent：encodeURI 不转义 # / + / &，文件名里带这些字符会截断地址
+    const params = encodeURIComponent(BaseDir);
     return RefreshTargetAPI(params);
   }
   const res = await commonAxios().get('/api/refreshIndex', {
@@ -59,7 +60,7 @@ export const QueryDirImages = async (data: string, sort: string) => {
 
 export const DeleteFileByPathUseEncode = async (path: string) => {
   const res = await commonAxios().get(
-    `/api/DeleteFileByPathUseEncode/${encodeURI(path)}`
+    `/api/DeleteFileByPathUseEncode/${encodeURIComponent(path)}`
   );
   return res;
 };

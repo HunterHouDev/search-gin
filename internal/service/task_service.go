@@ -69,6 +69,8 @@ func ClearCompletedTasks() utils.Result {
 		}
 	}
 	CleanupExpiredTaskLogs(7)
+	// 列表变了：同步下载列表快照
+	SaveHlsTaskStore()
 	return utils.NewSuccessByMsg(fmt.Sprintf("已清除 %d 个已完成任务", count))
 }
 
@@ -88,6 +90,7 @@ func ClearFailedTasks() utils.Result {
 		}
 	}
 	CleanupExpiredTaskLogs(7)
+	SaveHlsTaskStore()
 	return utils.NewSuccessByMsg(fmt.Sprintf("已清除 %d 个失败任务", count))
 }
 
@@ -113,6 +116,7 @@ func ClearAllTasks() utils.Result {
 		}
 	}
 	CleanupExpiredTaskLogs(7)
+	SaveHlsTaskStore()
 	return utils.NewSuccessByMsg(fmt.Sprintf("已清除 %d 个任务", count))
 }
 

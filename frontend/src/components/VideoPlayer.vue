@@ -162,7 +162,9 @@
       transform: `${systemProperty.videoOptions.rotate}`,
     }"
   >
+    <!-- 没有同名 .srt 时不挂 track：否则每次播放都会对不存在的字幕发一次 404 -->
     <track
+      v-if="view.videoSubtitles"
       :src="view.videoSubtitles"
       kind="subtitles"
       srclang="zh"
@@ -295,7 +297,8 @@ const openVideo = async (item) => {
   systemProperty.PlayingMovie = item;
   view.videoUrl = streamUrl;
   view.videoPoster = jpgUrl;
-  view.videoSubtitles = getVideoSrt(item.Srt);
+  // 后端只会在同名 .srt 真实存在时给 Srt，空则不挂字幕轨
+  view.videoSubtitles = item.Srt ? getVideoSrt(item.Srt) : '';
 
   // 移除旧监听器，防止重复
   if (loadedMetadataHandler) {
@@ -408,12 +411,32 @@ const handleSubtitleError = (e) => {
   console.error('字幕加载失败:', e);
 };
 
+/**
+ * 播放失败要说清楚是「文件拿不到」还是「浏览器解不了」：
+ * MEDIA_ERR_NETWORK / SRC_NOT_SUPPORTED 的原因和处理方式完全不同，
+ * 只打一个 Event 对象没人能判断。
+ */
 const onVideoError = (e) => {
-  console.error('视频播放失败:', e);
+  const video = e?.target || vue3VideoPlayRef.value;
+  const err = video?.error;
+  const code = err?.code || 0;
+  let msg = '视频加载失败，请检查网络连接';
+  if (code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
+    msg = '浏览器无法播放该文件（容器或编码不支持），可先转码为 MP4 / H264';
+  } else if (code === MediaError.MEDIA_ERR_NETWORK) {
+    msg = '视频文件无法访问（可能已被移动或删除，或服务端返回 404）';
+  } else if (code === MediaError.MEDIA_ERR_DECODE) {
+    msg = '视频解码失败，文件可能损坏';
+  }
+  console.error('视频播放失败:', msg, {
+    code,
+    detail: err?.message || '',
+    src: view.videoUrl,
+  });
   view.videoLoading = false;
   view.videoError = true;
-  view.videoErrorMsg = '视频加载失败，请检查网络连接';
-  $q.notify({ type: 'negative', message: '视频播放失败', position: 'top' });
+  view.videoErrorMsg = msg;
+  $q.notify({ type: 'negative', message: msg, position: 'top', timeout: 4000 });
 };
 
 const onVideoPlaying = () => {

@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"search-gin/internal/env"
 	"search-gin/internal/handler"
@@ -94,6 +95,10 @@ func main() {
 
 	// ── 15. 启动后台任务 ──
 	service.StartBackgroundTasks()
+
+	// ── 15.1 延迟加载下载列表（磁盘快照）──
+	// 等后台调度与 HTTP 服务都起来之后再回填，未完成的任务重新排队继续下载
+	service.LoadHlsTaskStoreDelayed(5 * time.Second)
 
 	// ── 16. 启动定时关机协程 ──
 	service.InitShutdownScheduler()

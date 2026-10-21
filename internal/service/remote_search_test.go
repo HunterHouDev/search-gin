@@ -3,6 +3,7 @@ package service
 import (
 	"net"
 	"net/http/httptest"
+	"net/url"
 	"search-gin/internal/model"
 	"search-gin/pkg/utils"
 	"strings"
@@ -205,4 +206,33 @@ func TestParseTotalSize_CaseInsensitiveUnit(t *testing.T) {
 	assert.Equal(t, int64(1024), ParseTotalSize("1 k"))
 	assert.Equal(t, int64(1024*1024), ParseTotalSize("1 m"))
 	assert.Equal(t, int64(1024*1024*1024), ParseTotalSize("1 g"))
+}
+
+// TestFillURLs_PathEscapeKeepsSpaces 校验 StreamUrl 的路径编码与服务端解码规则一致：
+// 空格必须是 %20（不是 `+`），否则按路径语义解码会还原出一个带 `+` 的路径，播放 404。
+func TestFillURLs_PathEscapeKeepsSpaces(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest("GET", "/api/movieList", nil)
+
+	moviePath := `E:\emby\gc\皮皮\皮皮 第01集+特别版.mp4`
+	movies := []model.FileItem{{Id: "abc", Path: moviePath}}
+	FillURLs(c, movies)
+
+	streamURL := movies[0].StreamUrl
+	assert.NotEmpty(t, streamURL)
+	// 空格必须是 %20；文件名里字面量的 + 原样保留（PathEscape 不转义它）
+	assert.Contains(t, streamURL, "%20")
+
+	// 取出路径段，按服务端的路径语义解码后必须与原始路径完全一致
+	const prefix = "/api/stream/GetFileByPathUseEncode/"
+	idx := strings.Index(streamURL, prefix)
+	assert.Greater(t, idx, 0)
+	rest := streamURL[idx+len(prefix):]
+	if q := strings.Index(rest, "?"); q >= 0 {
+		rest = rest[:q]
+	}
+	decoded, err := url.PathUnescape(rest)
+	assert.NoError(t, err)
+	assert.Equal(t, moviePath, decoded)
 }
