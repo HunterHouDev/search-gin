@@ -20,6 +20,28 @@ func InitInitializedFlag() { initialized.Store(service.GetOSSetting().AdminPassw
 // MarkInitialized 初始化完成后翻转标记（PostInitSetup 成功时调用）
 func MarkInitialized() { initialized.Store(true) }
 
+// StaticCacheControl 静态资源缓存策略。
+//
+// 带 hash 的产物（Vite 构建出的 /assets/xxx-[hash].js）内容不会变，可以长缓存；
+// 入口页 /index.html 反过来必须不缓存——它是资源指纹的唯一入口，
+// 浏览器缓存住旧页面会在重新部署后继续引用已经不存在的 hash 文件，
+// 服务端再用 index.html 兜底就会返回 text/html，
+// 表现为 "Failed to load module script ... MIME type of text/html"。
+func StaticCacheControl() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		path := c.Request.URL.Path
+		switch {
+		case path == "/" || path == "/index.html":
+			c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+		case strings.HasPrefix(path, "/assets/") ||
+			strings.HasPrefix(path, "/js/") ||
+			strings.HasPrefix(path, "/css/"):
+			c.Header("Cache-Control", "public, max-age=31536000, immutable")
+		}
+		c.Next()
+	}
+}
+
 // InitCheckMiddleware 检查系统是否已完成初始化，未初始化时返回 412
 func InitCheckMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
