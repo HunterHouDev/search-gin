@@ -44,6 +44,7 @@ func buildCORSConfig() cors.Config {
 func buildCommonMiddleware(router *gin.Engine) {
 	router.Use(cors.New(buildCORSConfig()))
 	router.Use(middleware.CustomRecovery())
+	router.Use(middleware.StaticCacheControl())
 }
 
 func buildStreamMiddleware(router *gin.Engine) {

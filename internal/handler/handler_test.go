@@ -38,31 +38,35 @@ func (m *mockIndexEngine) Page(param model.SearchParam) utils.Page {
 func (m *mockIndexEngine) PageAuthor(param model.SearchParam) model.PageAuthorResultWrapper {
 	return model.PageAuthorResultWrapper{}
 }
-func (m *mockIndexEngine) FindById(id string) model.FileItem                         { return model.FileItem{} }
-func (m *mockIndexEngine) FindAuthorByName(name string) model.Author                  { return model.Author{} }
-func (m *mockIndexEngine) GetAuthorCount() int                                        { return m.authCnt }
-func (m *mockIndexEngine) IsEmpty() bool                                              { return m.empty }
-func (m *mockIndexEngine) GetTotalCount() int                                         { return m.totalCount }
-func (m *mockIndexEngine) GetTotalSize() int64                                        { return m.totalSize }
-func (m *mockIndexEngine) BucketCount() int32                                         { return m.bucketCnt }
-func (m *mockIndexEngine) DeleteOnIndex(file model.FileItem)                          {}
-func (m *mockIndexEngine) ReplaceFileOnIndex(oldFile, newFile model.FileItem)         {}
-func (m *mockIndexEngine) GetTypeMenu() map[string]model.FileInfo                     { return m.typeMenu }
-func (m *mockIndexEngine) GetTagMenu() map[string]model.FileInfo                      { return m.tagMenu }
-func (m *mockIndexEngine) GetSeriesCount() map[string]model.FileInfo                  { return m.seriesCnt }
+func (m *mockIndexEngine) FindById(id string) model.FileItem                  { return model.FileItem{} }
+func (m *mockIndexEngine) FindAuthorByName(name string) model.Author          { return model.Author{} }
+func (m *mockIndexEngine) GetAuthorCount() int                                { return m.authCnt }
+func (m *mockIndexEngine) IsEmpty() bool                                      { return m.empty }
+func (m *mockIndexEngine) GetTotalCount() int                                 { return m.totalCount }
+func (m *mockIndexEngine) GetTotalSize() int64                                { return m.totalSize }
+func (m *mockIndexEngine) BucketCount() int32                                 { return m.bucketCnt }
+func (m *mockIndexEngine) DeleteOnIndex(file model.FileItem)                  {}
+func (m *mockIndexEngine) ReplaceFileOnIndex(oldFile, newFile model.FileItem) {}
+func (m *mockIndexEngine) GetTypeMenu() map[string]model.FileInfo             { return m.typeMenu }
+func (m *mockIndexEngine) GetTagMenu() map[string]model.FileInfo              { return m.tagMenu }
+func (m *mockIndexEngine) GetSeriesCount() map[string]model.FileInfo          { return m.seriesCnt }
 
 type mockFileService struct{}
 
-func (m *mockFileService) SetMovieType(movie model.FileItem, movieType string) utils.Result { return utils.NewSuccess() }
-func (m *mockFileService) AddTag(id string, tag string) utils.Result                         { return utils.NewSuccess() }
-func (m *mockFileService) ClearTag(id string, tag string) utils.Result                       { return utils.NewSuccess() }
-func (m *mockFileService) Rename(movie model.FileEdit) utils.Result                          { return utils.NewSuccess() }
-func (m *mockFileService) Move(id string, newDir string, title string) utils.Result          { return utils.NewSuccess() }
-func (m *mockFileService) Delete(id string) utils.Result                                     { return utils.NewSuccess() }
-func (m *mockFileService) ScanAll() int                                                      { return 0 }
-func (m *mockFileService) ScanTarget(baseDir string)                                         {}
-func (m *mockFileService) Walk(dir string, types []string, withSub bool) []model.FileItem    { return nil }
-func (m *mockFileService) DownDeleteDir(dirname string)                                      {}
+func (m *mockFileService) SetMovieType(movie model.FileItem, movieType string) utils.Result {
+	return utils.NewSuccess()
+}
+func (m *mockFileService) AddTag(id string, tag string) utils.Result   { return utils.NewSuccess() }
+func (m *mockFileService) ClearTag(id string, tag string) utils.Result { return utils.NewSuccess() }
+func (m *mockFileService) Rename(movie model.FileEdit) utils.Result    { return utils.NewSuccess() }
+func (m *mockFileService) Move(id string, newDir string, title string) utils.Result {
+	return utils.NewSuccess()
+}
+func (m *mockFileService) Delete(id string) utils.Result                                  { return utils.NewSuccess() }
+func (m *mockFileService) ScanAll() int                                                   { return 0 }
+func (m *mockFileService) ScanTarget(baseDir string)                                      {}
+func (m *mockFileService) Walk(dir string, types []string, withSub bool) []model.FileItem { return nil }
+func (m *mockFileService) DownDeleteDir(dirname string)                                   {}
 
 type mockSettings struct {
 	dirs           []string
@@ -72,7 +76,7 @@ type mockSettings struct {
 func (m *mockSettings) Get() model.Setting {
 	return model.Setting{Dirs: m.dirs, ControllerHost: m.controllerHost}
 }
-func (m *mockSettings) Set(s model.Setting)    {}
+func (m *mockSettings) Set(s model.Setting)     {}
 func (m *mockSettings) Flush(path string) error { return nil }
 
 // ============== Test Helpers ==============
@@ -214,13 +218,13 @@ func TestGetIndexHealthCheck_Scanning(t *testing.T) {
 
 func TestGetIndexHealthCheck_AllTypes(t *testing.T) {
 	tests := []struct {
-		name         string
-		bucketCnt    int32
-		indexNum     int32
-		fullScan     bool
-		spPhase      string
-		expectedSt   string
-		expectRec    bool
+		name       string
+		bucketCnt  int32
+		indexNum   int32
+		fullScan   bool
+		spPhase    string
+		expectedSt string
+		expectRec  bool
 	}{
 		{"scanning_building", 0, 1, false, "building", "building", true},
 		{"bucket_mismatch_warning", 1, 1, false, "done", "warning", true},
@@ -805,6 +809,36 @@ func TestGetFileByPathUseEncode_InvalidPath(t *testing.T) {
 // 前端用 encodeURIComponent 编码（`+` → %2B，空格 → %20）。若服务端按
 // QueryUnescape 语义再解一次：`%` 会直接报「无效的文件路径」、`+` 会被解成空格，
 // 表现为下载列表点回放返回 400 / 404，播放器一直转圈。
+// TestIndexFallback_AssetMissing 校验找不到静态资源时返回 404 文本，而不是 index.html。
+// 回 HTML 会让浏览器把 text/html 当脚本加载，报
+// "Failed to load module script ... MIME type of text/html"，真正的原因（文件不存在）被掩盖。
+func TestIndexFallback_AssetMissing(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.NoRoute(Index)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/assets/index-OLD.js", nil)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.NotContains(t, w.Header().Get("Content-Type"), "text/html")
+}
+
+// TestIndexFallback_ApiMissing 校验未知接口返回 JSON 404（前端 axios 才能正常解析报错）
+func TestIndexFallback_ApiMissing(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.NoRoute(Index)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/notExist", nil)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Contains(t, w.Header().Get("Content-Type"), "application/json")
+}
+
 func TestGetFileByPathUseEncode_SpecialChars(t *testing.T) {
 	dir := t.TempDir()
 	setupHandlerTest(t, &mockIndexEngine{}, &mockFileService{}, &mockSettings{dirs: []string{dir}})
@@ -959,5 +993,3 @@ func TestGetTransferTask_ReturnsOK(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "tasks")
 }
-
-

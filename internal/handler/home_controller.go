@@ -13,7 +13,46 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// assetExts 静态资源的扩展名（脚本 / 样式 / 图片 / 字体 / 媒体）
+var assetExts = map[string]struct{}{
+	".js": {}, ".mjs": {}, ".css": {}, ".map": {}, ".json": {},
+	".png": {}, ".jpg": {}, ".jpeg": {}, ".gif": {}, ".svg": {}, ".ico": {}, ".webp": {},
+	".woff": {}, ".woff2": {}, ".ttf": {}, ".eot": {},
+	".mp4": {}, ".webm": {}, ".mp3": {},
+}
+
+// isAssetPath 判断请求是否指向静态资源文件
+func isAssetPath(path string) bool {
+	_, ok := assetExts[strings.ToLower(filepath.Ext(path))]
+	return ok
+}
+
+// Index SPA 入口，同时是 NoRoute 兜底。
+//
+// 兜底时不能无条件回 index.html：资源文件找不到却返回 HTML，浏览器会拿到一份
+// text/html 的脚本，报
+//
+//	Failed to load module script: Expected a JavaScript module script but the
+//	server responded with a MIME type of "text/html"
+//
+// 真正的错误（构建产物更新后旧页面还在引用已删除的 hash）会被这行报错完全掩盖。
+// 所以：接口请求回 JSON 404，资源请求回文本 404，只有页面导航才回 index.html。
 func Index(c *gin.Context) {
+	path := c.Request.URL.Path
+
+	if strings.HasPrefix(path, "/api/") {
+		c.JSON(http.StatusNotFound, utils.NewFailByMsg("接口不存在: "+path))
+		return
+	}
+	if isAssetPath(path) {
+		utils.WarnFormat("静态资源不存在: %s（多为构建产物已更新，请强制刷新页面 Ctrl+F5）", path)
+		c.Header("Cache-Control", "no-store")
+		c.String(http.StatusNotFound, "404 not found: "+path)
+		return
+	}
+
+	// 入口页不缓存：它是资源指纹的唯一入口，缓存住会在重新部署后继续引用已删除的文件
+	c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
 	c.HTML(http.StatusOK, "index.html", gin.H{"title": "首页"})
 }
 
