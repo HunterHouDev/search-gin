@@ -53,8 +53,13 @@ type Setting struct {
 	Users              []User   `json:"users"`
 	DefaultPermissions []string `json:"defaultPermissions"`
 
-	// TaskMaxConcurrent 任务调度最大并发数（转码+剪辑+合并），默认 4，≤0 时不限制
+	// TaskMaxConcurrent 转码/剪辑/合并的并发上限（CPU/ffmpeg 密集），默认 4，≤0 时不限制
 	TaskMaxConcurrent int `json:"taskMaxConcurrent"`
+
+	// DownloadMaxConcurrent 分片下载的并发上限（纯网络 I/O），
+	// 与上面两类任务各自独立占用自己的槽位池，互不抢占、互不阻塞。
+	// 默认 4，≤0 时不限制。
+	DownloadMaxConcurrent int `json:"downloadMaxConcurrent"`
 
 	// StreamSecret AES-256-GCM 密钥（hex，64字符），用于 streamToken 加解密
 	// 同一集群的所有节点应使用相同的密钥以实现跨节点流媒体互通

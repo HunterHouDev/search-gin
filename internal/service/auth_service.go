@@ -267,14 +267,15 @@ func defaultSetting() model.Setting {
 			"e://emby",
 			"e://code",
 		},
-		Tags:              []string{"東京"},
-		ImageTypes:        []string{"gif", "png", "jpg"},
-		DocsTypes:         []string{"txt", "xlsx"},
-		VideoTypes:        []string{"avi", "mkv", "wmv", "mp4"},
-		Types:             []string{"avi", "mkv", "wmv", "mp4", "gif", "png", "jpg", "txt", "xlsx"},
-		MovieTypes:        []string{"骑兵", "步兵", "国产", "漫动"},
-		Pages:             []string{"10", "12", "15", "27", "50", "100"},
-		TaskMaxConcurrent: 4,
+		Tags:                  []string{"東京"},
+		ImageTypes:            []string{"gif", "png", "jpg"},
+		DocsTypes:             []string{"txt", "xlsx"},
+		VideoTypes:            []string{"avi", "mkv", "wmv", "mp4"},
+		Types:                 []string{"avi", "mkv", "wmv", "mp4", "gif", "png", "jpg", "txt", "xlsx"},
+		MovieTypes:            []string{"骑兵", "步兵", "国产", "漫动"},
+		Pages:                 []string{"10", "12", "15", "27", "50", "100"},
+		TaskMaxConcurrent:     4,
+		DownloadMaxConcurrent: 4,
 	}
 }
 

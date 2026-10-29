@@ -88,11 +88,11 @@ var hlsHTTPClient = &http.Client{
 			Timeout:   10 * time.Second,
 			KeepAlive: 30 * time.Second,
 		}).DialContext,
-		MaxIdleConns:          hlsDownloadConcurrency * 4,
-		MaxIdleConnsPerHost:   hlsDownloadConcurrency * 2,
+		MaxIdleConns:        hlsDownloadConcurrency * 4,
+		MaxIdleConnsPerHost: hlsDownloadConcurrency * 2,
 		// 空闲连接保持时间刻意短：源站 / 中间设备常单方面关闭空闲连接，
 		// 客户端复用这种「已死」连接时就会报连接被重置（wsarecv / ECONNRESET）
-		IdleConnTimeout: 20 * time.Second,
+		IdleConnTimeout:       20 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		ForceAttemptHTTP2:     true,
@@ -1644,10 +1644,11 @@ func CreateHlsDownloadTask(param HlsDownloadParam) utils.Result {
 		return utils.NewFailByMsg("转码方式无效（可选 copy / h264 / h265）")
 	}
 
-	// 并发下载数量：任务级，只影响本任务
+	// 单任务内的分片并发数（只影响本任务内部的下载 goroutine 数）
 	concurrency := normalizeConcurrency(param.Concurrency)
-	// 并行任务数量：全局设置，随本次提交一并调整（不传则不动）
-	applyTaskParallel(param.Parallel)
+	// 全局下载并行上限：随本次提交一并调整（不传则不动），
+	// 走独立的下载槽位池，与转码/剪辑/合并互不阻塞
+	applyDownloadParallel(param.Parallel)
 
 	pl, err := parseHlsPlaylistText(playlist, strings.TrimSpace(param.SourceURL))
 	if err != nil {

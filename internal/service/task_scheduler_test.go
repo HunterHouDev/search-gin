@@ -61,65 +61,114 @@ func TestScanQueue_SetWalkInner(t *testing.T) {
 	SetScanWalkInner(q.walkInner)
 }
 
-// ── InitTaskSlots ──
+// ── InitTaskSlots（两套独立槽位池）──
+
+// resetTaskSlotsForTest 把槽位池与 Once 守卫全部清空，避免全局状态跨用例泄漏
+// （rebuildSlots 会从旧 channel 迁移已占用的槽位，不清 nil 会让上一条用例遗留的占用带过来）。
+func resetTaskSlotsForTest() {
+	taskSlotsOnce = sync.Once{}
+	processSlots = nil
+	downloadSlots = nil
+}
 
 func TestInitTaskSlots_SetsCapacity(t *testing.T) {
-	// reset once for test
-	taskSlotsOnce = sync.Once{}
-	InitTaskSlots(3)
-	assert.NotNil(t, taskSlots)
-	assert.Equal(t, 3, cap(taskSlots))
+	resetTaskSlotsForTest()
+	InitTaskSlots(3, 5)
+	assert.NotNil(t, processSlots)
+	assert.NotNil(t, downloadSlots)
+	assert.Equal(t, 3, cap(processSlots))
+	assert.Equal(t, 5, cap(downloadSlots))
 }
 
 func TestInitTaskSlots_ZeroDefaultsTo4(t *testing.T) {
-	taskSlotsOnce = sync.Once{}
-	InitTaskSlots(0)
-	assert.Equal(t, 4, cap(taskSlots))
+	resetTaskSlotsForTest()
+	InitTaskSlots(0, 0)
+	assert.Equal(t, 4, cap(processSlots))
+	assert.Equal(t, 4, cap(downloadSlots))
 }
 
 func TestInitTaskSlots_NegativeDefaultsTo4(t *testing.T) {
-	taskSlotsOnce = sync.Once{}
-	InitTaskSlots(-1)
-	assert.Equal(t, 4, cap(taskSlots))
+	resetTaskSlotsForTest()
+	InitTaskSlots(-1, -1)
+	assert.Equal(t, 4, cap(processSlots))
+	assert.Equal(t, 4, cap(downloadSlots))
 }
 
 func TestInitTaskSlots_OnceGuard(t *testing.T) {
-	taskSlotsOnce = sync.Once{}
-	InitTaskSlots(2)
-	prev := taskSlots
-	InitTaskSlots(10) // should be ignored
-	assert.Equal(t, prev, taskSlots)
-	assert.Equal(t, 2, cap(taskSlots))
+	resetTaskSlotsForTest()
+	InitTaskSlots(2, 7)
+	prevProc := processSlots
+	prevDl := downloadSlots
+	InitTaskSlots(10, 10) // should be ignored
+	assert.Equal(t, prevProc, processSlots)
+	assert.Equal(t, prevDl, downloadSlots)
+	assert.Equal(t, 2, cap(processSlots))
+	assert.Equal(t, 7, cap(downloadSlots))
 }
 
-// ── acquireTaskSlot / releaseTaskSlot ──
+// ── acquire/release 槽位：处理池与下载池各自独立 ──
 
-func TestAcquireSlot_ZeroOrNegativeReturnsTrue(t *testing.T) {
-	assert.True(t, acquireTaskSlot(0))
-	assert.True(t, acquireTaskSlot(-1))
+func TestAcquireProcessSlot_ZeroOrNegativeReturnsTrue(t *testing.T) {
+	assert.True(t, acquireProcessSlot(0))
+	assert.True(t, acquireProcessSlot(-1))
 }
 
-func TestAcquireSlot_BlocksWhenFull(t *testing.T) {
-	taskSlotsOnce = sync.Once{}
-	InitTaskSlots(1)
-
-	assert.True(t, acquireTaskSlot(1)) // fill the slot
-	assert.False(t, acquireTaskSlot(1))
+func TestAcquireDownloadSlot_ZeroOrNegativeReturnsTrue(t *testing.T) {
+	assert.True(t, acquireDownloadSlot(0))
+	assert.True(t, acquireDownloadSlot(-1))
 }
 
-func TestReleaseSlot_FreesSlot(t *testing.T) {
-	taskSlotsOnce = sync.Once{}
-	InitTaskSlots(1)
+func TestAcquireProcessSlot_BlocksWhenFull(t *testing.T) {
+	resetTaskSlotsForTest()
+	InitTaskSlots(1, 1)
 
-	acquireTaskSlot(1) // fill
-	releaseTaskSlot()
+	assert.True(t, acquireProcessSlot(1)) // fill the process slot
+	assert.False(t, acquireProcessSlot(1))
+}
 
-	assert.True(t, acquireTaskSlot(1), "after release should be able to acquire again")
+func TestAcquireDownloadSlot_BlocksWhenFull(t *testing.T) {
+	resetTaskSlotsForTest()
+	InitTaskSlots(1, 1)
+
+	assert.True(t, acquireDownloadSlot(1)) // fill the download slot
+	assert.False(t, acquireDownloadSlot(1))
+}
+
+// 处理池被占满时，下载池仍能正常调度——验证两者互不阻塞
+func TestPools_IndependentlyBlocked(t *testing.T) {
+	resetTaskSlotsForTest()
+	InitTaskSlots(1, 1)
+
+	assert.True(t, acquireProcessSlot(1))  // 处理池占满
+	assert.False(t, acquireProcessSlot(1)) // 处理池无法再取
+	assert.True(t, acquireDownloadSlot(1)) // 下载池仍可取，不受处理池影响
+}
+
+func TestReleaseProcessSlot_FreesSlot(t *testing.T) {
+	resetTaskSlotsForTest()
+	InitTaskSlots(1, 1)
+
+	acquireProcessSlot(1) // fill
+	releaseProcessSlot()
+
+	assert.True(t, acquireProcessSlot(1), "after release should be able to acquire again")
+}
+
+func TestReleaseDownloadSlot_FreesSlot(t *testing.T) {
+	resetTaskSlotsForTest()
+	InitTaskSlots(1, 1)
+
+	acquireDownloadSlot(1) // fill
+	releaseDownloadSlot()
+
+	assert.True(t, acquireDownloadSlot(1), "after release should be able to acquire again")
 }
 
 func TestReleaseSlot_NilChannelNoPanic(t *testing.T) {
-	taskSlots = nil
-	releaseTaskSlot() // should not panic
+	processSlots = nil
+	downloadSlots = nil
+	releaseProcessSlot()  // should not panic
+	releaseDownloadSlot() // should not panic
 }
 
 // ── taskVCode ──
@@ -200,22 +249,38 @@ func TestSetScanWalkInner_NilQueue(t *testing.T) {
 	// should not panic
 }
 
-// TestResizeTaskSlotsKeepsUsed 校验调整并行任务数时已占用的槽位不会丢失：
+// TestResizeTaskSlotsKeepsUsed 校验调整并行任务数时已占用的处理槽位不会丢失：
 // 否则在跑的任务会被漏算，实际并行数可能超过新上限。
 func TestResizeTaskSlotsKeepsUsed(t *testing.T) {
-	taskSlotsOnce = sync.Once{}
-	InitTaskSlots(2)
-	assert.True(t, acquireTaskSlot(2))
-	assert.True(t, acquireTaskSlot(2))
-	assert.False(t, acquireTaskSlot(2)) // 两个槽位已占满
+	resetTaskSlotsForTest()
+	InitTaskSlots(2, 4)
+	assert.True(t, acquireProcessSlot(2))
+	assert.True(t, acquireProcessSlot(2))
+	assert.False(t, acquireProcessSlot(2)) // 两个槽位已占满
 
 	ResizeTaskSlots(5)
-	assert.Equal(t, 5, cap(taskSlots))
+	assert.Equal(t, 5, cap(processSlots))
 	// 已占用 2 个，新上限 5 → 只剩 3 个可用
-	assert.True(t, acquireTaskSlot(5))
-	assert.True(t, acquireTaskSlot(5))
-	assert.True(t, acquireTaskSlot(5))
-	assert.False(t, acquireTaskSlot(5))
+	assert.True(t, acquireProcessSlot(5))
+	assert.True(t, acquireProcessSlot(5))
+	assert.True(t, acquireProcessSlot(5))
+	assert.False(t, acquireProcessSlot(5))
+}
+
+// TestResizeDownloadSlotsKeepsUsed 校验调整下载并行上限时已占用的下载槽位不丢失
+func TestResizeDownloadSlotsKeepsUsed(t *testing.T) {
+	resetTaskSlotsForTest()
+	InitTaskSlots(4, 2)
+	assert.True(t, acquireDownloadSlot(2))
+	assert.True(t, acquireDownloadSlot(2))
+	assert.False(t, acquireDownloadSlot(2)) // 两个槽位已占满
+
+	ResizeDownloadSlots(5)
+	assert.Equal(t, 5, cap(downloadSlots))
+	assert.True(t, acquireDownloadSlot(5))
+	assert.True(t, acquireDownloadSlot(5))
+	assert.True(t, acquireDownloadSlot(5))
+	assert.False(t, acquireDownloadSlot(5))
 }
 
 // ── 空闲自动重跑失败的分片下载 ────────────────────────────────────────────
@@ -293,15 +358,17 @@ func TestMaybeAutoRetryHls_RestartsWhenIdle(t *testing.T) {
 	assert.Equal(t, 1, hlsAutoRetryCount(task.ID))
 }
 
-// 队列里还有等待 / 执行中的任务时不抢占：自动重跑只发生在真正空闲的时候
+// 分片下载队列里还有执行中的下载任务时不抢占：自动重跑只发生在下载真正空闲时。
+// 注意：转码/剪辑/合并属于另一套槽位池，它们的忙碌不应再阻塞下载的自动重跑
+// （这正是「下载与转码互不阻塞」要达成的效果）。
 func TestMaybeAutoRetryHls_SkipsWhenBusy(t *testing.T) {
 	now := time.Now()
 	task := newFailedHlsTask(hlsTestID("hls-busy-"), now.Add(-time.Minute))
 	replaceTransferTasks(t, map[string]model.TransferTaskModel{
 		task.ID: task,
-		"busy": {
-			ID:         "busy",
-			Type:       model.TaskTypeTrans,
+		"busy-dl": {
+			ID:         "busy-dl",
+			Type:       model.TaskTypeHls,
 			Status:     model.StatusExecuting,
 			CreateTime: now,
 		},
@@ -315,6 +382,30 @@ func TestMaybeAutoRetryHls_SkipsWhenBusy(t *testing.T) {
 	TransferTaskMutex.RUnlock()
 	assert.Equal(t, model.StatusFailed, got.Status)
 	assert.Equal(t, 0, hlsAutoRetryCount(task.ID))
+}
+
+// 转码忙碌时，下载空闲的失败任务仍应被自动重跑——两套槽位池互不阻塞
+func TestMaybeAutoRetryHls_RunsWhileTranscodeBusy(t *testing.T) {
+	now := time.Now()
+	task := newFailedHlsTask(hlsTestID("hls-while-trans-"), now.Add(-time.Minute))
+	replaceTransferTasks(t, map[string]model.TransferTaskModel{
+		task.ID: task,
+		"busy-trans": {
+			ID:         "busy-trans",
+			Type:       model.TaskTypeTrans,
+			Status:     model.StatusExecuting,
+			CreateTime: now,
+		},
+	})
+	ResetHlsAutoRetry(task.ID)
+
+	maybeAutoRetryHls()
+
+	TransferTaskMutex.RLock()
+	got := TransferTask[task.ID]
+	TransferTaskMutex.RUnlock()
+	assert.Equal(t, model.StatusPending, got.Status)
+	assert.Equal(t, 1, hlsAutoRetryCount(task.ID))
 }
 
 // 重跑次数到上限后停手：源站持续失败时不能无限循环

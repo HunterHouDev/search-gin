@@ -14,32 +14,32 @@ import (
 // InitSetting 读取配置文件并初始化全局设置
 func InitSetting() {
 	// 先用默认值填充，确保基础字段不为空
-SetOSSetting(defaultSetting())
+	SetOSSetting(defaultSetting())
 
-curDir, err := filepath.Abs(".")
-if err != nil {
-	utils.ErrorFormat("获取当前目录失败: %v", err)
-	curDir = "."
-}
-settingPath := filepath.Join(curDir, SettingFileName)
-
-// 如果 setting.json 不存在，尝试从 setting.example.json 复制，也都不存在则自动生成
-if _, err := os.Stat(settingPath); os.IsNotExist(err) {
-	examplePath := filepath.Join(curDir, "setting.example.json")
-	if _, err := os.Stat(examplePath); err == nil {
-	 utils.InfoFormat("配置文件 %s 不存在，从 %s 复制", SettingFileName, "setting.example.json")
-	 input, err := os.ReadFile(examplePath)
-	 if err == nil {
-	  _ = os.WriteFile(settingPath, input, 0600)
-	 }
-	} else {
-	 utils.InfoFormat("配置文件 %s 和 %s 均不存在，自动生成默认配置", SettingFileName, "setting.example.json")
-	 _ = WriteDictionaryToJson(settingPath, defaultSetting())
+	curDir, err := filepath.Abs(".")
+	if err != nil {
+		utils.ErrorFormat("获取当前目录失败: %v", err)
+		curDir = "."
 	}
-}
+	settingPath := filepath.Join(curDir, SettingFileName)
 
-dict := ReadDictionaryFromJson(settingPath)
-if dict.ControllerHost == "" {
+	// 如果 setting.json 不存在，尝试从 setting.example.json 复制，也都不存在则自动生成
+	if _, err := os.Stat(settingPath); os.IsNotExist(err) {
+		examplePath := filepath.Join(curDir, "setting.example.json")
+		if _, err := os.Stat(examplePath); err == nil {
+			utils.InfoFormat("配置文件 %s 不存在，从 %s 复制", SettingFileName, "setting.example.json")
+			input, err := os.ReadFile(examplePath)
+			if err == nil {
+				_ = os.WriteFile(settingPath, input, 0600)
+			}
+		} else {
+			utils.InfoFormat("配置文件 %s 和 %s 均不存在，自动生成默认配置", SettingFileName, "setting.example.json")
+			_ = WriteDictionaryToJson(settingPath, defaultSetting())
+		}
+	}
+
+	dict := ReadDictionaryFromJson(settingPath)
+	if dict.ControllerHost == "" {
 		dict.ControllerHost = PortNo
 	}
 	if dict.FileHost == "" {
@@ -74,7 +74,7 @@ if dict.ControllerHost == "" {
 		dict.StreamSecret = secret
 		SetOSSetting(dict)
 		// 立即写入磁盘，确保密钥持久化（失败则 panic，防止重启后密钥丢失）
-		 if err := FlushDictionary(filepath.Join(curDir, SettingFileName)); err != nil {
+		if err := FlushDictionary(filepath.Join(curDir, SettingFileName)); err != nil {
 			panic("StreamSecret 持久化失败，无法安全启动: " + err.Error())
 		}
 		utils.InfoFormat("已生成并持久化 StreamSecret")
@@ -124,7 +124,7 @@ func StartBackgroundTasks() {
 	utils.InfoFormat("StartBackgroundTasks: 正在启动后台任务...")
 
 	setting := GetOSSetting()
-	InitTaskSlots(setting.TaskMaxConcurrent)
+	InitTaskSlots(setting.TaskMaxConcurrent, setting.DownloadMaxConcurrent)
 
 	search := GetSearch()
 	if search == nil {
