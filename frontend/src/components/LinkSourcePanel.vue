@@ -1,251 +1,102 @@
 <template>
-  <div
-    class="link-source-panel"
-    :class="{
-      'link-source-panel-split': embedded,
-      // 播放中：左列（分片列表 + 下载列表）与右列（播放器）并排
-      'link-source-panel-playing': embedded && embeddedActive && !playerStopped,
-    }"
-  >
+  <div class="link-source-panel" :class="{
+    'link-source-panel-split': embedded,
+    // 播放中：左列（分片列表 + 下载列表）与右列（播放器）并排
+    'link-source-panel-playing': embedded && embeddedActive && !playerStopped,
+  }">
     <!-- 链接类型 Tab -->
     <div class="link-tabs">
-      <button
-        v-for="tab in visibleTabs"
-        :key="tab.value"
-        type="button"
-        class="link-tab"
-        :class="{ 'link-tab-active': linkTab === tab.value }"
-        @click="switchLinkTab(tab.value)"
-      >
-        <q-icon :name="tab.icon" size="15px" />
+      <button v-for="tab in visibleTabs" :key="tab.value" type="button" class="link-tab"
+        :class="{ 'link-tab-active': linkTab === tab.value }" @click="switchLinkTab(tab.value)">
+        <q-icon :name="tab.icon" size="22px" />
         <span>{{ tab.label }}</span>
       </button>
     </div>
 
-    <!-- 链接输入框：右键直接用剪切板内容填充 -->
-    <div
-      class="magnet-input-wrapper"
-      :class="{
+    <!-- 链接输入框 + 取消按钮同行：进入下载设置态时输入胶囊整体隐藏，仅显示设置表单 -->
+    <div class="magnet-input-row">
+      <div v-if="!paramsEditing" class="magnet-input-wrapper" :class="{
         'magnet-focused': linkFocused,
         'magnet-input-multi': linkTab === 'hls',
-      }"
-      @contextmenu.prevent="pasteLinkFromClipboard"
-    >
-      <q-icon
-        :name="activeLinkTab.icon"
-        color="indigo-4"
-        size="20px"
-        class="magnet-icon"
-      />
-      <!-- 分片链接：多行输入，每行一个地址（带排序号，输入后自动生成下一行） -->
-      <div v-if="linkTab === 'hls'" class="hls-url-rows">
-        <div
-          v-for="(row, index) in hlsUrlRows"
-          :key="row.id"
-          class="hls-url-row"
-        >
-          <span class="hls-url-order">{{ index + 1 }}</span>
-          <q-input
-            :model-value="row.value"
-            :placeholder="
-              index === 0
-                ? activeLinkTab.placeholder
-                : '继续输入或粘贴 m3u8 地址（可一次粘贴多个）'
-            "
-            dark
-            dense
-            borderless
-            class="hls-url-field"
-            :disable="hlsParsing"
-            @update:model-value="
-              (val) => updateHlsUrlRow(row.id, String(val ?? ''))
-            "
-            @keyup.enter="submitLink"
-            @focus="linkFocused = true"
-            @blur="linkFocused = false"
-          />
+      }" @contextmenu.prevent="pasteLinkFromClipboard">
+        <!-- 下载设置：常驻输入框左侧，图标按钮；点开后切换参数输入态 -->
+        <q-btn v-if="!paramsEditing" flat round dense size="md" color="indigo-4" icon="settings"
+          class="magnet-setting-btn" @click="startEditParams">
+          <q-tooltip class="bg-dark text-white">下载设置：并发（单任务内同时下载的分片数 1~16）；并行（服务端同时执行的任务数上限
+            1~16）；快捷下载（粘贴链接后自动解析）</q-tooltip>
+        </q-btn>
+        <!-- 分片链接：多行输入，每行一个地址（带排序号，输入后自动生成下一行） -->
+        <div v-if="linkTab === 'hls'" class="hls-url-rows">
+          <div v-for="(row, index) in hlsUrlRows" :key="row.id" class="hls-url-row">
+            <span class="hls-url-order">{{ index + 1 }}</span>
+            <q-input :model-value="row.value" :placeholder="index === 0
+              ? activeLinkTab.placeholder
+              : '继续输入或粘贴 m3u8 地址（可一次粘贴多个）'
+              " dark dense borderless clearable class="hls-url-field" :disable="hlsParsing" @update:model-value="
+                (val) => updateHlsUrlRow(row.id, String(val ?? ''))
+              " @keyup.enter="submitLink" @focus="linkFocused = true" @blur="linkFocused = false" />
+          </div>
         </div>
+        <q-input v-else v-model="activeLinkValue" :placeholder="activeLinkTab.placeholder" dark dense borderless
+          clearable class="magnet-input" @keyup.enter="submitLink" @focus="linkFocused = true"
+          @blur="linkFocused = false" />
+        <q-btn v-if="linkTab === 'hls' && canSubmitLink" flat dense round size="sm" color="indigo-4" icon="backspace"
+          :disable="hlsParsing" @click="clearHlsUrlRows" class="hls-url-clear-btn">
+          <q-tooltip class="bg-dark text-white">清空全部地址</q-tooltip>
+        </q-btn>
+        <q-btn flat no-caps :icon="linkActionIcon" :label="linkActionLabel" size="md" @click="submitLink"
+          :disable="!canSubmitLink" :loading="linkActionLoading" class="magnet-submit-btn">
+          <q-tooltip class="bg-dark text-white">{{
+            linkActionTooltip
+          }}</q-tooltip>
+        </q-btn>
       </div>
-      <q-input
-        v-else
-        v-model="activeLinkValue"
-        :placeholder="activeLinkTab.placeholder"
-        dark
-        dense
-        borderless
-        class="magnet-input"
-        @keyup.enter="submitLink"
-        @focus="linkFocused = true"
-        @blur="linkFocused = false"
-      />
-      <q-btn
-        v-if="linkTab === 'hls' && canSubmitLink"
-        flat
-        dense
-        round
-        size="sm"
-        color="indigo-4"
-        icon="backspace"
-        :disable="hlsParsing"
-        @click="clearHlsUrlRows"
-        class="hls-url-clear-btn"
-      >
-        <q-tooltip class="bg-dark text-white">清空全部地址</q-tooltip>
-      </q-btn>
-      <q-btn
-        flat
-        dense
-        no-caps
-        color="indigo-4"
-        :icon="linkActionIcon"
-        :label="linkActionLabel"
-        size="sm"
-        @click="submitLink"
-        :disable="!canSubmitLink"
-        :loading="linkActionLoading"
-        class="magnet-submit-btn"
-      >
-        <q-tooltip class="bg-dark text-white">{{
-          linkActionTooltip
-        }}</q-tooltip>
-      </q-btn>
+
     </div>
+
+    <!-- 下载设置编辑态：点输入框左侧「下载设置」图标后展开，与分片是否解析无关 -->
+    <transition name="fade">
+      <div v-if="paramsEditing" class="hls-params-editor">
+        <q-icon name="settings" size="md" color="indigo-4" />
+        <q-input v-model="paramDraft.concurrency" dark borderless type="number" :min="DOWNLOAD_PARAM_MIN"
+          :max="DOWNLOAD_PARAM_MAX" prefix="并发" class="hls-param-input" />
+        <q-input v-model="paramDraft.parallel" dark borderless type="number" :min="DOWNLOAD_PARAM_MIN"
+          :max="DOWNLOAD_PARAM_MAX" prefix="并行" class="hls-param-input" />
+        <q-toggle v-model="paramDraft.quick" dark color="green-4" label="快捷下载" class="hls-quick-toggle">
+          <q-tooltip class="bg-dark text-white">开启后：粘贴 / 输入分片链接，内容停稳约 1
+            秒即自动解析（每次执行都会先清掉上一次的解析结果；要合并多个源就把多个地址一起粘贴）</q-tooltip>
+        </q-toggle>
+        <q-btn flat dense no-caps size="md" color="green-4" icon="check" label="保存" @click="saveParams" />
+        <q-btn flat dense no-caps size="md" color="grey-5" label="取消" @click="paramsEditing = false" />
+      </div>
+    </transition>
 
     <!-- 分片列表：解析后可删除分片（如广告）再播放剩余部分 -->
     <transition name="fade">
-      <div
-        v-if="linkTab === 'hls' && (hlsParsed || hlsDownloadList.length)"
-        class="hls-segment-panel"
-      >
+      <div v-if="linkTab === 'hls' && (hlsParsed || hlsDownloadList.length)" class="hls-segment-panel">
         <template v-if="hlsParsed">
           <div class="hls-segment-header">
             <q-icon name="playlist_play" size="16px" color="indigo-4" />
             <span class="hls-segment-summary">
-              <template v-if="hlsSourceCount > 1"
-                >{{ hlsSourceCount }} 个源 · </template
-              >保留 {{ hlsKeptCount }}/{{ hlsTotalCount }} 个分片 ·
+              <template v-if="hlsSourceCount > 1">{{ hlsSourceCount }} 个源 · </template>保留 {{ hlsKeptCount }}/{{
+                hlsTotalCount }} 个分片 ·
               {{ hlsKeptDuration }}
-              <template v-if="hlsRemovedCount"
-                >（已删除 {{ hlsRemovedCount }}）</template
-              >
-              <template v-if="hlsAdCount"
-                >（广告 {{ hlsAdCount }}，已排除）</template
-              >
+              <template v-if="hlsRemovedCount">（已删除 {{ hlsRemovedCount }}）</template>
+              <template v-if="hlsAdCount">（广告 {{ hlsAdCount }}，已排除）</template>
             </span>
             <q-space />
-            <!-- 下载设置：默认只读；点「下载设置」切换输入态，保存后回到只读 -->
-            <span v-if="!paramsEditing" class="hls-download-params">
-              并发 {{ hlsDownloadConcurrency }} · 并行 {{ hlsDownloadParallel }} ·
-              快捷下载 {{ quickParse ? '开' : '关' }}
-              <q-btn
-                flat
-                dense
-                no-caps
-                size="sm"
-                color="indigo-4"
-                icon="settings"
-                label="下载设置"
-                @click="startEditParams"
-              >
-                <q-tooltip class="bg-dark text-white"
-                  >并发：单个任务内同时下载的分片数（1~16）；并行：服务端同时执行的任务数上限（1~16）；快捷下载：粘贴链接后自动解析</q-tooltip
-                >
-              </q-btn>
-            </span>
-            <span v-else class="hls-download-params">
-              <q-input
-                v-model="paramDraft.concurrency"
-                dark
-                dense
-                borderless
-                type="number"
-                :min="DOWNLOAD_PARAM_MIN"
-                :max="DOWNLOAD_PARAM_MAX"
-                prefix="并发"
-                class="hls-param-input"
-              />
-              <q-input
-                v-model="paramDraft.parallel"
-                dark
-                dense
-                borderless
-                type="number"
-                :min="DOWNLOAD_PARAM_MIN"
-                :max="DOWNLOAD_PARAM_MAX"
-                prefix="并行"
-                class="hls-param-input"
-              />
-              <!-- 快捷下载：开启后分片链接输入框内容停稳即自动解析，不用再点「解析」 -->
-              <q-toggle
-                v-model="paramDraft.quick"
-                dense
-                dark
-                color="green-4"
-                label="快捷下载"
-                class="hls-quick-toggle"
-              >
-                <q-tooltip class="bg-dark text-white"
-                  >开启后：粘贴 / 输入分片链接，内容停稳约 1 秒即自动解析（每次执行都会先清掉上一次的解析结果；要合并多个源就把多个地址一起粘贴）</q-tooltip
-                >
-              </q-toggle>
-              <q-btn
-                flat
-                dense
-                no-caps
-                size="sm"
-                color="green-4"
-                icon="check"
-                label="保存"
-                @click="saveParams"
-              />
-              <q-btn
-                flat
-                dense
-                no-caps
-                size="sm"
-                color="grey-5"
-                label="取消"
-                @click="paramsEditing = false"
-              />
-            </span>
-            <q-btn
-              flat
-              dense
-              no-caps
-              size="sm"
-              color="indigo-4"
-              icon="restart_alt"
-              label="恢复"
-              :disable="!hlsRemovedCount"
-              @click="restoreHlsSegments"
-            >
-              <q-tooltip class="bg-dark text-white"
-                >恢复全部已删除分片（广告仍保持置灰并排除）</q-tooltip
-              >
+            <q-btn flat dense no-caps size="sm" color="indigo-4" icon="restart_alt" label="恢复"
+              :disable="!hlsRemovedCount" @click="restoreHlsSegments">
+              <q-tooltip class="bg-dark text-white">恢复全部已删除分片（广告仍保持置灰并排除）</q-tooltip>
             </q-btn>
             <!-- 广告黑名单：可查看 / 取消单条 / 清空 -->
-            <q-btn
-              v-if="hlsAdBlacklist.length"
-              flat
-              dense
-              no-caps
-              size="sm"
-              color="negative"
-              icon="block"
-              :label="`广告黑名单 ${hlsAdBlacklist.length}`"
-            >
-              <q-tooltip class="bg-dark text-white"
-                >被标记为广告的分片类：列表中置灰，下载 / 播放时忽略</q-tooltip
-              >
+            <q-btn v-if="hlsAdBlacklist.length" flat dense no-caps size="sm" color="negative" icon="block"
+              :label="`广告黑名单 ${hlsAdBlacklist.length}`">
+              <q-tooltip class="bg-dark text-white">被标记为广告的分片类：列表中置灰，下载 / 播放时忽略</q-tooltip>
               <q-menu dark class="hls-ad-menu">
                 <q-list dense>
-                  <q-item
-                    v-for="key in hlsAdBlacklist"
-                    :key="key"
-                    clickable
-                    v-close-popup
-                    @click="unmarkHlsAdSegments(key)"
-                  >
+                  <q-item v-for="key in hlsAdBlacklist" :key="key" clickable v-close-popup
+                    @click="unmarkHlsAdSegments(key)">
                     <q-item-section>
                       <q-item-label class="hls-ad-menu-label">{{
                         key
@@ -267,34 +118,14 @@
                 </q-list>
               </q-menu>
             </q-btn>
-            <q-btn
-              flat
-              dense
-              no-caps
-              size="sm"
-              color="indigo-4"
-              icon="link"
-              label="复制链接"
-              :disable="!hlsKeptCount"
-              @click="copyAllSegmentUrls"
-            >
-              <q-tooltip class="bg-dark text-white"
-                >复制保留的 {{ hlsKeptCount }} 个分片链接（每行一个）</q-tooltip
-              >
+
+            <!-- 取消：清除已输入的链接信息（磁力链 / 分片地址），紧贴播放按钮右侧 -->
+            <q-btn v-if="!paramsEditing && showLinkButton" flat dense no-caps size="md" color="red" icon="close"
+              label="取消" @click="clearLinkInfo">
+              <q-tooltip class="bg-dark text-white">清除已输入的链接信息</q-tooltip>
             </q-btn>
-            <q-btn
-              unelevated
-              dense
-              no-caps
-              size="sm"
-              color="indigo-6"
-              icon="play_arrow"
-              label="播放"
-              class="hls-play-btn"
-              :loading="hlsLoading"
-              :disable="!hlsKeptCount"
-              @click="playHlsRemaining"
-            >
+            <q-btn unelevated dense size="md" color="primary" icon="play_arrow" label="播放" class="hls-play-btn"
+              :loading="hlsLoading" :disable="!hlsKeptCount" @click="playHlsRemaining">
               <q-tooltip class="bg-dark text-white">{{
                 hlsSourceCount > 1
                   ? `按顺序合并播放 ${hlsSourceCount} 个源的 ${hlsKeptCount} 个分片`
@@ -305,55 +136,24 @@
 
           <!-- 源列表：多个 m3u8 按这里显示的顺序合并，可上移 / 下移 / 移除 -->
           <div v-if="hlsSourceList.length > 1" class="hls-source-list">
-            <div
-              v-for="(item, index) in hlsSourceList"
-              :key="item.source.id"
-              class="hls-source-item"
-            >
+            <div v-for="(item, index) in hlsSourceList" :key="item.source.id" class="hls-source-item">
               <span class="hls-source-order">{{ index + 1 }}</span>
               <span class="hls-source-url" :title="item.source.url">{{
                 item.source.url
               }}</span>
-              <span class="hls-source-meta"
-                >{{ item.keptCount }}/{{ item.totalCount }} 个分片 ·
-                {{ item.duration }}</span
-              >
-              <q-btn
-                flat
-                round
-                dense
-                size="sm"
-                color="indigo-4"
-                icon="arrow_upward"
-                :disable="index === 0"
-                @click="moveHlsSource(item.source.id, -1)"
-              >
+              <span class="hls-source-meta">{{ item.keptCount }}/{{ item.totalCount }} 个分片 ·
+                {{ item.duration }}</span>
+              <q-btn flat round dense size="sm" color="indigo-4" icon="arrow_upward" :disable="index === 0"
+                @click="moveHlsSource(item.source.id, -1)">
                 <q-tooltip class="bg-dark text-white">上移</q-tooltip>
               </q-btn>
-              <q-btn
-                flat
-                round
-                dense
-                size="sm"
-                color="indigo-4"
-                icon="arrow_downward"
-                :disable="index === hlsSourceList.length - 1"
-                @click="moveHlsSource(item.source.id, 1)"
-              >
+              <q-btn flat round dense size="sm" color="indigo-4" icon="arrow_downward"
+                :disable="index === hlsSourceList.length - 1" @click="moveHlsSource(item.source.id, 1)">
                 <q-tooltip class="bg-dark text-white">下移</q-tooltip>
               </q-btn>
-              <q-btn
-                flat
-                round
-                dense
-                size="sm"
-                color="red-4"
-                icon="delete_outline"
-                @click="removeHlsSource(item.source.id)"
-              >
-                <q-tooltip class="bg-dark text-white"
-                  >移除该源及其分片</q-tooltip
-                >
+              <q-btn flat round dense size="sm" color="red-4" icon="delete_outline"
+                @click="removeHlsSource(item.source.id)">
+                <q-tooltip class="bg-dark text-white">移除该源及其分片</q-tooltip>
               </q-btn>
             </div>
           </div>
@@ -361,21 +161,10 @@
           <div class="hls-download-row">
             <!-- 文件名输入框：右键直接用剪切板内容填充（display: contents 不占布局，
                  文件名输入框仍独占该行剩余宽度） -->
-            <span
-              style="display: contents"
-              @contextmenu.prevent="pasteFileNameFromClipboard"
-            >
-              <q-input
-                v-model="hlsDownloadName"
-                dark
-                dense
-                borderless
-                class="hls-filename-input"
-                :placeholder="hlsDefaultDownloadName"
-                :disable="!hlsKeptCount"
-                maxlength="120"
-                @keyup.enter="downloadHls"
-              >
+            <span style="display: contents" @contextmenu.prevent="pasteFileNameFromClipboard">
+              <q-input v-model="hlsDownloadName" dark dense borderless class="hls-filename-input"
+                :placeholder="hlsDefaultDownloadName" :disable="!hlsKeptCount" maxlength="120"
+                @keyup.enter="downloadHls">
                 <template #prepend>
                   <q-icon name="edit_note" size="16px" color="indigo-4" />
                 </template>
@@ -385,36 +174,18 @@
                 </q-tooltip>
               </q-input>
             </span>
-            <q-btn-dropdown
-              flat
-              dense
-              no-caps
-              size="sm"
-              class="hls-dir-btn"
+            <q-btn-dropdown flat dense no-caps size="sm" class="hls-dir-btn"
               :color="hlsDownloadDir ? 'green-4' : 'indigo-4'"
-              :icon="hlsDownloadDir ? 'folder_special' : 'create_new_folder'"
-              :label="hlsDownloadDir || '下载目录'"
-            >
+              :icon="hlsDownloadDir ? 'folder_special' : 'create_new_folder'" :label="hlsDownloadDir || '下载目录'">
               <q-list dense class="hls-dir-menu">
-                <q-item
-                  clickable
-                  v-close-popup
-                  @click="chooseHlsDownloadDir('')"
-                >
+                <q-item clickable v-close-popup @click="chooseHlsDownloadDir('')">
                   <q-item-section>
                     <q-item-label>默认目录</q-item-label>
-                    <q-item-label caption
-                      >服务端默认保存位置（第一个媒体目录）</q-item-label
-                    >
+                    <q-item-label caption>服务端默认保存位置（第一个媒体目录）</q-item-label>
                   </q-item-section>
                 </q-item>
-                <q-item
-                  v-for="dir in hlsDownloadDirOptions"
-                  :key="dir"
-                  clickable
-                  v-close-popup
-                  @click="chooseHlsDownloadDir(dir)"
-                >
+                <q-item v-for="dir in hlsDownloadDirOptions" :key="dir" clickable v-close-popup
+                  @click="chooseHlsDownloadDir(dir)">
                   <q-item-section>
                     <q-item-label class="hls-dir-menu-label">{{
                       dir
@@ -431,31 +202,15 @@
               </q-tooltip>
             </q-btn-dropdown>
             <!-- 下载完成后自动转码：默认不转，选中后由服务端在落盘后按路径建转码任务 -->
-            <q-btn-dropdown
-              flat
-              dense
-              no-caps
-              size="sm"
-              class="hls-xcode-btn"
-              :color="
-                hlsXcodeSkipped
-                  ? 'grey-6'
-                  : hlsDownloadXcode
-                    ? 'teal-4'
-                    : 'indigo-4'
-              "
-              icon="transform"
-              :label="hlsDownloadXcodeLabel"
-              :disable="!hlsKeptCount || hlsXcodeSkipped"
-            >
+            <q-btn-dropdown flat dense no-caps size="sm" class="hls-xcode-btn" :color="hlsXcodeSkipped
+              ? 'grey-6'
+              : hlsDownloadXcode
+                ? 'teal-4'
+                : 'indigo-4'
+              " icon="transform" :label="hlsDownloadXcodeLabel" :disable="!hlsKeptCount || hlsXcodeSkipped">
               <q-list dense class="hls-xcode-menu">
-                <q-item
-                  v-for="opt in hlsXcodeOptions"
-                  :key="opt.value"
-                  clickable
-                  v-close-popup
-                  @click="hlsDownloadXcode = opt.value"
-                >
+                <q-item v-for="opt in hlsXcodeOptions" :key="opt.value" clickable v-close-popup
+                  @click="hlsDownloadXcode = opt.value">
                   <q-item-section>
                     <q-item-label>{{ opt.label }}</q-item-label>
                     <q-item-label caption>{{ opt.caption }}</q-item-label>
@@ -469,75 +224,36 @@
               }}</q-tooltip>
             </q-btn-dropdown>
             <!-- 点下载后任务交给服务端执行，本地分片列表随之清空，可继续粘贴下一组地址 -->
-            <q-btn
-              flat
-              dense
-              no-caps
-              size="sm"
-              color="indigo-4"
-              icon="download"
-              label="下载"
-              class="hls-download-btn"
-              :disable="!hlsKeptCount"
-              @click="downloadHls"
-            >
-              <q-tooltip class="bg-dark text-white"
-                >由服务端下载 {{ hlsKeptCount }} 个分片并合并保存，关闭窗口 /
-                刷新页面都不会中断</q-tooltip
-              >
+            <q-btn dense no-caps size="md" color="primary" icon="download" label="下载" class="hls-download-btn"
+              :disable="!hlsKeptCount" @click="downloadHls">
+              <q-tooltip class="bg-dark text-white">由服务端下载 {{ hlsKeptCount }} 个分片并合并保存，关闭窗口 /
+                刷新页面都不会中断</q-tooltip>
             </q-btn>
             <!-- 浏览器直下（前端备用）：放在服务端下载按钮旁边，不经服务端直接拉当前分片列表合并另存 -->
-            <q-btn
-              flat
-              dense
-              no-caps
-              size="sm"
-              color="deep-orange-4"
-              icon="cloud_download"
-              :label="browserNowLabel"
-              class="hls-download-btn"
-              :disable="!hlsKeptCount || browserNowInProgress()"
-              @click="downloadHlsInBrowserNow"
-            >
-              <q-tooltip class="bg-dark text-white"
-                >浏览器直接下载当前 {{ hlsKeptCount }} 个分片并合并另存，不经服务端；源站禁止跨域时失败，此为本页关闭后下载即中断</q-tooltip
-              >
+            <q-btn flat dense no-caps size="sm" color="deep-orange-4" icon="cloud_download" :label="browserNowLabel"
+              class="hls-download-btn" :disable="!hlsKeptCount || browserNowInProgress()"
+              @click="downloadHlsInBrowserNow">
+              <q-tooltip class="bg-dark text-white">浏览器直接下载当前 {{ hlsKeptCount }}
+                个分片并合并另存，不经服务端；源站禁止跨域时失败，此为本页关闭后下载即中断</q-tooltip>
             </q-btn>
           </div>
           <div class="hls-segment-list">
-            <template
-              v-for="(group, groupIndex) in hlsSegmentGroups"
-              :key="group.sourceId"
-            >
+            <template v-for="(group, groupIndex) in hlsSegmentGroups" :key="group.sourceId">
               <!-- 多源时标出每段的边界，便于分辨删除的是哪一个源的分片 -->
               <div v-if="hlsSourceCount > 1" class="hls-segment-group">
-                <span class="hls-segment-group-label"
-                  >源 {{ groupIndex + 1 }}</span
-                >
+                <span class="hls-segment-group-label">源 {{ groupIndex + 1 }}</span>
                 <span class="hls-segment-group-url" :title="group.url">{{
                   group.url
                 }}</span>
-                <span class="hls-segment-group-count"
-                  >{{ group.segments.length }} 个分片</span
-                >
+                <span class="hls-segment-group-count">{{ group.segments.length }} 个分片</span>
               </div>
               <!-- 黑名单（广告）分片仍在列表中，但置灰 + 未勾选，下载 / 播放时忽略 -->
-              <div
-                v-for="seg in group.segments"
-                :key="seg.id"
-                class="hls-segment-item"
-                :class="{ 'hls-segment-item--ad': isHlsAdSegment(seg) }"
-              >
-                <q-icon
-                  class="hls-segment-check"
-                  :name="
-                    isHlsAdSegment(seg)
-                      ? 'check_box_outline_blank'
-                      : 'check_box'
-                  "
-                  size="16px"
-                  :color="isHlsAdSegment(seg) ? 'grey' : 'indigo-4'"
-                >
+              <div v-for="seg in group.segments" :key="seg.id" class="hls-segment-item"
+                :class="{ 'hls-segment-item--ad': isHlsAdSegment(seg) }">
+                <q-icon class="hls-segment-check" :name="isHlsAdSegment(seg)
+                  ? 'check_box_outline_blank'
+                  : 'check_box'
+                  " size="16px" :color="isHlsAdSegment(seg) ? 'grey' : 'indigo-4'">
                   <q-tooltip class="bg-dark text-white">{{
                     isHlsAdSegment(seg)
                       ? '广告（黑名单）：不参与播放 / 下载'
@@ -548,63 +264,26 @@
                 <span class="hls-segment-duration">{{
                   seg.duration ? seg.duration.toFixed(1) + 's' : '--'
                 }}</span>
-                <span
-                  class="hls-segment-url"
-                  :title="seg.url"
-                  @click="copySegmentUrl(seg)"
-                  >{{ seg.url }}</span
-                >
-                <q-btn
-                  flat
-                  round
-                  dense
-                  size="sm"
-                  color="indigo-4"
-                  icon="content_copy"
-                  @click="copySegmentUrl(seg)"
-                >
-                  <q-tooltip class="bg-dark text-white"
-                    >复制该分片链接</q-tooltip
-                  >
+                <span class="hls-segment-url" :title="seg.url" @click="copySegmentUrl(seg)">{{ seg.url }}</span>
+                <q-btn flat round dense size="sm" color="indigo-4" icon="content_copy" @click="copySegmentUrl(seg)">
+                  <q-tooltip class="bg-dark text-white">复制该分片链接</q-tooltip>
                 </q-btn>
                 <!-- 标记 / 取消广告：同类分片进黑名单，列表置灰且下载时忽略 -->
-                <q-btn
-                  flat
-                  round
-                  dense
-                  size="sm"
-                  :color="isHlsAdSegment(seg) ? 'grey' : 'negative'"
-                  :icon="isHlsAdSegment(seg) ? 'undo' : 'block'"
-                  @click="toggleHlsAdSegment(seg.id)"
-                >
+                <q-btn flat round dense size="sm" :color="isHlsAdSegment(seg) ? 'grey' : 'negative'"
+                  :icon="isHlsAdSegment(seg) ? 'undo' : 'block'" @click="toggleHlsAdSegment(seg.id)">
                   <q-tooltip class="bg-dark text-white">{{
                     isHlsAdSegment(seg)
                       ? '取消广告标记：该类分片恢复参与播放 / 下载'
                       : '标记为广告：同类分片加入黑名单（列表置灰，下载时忽略）'
                   }}</q-tooltip>
                 </q-btn>
-                <q-btn
-                  flat
-                  round
-                  dense
-                  size="sm"
-                  color="deep-orange-4"
-                  icon="delete_sweep"
-                  @click="removeHlsSimilarSegments(seg.id)"
-                >
+                <q-btn flat round dense size="sm" color="deep-orange-4" icon="delete_sweep"
+                  @click="removeHlsSimilarSegments(seg.id)">
                   <q-tooltip class="bg-dark text-white">
                     删除同类分片（最后一节不同、前面都相同的全部删除）
                   </q-tooltip>
                 </q-btn>
-                <q-btn
-                  flat
-                  round
-                  dense
-                  size="sm"
-                  color="red-4"
-                  icon="delete_outline"
-                  @click="removeHlsSegment(seg.id)"
-                >
+                <q-btn flat round dense size="sm" color="red-4" icon="delete_outline" @click="removeHlsSegment(seg.id)">
                   <q-tooltip class="bg-dark text-white">删除该分片</q-tooltip>
                 </q-btn>
               </div>
@@ -618,106 +297,57 @@
     <!-- 播放区 / 下载区：左右布局；左列下载列表，播放区在点「播放」后于右列展开 -->
     <div class="link-source-stage" :class="{ 'link-source-stage-split': embedded }">
       <!-- 左列：下载列表（点「下载」即出现在这里；重新添加链接不会清空） -->
-      <div
-        v-if="linkTab === 'hls' && hlsDownloadList.length"
-        class="link-source-stage-download"
-      >
+      <div v-if="linkTab === 'hls' && hlsDownloadList.length" class="link-source-stage-download">
         <div class="hls-download-list-panel">
           <div class="hls-download-list-header">
             <q-icon name="download_done" size="16px" color="green-4" />
-            <span
-              class="hls-download-list-title hls-download-stat-btn"
+            <span class="hls-download-list-title hls-download-stat-btn"
               :class="{ 'hls-download-stat-active': hlsDownloadFilter === 'all' }"
-              @click="toggleDownloadFilter('all')"
-              >下载列表 · {{ hlsDownloadStats.total }}</span
-            >
+              @click="toggleDownloadFilter('all')">下载列表
+              · {{ hlsDownloadStats.total }}</span>
             <!-- 点状态即筛选该状态的条目，再点一次取消筛选 -->
-            <span
-              class="hls-download-stat hls-download-stat-running hls-download-stat-btn"
-              :class="{
-                'hls-download-stat-active': hlsDownloadFilter === 'downloading',
-              }"
-              @click="toggleDownloadFilter('downloading')"
-            >
+            <span class="hls-download-stat hls-download-stat-running hls-download-stat-btn" :class="{
+              'hls-download-stat-active': hlsDownloadFilter === 'downloading',
+            }" @click="toggleDownloadFilter('downloading')">
               执行中 {{ hlsDownloadStats.downloading }}
             </span>
-            <span
-              class="hls-download-stat hls-download-stat-done hls-download-stat-btn"
+            <span class="hls-download-stat hls-download-stat-done hls-download-stat-btn"
               :class="{ 'hls-download-stat-active': hlsDownloadFilter === 'done' }"
-              @click="toggleDownloadFilter('done')"
-            >
+              @click="toggleDownloadFilter('done')">
               完成 {{ hlsDownloadStats.done }}
             </span>
-            <span
-              v-if="hlsDownloadStats.failed || hlsDownloadFilter === 'failed'"
+            <span v-if="hlsDownloadStats.failed || hlsDownloadFilter === 'failed'"
               class="hls-download-stat hls-download-stat-failed hls-download-stat-btn"
               :class="{ 'hls-download-stat-active': hlsDownloadFilter === 'failed' }"
-              @click="toggleDownloadFilter('failed')"
-            >
+              @click="toggleDownloadFilter('failed')">
               失败 {{ hlsDownloadStats.failed }}
             </span>
             <!-- 队列中：并行任务数已满，等有空闲槽位才真正开始 -->
-            <span
-              v-if="hlsDownloadStats.queued || hlsDownloadFilter === 'downloading'"
-              class="hls-download-stat hls-download-stat-queued hls-download-stat-btn"
-              :class="{
+            <span v-if="hlsDownloadStats.queued || hlsDownloadFilter === 'downloading'"
+              class="hls-download-stat hls-download-stat-queued hls-download-stat-btn" :class="{
                 'hls-download-stat-active': hlsDownloadFilter === 'downloading',
-              }"
-              @click="toggleDownloadFilter('downloading')"
-            >
+              }" @click="toggleDownloadFilter('downloading')">
               队列中 {{ hlsDownloadStats.queued }}
             </span>
             <q-space />
             <!-- 清空已完成 / 清空已失败：只删对应状态的任务记录，不删已下载的文件 -->
-            <q-btn
-              flat
-              dense
-              no-caps
-              size="sm"
-              color="green-4"
-              icon="delete_sweep"
-              label="清空已完成"
-              :disable="!hlsDownloadStats.done"
-              @click="clearDoneHlsDownloads"
-            >
-              <q-tooltip class="bg-dark text-white"
-                >删除已完成的任务记录，不会删除已下载的文件</q-tooltip
-              >
+            <q-btn flat dense no-caps size="sm" color="green-4" icon="delete_sweep" label="清空已完成"
+              :disable="!hlsDownloadStats.done" @click="clearDoneHlsDownloads">
+              <q-tooltip class="bg-dark text-white">删除已完成的任务记录，不会删除已下载的文件</q-tooltip>
             </q-btn>
-            <q-btn
-              flat
-              dense
-              no-caps
-              size="sm"
-              color="red-4"
-              icon="delete_sweep"
-              label="清空已失败"
-              :disable="!hlsDownloadStats.failed"
-              @click="clearFailedHlsDownloads"
-            >
-              <q-tooltip class="bg-dark text-white"
-                >删除失败与已取消的任务记录，不会删除已下载的文件</q-tooltip
-              >
+            <q-btn flat dense no-caps size="sm" color="red-4" icon="delete_sweep" label="清空已失败"
+              :disable="!hlsDownloadStats.failed" @click="clearFailedHlsDownloads">
+              <q-tooltip class="bg-dark text-white">删除失败与已取消的任务记录，不会删除已下载的文件</q-tooltip>
             </q-btn>
           </div>
           <div class="hls-download-list">
-            <div
-              v-for="item in hlsVisibleDownloadList"
-              :key="item.id"
-              class="hls-download-item"
-              :class="[
-                `hls-download-item-${hlsDownloadBucket(item)}`,
-                {
-                  'hls-download-item-playing': item.id === hlsPlayingDownloadId,
-                },
-              ]"
-            >
-              <q-icon
-                name="movie"
-                size="16px"
-                :color="hlsDownloadIconColor(item)"
-                class="hls-download-item-icon"
-              />
+            <div v-for="item in hlsVisibleDownloadList" :key="item.id" class="hls-download-item" :class="[
+              `hls-download-item-${hlsDownloadBucket(item)}`,
+              {
+                'hls-download-item-playing': item.id === hlsPlayingDownloadId,
+              },
+            ]">
+              <q-icon name="movie" size="16px" :color="hlsDownloadIconColor(item)" class="hls-download-item-icon" />
               <div class="hls-download-item-info">
                 <span class="hls-download-item-name" :title="item.target">{{
                   item.name
@@ -725,31 +355,15 @@
                 <span class="hls-download-item-meta">{{
                   hlsDownloadMeta(item)
                 }}</span>
-                <q-linear-progress
-                  v-if="item.status === 'downloading' || browserDownloadInProgress(item)"
-                  :value="
-                    item.status === 'downloading'
-                      ? item.progress / 100
-                      : (browserProgressRatio(item) ?? 0)
-                  "
-                  size="3px"
-                  :color="hlsDownloadIconColor(item)"
-                  track-color="rgba(148, 163, 184, 0.2)"
-                  class="hls-download-item-bar"
-                />
+                <q-linear-progress v-if="item.status === 'downloading' || browserDownloadInProgress(item)" :value="item.status === 'downloading'
+                  ? item.progress / 100
+                  : (browserProgressRatio(item) ?? 0)
+                  " size="3px" :color="hlsDownloadIconColor(item)" track-color="rgba(148, 163, 184, 0.2)"
+                  class="hls-download-item-bar" />
               </div>
               <!-- 取消：下载中中止任务，已结束则移除这条记录 -->
-              <q-btn
-                flat
-                round
-                dense
-                size="sm"
-                :color="item.status === 'downloading' ? 'red-4' : 'grey-5'"
-                :icon="
-                  item.status === 'downloading' ? 'close' : 'delete_outline'
-                "
-                @click="cancelHlsDownload(item.id)"
-              >
+              <q-btn flat round dense size="sm" :color="item.status === 'downloading' ? 'red-4' : 'grey-5'" :icon="item.status === 'downloading' ? 'close' : 'delete_outline'
+                " @click="cancelHlsDownload(item.id)">
                 <q-tooltip class="bg-dark text-white">
                   {{
                     item.status === 'downloading'
@@ -759,48 +373,22 @@
                 </q-tooltip>
               </q-btn>
               <!-- 重启：失败/已取消的任务复用服务端保存的播放列表重新下载 -->
-              <q-btn
-                v-if="item.status === 'failed' || item.status === 'canceled'"
-                flat
-                round
-                dense
-                size="sm"
-                color="orange-4"
-                icon="restart_alt"
-                @click="restartHlsDownload(item.id)"
-              >
-                <q-tooltip class="bg-dark text-white"
-                  >重新启动该下载任务</q-tooltip
-                >
+              <q-btn v-if="item.status === 'failed' || item.status === 'canceled'" flat round dense size="sm"
+                color="orange-4" icon="restart_alt" @click="restartHlsDownload(item.id)">
+                <q-tooltip class="bg-dark text-white">重新启动该下载任务</q-tooltip>
               </q-btn>
               <!-- 浏览器下载（前端 JS）：优先用服务端保存的播放列表副本，
                    拿不到（失败任务早期中断）就用当前面板已解析的分片；
                    全程在浏览器内拉取分片、解密合并后另存本机，不经服务端任务 -->
-              <q-btn
-                flat
-                round
-                dense
-                size="sm"
-                color="orange-4"
-                icon="download_for_offline"
-                :disable="browserDownloadInProgress(item)"
-                @click="downloadHlsInBrowser(item)"
-              >
+              <q-btn flat round dense size="sm" color="orange-4" icon="download_for_offline"
+                :disable="browserDownloadInProgress(item)" @click="downloadHlsInBrowser(item)">
                 <q-tooltip class="bg-dark text-white">
                   浏览器下载（前端直接拉取分片并存到本机，不经服务端；源站禁止跨域时失败）
                 </q-tooltip>
               </q-btn>
               <!-- 在线播放：直接播源站地址，不依赖下载是否完成 -->
-              <q-btn
-                flat
-                round
-                dense
-                size="sm"
-                color="teal-4"
-                icon="ondemand_video"
-                :disable="!item.sourceUrl"
-                @click="playHlsDownloadOnline(item)"
-              >
+              <q-btn flat round dense size="sm" color="teal-4" icon="ondemand_video" :disable="!item.sourceUrl"
+                @click="playHlsDownloadOnline(item)">
                 <q-tooltip class="bg-dark text-white">
                   {{
                     item.sourceUrl
@@ -810,16 +398,8 @@
                 </q-tooltip>
               </q-btn>
               <!-- 下载后播放：回放服务端已下载的文件 -->
-              <q-btn
-                flat
-                round
-                dense
-                size="sm"
-                color="green-4"
-                icon="play_arrow"
-                :disable="item.status !== 'done' || !item.playable"
-                @click="playHlsDownload(item)"
-              >
+              <q-btn flat round dense size="sm" color="green-4" icon="play_arrow"
+                :disable="item.status !== 'done' || !item.playable" @click="playHlsDownload(item)">
                 <q-tooltip class="bg-dark text-white">
                   {{
                     item.status !== 'done'
@@ -841,33 +421,13 @@
          只显示/隐藏而不销毁：video 元素常驻，任何时刻都能拿到它播放。
          点「播放」才展开，解析完成不显示；点「停止」后再次隐藏。
          与左列（分片列表 + 下载列表）并排，两者共同占满面板宽度 -->
-    <div
-      v-if="embedded"
-      v-show="embeddedActive && !playerStopped"
-      class="link-source-stage-play"
-    >
+    <div v-if="embedded" v-show="embeddedActive && !playerStopped" class="link-source-stage-play">
       <div class="link-source-player">
-        <video
-          ref="internalVideoRef"
-          class="link-source-video"
-          controls
-          playsinline
-          preload="metadata"
-        ></video>
+        <video ref="internalVideoRef" class="link-source-video" controls playsinline preload="metadata"></video>
         <!-- 停止：断开播放并隐藏播放器（HLS 会停止继续拉分片） -->
-        <q-btn
-          flat
-          round
-          dense
-          size="sm"
-          color="red-4"
-          icon="stop_circle"
-          class="link-source-player-stop"
-          @click="stopAndHidePlayer"
-        >
-          <q-tooltip class="bg-dark text-white"
-            >停止播放并隐藏播放器</q-tooltip
-          >
+        <q-btn flat round dense size="sm" color="red-4" icon="stop_circle" class="link-source-player-stop"
+          @click="stopAndHidePlayer">
+          <q-tooltip class="bg-dark text-white">停止播放并隐藏播放器</q-tooltip>
         </q-btn>
       </div>
     </div>
@@ -997,6 +557,8 @@ const {
   hlsUrlRows,
   updateHlsUrlRow,
   clearHlsUrlRows,
+  clearLinkInfo,
+  copyLinkInfo,
   hlsLoading,
   // 解析中：模板用它禁用解析按钮，缺了会一直是 undefined
   hlsParsing,
@@ -1094,6 +656,16 @@ const paramDraft = reactive({
   quick: false,
 });
 
+// 仅当「输入框有内容」或「已解析的分片列表非空」时才显示「复制链接」按钮；
+// 两者都为空时没有可复制的链接，隐藏按钮。
+const showLinkButton = computed(() => {
+  if (linkTab.value === 'hls') {
+    const hasRows = hlsUrlRows.value.some((r) => r.value.trim().length > 0);
+    return hasRows || hlsParsed.value;
+  }
+  return activeLinkValue.value.trim().length > 0;
+});
+
 function startEditParams() {
   paramDraft.concurrency = String(hlsDownloadConcurrency.value);
   paramDraft.parallel = String(hlsDownloadParallel.value);
@@ -1127,7 +699,7 @@ const hlsDownloadXcodeLabel = computed(() =>
   hlsXcodeSkipped.value
     ? '无需转码'
     : (hlsXcodeOptions.find((item) => item.value === hlsDownloadXcode.value)
-        ?.label ?? '下载后转码'),
+      ?.label ?? '下载后转码'),
 );
 
 /** 浏览器直下按钮文案：未进行时为固定文案，进行中显示实时百分比 */
@@ -1161,8 +733,8 @@ const hlsVisibleDownloadList = computed(() =>
   hlsDownloadFilter.value === 'all'
     ? hlsDownloadList.value
     : hlsDownloadList.value.filter(
-        (item) => hlsDownloadBucket(item) === hlsDownloadFilter.value,
-      ),
+      (item) => hlsDownloadBucket(item) === hlsDownloadFilter.value,
+    ),
 );
 
 /** 点表头的分组统计即切换过滤，再点一次回到全部 */
@@ -1209,26 +781,6 @@ async function copySegmentUrl(seg: HlsSegment) {
   });
 }
 
-async function copyAllSegmentUrls() {
-  const urls = hlsSegments.value
-    .filter((seg) => !isHlsAdSegment(seg))
-    .map((seg) => seg.url);
-  if (urls.length === 0) {
-    $q.notify({
-      type: 'warning',
-      message: '没有可复制的分片链接',
-      position: 'top',
-    });
-    return;
-  }
-  await copyText(urls.join('\n'));
-  $q.notify({
-    type: 'positive',
-    message: `已复制 ${urls.length} 个分片链接`,
-    position: 'top',
-    timeout: 1500,
-  });
-}
 
 // ── 右键填充输入框（剪切板 → 输入框） ────────────────────────────────────────
 /**
@@ -1316,8 +868,8 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
 }
 
 /* 左列两块撑满各自的行：面板变 flex 列，列表吃掉剩余高度并内部滚动 */
-.link-source-panel-playing > .hls-segment-panel,
-.link-source-panel-playing > .link-source-stage {
+.link-source-panel-playing>.hls-segment-panel,
+.link-source-panel-playing>.link-source-stage {
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -1349,20 +901,20 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
 }
 
 /* 顶部区块跨满两列 */
-.link-source-panel-playing > .link-tabs,
-.link-source-panel-playing > .magnet-input-wrapper {
+.link-source-panel-playing>.link-tabs,
+.link-source-panel-playing>.magnet-input-wrapper {
   grid-column: 1 / -1;
 }
 
 /* 其余区块（分片列表、下载列表）落在左列 */
-.link-source-panel-playing > * {
+.link-source-panel-playing>* {
   grid-column: 1;
   min-width: 0;
 }
 
 /* 播放器占右列：从第 3 行（列表开始处）跨到末尾，
    拉伸满整行高度，内部播放器用 height: 100% 铺满 */
-.link-source-panel-playing > .link-source-stage-play {
+.link-source-panel-playing>.link-source-stage-play {
   grid-column: 2;
   /* 跨分片列表 + 下载列表两行 = 弹窗去掉顶部后的全部高度 */
   grid-row: 3 / span 2;
@@ -1450,7 +1002,7 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
   color: rgba(196, 181, 253, 0.7);
   background: rgba(12, 12, 24, 0.6);
   border: 1px solid rgba(99, 102, 241, 0.22);
-  border-radius: 20px;
+  border-radius: 10px;
   cursor: pointer;
   transition:
     color 0.2s,
@@ -1467,20 +1019,26 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
 
 .link-tab-active {
   color: #fff;
-  background: linear-gradient(
-    135deg,
-    rgba(99, 102, 241, 0.5),
-    rgba(139, 92, 246, 0.45)
-  );
+  background: linear-gradient(135deg,
+      rgba(99, 102, 241, 0.5),
+      rgba(139, 92, 246, 0.45));
   border-color: rgba(139, 92, 246, 0.7);
   box-shadow: 0 0 14px rgba(99, 102, 241, 0.35);
 }
 
 /* ── 链接输入框 ────────────────────────────────────────────────────────────── */
+.magnet-input-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
 .magnet-input-wrapper {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
   background: rgba(12, 12, 24, 0.75);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
@@ -1502,6 +1060,33 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
 .magnet-icon {
   flex-shrink: 0;
   opacity: 0.8;
+}
+
+/* 下载设置按钮：常驻输入框左侧的图标按钮，与输入同行显示 */
+.magnet-setting-btn {
+  flex-shrink: 0;
+}
+
+/* 分片链接多行输入时，设置按钮与首行图标对齐 */
+.magnet-input-wrapper.magnet-input-multi .magnet-setting-btn {
+  margin-top: 6px;
+}
+
+/* 下载设置编辑行：输入框下方一行展开，与分片解析与否无关 */
+.hls-params-editor {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: rgba(12, 12, 24, 0.6);
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  border-radius: 14px;
+}
+
+.hls-params-editor .hls-param-input {
+  width: 92px;
 }
 
 .magnet-input {
@@ -1584,7 +1169,7 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
 .magnet-submit-btn {
   flex-shrink: 0;
   padding: 0 14px;
-  border-radius: 24px;
+  border-radius: 8px;
   background: rgba(99, 102, 241, 0.2);
   border: 1px solid rgba(99, 102, 241, 0.4);
   transition:
@@ -1740,12 +1325,11 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
 }
 
 .hls-quick-toggle :deep(.q-toggle__label) {
-  font-size: 0.74rem;
   color: rgba(224, 231, 255, 0.95);
 }
 
 .hls-param-input :deep(.q-field__control) {
-  height: 26px;
+  height: 36px;
   min-height: 26px;
   padding: 0 6px;
   border-radius: 8px;
@@ -2103,12 +1687,13 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
 
 /* 容器不够宽时左右布局会挤压两侧，回落到上下排列 */
 @media (max-width: 900px) {
+
   /* 不够宽就回落单列，仍然是比例划分 */
   .link-source-panel-playing {
     grid-template-columns: 1fr;
   }
 
-  .link-source-panel-playing > .link-source-stage-play {
+  .link-source-panel-playing>.link-source-stage-play {
     grid-column: 1;
     grid-row: auto;
     width: 100%;

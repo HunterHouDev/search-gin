@@ -1364,6 +1364,44 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     hlsUrlRows.value = [createHlsUrlRow()];
   }
 
+  /** 清除已输入的链接信息：磁力链 / 普通链接清空输入框，分片链接重置为多行首行，
+   *  并一并清空已解析的分片列表（否则「取消」后分片列表内容还在）。 */
+  function clearLinkInfo() {
+    activeLinkValue.value = '';
+    hlsUrlRows.value = [createHlsUrlRow()];
+    resetHlsParse();
+  }
+
+  /** 复制当前链接到剪贴板：HLS 多行地址按行合并，磁力链 / 视频直链取输入框内容 */
+  async function copyLinkInfo() {
+    let text = '';
+    if (linkTab.value === 'hls') {
+      text = hlsUrlRows.value
+        .map((r) => r.value)
+        .filter((v) => v.trim().length > 0)
+        .join('\n');
+    } else {
+      text = activeLinkValue.value.trim();
+    }
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      $q.notify({
+        type: 'positive',
+        message: '链接已复制到剪贴板',
+        position: 'top',
+        timeout: 1500,
+      });
+    } catch {
+      $q.notify({
+        type: 'negative',
+        message: '复制失败，请手动复制',
+        position: 'top',
+        timeout: 2000,
+      });
+    }
+  }
+
   function removeHlsSegment(id: number) {
     hlsSegments.value = hlsSegments.value.filter((seg) => seg.id !== id);
   }
@@ -2442,6 +2480,8 @@ export function useLinkPlayback($q: QVueGlobals, opts: LinkPlaybackOptions) {
     hlsUrlRows,
     updateHlsUrlRow,
     clearHlsUrlRows,
+    clearLinkInfo,
+    copyLinkInfo,
     hlsLoading,
     hlsParsing,
     linkActionLabel,

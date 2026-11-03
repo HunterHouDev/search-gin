@@ -358,6 +358,53 @@ func TestMaybeAutoRetryHls_RestartsWhenIdle(t *testing.T) {
 	assert.Equal(t, 1, hlsAutoRetryCount(task.ID))
 }
 
+// TestPollTasks_DownloadPoolCapsConcurrentTasks 端到端校验「并行」限制的是
+// 同时执行的下载任务数：把下载池上限设为 2，提交 6 个等待中的分片下载，
+// 一次 pollTasks 后应当只有 2 个被标记为「执行中」，其余保持「等待」。
+func TestPollTasks_DownloadPoolCapsConcurrentTasks(t *testing.T) {
+	resetTaskSlotsForTest()
+
+	setting := GetOSSetting()
+	setting.DownloadMaxConcurrent = 2
+	setting.TaskMaxConcurrent = 8
+	SetOSSetting(setting)
+	ResizeDownloadSlots(2)
+	ResizeTaskSlots(8)
+
+	tasks := make(map[string]model.TransferTaskModel, 6)
+	for i := 0; i < 6; i++ {
+		id := hlsTestID("dl-cap-") + "-" + string(rune('a'+i))
+		tasks[id] = model.TransferTaskModel{
+			ID:         id,
+			Type:       model.TaskTypeHls,
+			Status:     model.StatusPending,
+			CreateTime: time.Now(),
+		}
+	}
+	replaceTransferTasks(t, tasks)
+	PendingTaskCount.Store(6)
+
+	svc := &searchService{settings: DefaultSettings()}
+	svc.pollTasks()
+
+	executing, pending := 0, 0
+	TransferTaskMutex.RLock()
+	for _, tk := range TransferTask {
+		switch tk.Status {
+		case model.StatusExecuting:
+			executing++
+		case model.StatusPending:
+			pending++
+		}
+	}
+	TransferTaskMutex.RUnlock()
+
+	// 同步窗口内 markTaskExecuting 已生效：最多 2 个执行中（池上限），其余仍等待
+	assert.LessOrEqual(t, executing, 2, "下载池上限为 2，执行中任务不应超过 2")
+	assert.Equal(t, 2, executing, "6 个等待、上限 2，应当恰好启动 2 个")
+	assert.Equal(t, 4, pending, "其余 4 个应保持在等待状态")
+}
+
 // 分片下载队列里还有执行中的下载任务时不抢占：自动重跑只发生在下载真正空闲时。
 // 注意：转码/剪辑/合并属于另一套槽位池，它们的忙碌不应再阻塞下载的自动重跑
 // （这正是「下载与转码互不阻塞」要达成的效果）。

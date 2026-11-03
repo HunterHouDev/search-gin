@@ -56,6 +56,14 @@ var taskSignal = make(chan struct{}, 1)
 // InitTaskSlots 初始化两类并发槽位（由 StartBackgroundTasks 调用）
 func InitTaskSlots(processMax, downloadMax int) {
 	taskSlotsOnce.Do(func() {
+		// 下载池未显式配置时，沿用处理池上限，避免被默认放大到 4：
+		// 老用户只设过 taskMaxConcurrent，应当同等覆盖到下载池。
+		if processMax <= 0 {
+			processMax = defaultTaskParallel
+		}
+		if downloadMax <= 0 {
+			downloadMax = processMax
+		}
 		resizeProcessSlots(processMax)
 		resizeDownloadSlots(downloadMax)
 	})

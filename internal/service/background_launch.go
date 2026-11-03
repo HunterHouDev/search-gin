@@ -61,6 +61,20 @@ func InitSetting() {
 
 	SetOSSetting(dict)
 
+	// 迁移：拆分下载池前，「并行」写的是 taskMaxConcurrent（唯一共享池，
+	// 下载+转码都被它摁住）。拆分后下载池独立成 downloadMaxConcurrent，
+	// 老配置里没有这个字段，启动会被默认成 4，于是下载反而比用户预期的 2 更多。
+	// 这里在字段缺失时沿用已有的 taskMaxConcurrent，保持用户原有的并发预期。
+	if dict.DownloadMaxConcurrent <= 0 && dict.TaskMaxConcurrent > 0 {
+		dict.DownloadMaxConcurrent = dict.TaskMaxConcurrent
+		SetOSSetting(dict)
+		if err := FlushDictionary(filepath.Join(curDir, SettingFileName)); err != nil {
+			utils.ErrorFormat("迁移 downloadMaxConcurrent 失败: %v", err)
+		} else {
+			utils.InfoFormat("迁移 downloadMaxConcurrent = %d（沿用 taskMaxConcurrent）", dict.DownloadMaxConcurrent)
+		}
+	}
+
 	// 预缓存管理员密码的 bcrypt 哈希，避免每次登录时重复计算
 	CacheAdminPasswordHash()
 
