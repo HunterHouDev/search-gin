@@ -8,7 +8,7 @@
     <div class="link-tabs">
       <button v-for="tab in visibleTabs" :key="tab.value" type="button" class="link-tab"
         :class="{ 'link-tab-active': linkTab === tab.value }" @click="switchLinkTab(tab.value)">
-        <q-icon :name="tab.icon" size="22px" />
+        <q-icon :name="tab.icon" size="24px" />
         <span>{{ tab.label }}</span>
       </button>
     </div>
@@ -85,12 +85,12 @@
               <template v-if="hlsAdCount">（广告 {{ hlsAdCount }}，已排除）</template>
             </span>
             <q-space />
-            <q-btn flat dense no-caps size="sm" color="indigo-4" icon="restart_alt" label="恢复"
+            <q-btn flat dense no-caps size="md" color="indigo-4" icon="restart_alt" label="恢复"
               :disable="!hlsRemovedCount" @click="restoreHlsSegments">
               <q-tooltip class="bg-dark text-white">恢复全部已删除分片（广告仍保持置灰并排除）</q-tooltip>
             </q-btn>
             <!-- 广告黑名单：可查看 / 取消单条 / 清空 -->
-            <q-btn v-if="hlsAdBlacklist.length" flat dense no-caps size="sm" color="negative" icon="block"
+            <q-btn v-if="hlsAdBlacklist.length" flat dense no-caps size="md" color="negative" icon="block"
               :label="`广告黑名单 ${hlsAdBlacklist.length}`">
               <q-tooltip class="bg-dark text-white">被标记为广告的分片类：列表中置灰，下载 / 播放时忽略</q-tooltip>
               <q-menu dark class="hls-ad-menu">
@@ -124,8 +124,8 @@
               label="取消" @click="clearLinkInfo">
               <q-tooltip class="bg-dark text-white">清除已输入的链接信息</q-tooltip>
             </q-btn>
-            <q-btn unelevated dense size="md" color="primary" icon="play_arrow" label="播放" class="hls-play-btn"
-              :loading="hlsLoading" :disable="!hlsKeptCount" @click="playHlsRemaining">
+            <q-btn unelevated size="md" color="orange" icon="play_arrow" label="播放" :loading="hlsLoading"
+              :disable="!hlsKeptCount" @click="playHlsRemaining">
               <q-tooltip class="bg-dark text-white">{{
                 hlsSourceCount > 1
                   ? `按顺序合并播放 ${hlsSourceCount} 个源的 ${hlsKeptCount} 个分片`
@@ -174,7 +174,7 @@
                 </q-tooltip>
               </q-input>
             </span>
-            <q-btn-dropdown flat dense no-caps size="sm" class="hls-dir-btn"
+            <q-btn-dropdown flat dense no-caps size="md" class="hls-dir-btn"
               :color="hlsDownloadDir ? 'green-4' : 'indigo-4'"
               :icon="hlsDownloadDir ? 'folder_special' : 'create_new_folder'" :label="hlsDownloadDir || '下载目录'">
               <q-list dense class="hls-dir-menu">
@@ -202,7 +202,7 @@
               </q-tooltip>
             </q-btn-dropdown>
             <!-- 下载完成后自动转码：默认不转，选中后由服务端在落盘后按路径建转码任务 -->
-            <q-btn-dropdown flat dense no-caps size="sm" class="hls-xcode-btn" :color="hlsXcodeSkipped
+            <q-btn-dropdown flat dense no-caps size="md" class="hls-xcode-btn" :color="hlsXcodeSkipped
               ? 'grey-6'
               : hlsDownloadXcode
                 ? 'teal-4'
@@ -224,13 +224,12 @@
               }}</q-tooltip>
             </q-btn-dropdown>
             <!-- 点下载后任务交给服务端执行，本地分片列表随之清空，可继续粘贴下一组地址 -->
-            <q-btn dense no-caps size="md" color="primary" icon="download" label="下载" class="hls-download-btn"
-              :disable="!hlsKeptCount" @click="downloadHls">
+            <q-btn size="md" color="primary" icon="download" label="下载" :disable="!hlsKeptCount" @click="downloadHls">
               <q-tooltip class="bg-dark text-white">由服务端下载 {{ hlsKeptCount }} 个分片并合并保存，关闭窗口 /
                 刷新页面都不会中断</q-tooltip>
             </q-btn>
             <!-- 浏览器直下（前端备用）：放在服务端下载按钮旁边，不经服务端直接拉当前分片列表合并另存 -->
-            <q-btn flat dense no-caps size="sm" color="deep-orange-4" icon="cloud_download" :label="browserNowLabel"
+            <q-btn flat dense no-caps size="md" color="deep-orange-4" icon="cloud_download" :label="browserNowLabel"
               class="hls-download-btn" :disable="!hlsKeptCount || browserNowInProgress()"
               @click="downloadHlsInBrowserNow">
               <q-tooltip class="bg-dark text-white">浏览器直接下载当前 {{ hlsKeptCount }}
@@ -331,11 +330,11 @@
             </span>
             <q-space />
             <!-- 清空已完成 / 清空已失败：只删对应状态的任务记录，不删已下载的文件 -->
-            <q-btn flat dense no-caps size="sm" color="green-4" icon="delete_sweep" label="清空已完成"
+            <q-btn flat dense no-caps size="md" color="green-4" icon="delete_sweep" label="清空已完成"
               :disable="!hlsDownloadStats.done" @click="clearDoneHlsDownloads">
               <q-tooltip class="bg-dark text-white">删除已完成的任务记录，不会删除已下载的文件</q-tooltip>
             </q-btn>
-            <q-btn flat dense no-caps size="sm" color="red-4" icon="delete_sweep" label="清空已失败"
+            <q-btn flat dense no-caps size="md" color="red-4" icon="delete_sweep" label="清空已失败"
               :disable="!hlsDownloadStats.failed" @click="clearFailedHlsDownloads">
               <q-tooltip class="bg-dark text-white">删除失败与已取消的任务记录，不会删除已下载的文件</q-tooltip>
             </q-btn>
@@ -347,7 +346,7 @@
                 'hls-download-item-playing': item.id === hlsPlayingDownloadId,
               },
             ]">
-              <q-icon name="movie" size="16px" :color="hlsDownloadIconColor(item)" class="hls-download-item-icon" />
+              <q-icon name="movie" size="24px" :color="hlsDownloadIconColor(item)" class="hls-download-item-icon" />
               <div class="hls-download-item-info">
                 <span class="hls-download-item-name" :title="item.target">{{
                   item.name
@@ -362,7 +361,7 @@
                   class="hls-download-item-bar" />
               </div>
               <!-- 取消：下载中中止任务，已结束则移除这条记录 -->
-              <q-btn flat round dense size="sm" :color="item.status === 'downloading' ? 'red-4' : 'grey-5'" :icon="item.status === 'downloading' ? 'close' : 'delete_outline'
+              <q-btn flat round dense size="md" :color="item.status === 'downloading' ? 'red-4' : 'grey-5'" :icon="item.status === 'downloading' ? 'close' : 'delete_outline'
                 " @click="cancelHlsDownload(item.id)">
                 <q-tooltip class="bg-dark text-white">
                   {{
@@ -373,21 +372,21 @@
                 </q-tooltip>
               </q-btn>
               <!-- 重启：失败/已取消的任务复用服务端保存的播放列表重新下载 -->
-              <q-btn v-if="item.status === 'failed' || item.status === 'canceled'" flat round dense size="sm"
+              <q-btn v-if="item.status === 'failed' || item.status === 'canceled'" flat round dense size="md"
                 color="orange-4" icon="restart_alt" @click="restartHlsDownload(item.id)">
                 <q-tooltip class="bg-dark text-white">重新启动该下载任务</q-tooltip>
               </q-btn>
               <!-- 浏览器下载（前端 JS）：优先用服务端保存的播放列表副本，
                    拿不到（失败任务早期中断）就用当前面板已解析的分片；
                    全程在浏览器内拉取分片、解密合并后另存本机，不经服务端任务 -->
-              <q-btn flat round dense size="sm" color="orange-4" icon="download_for_offline"
+              <q-btn flat round dense size="md" color="orange-4" icon="download_for_offline"
                 :disable="browserDownloadInProgress(item)" @click="downloadHlsInBrowser(item)">
                 <q-tooltip class="bg-dark text-white">
                   浏览器下载（前端直接拉取分片并存到本机，不经服务端；源站禁止跨域时失败）
                 </q-tooltip>
               </q-btn>
               <!-- 在线播放：直接播源站地址，不依赖下载是否完成 -->
-              <q-btn flat round dense size="sm" color="teal-4" icon="ondemand_video" :disable="!item.sourceUrl"
+              <q-btn flat round dense size="md" color="teal-4" icon="ondemand_video" :disable="!item.sourceUrl"
                 @click="playHlsDownloadOnline(item)">
                 <q-tooltip class="bg-dark text-white">
                   {{
@@ -398,7 +397,7 @@
                 </q-tooltip>
               </q-btn>
               <!-- 下载后播放：回放服务端已下载的文件 -->
-              <q-btn flat round dense size="sm" color="green-4" icon="play_arrow"
+              <q-btn flat round dense size="md" color="green-4" icon="play_arrow"
                 :disable="item.status !== 'done' || !item.playable" @click="playHlsDownload(item)">
                 <q-tooltip class="bg-dark text-white">
                   {{
@@ -997,7 +996,6 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
   gap: 5px;
   padding: 5px 14px;
   font-family: inherit;
-  font-size: 0.78rem;
   white-space: nowrap;
   color: rgba(196, 181, 253, 0.7);
   background: rgba(12, 12, 24, 0.6);
@@ -1223,7 +1221,6 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
 }
 
 .hls-segment-summary {
-  font-size: 0.76rem;
   color: rgba(196, 181, 253, 0.85);
   white-space: nowrap;
   overflow: hidden;
@@ -1295,7 +1292,7 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
 }
 
 .hls-filename-input :deep(.q-field__control) {
-  height: 26px;
+  height: 36px;
   min-height: 26px;
   padding: 0 6px;
   border-radius: 8px;
@@ -1539,14 +1536,12 @@ defineExpose({ destroyHls, stopPlayback, cleanup });
 }
 
 .hls-download-list-title {
-  font-size: 0.76rem;
   color: rgba(134, 239, 172, 0.9);
   white-space: nowrap;
 }
 
 /* 下载列表统计：执行中 / 完成 / 失败 */
 .hls-download-stat {
-  font-size: 0.7rem;
   padding: 1px 6px;
   border-radius: 8px;
   white-space: nowrap;
